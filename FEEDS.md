@@ -1,0 +1,9 @@
+https://augengeradeaus.net/feed/
+https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml
+https://rss.dw.com/xml/rss-de-all
+http://feeds.bbci.co.uk/news/rss.xml
+https://www.bundeswehr.de/service/rss/de/517054/feed
+https://www.deutschlandfunk.de/nachrichten-100.rss
+https://www.deutschlandfunk.de/politikportal-100.rss
+https://netzpolitik.org/feed/
+https://linuxnews.de/feed/
