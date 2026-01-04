@@ -2,7 +2,7 @@ mod schema;
 
 use rusqlite::Connection;
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -39,11 +39,10 @@ impl Database {
         Ok(Self { conn })
     }
 
-    fn get_db_path(app: &AppHandle) -> Result<PathBuf, DbError> {
-        let data_dir = app
-            .path()
-            .app_data_dir()
-            .map_err(|_| DbError::NoDataDir)?;
+    fn get_db_path(_app: &AppHandle) -> Result<PathBuf, DbError> {
+        // Use project directory for database storage
+        let cwd = std::env::current_dir().map_err(|_| DbError::NoDataDir)?;
+        let data_dir = cwd.join("data");
         Ok(data_dir.join("fuckup.db"))
     }
 

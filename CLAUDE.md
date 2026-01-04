@@ -23,13 +23,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U.C.K.U.P. from the Illuminatus! trilogy. It uses Ollama for local AI processing with no cloud dependencies.
 
-**Status:** Phase 1.5 abgeschlossen (i18n & UX)
+**Status:** Phase 2 abgeschlossen (Core Features)
 
 ### Implementierte Phasen
 
 - [x] **Phase 1:** Grundgerüst (Tauri + Svelte, SQLite, Basis-UI)
 - [x] **Phase 1.5:** i18n & UX (Mehrsprachigkeit, Tooltips, Einstellungen)
-- [ ] **Phase 2:** Core Features (Feed-Parsing, Volltext, Ollama-Integration)
+- [x] **Phase 2:** Core Features (Feed-Parsing, Volltext, Ollama-Integration, Batch-Verarbeitung)
 - [ ] **Phase 3:** KI-Features (Discordian Analysis, Greyface Alert, Embeddings)
 - [ ] **Phase 4:** Polish (Operation Mindfuck, OPML, Shortcuts)
 - [ ] **Phase 5:** Release
@@ -202,7 +202,8 @@ The codebase uses terms from the Illuminatus! trilogy:
 
 | Code Term | Meaning | DB Table/Field |
 |-----------|---------|----------------|
-| Fnord | Unread article | `fnords.status = 'fnord'` |
+| Fnord | Changed article (with revisions) | `fnords.has_changes = TRUE` |
+| Concealed | Unread article | `fnords.status = 'concealed'` |
 | Illuminated | Read article | `fnords.status = 'illuminated'` |
 | Golden Apple | Favorited article | `fnords.status = 'golden_apple'` |
 | Pentacle | Feed source | `pentacles` |
@@ -226,26 +227,68 @@ Schema-Definition: `src-tauri/src/db/schema.rs`
 
 ## Tauri Commands (Frontend → Backend)
 
+### Pentacles (Feeds)
 | Command | Parameter | Return | Beschreibung |
 |---------|-----------|--------|--------------|
 | `get_pentacles` | - | `Vec<Pentacle>` | Alle Feeds mit Counts |
 | `add_pentacle` | `url`, `title?` | `Pentacle` | Feed hinzufügen |
 | `delete_pentacle` | `id` | - | Feed löschen |
+
+### Fnords (Artikel)
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
 | `get_fnords` | `filter?` | `Vec<Fnord>` | Artikel mit Filter |
 | `get_fnord` | `id` | `Fnord` | Einzelner Artikel |
 | `update_fnord_status` | `id`, `status` | - | Status ändern |
+| `get_changed_fnords` | - | `Vec<Fnord>` | Geänderte Artikel |
+| `acknowledge_changes` | `id` | - | Änderung bestätigen |
+| `get_fnord_revisions` | `fnord_id` | `Vec<FnordRevision>` | Revisionshistorie |
 
-## AI Processing Pipeline (Phase 2+)
+### Sync
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `sync_all_feeds` | - | `SyncResponse` | Alle Feeds aktualisieren |
+| `sync_feed` | `pentacle_id` | `SyncResultResponse` | Einzelnen Feed aktualisieren |
+
+### Retrieval (Volltext)
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `fetch_full_content` | `fnord_id` | `RetrievalResponse` | Volltext abrufen |
+| `fetch_truncated_articles` | `pentacle_id?`, `limit?` | `Vec<RetrievalResponse>` | Gekürzte Artikel abrufen |
+
+### Ollama (KI)
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `check_ollama` | - | `OllamaStatus` | Ollama-Verfügbarkeit prüfen |
+| `generate_summary` | `fnord_id`, `model` | `SummaryResponse` | Zusammenfassung generieren |
+| `analyze_article` | `fnord_id`, `model` | `AnalysisResponse` | Bias-Analyse durchführen |
+| `process_article` | `fnord_id`, `model` | `(Summary, Analysis)` | Beides kombiniert |
+| `get_unprocessed_count` | - | `UnprocessedCount` | Unverarbeitete Artikel zählen |
+| `process_batch` | `model`, `limit?` | `BatchResult` | Batch-Verarbeitung |
+| `pull_model` | `model` | `ModelPullResult` | Modell herunterladen |
+| `get_prompts` | - | `PromptTemplates` | Aktuelle Prompts laden |
+| `set_prompts` | `summary_prompt`, `analysis_prompt` | - | Prompts speichern |
+| `reset_prompts` | - | `PromptTemplates` | Prompts zurücksetzen |
+| `get_default_prompts` | - | `DefaultPrompts` | Standard-Prompts |
+
+### Settings
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_settings` | - | `Settings` | Alle Einstellungen |
+| `set_setting` | `key`, `value` | - | Einstellung speichern |
+| `get_setting` | `key` | `Option<String>` | Einstellung laden |
+
+## AI Processing Pipeline
 
 1. **Hagbard's Retrieval** - Fetch full text for truncated feeds
 2. **Immanentizing** - Generate embeddings via nomic-embed-text
 3. **Discordian Analysis** - Summarize, categorize, extract keywords via qwen3-vl:8b
 4. **Greyface Alert** - Bias detection (political_bias: -2 to +2, sachlichkeit: 0-4)
 
-## Ollama Setup (für Phase 2+)
+## Ollama Setup
 
 ```bash
-# Install models
+# Install models (can also be done via Settings UI)
 ollama pull qwen3-vl:8b
 ollama pull nomic-embed-text
 
@@ -259,7 +302,7 @@ sudo systemctl edit ollama.service
 
 ## Data Paths
 
-- **Linux:** `~/.local/share/fuckupRSS/`
-- **macOS:** `~/Library/Application Support/fuckupRSS/`
-
-Datenbank: `fuckup.db` (SQLite mit WAL-Modus)
+Datenbank wird im Projektordner gespeichert:
+- **Pfad:** `./data/fuckup.db` (relativ zum Arbeitsverzeichnis)
+- **Format:** SQLite mit WAL-Modus
+- **Hinweis:** `data/` ist in `.gitignore` eingetragen

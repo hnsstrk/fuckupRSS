@@ -1,7 +1,44 @@
 <script lang="ts">
   import { _, locale } from 'svelte-i18n';
-  import { appState } from "../stores/state.svelte";
+  import { appState, type FnordRevision } from "../stores/state.svelte";
   import Tooltip from "./Tooltip.svelte";
+
+  let showRevisions = $state(false);
+  let revisions = $state<FnordRevision[]>([]);
+  let loadingRevisions = $state(false);
+
+  async function loadRevisions() {
+    if (!appState.selectedFnord || loadingRevisions) return;
+    loadingRevisions = true;
+    revisions = await appState.getRevisions(appState.selectedFnord.id);
+    loadingRevisions = false;
+  }
+
+  function toggleRevisions() {
+    showRevisions = !showRevisions;
+    if (showRevisions && revisions.length === 0) {
+      loadRevisions();
+    }
+  }
+
+  // Auto-acknowledge when viewing a changed article
+  $effect(() => {
+    if (appState.selectedFnord?.has_changes) {
+      appState.acknowledgeChanges(appState.selectedFnord.id);
+    }
+  });
+
+  function decodeHtmlEntities(text: string): string {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+  }
+
+  function stripHtml(html: string): string {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div.textContent || div.innerText || '';
+  }
 
   function formatDate(dateStr: string | null): string {
     if (!dateStr) return "";
@@ -18,33 +55,31 @@
   }
 
   function getArticleTypeName(type: string | null): string {
-    if (!type) return $locale?.startsWith('de') ? "Unbekannt" : "Unknown";
+    if (!type) return $_('articleView.unknown');
     return $_(`articleType.${type}`);
   }
 
   function getBiasLabel(bias: number | null): string {
-    if (bias === null) return $locale?.startsWith('de') ? "Nicht bewertet" : "Not rated";
-    const isGerman = $locale?.startsWith('de');
+    if (bias === null) return $_('articleView.notRated');
     switch (bias) {
-      case -2: return isGerman ? "Stark links" : "Strong left";
-      case -1: return isGerman ? "Leicht links" : "Lean left";
+      case -2: return $_('articleView.biasStrongLeft');
+      case -1: return $_('articleView.biasLeanLeft');
       case 0: return $_('articleView.greyface.biasCenter');
-      case 1: return isGerman ? "Leicht rechts" : "Lean right";
-      case 2: return isGerman ? "Stark rechts" : "Strong right";
-      default: return isGerman ? "Unbekannt" : "Unknown";
+      case 1: return $_('articleView.biasLeanRight');
+      case 2: return $_('articleView.biasStrongRight');
+      default: return $_('articleView.unknown');
     }
   }
 
   function getSachlichkeitLabel(s: number | null): string {
-    if (s === null) return $locale?.startsWith('de') ? "Nicht bewertet" : "Not rated";
-    const isGerman = $locale?.startsWith('de');
+    if (s === null) return $_('articleView.notRated');
     switch (s) {
-      case 0: return isGerman ? "Stark emotional" : "Highly emotional";
-      case 1: return isGerman ? "Emotional" : "Emotional";
-      case 2: return isGerman ? "Gemischt" : "Mixed";
-      case 3: return isGerman ? "Überwiegend sachlich" : "Mostly objective";
-      case 4: return isGerman ? "Sachlich" : "Objective";
-      default: return isGerman ? "Unbekannt" : "Unknown";
+      case 0: return $_('articleView.sachHighlyEmotional');
+      case 1: return $_('articleView.sachEmotional');
+      case 2: return $_('articleView.sachMixed');
+      case 3: return $_('articleView.sachMostlyObjective');
+      case 4: return $_('articleView.sachObjective');
+      default: return $_('articleView.unknown');
     }
   }
 
@@ -106,6 +141,7 @@
             class="btn {fnord.status === 'golden_apple' ? 'btn-golden' : 'btn-default'}"
           >
             <Tooltip termKey="golden_apple">
+              <span class="btn-icon">{fnord.status === 'golden_apple' ? '✦' : '✧'}</span>
               <span>{fnord.status === "golden_apple" ? $_('terminology.golden_apple.term') : $_('actions.favorite')}</span>
             </Tooltip>
           </button>
@@ -114,28 +150,28 @@
               onclick={fetchFullContent}
               class="btn btn-default {appState.retrieving ? 'retrieving' : ''}"
               disabled={appState.retrieving}
-              title={$locale?.startsWith('de') ? 'Volltext abrufen (r)' : 'Fetch full text (r)'}
+              title="{$_('articleView.fetchFullText')} (r)"
             >
               {#if appState.retrieving}
                 <span class="spinner">⟳</span>
               {/if}
               <Tooltip termKey="hagbard">
-                <span>{$locale?.startsWith('de') ? 'Volltext' : 'Full Text'}</span>
+                <span>{$_('articleView.fullText')}</span>
               </Tooltip>
             </button>
           {/if}
-          {#if appState.ollamaStatus.available && !fnord.summary}
+          {#if appState.ollamaStatus.available && (!fnord.summary || (fnord.political_bias === null && fnord.sachlichkeit === null))}
             <button
               onclick={analyzeWithAI}
               class="btn btn-default {appState.analyzing ? 'retrieving' : ''}"
               disabled={appState.analyzing}
-              title={$locale?.startsWith('de') ? 'KI-Analyse' : 'AI Analysis'}
+              title={$_('articleView.aiAnalysis')}
             >
               {#if appState.analyzing}
                 <span class="spinner">⟳</span>
               {/if}
               <Tooltip termKey="discordian">
-                <span>{$locale?.startsWith('de') ? 'Analysieren' : 'Analyze'}</span>
+                <span>{$_('articleView.analyze')}</span>
               </Tooltip>
             </button>
           {/if}
@@ -145,6 +181,40 @@
         </div>
       </div>
     </div>
+
+    <!-- Revision History Section -->
+    {#if fnord.revision_count > 0}
+      <div class="revision-section">
+        <div class="section-content">
+          <button class="revision-header" onclick={toggleRevisions}>
+            <span class="revision-icon">{showRevisions ? '▼' : '▶'}</span>
+            <span class="revision-title">
+              {$_('articleView.changes.revisions')} ({fnord.revision_count})
+            </span>
+          </button>
+
+          {#if showRevisions}
+            <div class="revision-list">
+              {#if loadingRevisions}
+                <div class="revision-loading">{$_('articleList.loading')}</div>
+              {:else if revisions.length === 0}
+                <div class="revision-empty">{$_('articleView.changes.noRevisions')}</div>
+              {:else}
+                {#each revisions as revision, i}
+                  <div class="revision-item">
+                    <div class="revision-meta">
+                      <span class="revision-number">v{fnord.revision_count - i}</span>
+                      <span class="revision-date">{formatDate(revision.revision_at)}</span>
+                    </div>
+                    <div class="revision-title-text">{revision.title}</div>
+                  </div>
+                {/each}
+              {/if}
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
 
     <!-- Greyface Alert -->
     {#if fnord.political_bias !== null || fnord.sachlichkeit !== null || fnord.article_type}
@@ -156,7 +226,7 @@
           <div class="greyface-grid">
             {#if fnord.article_type}
               <div class="greyface-item">
-                <div class="item-label">{$locale?.startsWith('de') ? 'Artikeltyp' : 'Article Type'}</div>
+                <div class="item-label">{$_('articleView.articleType')}</div>
                 <div class="item-value">{getArticleTypeName(fnord.article_type)}</div>
               </div>
             {/if}
@@ -183,14 +253,14 @@
       </div>
     {/if}
 
-    <!-- Summary (Discordian Analysis) -->
-    {#if fnord.summary}
+    <!-- Summary (Discordian Analysis) - only shown if AI-processed -->
+    {#if fnord.processed_at && fnord.summary}
       <div class="summary-section">
         <div class="section-content">
           <div class="section-header">
             <Tooltip termKey="discordian">{$_('terminology.discordian.term')}</Tooltip>
           </div>
-          <p class="summary-text">{fnord.summary}</p>
+          <p class="summary-text">{stripHtml(fnord.summary)}</p>
         </div>
       </div>
     {/if}
@@ -202,12 +272,10 @@
           {#if fnord.content_full}
             {@html fnord.content_full}
           {:else if fnord.content_raw}
-            <p class="content-text">{fnord.content_raw}</p>
+            {@html fnord.content_raw}
           {:else}
             <p class="no-content">
-              {$locale?.startsWith('de')
-                ? 'Kein Inhalt verfügbar. Klicke auf "Im Browser öffnen" um den vollständigen Artikel zu lesen.'
-                : 'No content available. Click "Open in browser" to read the full article.'}
+              {$_('articleView.noContent')}
             </p>
           {/if}
         </article>
@@ -222,8 +290,8 @@
       </h2>
       <p class="empty-text">
         {$_('articleView.selectArticle')}<br />
-        {$locale?.startsWith('de') ? 'Benutze' : 'Use'} <kbd>j</kbd> {$locale?.startsWith('de') ? 'und' : 'and'}
-        <kbd>k</kbd> {$locale?.startsWith('de') ? 'zum Navigieren.' : 'to navigate.'}
+        {$_('articleView.useKeys')} <kbd>j</kbd> {$_('articleView.and')}
+        <kbd>k</kbd> {$_('articleView.toNavigate')}
       </p>
     </div>
   {/if}
@@ -323,6 +391,79 @@
     to { transform: rotate(360deg); }
   }
 
+  .revision-section {
+    padding: 0.5rem 1.5rem;
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .revision-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    padding: 0.25rem 0;
+    width: 100%;
+    text-align: left;
+  }
+
+  .revision-header:hover {
+    color: var(--text-primary);
+  }
+
+  .revision-icon {
+    font-size: 0.75rem;
+  }
+
+  .revision-title {
+    font-weight: 500;
+  }
+
+  .revision-list {
+    margin-top: 0.5rem;
+    padding-left: 1.25rem;
+    border-left: 2px solid var(--border-default);
+  }
+
+  .revision-item {
+    padding: 0.5rem 0 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border-muted);
+  }
+
+  .revision-item:last-child {
+    border-bottom: none;
+  }
+
+  .revision-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+  }
+
+  .revision-number {
+    font-weight: 600;
+    color: var(--accent-primary);
+  }
+
+  .revision-title-text {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+  }
+
+  .revision-loading,
+  .revision-empty {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    padding: 0.5rem 0;
+  }
+
   .greyface-section,
   .summary-section {
     padding: 1rem 1.5rem;
@@ -413,11 +554,6 @@
     padding-left: 1rem;
     color: var(--text-secondary);
     margin: 1rem 0;
-  }
-
-  .content-text {
-    white-space: pre-wrap;
-    margin: 0;
   }
 
   .no-content {

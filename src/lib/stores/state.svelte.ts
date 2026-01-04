@@ -26,11 +26,26 @@ export interface Fnord {
   summary: string | null;
   image_url: string | null;
   published_at: string | null;
-  status: "fnord" | "illuminated" | "golden_apple";
+  processed_at: string | null;
+  status: "concealed" | "illuminated" | "golden_apple";
   political_bias: number | null;
   sachlichkeit: number | null;
   quality_score: number | null;
   article_type: string | null;
+  has_changes: boolean;
+  changed_at: string | null;
+  revision_count: number;
+}
+
+export interface FnordRevision {
+  id: number;
+  fnord_id: number;
+  title: string;
+  author: string | null;
+  content_raw: string | null;
+  summary: string | null;
+  content_hash: string;
+  revision_at: string;
 }
 
 export interface FnordFilter {
@@ -64,6 +79,10 @@ export interface RetrievalResponse {
 export interface OllamaStatus {
   available: boolean;
   models: string[];
+  recommended_main: string;
+  recommended_embedding: string;
+  has_recommended_main: boolean;
+  has_recommended_embedding: boolean;
 }
 
 export interface SummaryResponse {
@@ -86,6 +105,26 @@ export interface AnalysisResponse {
   error: string | null;
 }
 
+export interface UnprocessedCount {
+  total: number;
+  with_content: number;
+}
+
+export interface BatchProgress {
+  current: number;
+  total: number;
+  fnord_id: number;
+  title: string;
+  success: boolean;
+  error: string | null;
+}
+
+export interface BatchResult {
+  processed: number;
+  succeeded: number;
+  failed: number;
+}
+
 // Svelte 5 runes-based state
 class AppState {
   pentacles = $state<Pentacle[]>([]);
@@ -98,8 +137,22 @@ class AppState {
   analyzing = $state(false);
   error = $state<string | null>(null);
   lastSyncResult = $state<SyncResponse | null>(null);
-  ollamaStatus = $state<OllamaStatus>({ available: false, models: [] });
+  ollamaStatus = $state<OllamaStatus>({
+    available: false,
+    models: [],
+    recommended_main: '',
+    recommended_embedding: '',
+    has_recommended_main: false,
+    has_recommended_embedding: false
+  });
   selectedModel = $state<string | null>(null);
+  changedFnords = $state<Fnord[]>([]);
+  selectedView = $state<"all" | "changed" | "pentacle">("all");
+
+  // Batch processing state
+  batchProcessing = $state(false);
+  batchProgress = $state<BatchProgress | null>(null);
+  unprocessedCount = $state<UnprocessedCount>({ total: 0, with_content: 0 });
 
   get selectedPentacle(): Pentacle | undefined {
     return this.pentacles.find((p) => p.id === this.selectedPentacleId);
@@ -111,6 +164,10 @@ class AppState {
 
   get totalUnread(): number {
     return this.pentacles.reduce((sum, p) => sum + p.unread_count, 0);
+  }
+
+  get changedCount(): number {
+    return this.changedFnords.length;
   }
 
   async loadPentacles(): Promise<void> {
@@ -172,7 +229,7 @@ class AppState {
 
   async updateFnordStatus(
     id: number,
-    status: "fnord" | "illuminated" | "golden_apple"
+    status: "concealed" | "illuminated" | "golden_apple"
   ): Promise<void> {
     try {
       await invoke("update_fnord_status", { id, status });
@@ -204,7 +261,7 @@ class AppState {
     // Auto-mark as read when selecting
     if (id !== null) {
       const fnord = this.fnords.find((f) => f.id === id);
-      if (fnord && fnord.status === "fnord") {
+      if (fnord && fnord.status === "concealed") {
         this.updateFnordStatus(id, "illuminated");
       }
     }
@@ -355,7 +412,14 @@ class AppState {
       return status;
     } catch (e) {
       console.error("Failed to check Ollama:", e);
-      this.ollamaStatus = { available: false, models: [] };
+      this.ollamaStatus = {
+        available: false,
+        models: [],
+        recommended_main: '',
+        recommended_embedding: '',
+        has_recommended_main: false,
+        has_recommended_embedding: false
+      };
       return this.ollamaStatus;
     }
   }
@@ -376,6 +440,7 @@ class AppState {
         const fnord = this.fnords.find((f) => f.id === fnordId);
         if (fnord) {
           fnord.summary = result.summary;
+          fnord.processed_at = new Date().toISOString();
         }
       }
 
@@ -423,6 +488,126 @@ class AppState {
   async processArticle(fnordId: number): Promise<void> {
     await this.generateSummary(fnordId);
     await this.analyzeArticle(fnordId);
+  }
+
+  // Changed articles (Fnord view)
+  async loadChangedFnords(): Promise<void> {
+    try {
+      this.loading = true;
+      this.error = null;
+      this.changedFnords = await invoke<Fnord[]>("get_changed_fnords");
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to load changed fnords:", e);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async acknowledgeChanges(id: number): Promise<void> {
+    try {
+      await invoke("acknowledge_changes", { id });
+      // Update local state
+      const fnord = this.fnords.find((f) => f.id === id);
+      if (fnord) {
+        fnord.has_changes = false;
+      }
+      // Remove from changedFnords list
+      this.changedFnords = this.changedFnords.filter((f) => f.id !== id);
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to acknowledge changes:", e);
+    }
+  }
+
+  async resetAllChanges(): Promise<number> {
+    try {
+      const count = await invoke<number>("reset_all_changes");
+      // Reset local state
+      this.changedFnords = [];
+      this.fnords.forEach((f) => {
+        f.has_changes = false;
+      });
+      return count;
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to reset changes:", e);
+      return 0;
+    }
+  }
+
+  async getRevisions(fnordId: number): Promise<FnordRevision[]> {
+    try {
+      return await invoke<FnordRevision[]>("get_fnord_revisions", { fnordId });
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to get revisions:", e);
+      return [];
+    }
+  }
+
+  selectView(view: "all" | "changed" | "pentacle"): void {
+    this.selectedView = view;
+    this.selectedFnordId = null;
+
+    if (view === "changed") {
+      this.selectedPentacleId = null;
+      this.loadChangedFnords();
+      // Use changedFnords for display
+      this.fnords = this.changedFnords;
+    } else if (view === "all") {
+      this.selectedPentacleId = null;
+      this.loadFnords();
+    }
+    // "pentacle" view is handled by selectPentacle
+  }
+
+  // ============================================================
+  // BATCH PROCESSING (Fnord Processing)
+  // ============================================================
+
+  async loadUnprocessedCount(): Promise<void> {
+    try {
+      this.unprocessedCount = await invoke<UnprocessedCount>("get_unprocessed_count");
+    } catch (e) {
+      console.error("Failed to get unprocessed count:", e);
+    }
+  }
+
+  async startBatchProcessing(limit?: number): Promise<BatchResult | null> {
+    if (this.batchProcessing || !this.ollamaStatus.available) return null;
+
+    const model = this.selectedModel || this.ollamaStatus.models[0];
+    if (!model) return null;
+
+    this.batchProcessing = true;
+    this.batchProgress = null;
+    this.error = null;
+
+    try {
+      const result = await invoke<BatchResult>("process_batch", {
+        model,
+        limit: limit ?? 50,
+      });
+
+      // Refresh data after batch processing
+      await this.loadFnords();
+      await this.loadPentacles();
+      await this.loadUnprocessedCount();
+
+      return result;
+    } catch (e) {
+      this.error = String(e);
+      console.error("Batch processing failed:", e);
+      return null;
+    } finally {
+      this.batchProcessing = false;
+      this.batchProgress = null;
+    }
+  }
+
+  updateBatchProgress(progress: BatchProgress): void {
+    this.batchProgress = progress;
   }
 }
 

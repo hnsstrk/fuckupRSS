@@ -26,5 +26,8 @@ Thumbs.db
 # Tauri
 src-tauri/target/
 
+# Database
+data/
+
 # npm
 package-lock.json

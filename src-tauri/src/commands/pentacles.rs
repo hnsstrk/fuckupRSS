@@ -32,7 +32,7 @@ pub fn get_pentacles(state: State<AppState>) -> Result<Vec<Pentacle>, String> {
                 p.icon_url,
                 p.default_quality,
                 COUNT(f.id) as article_count,
-                COUNT(CASE WHEN f.status = 'fnord' THEN 1 END) as unread_count
+                COUNT(CASE WHEN f.status = 'concealed' THEN 1 END) as unread_count
             FROM pentacles p
             LEFT JOIN fnords f ON f.pentacle_id = p.id
             GROUP BY p.id

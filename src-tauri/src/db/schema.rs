@@ -1,5 +1,32 @@
 use rusqlite::Connection;
 
+/// Run migrations for existing databases
+fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
+    // Check if content_hash column exists
+    let has_content_hash: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('fnords') WHERE name = 'content_hash'")?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_content_hash {
+        // Add new columns for change detection
+        conn.execute_batch(
+            r#"
+            ALTER TABLE fnords ADD COLUMN content_hash TEXT;
+            ALTER TABLE fnords ADD COLUMN has_changes BOOLEAN DEFAULT FALSE;
+            ALTER TABLE fnords ADD COLUMN changed_at DATETIME;
+            ALTER TABLE fnords ADD COLUMN revision_count INTEGER DEFAULT 0;
+            "#,
+        )?;
+    }
+
+    // Create index for has_changes (after migration ensures column exists)
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_fnords_has_changes ON fnords(has_changes);"
+    )?;
+
+    Ok(())
+}
+
 pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         r#"
@@ -58,7 +85,7 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             read_at DATETIME,
 
             -- Status
-            status TEXT DEFAULT 'fnord' CHECK(status IN ('fnord', 'illuminated', 'golden_apple')),
+            status TEXT DEFAULT 'concealed' CHECK(status IN ('concealed', 'illuminated', 'golden_apple')),
             full_text_fetched BOOLEAN DEFAULT FALSE,
 
             -- Greyface Alert
@@ -70,9 +97,38 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             -- Relevanz
             relevance_score REAL DEFAULT 0.0,
 
+            -- Änderungserkennung
+            content_hash TEXT,
+            has_changes BOOLEAN DEFAULT FALSE,
+            changed_at DATETIME,
+            revision_count INTEGER DEFAULT 0,
+
             -- Constraints
             FOREIGN KEY (pentacle_id) REFERENCES pentacles(id) ON DELETE CASCADE,
             UNIQUE(pentacle_id, guid)
+        );
+
+        -- ============================================================
+        -- FNORD_REVISIONS (Artikel-Versionshistorie)
+        -- ============================================================
+        CREATE TABLE IF NOT EXISTS fnord_revisions (
+            id INTEGER PRIMARY KEY,
+            fnord_id INTEGER NOT NULL,
+
+            -- Snapshot der Felder zum Zeitpunkt der Revision
+            title TEXT NOT NULL,
+            author TEXT,
+            content_raw TEXT,
+            summary TEXT,
+
+            -- Hash zur schnellen Vergleichsprüfung
+            content_hash TEXT NOT NULL,
+
+            -- Zeitstempel
+            revision_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+            -- Constraint
+            FOREIGN KEY (fnord_id) REFERENCES fnords(id) ON DELETE CASCADE
         );
 
         -- ============================================================
@@ -123,6 +179,20 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         );
 
         -- ============================================================
+        -- SETTINGS (Benutzereinstellungen)
+        -- ============================================================
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
+        -- Default settings
+        INSERT OR IGNORE INTO settings (key, value) VALUES
+            ('locale', 'de'),
+            ('theme', 'mocha'),
+            ('showTerminologyTooltips', 'true');
+
+        -- ============================================================
         -- INDIZES
         -- ============================================================
         CREATE INDEX IF NOT EXISTS idx_fnords_status ON fnords(status);
@@ -132,6 +202,7 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         CREATE INDEX IF NOT EXISTS idx_fnords_relevance ON fnords(relevance_score DESC);
         CREATE INDEX IF NOT EXISTS idx_pentacles_last_sync ON pentacles(last_sync);
         CREATE INDEX IF NOT EXISTS idx_immanentize_count ON immanentize(count DESC);
+        CREATE INDEX IF NOT EXISTS idx_revisions_fnord ON fnord_revisions(fnord_id, revision_at DESC);
 
         -- ============================================================
         -- DEFAULT SEPHIROTH (Kategorien)
@@ -149,6 +220,9 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             ('Gesundheit', '🏥', '#F43F5E');
         "#,
     )?;
+
+    // Run migrations for existing databases
+    run_migrations(conn)?;
 
     Ok(())
 }

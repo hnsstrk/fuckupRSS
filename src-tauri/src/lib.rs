@@ -34,6 +34,11 @@ pub fn run() {
             commands::fnords::get_fnords,
             commands::fnords::get_fnord,
             commands::fnords::update_fnord_status,
+            commands::fnords::get_changed_fnords,
+            commands::fnords::acknowledge_changes,
+            commands::fnords::get_fnord_revisions,
+            commands::fnords::get_changed_count,
+            commands::fnords::reset_all_changes,
             commands::sync::sync_all_feeds,
             commands::sync::sync_feed,
             commands::retrieval::fetch_full_content,
@@ -42,6 +47,16 @@ pub fn run() {
             commands::ollama::generate_summary,
             commands::ollama::analyze_article,
             commands::ollama::process_article,
+            commands::ollama::get_unprocessed_count,
+            commands::ollama::process_batch,
+            commands::ollama::pull_model,
+            commands::ollama::get_default_prompts,
+            commands::ollama::get_prompts,
+            commands::ollama::set_prompts,
+            commands::ollama::reset_prompts,
+            commands::settings::get_settings,
+            commands::settings::set_setting,
+            commands::settings::get_setting,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

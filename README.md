@@ -67,9 +67,10 @@ fuckupRSS verwendet durchgängig Begriffe aus der Illuminatus!-Trilogie:
 
 | Begriff | Bedeutung |
 |---------|-----------|
-| **Fnord** | Ungelesener Artikel |
-| **Illuminated** | Gelesener Artikel |
-| **Golden Apple** 🍎 | Favorit |
+| **Fnord** | Geänderter Artikel (mit Revisionen) |
+| **Concealed** ● | Ungelesener Artikel |
+| **Illuminated** ○ | Gelesener Artikel |
+| **Golden Apple** ✦ | Favorit |
 | **Pentacle** | Feed-Quelle |
 | **Sephiroth** | Kategorie |
 | **Immanentize** | Stichwort/Tag |
@@ -209,24 +210,25 @@ cargo tauri build
 
 ## Konfiguration
 
-Die Konfigurationsdatei liegt unter:
-- **Linux:** `~/.local/share/fuckupRSS/config.toml`
-- **macOS:** `~/Library/Application Support/fuckupRSS/config.toml`
+Alle Einstellungen werden in der lokalen SQLite-Datenbank gespeichert:
+- **Datenbank:** `./data/fuckup.db` (im Projektordner)
 
-```toml
-[sync]
-interval_minutes = 30
-sync_on_start = true
+Die Einstellungen können direkt in der App unter "Einstellungen" geändert werden:
 
-[ollama]
-host = "http://localhost:11434"
-main_model = "qwen3-vl:8b"
-embedding_model = "nomic-embed-text"
+### Allgemein
+- Sprache (Deutsch/English)
+- Theme (Mocha, Macchiato, Frappé, Latte)
+- Tooltips für Illuminatus!-Begriffe
 
-[ui]
-theme = "dark"
-show_greyface = true
-```
+### Ollama (KI)
+- Ollama-Status anzeigen
+- Modell-Auswahl (Hauptmodell, Embedding-Modell)
+- Empfohlene Modelle direkt herunterladen
+
+### Prompts
+- Anpassbare KI-Prompts für Zusammenfassung und Analyse
+- Reset auf Standard-Prompts
+- Ausgabesprache folgt den Spracheinstellungen
 
 ---
 
@@ -267,11 +269,9 @@ Die Sprache kann in den Einstellungen gewechselt werden.
 - [x] Anforderungsdokument
 - [x] **Phase 1** – Grundgerüst (Tauri + Svelte, SQLite, Basis-UI)
 - [x] **Phase 1.5** – i18n & UX (Mehrsprachigkeit, Tooltips, Einstellungen)
-- [ ] **v0.1** – Basis-Reader mit Feed-Sync
-- [ ] **v0.2** – KI-Integration (Zusammenfassung, Kategorien)
-- [ ] **v0.3** – Greyface Alert (Bias-Erkennung)
-- [ ] **v0.4** – Semantische Suche + Ähnliche Artikel
-- [ ] **v0.5** – Operation Mindfuck (Personalisierung)
+- [x] **Phase 2** – Core Features (Feed-Sync, Volltext, Ollama-Integration, Batch-Analyse)
+- [ ] **Phase 3** – KI-Features (Embeddings, Semantische Suche)
+- [ ] **Phase 4** – Polish (OPML, Shortcuts, Operation Mindfuck)
 - [ ] **v1.0** – Stabiler Release
 
 ---

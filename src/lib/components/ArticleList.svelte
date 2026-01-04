@@ -5,9 +5,9 @@
 
   function getStatusIcon(status: string): string {
     switch (status) {
-      case "fnord": return "●";
+      case "concealed": return "●";
       case "illuminated": return "○";
-      case "golden_apple": return "🍎";
+      case "golden_apple": return "✦";
       default: return "○";
     }
   }
@@ -94,7 +94,7 @@
         <div class="article-row">
           <span class="status-icon status-{fnord.status}">{getStatusIcon(fnord.status)}</span>
           <div class="article-content">
-            <h3 class="article-title {fnord.status === 'fnord' ? 'unread' : ''}">{fnord.title}</h3>
+            <h3 class="article-title {fnord.status === 'concealed' ? 'unread' : ''}">{fnord.title}</h3>
             <div class="article-meta">
               <span class="source">{fnord.pentacle_title || "Unknown"}</span>
               <span class="separator">·</span>
@@ -212,7 +212,7 @@
     margin-top: 0.125rem;
   }
 
-  .status-fnord { color: var(--fnord-color); }
+  .status-concealed { color: var(--fnord-color); }
   .status-illuminated { color: var(--illuminated-color); }
   .status-golden_apple { color: var(--golden-apple-color); }
 

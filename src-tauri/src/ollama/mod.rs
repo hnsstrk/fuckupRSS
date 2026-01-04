@@ -10,6 +10,8 @@ pub enum OllamaError {
     NotAvailable(String),
     #[error("Generation failed: {0}")]
     GenerationFailed(String),
+    #[error("Model pull failed: {0}")]
+    PullFailed(String),
 }
 
 #[derive(Serialize)]
@@ -32,6 +34,128 @@ struct ModelsResponse {
 #[derive(Deserialize, Serialize, Clone)]
 pub struct ModelInfo {
     pub name: String,
+    #[serde(default)]
+    pub size: Option<u64>,
+}
+
+#[derive(Serialize)]
+struct PullRequest {
+    name: String,
+    stream: bool,
+}
+
+#[derive(Deserialize)]
+struct PullResponse {
+    status: String,
+}
+
+/// Recommended models for fuckupRSS
+pub const RECOMMENDED_MAIN_MODEL: &str = "qwen3-vl:8b";
+pub const RECOMMENDED_EMBEDDING_MODEL: &str = "nomic-embed-text";
+
+/// Default prompts (English prompts with {language} placeholder for output language)
+pub const DEFAULT_SUMMARY_PROMPT: &str = r#"/no_think
+You are a news article analyst. Create a brief, factual summary of the following article in 2-3 sentences.
+
+IMPORTANT: Respond ONLY in {language}. Do not use any other language.
+Respond ONLY with the summary, without introduction or explanation.
+
+Article:
+{content}
+
+Summary:"#;
+
+pub const DEFAULT_ANALYSIS_PROMPT: &str = r#"/no_think
+Analyze the following news article for political bias and objectivity.
+
+IMPORTANT: Respond ONLY in the specified JSON format. Do not use any other format or add explanations.
+
+Respond in the following JSON format (ONLY the JSON, no explanation):
+{
+  "political_bias": <-2 to 2, where -2=strong left, 0=neutral, 2=strong right>,
+  "sachlichkeit": <0 to 4, where 0=highly emotional, 4=very objective>,
+  "article_type": "<news|opinion|analysis|satire|ad|unknown>"
+}
+
+Title: {title}
+Content: {content}
+
+JSON:"#;
+
+/// Get language name for prompt based on locale
+pub fn get_language_for_locale(locale: &str) -> &'static str {
+    match locale {
+        "de" => "German",
+        "en" => "English",
+        _ => "German", // Default to German
+    }
+}
+
+/// Extract and fix JSON object from LLM response, handling various formats
+fn extract_json_from_response(response: &str) -> String {
+    let trimmed = response.trim();
+
+    // Remove markdown code blocks
+    let without_markdown = trimmed
+        .trim_start_matches("```json")
+        .trim_start_matches("```JSON")
+        .trim_start_matches("```")
+        .trim_end_matches("```")
+        .trim();
+
+    // Try to find JSON object by looking for { and }
+    let json_str = if let Some(start) = without_markdown.find('{') {
+        if let Some(end) = without_markdown.rfind('}') {
+            if end > start {
+                without_markdown[start..=end].to_string()
+            } else {
+                without_markdown.to_string()
+            }
+        } else {
+            without_markdown.to_string()
+        }
+    } else {
+        without_markdown.to_string()
+    };
+
+    // Fix common LLM JSON mistakes
+    fix_json_string(&json_str)
+}
+
+/// Fix common JSON mistakes from LLM output
+fn fix_json_string(json: &str) -> String {
+    let mut result = json.to_string();
+
+    // Replace single quotes with double quotes (common LLM mistake)
+    // Be careful to only replace quotes that are likely JSON string delimiters
+    result = fix_quotes(&result);
+
+    // Remove trailing commas before } or ]
+    result = result.replace(",}", "}").replace(",]", "]");
+
+    result
+}
+
+/// Replace single quotes with double quotes in JSON-like strings
+fn fix_quotes(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let chars: Vec<char> = input.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        let c = chars[i];
+
+        if c == '\'' {
+            // Check if this looks like a JSON string delimiter
+            // (preceded by : or , or [ or { with optional whitespace, or followed by similar)
+            result.push('"');
+        } else {
+            result.push(c);
+        }
+        i += 1;
+    }
+
+    result
 }
 
 /// Ollama API client for local LLM inference
@@ -87,18 +211,64 @@ impl OllamaClient {
         self.list_models().await.is_ok()
     }
 
+    /// Pull/download a model from Ollama
+    pub async fn pull_model(&self, model_name: &str) -> Result<String, OllamaError> {
+        let url = format!("{}/api/pull", self.base_url);
+        let client = reqwest_new::Client::builder()
+            .timeout(Duration::from_secs(3600)) // 1 hour timeout for large models
+            .build()
+            .expect("Failed to create HTTP client");
+
+        let request = PullRequest {
+            name: model_name.to_string(),
+            stream: false,
+        };
+
+        let resp = client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| OllamaError::PullFailed(e.to_string()))?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(OllamaError::PullFailed(format!("Status {}: {}", status, body)));
+        }
+
+        let result: PullResponse = resp
+            .json()
+            .await
+            .map_err(|e| OllamaError::PullFailed(e.to_string()))?;
+
+        Ok(result.status)
+    }
+
+    /// Check if a specific model is installed
+    pub async fn has_model(&self, model_name: &str) -> bool {
+        match self.list_models().await {
+            Ok(models) => models.iter().any(|m| {
+                m.name == model_name || m.name.starts_with(&format!("{}:", model_name))
+            }),
+            Err(_) => false,
+        }
+    }
+
     /// Generate a summary for article content
     pub async fn summarize(&self, model: &str, content: &str) -> Result<String, OllamaError> {
-        let prompt = format!(
-            r#"Du bist ein Analyst für Nachrichtenartikel. Erstelle eine kurze, sachliche Zusammenfassung des folgenden Artikels in 2-3 Sätzen. Antworte NUR mit der Zusammenfassung, ohne Einleitung oder Erklärung.
+        self.summarize_with_prompt(model, content, DEFAULT_SUMMARY_PROMPT).await
+    }
 
-Artikel:
-{}
-
-Zusammenfassung:"#,
-            content.chars().take(8000).collect::<String>()
-        );
-
+    /// Generate a summary with custom prompt template
+    pub async fn summarize_with_prompt(
+        &self,
+        model: &str,
+        content: &str,
+        prompt_template: &str,
+    ) -> Result<String, OllamaError> {
+        let truncated_content = content.chars().take(8000).collect::<String>();
+        let prompt = prompt_template.replace("{content}", &truncated_content);
         self.generate(model, &prompt).await
     }
 
@@ -109,37 +279,35 @@ Zusammenfassung:"#,
         title: &str,
         content: &str,
     ) -> Result<BiasAnalysis, OllamaError> {
-        let prompt = format!(
-            r#"Analysiere den folgenden Nachrichtenartikel auf politische Tendenz und Sachlichkeit.
+        self.analyze_bias_with_prompt(model, title, content, DEFAULT_ANALYSIS_PROMPT).await
+    }
 
-Antworte im folgenden JSON-Format (NUR das JSON, keine Erklärung):
-{{
-  "political_bias": <-2 bis 2, wobei -2=stark links, 0=neutral, 2=stark rechts>,
-  "sachlichkeit": <0 bis 4, wobei 0=stark emotional, 4=sehr sachlich>,
-  "article_type": "<news|opinion|analysis|satire|ad|unknown>"
-}}
-
-Titel: {}
-Inhalt: {}
-
-JSON:"#,
-            title,
-            content.chars().take(4000).collect::<String>()
-        );
+    /// Analyze article with custom prompt template
+    pub async fn analyze_bias_with_prompt(
+        &self,
+        model: &str,
+        title: &str,
+        content: &str,
+        prompt_template: &str,
+    ) -> Result<BiasAnalysis, OllamaError> {
+        let truncated_content = content.chars().take(4000).collect::<String>();
+        let prompt = prompt_template
+            .replace("{title}", title)
+            .replace("{content}", &truncated_content);
 
         let response = self.generate(model, &prompt).await?;
 
-        // Try to parse JSON from response
-        let json_str = response
-            .trim()
-            .trim_start_matches("```json")
-            .trim_start_matches("```")
-            .trim_end_matches("```")
-            .trim();
+        // Try to extract JSON from response - handle various LLM output formats
+        let json_str = extract_json_from_response(&response);
 
-        serde_json::from_str(json_str).map_err(|e| {
-            OllamaError::GenerationFailed(format!("Failed to parse bias analysis: {}", e))
-        })
+        // Parse as RawBiasAnalysis (accepts floats) then convert to BiasAnalysis (integers)
+        let raw: RawBiasAnalysis = serde_json::from_str(&json_str).map_err(|e| {
+            eprintln!("Failed to parse JSON. Raw response: {}", response);
+            eprintln!("Extracted/fixed JSON: {}", json_str);
+            OllamaError::GenerationFailed(format!("Failed to parse bias analysis: {} - Response was: {}", e, &response[..response.len().min(200)]))
+        })?;
+
+        Ok(raw.into())
     }
 
     /// Generate text with Ollama
@@ -184,11 +352,30 @@ JSON:"#,
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+/// Raw bias analysis from LLM (accepts floats)
+#[derive(Deserialize, Debug)]
+struct RawBiasAnalysis {
+    political_bias: f64,
+    sachlichkeit: f64,
+    article_type: String,
+}
+
+/// Bias analysis with integer values (for storage and display)
+#[derive(Serialize, Debug, Clone)]
 pub struct BiasAnalysis {
     pub political_bias: i32,
     pub sachlichkeit: i32,
     pub article_type: String,
+}
+
+impl From<RawBiasAnalysis> for BiasAnalysis {
+    fn from(raw: RawBiasAnalysis) -> Self {
+        Self {
+            political_bias: raw.political_bias.round() as i32,
+            sachlichkeit: raw.sachlichkeit.round() as i32,
+            article_type: raw.article_type,
+        }
+    }
 }
 
 impl Default for OllamaClient {

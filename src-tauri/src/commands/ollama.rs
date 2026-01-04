@@ -1,11 +1,38 @@
-use crate::ollama::{BiasAnalysis, OllamaClient};
+use crate::ollama::{
+    BiasAnalysis, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
+    RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale,
+};
 use crate::AppState;
-use tauri::State;
+use tauri::{Emitter, State, Window};
 
 #[derive(serde::Serialize)]
 pub struct OllamaStatus {
     pub available: bool,
     pub models: Vec<String>,
+    pub recommended_main: String,
+    pub recommended_embedding: String,
+    pub has_recommended_main: bool,
+    pub has_recommended_embedding: bool,
+}
+
+#[derive(serde::Serialize)]
+pub struct ModelPullResult {
+    pub success: bool,
+    pub model: String,
+    pub status: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct PromptTemplates {
+    pub summary_prompt: String,
+    pub analysis_prompt: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct DefaultPrompts {
+    pub summary_prompt: String,
+    pub analysis_prompt: String,
 }
 
 #[derive(serde::Serialize)]
@@ -30,14 +57,92 @@ pub async fn check_ollama() -> Result<OllamaStatus, String> {
     let client = OllamaClient::new(None);
 
     match client.list_models().await {
-        Ok(models) => Ok(OllamaStatus {
-            available: true,
-            models: models.into_iter().map(|m| m.name).collect(),
-        }),
+        Ok(models) => {
+            let model_names: Vec<String> = models.into_iter().map(|m| m.name).collect();
+
+            // Check if recommended models are installed
+            let has_recommended_main = model_names.iter().any(|m| {
+                m == RECOMMENDED_MAIN_MODEL || m.starts_with(&format!("{}:", RECOMMENDED_MAIN_MODEL.split(':').next().unwrap_or("")))
+            });
+            let has_recommended_embedding = model_names.iter().any(|m| {
+                m == RECOMMENDED_EMBEDDING_MODEL || m.starts_with(&format!("{}:", RECOMMENDED_EMBEDDING_MODEL))
+            });
+
+            Ok(OllamaStatus {
+                available: true,
+                models: model_names,
+                recommended_main: RECOMMENDED_MAIN_MODEL.to_string(),
+                recommended_embedding: RECOMMENDED_EMBEDDING_MODEL.to_string(),
+                has_recommended_main,
+                has_recommended_embedding,
+            })
+        }
         Err(_) => Ok(OllamaStatus {
             available: false,
             models: vec![],
+            recommended_main: RECOMMENDED_MAIN_MODEL.to_string(),
+            recommended_embedding: RECOMMENDED_EMBEDDING_MODEL.to_string(),
+            has_recommended_main: false,
+            has_recommended_embedding: false,
         }),
+    }
+}
+
+/// Helper to get locale from settings
+fn get_locale_from_db(state: &State<'_, AppState>) -> String {
+    let db = match state.db.lock() {
+        Ok(db) => db,
+        Err(_) => return "de".to_string(),
+    };
+    db.conn()
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'locale'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap_or_else(|_| "de".to_string())
+}
+
+/// Helper to get custom prompt from settings or use default with language
+fn get_summary_prompt(state: &State<'_, AppState>, locale: &str) -> String {
+    let language = get_language_for_locale(locale);
+    let db = match state.db.lock() {
+        Ok(db) => db,
+        Err(_) => return DEFAULT_SUMMARY_PROMPT.replace("{language}", language),
+    };
+
+    let custom_prompt: Option<String> = db.conn()
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'summary_prompt'",
+            [],
+            |row| row.get(0),
+        )
+        .ok();
+
+    match custom_prompt {
+        Some(prompt) => prompt.replace("{language}", language),
+        None => DEFAULT_SUMMARY_PROMPT.replace("{language}", language),
+    }
+}
+
+fn get_analysis_prompt(state: &State<'_, AppState>, locale: &str) -> String {
+    let language = get_language_for_locale(locale);
+    let db = match state.db.lock() {
+        Ok(db) => db,
+        Err(_) => return DEFAULT_ANALYSIS_PROMPT.replace("{language}", language),
+    };
+
+    let custom_prompt: Option<String> = db.conn()
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'analysis_prompt'",
+            [],
+            |row| row.get(0),
+        )
+        .ok();
+
+    match custom_prompt {
+        Some(prompt) => prompt.replace("{language}", language),
+        None => DEFAULT_ANALYSIS_PROMPT.replace("{language}", language),
     }
 }
 
@@ -49,6 +154,8 @@ pub async fn generate_summary(
     model: String,
 ) -> Result<SummaryResponse, String> {
     let client = OllamaClient::new(None);
+    let locale = get_locale_from_db(&state);
+    let prompt_template = get_summary_prompt(&state, &locale);
 
     // Get article content from database
     let content: String = {
@@ -71,8 +178,8 @@ pub async fn generate_summary(
         });
     }
 
-    // Generate summary
-    match client.summarize(&model, &content).await {
+    // Generate summary with locale-aware prompt
+    match client.summarize_with_prompt(&model, &content, &prompt_template).await {
         Ok(summary) => {
             // Store summary in database
             let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -107,6 +214,8 @@ pub async fn analyze_article(
     model: String,
 ) -> Result<AnalysisResponse, String> {
     let client = OllamaClient::new(None);
+    let locale = get_locale_from_db(&state);
+    let prompt_template = get_analysis_prompt(&state, &locale);
 
     // Get article title and content from database
     let (title, content): (String, String) = {
@@ -129,8 +238,8 @@ pub async fn analyze_article(
         });
     }
 
-    // Analyze article
-    match client.analyze_bias(&model, &title, &content).await {
+    // Analyze article with locale-aware prompt
+    match client.analyze_bias_with_prompt(&model, &title, &content, &prompt_template).await {
         Ok(analysis) => {
             // Store analysis in database
             let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -179,4 +288,312 @@ pub async fn process_article(
     let analysis_result = analyze_article(state, fnord_id, model).await?;
 
     Ok((summary_result, analysis_result))
+}
+
+// ============================================================
+// BATCH PROCESSING (Fnord Processing)
+// ============================================================
+
+#[derive(serde::Serialize, Clone)]
+pub struct BatchProgress {
+    pub current: i64,
+    pub total: i64,
+    pub fnord_id: i64,
+    pub title: String,
+    pub success: bool,
+    pub error: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct BatchResult {
+    pub processed: i64,
+    pub succeeded: i64,
+    pub failed: i64,
+}
+
+#[derive(serde::Serialize)]
+pub struct UnprocessedCount {
+    pub total: i64,
+    pub with_content: i64,
+}
+
+/// Get count of unprocessed articles
+#[tauri::command]
+pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let total: i64 = db
+        .conn()
+        .query_row(
+            "SELECT COUNT(*) FROM fnords WHERE processed_at IS NULL",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let with_content: i64 = db
+        .conn()
+        .query_row(
+            r#"SELECT COUNT(*) FROM fnords
+               WHERE processed_at IS NULL
+               AND (content_full IS NOT NULL OR content_raw IS NOT NULL)"#,
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(UnprocessedCount { total, with_content })
+}
+
+/// Process all unprocessed articles in batch
+/// Emits 'batch-progress' events to the window
+#[tauri::command]
+pub async fn process_batch(
+    window: Window,
+    state: State<'_, AppState>,
+    model: String,
+    limit: Option<i64>,
+) -> Result<BatchResult, String> {
+    let client = OllamaClient::new(None);
+    let batch_limit = limit.unwrap_or(100);
+
+    // Get locale and prompts once for the batch
+    let locale = get_locale_from_db(&state);
+    let summary_prompt = get_summary_prompt(&state, &locale);
+    let analysis_prompt = get_analysis_prompt(&state, &locale);
+
+    // Get unprocessed articles with content
+    let articles: Vec<(i64, String, String)> = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let mut stmt = db
+            .conn()
+            .prepare(
+                r#"SELECT id, title, COALESCE(content_full, content_raw, '') as content
+                   FROM fnords
+                   WHERE processed_at IS NULL
+                   AND (content_full IS NOT NULL OR content_raw IS NOT NULL)
+                   ORDER BY published_at DESC
+                   LIMIT ?1"#,
+            )
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map([batch_limit], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })
+            .map_err(|e| e.to_string())?;
+
+        rows.filter_map(|r| r.ok()).collect()
+    };
+
+    let total = articles.len() as i64;
+    let mut succeeded: i64 = 0;
+    let mut failed: i64 = 0;
+
+    for (idx, (fnord_id, title, content)) in articles.into_iter().enumerate() {
+        let current = (idx + 1) as i64;
+
+        if content.is_empty() {
+            failed += 1;
+            let _ = window.emit(
+                "batch-progress",
+                BatchProgress {
+                    current,
+                    total,
+                    fnord_id,
+                    title: title.clone(),
+                    success: false,
+                    error: Some("No content".to_string()),
+                },
+            );
+            continue;
+        }
+
+        // Generate summary with locale-aware prompt
+        let summary_result = client.summarize_with_prompt(&model, &content, &summary_prompt).await;
+
+        // Analyze bias with locale-aware prompt
+        let analysis_result = client.analyze_bias_with_prompt(&model, &title, &content, &analysis_prompt).await;
+
+        // Store results
+        let (success, error) = match (&summary_result, &analysis_result) {
+            (Ok(summary), Ok(analysis)) => {
+                let db = state.db.lock().map_err(|e| e.to_string())?;
+                let update_result = db.conn().execute(
+                    r#"UPDATE fnords SET
+                        summary = ?1,
+                        political_bias = ?2,
+                        sachlichkeit = ?3,
+                        article_type = ?4,
+                        processed_at = CURRENT_TIMESTAMP
+                    WHERE id = ?5"#,
+                    (
+                        summary,
+                        analysis.political_bias,
+                        analysis.sachlichkeit,
+                        &analysis.article_type,
+                        fnord_id,
+                    ),
+                );
+                match update_result {
+                    Ok(_) => {
+                        succeeded += 1;
+                        (true, None)
+                    }
+                    Err(e) => {
+                        failed += 1;
+                        (false, Some(e.to_string()))
+                    }
+                }
+            }
+            (Err(e), _) => {
+                failed += 1;
+                (false, Some(format!("Summary: {}", e)))
+            }
+            (_, Err(e)) => {
+                failed += 1;
+                (false, Some(format!("Analyse: {}", e)))
+            }
+        };
+
+        // Emit progress event
+        let _ = window.emit(
+            "batch-progress",
+            BatchProgress {
+                current,
+                total,
+                fnord_id,
+                title,
+                success,
+                error,
+            },
+        );
+    }
+
+    Ok(BatchResult {
+        processed: total,
+        succeeded,
+        failed,
+    })
+}
+
+// ============================================================
+// MODEL MANAGEMENT
+// ============================================================
+
+/// Pull/download a model from Ollama
+#[tauri::command]
+pub async fn pull_model(window: Window, model: String) -> Result<ModelPullResult, String> {
+    let client = OllamaClient::new(None);
+
+    // Emit start event
+    let _ = window.emit("model-pull-start", &model);
+
+    match client.pull_model(&model).await {
+        Ok(status) => {
+            let _ = window.emit("model-pull-complete", &model);
+            Ok(ModelPullResult {
+                success: true,
+                model,
+                status: Some(status),
+                error: None,
+            })
+        }
+        Err(e) => {
+            let _ = window.emit("model-pull-error", &model);
+            Ok(ModelPullResult {
+                success: false,
+                model,
+                status: None,
+                error: Some(e.to_string()),
+            })
+        }
+    }
+}
+
+// ============================================================
+// PROMPT TEMPLATES
+// ============================================================
+
+/// Get default prompt templates
+#[tauri::command]
+pub fn get_default_prompts() -> DefaultPrompts {
+    DefaultPrompts {
+        summary_prompt: DEFAULT_SUMMARY_PROMPT.to_string(),
+        analysis_prompt: DEFAULT_ANALYSIS_PROMPT.to_string(),
+    }
+}
+
+/// Get current prompt templates (from DB or defaults)
+#[tauri::command]
+pub fn get_prompts(state: State<AppState>) -> Result<PromptTemplates, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let summary_prompt: Option<String> = db
+        .conn()
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'summary_prompt'",
+            [],
+            |row| row.get(0),
+        )
+        .ok();
+
+    let analysis_prompt: Option<String> = db
+        .conn()
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'analysis_prompt'",
+            [],
+            |row| row.get(0),
+        )
+        .ok();
+
+    Ok(PromptTemplates {
+        summary_prompt: summary_prompt.unwrap_or_else(|| DEFAULT_SUMMARY_PROMPT.to_string()),
+        analysis_prompt: analysis_prompt.unwrap_or_else(|| DEFAULT_ANALYSIS_PROMPT.to_string()),
+    })
+}
+
+/// Save prompt templates to DB
+#[tauri::command]
+pub fn set_prompts(
+    state: State<AppState>,
+    summary_prompt: String,
+    analysis_prompt: String,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    db.conn()
+        .execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('summary_prompt', ?1)",
+            [&summary_prompt],
+        )
+        .map_err(|e| e.to_string())?;
+
+    db.conn()
+        .execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('analysis_prompt', ?1)",
+            [&analysis_prompt],
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+/// Reset prompts to defaults
+#[tauri::command]
+pub fn reset_prompts(state: State<AppState>) -> Result<PromptTemplates, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    db.conn()
+        .execute("DELETE FROM settings WHERE key = 'summary_prompt'", [])
+        .map_err(|e| e.to_string())?;
+
+    db.conn()
+        .execute("DELETE FROM settings WHERE key = 'analysis_prompt'", [])
+        .map_err(|e| e.to_string())?;
+
+    Ok(PromptTemplates {
+        summary_prompt: DEFAULT_SUMMARY_PROMPT.to_string(),
+        analysis_prompt: DEFAULT_ANALYSIS_PROMPT.to_string(),
+    })
 }

@@ -21,6 +21,32 @@
     "selectArticle": "Waehle einen Artikel aus der Liste",
     "by": "von",
     "source": "Quelle",
+    "useKeys": "Benutze",
+    "and": "und",
+    "toNavigate": "zum Navigieren.",
+    "noContent": "Kein Inhalt verfuegbar. Klicke auf \"Im Browser oeffnen\" um den vollstaendigen Artikel zu lesen.",
+    "fetchFullText": "Volltext abrufen",
+    "fullText": "Volltext",
+    "aiAnalysis": "KI-Analyse",
+    "analyze": "Analysieren",
+    "articleType": "Artikeltyp",
+    "unknown": "Unbekannt",
+    "notRated": "Nicht bewertet",
+    "biasStrongLeft": "Stark links",
+    "biasLeanLeft": "Leicht links",
+    "biasLeanRight": "Leicht rechts",
+    "biasStrongRight": "Stark rechts",
+    "sachHighlyEmotional": "Stark emotional",
+    "sachEmotional": "Emotional",
+    "sachMixed": "Gemischt",
+    "sachMostlyObjective": "Ueberwiegend sachlich",
+    "sachObjective": "Sachlich",
+    "changes": {
+      "hasChanges": "Dieser Artikel wurde geaendert",
+      "revisions": "Revisionen",
+      "acknowledge": "Bestaetigen",
+      "noRevisions": "Keine Revisionen vorhanden"
+    },
     "greyface": {
       "title": "Greyface Alert",
       "bias": "Politische Tendenz",
@@ -32,7 +58,7 @@
     }
   },
   "status": {
-    "fnord": "Ungelesen",
+    "concealed": "Ungelesen",
     "illuminated": "Gelesen",
     "golden_apple": "Favorit"
   },
@@ -56,12 +82,38 @@
     "themeFrappe": "Frappé (mittel)",
     "themeLatte": "Latte (hell)",
     "save": "Speichern",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "ollama": {
+      "title": "KI-Einstellungen (Ollama)",
+      "status": "Status",
+      "available": "Ollama ist verfuegbar",
+      "unavailable": "Ollama nicht installiert",
+      "unavailableDescription": "KI-Features sind deaktiviert. Installiere Ollama von ollama.com",
+      "mainModel": "Hauptmodell",
+      "embeddingModel": "Embedding-Modell",
+      "recommended": "(Empfohlen)",
+      "downloadModel": "Herunterladen",
+      "downloading": "Lade...",
+      "downloadSuccess": "Erfolgreich heruntergeladen",
+      "downloadError": "Fehler beim Download",
+      "noModels": "Keine Modelle installiert"
+    },
+    "prompts": {
+      "title": "KI-Prompts",
+      "summaryPrompt": "Zusammenfassungs-Prompt",
+      "analysisPrompt": "Analyse-Prompt",
+      "reset": "Auf Standard zuruecksetzen",
+      "resetSuccess": "Prompts zurueckgesetzt"
+    }
   },
   "terminology": {
     "fnord": {
       "term": "Fnord",
-      "description": "Ein ungelesener Artikel. In der Illuminatus!-Trilogie sind Fnords versteckte Woerter, die Angst ausloesen."
+      "description": "Ein geaenderter Artikel. In der Illuminatus!-Trilogie sind Fnords versteckte Woerter, die nur Eingeweihte sehen."
+    },
+    "concealed": {
+      "term": "Concealed",
+      "description": "Ein ungelesener Artikel. Verborgen bis zur Erleuchtung durch Lesen."
     },
     "illuminated": {
       "term": "Illuminated",
@@ -107,6 +159,15 @@
     "markUnread": "Als ungelesen markieren",
     "favorite": "Favorisieren",
     "openInBrowser": "Im Browser oeffnen"
+  },
+  "batch": {
+    "title": "Discordian Analysis",
+    "process": "Analysieren",
+    "processing": "Analysiere...",
+    "unprocessed": "{count} unverarbeitet",
+    "progress": "{current} von {total}",
+    "complete": "Fertig: {succeeded} erfolgreich, {failed} fehlgeschlagen",
+    "noOllama": "Ollama nicht verfuegbar"
   },
   "confirm": {
     "deleteFeed": "Feed wirklich loeschen?",

@@ -6,11 +6,13 @@
   import ArticleView from "./lib/components/ArticleView.svelte";
   import SettingsDialog from "./lib/components/SettingsDialog.svelte";
   import { settings } from "./lib/stores/settings.svelte";
+  import { initLocaleFromDb } from "./lib/i18n";
 
   let showSettings = $state(false);
 
-  onMount(() => {
-    settings.init();
+  onMount(async () => {
+    await settings.init();
+    await initLocaleFromDb();
   });
 </script>
 

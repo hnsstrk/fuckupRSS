@@ -65,7 +65,8 @@ Die Software verwendet durchgängig Begriffe aus der Illuminatus!-Trilogie:
 
 | Konzept | Fnord-Bezeichnung | Beschreibung |
 |---------|-------------------|--------------|
-| Ungelesene Artikel | **Fnords** | Unsichtbar bis man sie sieht |
+| Geänderte Artikel | **Fnords** | Artikel mit Revisionshistorie |
+| Ungelesene Artikel | **Concealed** | Verborgen bis zur Erleuchtung |
 | Gelesene Artikel | **Illuminated** | Erleuchtete/verarbeitete Artikel |
 | Favoriten/Wichtig | **Golden Apple** 🍎 | Markierte Artikel |
 | KI-Zusammenfassung | **Discordian Analysis** | Automatische Analyse |
@@ -406,7 +407,7 @@ LIMIT 10;
 │ ─────────────────────────────                                   │
 │ • Neue Artikel aus Feeds holen                                  │
 │ • Gekürzte Feeds: Volltext nachladen (Readability)              │
-│ • Raw-Artikel in DB speichern (Status: "fnord")                 │
+│ • Raw-Artikel in DB speichern (Status: "concealed")             │
 │                                                                 │
 │ [████████████████░░░░] 15 von 23 Artikel geladen                │
 └─────────────────────────────────────────────────────────────────┘
@@ -443,7 +444,7 @@ LIMIT 10;
 │ ────────────────────                                            │
 │ • Quellenqualität berechnen                                     │
 │ • Relevanz-Score basierend auf User-Interessen                  │
-│ • Status: "fnord" bleibt (= ungelesen)                          │
+│ • Status: "concealed" bleibt (= ungelesen)                      │
 │ • processed_at Timestamp setzen                                 │
 │ • UI benachrichtigen: "23 neue Artikel bereit"                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -700,7 +701,7 @@ CREATE TABLE fnords (
     read_at DATETIME,           -- Wann gelesen
     
     -- Status
-    status TEXT DEFAULT 'fnord' CHECK(status IN ('fnord', 'illuminated', 'golden_apple')),
+    status TEXT DEFAULT 'concealed' CHECK(status IN ('concealed', 'illuminated', 'golden_apple')),
     full_text_fetched BOOLEAN DEFAULT FALSE,
     
     -- Greyface Alert
@@ -1039,7 +1040,7 @@ Klick auf [▼] öffnet:
 
 | Filter | Werte | Mehrfachauswahl |
 |--------|-------|-----------------|
-| Status | Fnord, Illuminated, Golden Apple | Ja |
+| Status | Concealed, Illuminated, Golden Apple | Ja |
 | Zeitraum | Heute, Diese Woche, Dieser Monat, Benutzerdefiniert | Nein |
 | Quelle (Pentacle) | Alle abonnierten Feeds | Ja |
 | Kategorie (Sephiroth) | Alle verfügbaren Kategorien | Ja |
@@ -1229,7 +1230,7 @@ init({
 
 **Einstellbar:**
 - Tooltips aktivieren/deaktivieren
-- In `config.toml` persistiert
+- In SQLite-Datenbank persistiert
 
 ```svelte
 <!-- Beispiel Verwendung -->
@@ -1262,21 +1263,20 @@ Erreichbar über:
 
 ### 17.3 Persistenz
 
-Einstellungen werden in `config.toml` gespeichert:
+Einstellungen werden in der SQLite-Datenbank (`settings`-Tabelle) gespeichert:
 
-```toml
-[general]
-language = "de"
-theme = "dark"
+```sql
+-- Schema
+CREATE TABLE settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 
-[display]
-show_tooltips = true
-show_greyface = true
-show_thumbnails = true
-
-[sync]
-interval_minutes = 30
-sync_on_start = true
+-- Beispiel-Daten
+INSERT INTO settings (key, value) VALUES
+    ('locale', 'de'),
+    ('theme', 'mocha'),
+    ('showTerminologyTooltips', 'true');
 ```
 
 ---
@@ -1285,23 +1285,17 @@ sync_on_start = true
 
 ### 18.1 Datenpfade
 
-| Plattform | Datenverzeichnis |
-|-----------|------------------|
-| Linux | `~/.local/share/fuckupRSS/` |
-| macOS | `~/Library/Application Support/fuckupRSS/` |
-
-Struktur:
+Alle Daten werden im Projektordner gespeichert:
 
 ```
-fuckupRSS/
-├── fuckup.db           # SQLite Datenbank
-├── fuckup.db-wal       # Write-Ahead Log
-├── cache/
-│   └── thumbnails/     # Bild-Cache (optional)
-├── logs/
-│   └── fuckup.log      # Anwendungs-Log
-└── config.toml         # Benutzer-Einstellungen
+projektordner/
+├── data/
+│   ├── fuckup.db       # SQLite Datenbank (inkl. Settings)
+│   └── fuckup.db-wal   # Write-Ahead Log
+└── ...
 ```
+
+**Hinweis:** Einstellungen (Sprache, Theme, Tooltips) werden in der `settings`-Tabelle der SQLite-Datenbank gespeichert, nicht in einer externen config.toml.
 
 ### 18.2 Linux-spezifisch
 
@@ -1452,44 +1446,37 @@ gemma3:12b                 8.1 GB
 qwen3:latest               5.2 GB
 ```
 
-### B. Beispiel-Konfigurationsdatei
+### B. Datenbankschema für Settings
 
-```toml
-# ~/.local/share/fuckupRSS/config.toml
+Einstellungen werden in der SQLite-Datenbank gespeichert (Key-Value-Store):
 
-[general]
-language = "de"
-theme = "dark"
+```sql
+-- Tabelle
+CREATE TABLE settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 
-[sync]
-interval_minutes = 30
-sync_on_start = true
-parallel_feeds = 5
-timeout_seconds = 30
+-- Implementierte Settings
+INSERT INTO settings (key, value) VALUES
+    ('locale', 'de'),              -- Sprache: de, en
+    ('theme', 'mocha'),            -- Theme: mocha, macchiato, frappe, latte
+    ('showTerminologyTooltips', 'true');  -- Tooltips anzeigen
 
-[ollama]
-host = "http://localhost:11434"
-main_model = "qwen3-vl:8b"
-embedding_model = "nomic-embed-text"
-
-[ui]
-show_greyface = true
-show_thumbnails = true
-articles_per_page = 50
-
-[shortcuts]
-vim_mode = true
-
-[cache]
-thumbnail_enabled = true
-thumbnail_max_mb = 500
+-- Geplante Settings (für spätere Phasen)
+-- ('syncInterval', '30')          -- Sync-Intervall in Minuten
+-- ('syncOnStart', 'true')         -- Sync bei App-Start
+-- ('ollamaHost', 'http://localhost:11434')
+-- ('mainModel', 'qwen3-vl:8b')
+-- ('embeddingModel', 'nomic-embed-text')
 ```
 
 ### C. Glossar
 
 | Begriff | Bedeutung |
 |---------|-----------|
-| Fnord | Ungelesener Artikel |
+| Fnord | Geänderter Artikel (mit Revisionen) |
+| Concealed | Ungelesener Artikel |
 | Illuminated | Gelesener Artikel |
 | Golden Apple | Favorisierter Artikel |
 | Pentacle | Feed-Quelle |

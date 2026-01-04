@@ -1,5 +1,6 @@
 use feed_rs::parser;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
+use sha2::{Sha256, Digest};
 use std::time::Duration;
 use thiserror::Error;
 
@@ -161,32 +162,72 @@ impl FeedSyncer {
 
         // Process entries
         for entry in feed.entries {
-            // Check if article already exists
-            let exists: bool = conn.query_row(
-                "SELECT EXISTS(SELECT 1 FROM fnords WHERE pentacle_id = ?1 AND guid = ?2)",
-                (&pentacle_id, &entry.guid),
-                |row| row.get(0),
-            )?;
+            // Compute hash for new content
+            let new_hash = compute_content_hash(
+                &entry.title,
+                entry.author.as_deref(),
+                entry.content_raw.as_deref(),
+                entry.summary.as_deref(),
+            );
 
-            if exists {
-                // Update existing article if content changed
-                let rows = conn.execute(
-                    r#"UPDATE fnords SET
-                        title = ?3,
-                        content_raw = COALESCE(?4, content_raw)
-                    WHERE pentacle_id = ?1 AND guid = ?2 AND title != ?3"#,
-                    (&pentacle_id, &entry.guid, &entry.title, &entry.content_raw),
-                )?;
-                if rows > 0 {
+            // Check if article already exists and get current data
+            let existing: Option<(i64, String, Option<String>, Option<String>, Option<String>, Option<String>)> = conn
+                .query_row(
+                    r#"SELECT id, title, author, content_raw, summary, content_hash
+                       FROM fnords WHERE pentacle_id = ?1 AND guid = ?2"#,
+                    (&pentacle_id, &entry.guid),
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+                )
+                .optional()?;
+
+            if let Some((fnord_id, old_title, old_author, old_content, old_summary, old_hash)) = existing {
+                // Article exists - check if content changed via hash comparison
+                // Only consider it a change if we had a previous hash AND it differs
+                let content_changed = match &old_hash {
+                    Some(existing_hash) => existing_hash != &new_hash,
+                    None => false, // First time computing hash - not a real change
+                };
+
+                if content_changed {
+                    // Save old version to revisions table
+                    let old_hash_str = old_hash.as_ref().unwrap(); // Safe: content_changed is only true if old_hash is Some
+
+                    conn.execute(
+                        r#"INSERT INTO fnord_revisions (fnord_id, title, author, content_raw, summary, content_hash)
+                           VALUES (?1, ?2, ?3, ?4, ?5, ?6)"#,
+                        (&fnord_id, &old_title, &old_author, &old_content, &old_summary, &old_hash_str),
+                    )?;
+
+                    // Update article with new content and mark as changed
+                    conn.execute(
+                        r#"UPDATE fnords SET
+                            title = ?1,
+                            author = COALESCE(?2, author),
+                            content_raw = COALESCE(?3, content_raw),
+                            summary = COALESCE(?4, summary),
+                            content_hash = ?5,
+                            has_changes = TRUE,
+                            changed_at = CURRENT_TIMESTAMP,
+                            revision_count = revision_count + 1
+                        WHERE id = ?6"#,
+                        (&entry.title, &entry.author, &entry.content_raw, &entry.summary, &new_hash, &fnord_id),
+                    )?;
+
                     updated_articles += 1;
+                } else if old_hash.is_none() {
+                    // First sync after migration - just set the hash without marking as changed
+                    conn.execute(
+                        "UPDATE fnords SET content_hash = ?1 WHERE id = ?2",
+                        (&new_hash, &fnord_id),
+                    )?;
                 }
             } else {
-                // Insert new article
+                // Insert new article with hash
                 conn.execute(
                     r#"INSERT INTO fnords (
                         pentacle_id, guid, url, title, author,
-                        content_raw, summary, image_url, published_at
-                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"#,
+                        content_raw, summary, image_url, published_at, content_hash
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"#,
                     (
                         &pentacle_id,
                         &entry.guid,
@@ -197,6 +238,7 @@ impl FeedSyncer {
                         &entry.summary,
                         &entry.image_url,
                         &entry.published_at,
+                        &new_hash,
                     ),
                 )?;
                 new_articles += 1;
@@ -227,4 +269,28 @@ pub struct SyncResult {
     pub pentacle_id: i64,
     pub new_articles: usize,
     pub updated_articles: usize,
+}
+
+/// Compute SHA256 hash of article content for change detection
+pub fn compute_content_hash(
+    title: &str,
+    author: Option<&str>,
+    content: Option<&str>,
+    summary: Option<&str>,
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(title.as_bytes());
+    if let Some(a) = author {
+        hasher.update(b"|author:");
+        hasher.update(a.as_bytes());
+    }
+    if let Some(c) = content {
+        hasher.update(b"|content:");
+        hasher.update(c.as_bytes());
+    }
+    if let Some(s) = summary {
+        hasher.update(b"|summary:");
+        hasher.update(s.as_bytes());
+    }
+    format!("{:x}", hasher.finalize())
 }

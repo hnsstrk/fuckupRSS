@@ -1,7 +1,8 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { appState } from "../stores/state.svelte";
-  import { onMount } from "svelte";
+  import { appState, type BatchProgress } from "../stores/state.svelte";
+  import { onMount, onDestroy } from "svelte";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import Tooltip from "./Tooltip.svelte";
 
   interface Props {
@@ -12,14 +13,29 @@
 
   let showAddForm = $state(false);
   let newFeedUrl = $state("");
+  let unlisten: UnlistenFn | null = null;
 
   onMount(async () => {
     await appState.loadPentacles();
     await appState.loadFnords();
+    // Reset false positive changes from migration bug (one-time fix)
+    await appState.resetAllChanges();
+    await appState.loadChangedFnords();
     // Auto-sync feeds on startup
     appState.syncAllFeeds();
     // Check Ollama availability
     appState.checkOllama();
+    // Load unprocessed count
+    appState.loadUnprocessedCount();
+
+    // Listen for batch progress events
+    unlisten = await listen<BatchProgress>("batch-progress", (event) => {
+      appState.updateBatchProgress(event.payload);
+    });
+  });
+
+  onDestroy(() => {
+    if (unlisten) unlisten();
   });
 
   function handleSync() {
@@ -36,10 +52,15 @@
   }
 
   function handleSelectAll() {
-    appState.selectPentacle(null);
+    appState.selectView("all");
+  }
+
+  function handleSelectChanged() {
+    appState.selectView("changed");
   }
 
   function handleSelectPentacle(id: number) {
+    appState.selectedView = "pentacle";
     appState.selectPentacle(id);
   }
 </script>
@@ -76,13 +97,26 @@
     <p class="tagline">Immanentize the Eschaton</p>
   </div>
 
+  <!-- Fnord (Changed Articles) -->
+  <button
+    class="feed-item fnord-view {appState.selectedView === 'changed' ? 'active' : ''}"
+    onclick={handleSelectChanged}
+  >
+    <span class="feed-name">
+      <Tooltip termKey="fnord"><span class="text-fnord">{$_('terminology.fnord.term')}</span></Tooltip>
+    </span>
+    {#if appState.changedCount > 0}
+      <span class="unread-badge changed">{appState.changedCount}</span>
+    {/if}
+  </button>
+
   <!-- All Feeds -->
   <button
-    class="feed-item {appState.selectedPentacleId === null ? 'active' : ''}"
+    class="feed-item {appState.selectedView === 'all' ? 'active' : ''}"
     onclick={handleSelectAll}
   >
     <span class="feed-name">
-      {$_('sidebar.allFeeds')} (<Tooltip termKey="fnord"><span class="text-fnord">{$_('terminology.fnord.term')}</span></Tooltip>)
+      {$_('sidebar.allFeeds')}
     </span>
     {#if appState.totalUnread > 0}
       <span class="unread-badge">{appState.totalUnread}</span>
@@ -149,18 +183,63 @@
     {/if}
   </div>
 
+  <!-- Batch Processing -->
+  <div class="batch-section">
+    <div class="batch-header">
+      <Tooltip termKey="discordian"><span class="batch-title">{$_('batch.title')}</span></Tooltip>
+      {#if appState.unprocessedCount.with_content > 0 && !appState.batchProcessing}
+        <span class="unprocessed-badge">{appState.unprocessedCount.with_content}</span>
+      {/if}
+    </div>
+
+    {#if appState.batchProcessing && appState.batchProgress}
+      <div class="batch-progress">
+        <div class="progress-bar">
+          <div
+            class="progress-fill"
+            style="width: {(appState.batchProgress.current / appState.batchProgress.total) * 100}%"
+          ></div>
+        </div>
+        <div class="progress-text">
+          {appState.batchProgress.current} / {appState.batchProgress.total}
+        </div>
+        <div class="progress-title" title={appState.batchProgress.title}>
+          {appState.batchProgress.title.length > 30
+            ? appState.batchProgress.title.slice(0, 30) + "..."
+            : appState.batchProgress.title}
+        </div>
+      </div>
+    {:else if appState.ollamaStatus.available}
+      <button
+        onclick={() => appState.startBatchProcessing()}
+        class="btn-batch"
+        disabled={appState.batchProcessing || appState.unprocessedCount.with_content === 0}
+      >
+        {#if appState.batchProcessing}
+          {$_('batch.processing')}
+        {:else if appState.unprocessedCount.with_content > 0}
+          {$_('batch.process')} ({appState.unprocessedCount.with_content})
+        {:else}
+          {$_('batch.process')}
+        {/if}
+      </button>
+    {:else}
+      <div class="batch-unavailable">{$_('batch.noOllama')}</div>
+    {/if}
+  </div>
+
   <!-- Stats -->
   <div class="stats">
     <div class="stat-row">
-      <span>● <Tooltip termKey="fnord">{$_('terminology.fnord.term')}</Tooltip></span>
+      <span><span class="stat-icon concealed">●</span> <Tooltip termKey="concealed">{$_('terminology.concealed.term')}</Tooltip></span>
       <span>{appState.totalUnread}</span>
     </div>
     <div class="stat-row">
-      <span>○ <Tooltip termKey="illuminated">{$_('terminology.illuminated.term')}</Tooltip></span>
+      <span><span class="stat-icon illuminated">○</span> <Tooltip termKey="illuminated">{$_('terminology.illuminated.term')}</Tooltip></span>
       <span>{appState.fnords.filter((f) => f.status === "illuminated").length}</span>
     </div>
     <div class="stat-row">
-      <span><Tooltip termKey="golden_apple">{$_('terminology.golden_apple.term')}</Tooltip></span>
+      <span><span class="stat-icon golden">✦</span> <Tooltip termKey="golden_apple">{$_('terminology.golden_apple.term')}</Tooltip></span>
       <span>{appState.fnords.filter((f) => f.status === "golden_apple").length}</span>
     </div>
   </div>
@@ -424,7 +503,115 @@
     margin-bottom: 0.25rem;
   }
 
+  .stat-icon {
+    display: inline-block;
+    width: 1em;
+    text-align: center;
+  }
+
+  .stat-icon.concealed { color: var(--fnord-color); }
+  .stat-icon.illuminated { color: var(--illuminated-color); }
+  .stat-icon.golden { color: var(--golden-apple-color); }
+
   .text-fnord {
     color: var(--fnord-color);
+  }
+
+  .fnord-view {
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .unread-badge.changed {
+    background-color: var(--accent-warning);
+  }
+
+  /* Batch Processing */
+  .batch-section {
+    border-top: 1px solid var(--border-default);
+    padding: 0.75rem 1rem;
+  }
+
+  .batch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .batch-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .unprocessed-badge {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.625rem;
+    font-weight: 600;
+  }
+
+  .btn-batch {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid var(--accent-primary);
+    background-color: transparent;
+    color: var(--accent-primary);
+  }
+
+  .btn-batch:hover:not(:disabled) {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+  }
+
+  .btn-batch:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .batch-progress {
+    font-size: 0.75rem;
+  }
+
+  .progress-bar {
+    height: 4px;
+    background-color: var(--bg-overlay);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 0.375rem;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background-color: var(--accent-primary);
+    transition: width 0.3s ease;
+  }
+
+  .progress-text {
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .progress-title {
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .batch-unavailable {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 0.5rem;
   }
 </style>

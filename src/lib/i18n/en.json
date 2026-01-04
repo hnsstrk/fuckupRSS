@@ -21,6 +21,32 @@
     "selectArticle": "Select an article from the list",
     "by": "by",
     "source": "Source",
+    "useKeys": "Use",
+    "and": "and",
+    "toNavigate": "to navigate.",
+    "noContent": "No content available. Click \"Open in browser\" to read the full article.",
+    "fetchFullText": "Fetch full text",
+    "fullText": "Full Text",
+    "aiAnalysis": "AI Analysis",
+    "analyze": "Analyze",
+    "articleType": "Article Type",
+    "unknown": "Unknown",
+    "notRated": "Not rated",
+    "biasStrongLeft": "Strong left",
+    "biasLeanLeft": "Lean left",
+    "biasLeanRight": "Lean right",
+    "biasStrongRight": "Strong right",
+    "sachHighlyEmotional": "Highly emotional",
+    "sachEmotional": "Emotional",
+    "sachMixed": "Mixed",
+    "sachMostlyObjective": "Mostly objective",
+    "sachObjective": "Objective",
+    "changes": {
+      "hasChanges": "This article has been modified",
+      "revisions": "Revisions",
+      "acknowledge": "Acknowledge",
+      "noRevisions": "No revisions available"
+    },
     "greyface": {
       "title": "Greyface Alert",
       "bias": "Political Bias",
@@ -32,7 +58,7 @@
     }
   },
   "status": {
-    "fnord": "Unread",
+    "concealed": "Unread",
     "illuminated": "Read",
     "golden_apple": "Favorite"
   },
@@ -56,12 +82,38 @@
     "themeFrappe": "Frappé (medium)",
     "themeLatte": "Latte (light)",
     "save": "Save",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "ollama": {
+      "title": "AI Settings (Ollama)",
+      "status": "Status",
+      "available": "Ollama is available",
+      "unavailable": "Ollama not installed",
+      "unavailableDescription": "AI features are disabled. Install Ollama from ollama.com",
+      "mainModel": "Main Model",
+      "embeddingModel": "Embedding Model",
+      "recommended": "(Recommended)",
+      "downloadModel": "Download",
+      "downloading": "Downloading...",
+      "downloadSuccess": "Successfully downloaded",
+      "downloadError": "Download failed",
+      "noModels": "No models installed"
+    },
+    "prompts": {
+      "title": "AI Prompts",
+      "summaryPrompt": "Summary Prompt",
+      "analysisPrompt": "Analysis Prompt",
+      "reset": "Reset to Defaults",
+      "resetSuccess": "Prompts reset"
+    }
   },
   "terminology": {
     "fnord": {
       "term": "Fnord",
-      "description": "An unread article. In the Illuminatus! trilogy, fnords are hidden words that induce fear."
+      "description": "A changed article. In the Illuminatus! trilogy, fnords are hidden words that only the initiated can see."
+    },
+    "concealed": {
+      "term": "Concealed",
+      "description": "An unread article. Hidden until enlightened by reading."
     },
     "illuminated": {
       "term": "Illuminated",
@@ -107,6 +159,15 @@
     "markUnread": "Mark as unread",
     "favorite": "Favorite",
     "openInBrowser": "Open in browser"
+  },
+  "batch": {
+    "title": "Discordian Analysis",
+    "process": "Analyze",
+    "processing": "Analyzing...",
+    "unprocessed": "{count} unprocessed",
+    "progress": "{current} of {total}",
+    "complete": "Done: {succeeded} succeeded, {failed} failed",
+    "noOllama": "Ollama not available"
   },
   "confirm": {
     "deleteFeed": "Really delete this feed?",
