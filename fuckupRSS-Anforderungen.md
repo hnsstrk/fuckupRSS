@@ -1,8 +1,8 @@
 # fuckupRSS – Anforderungsdokument
 
-**Version:** 0.3
+**Version:** 0.4
 **Datum:** 2026-01-04
-**Status:** Phase 1 abgeschlossen, Phase 1.5 in Planung
+**Status:** Phase 1.5 abgeschlossen (i18n & UX)
 
 ---
 

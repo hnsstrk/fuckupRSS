@@ -266,7 +266,7 @@ Die Sprache kann in den Einstellungen gewechselt werden.
 
 - [x] Anforderungsdokument
 - [x] **Phase 1** – Grundgerüst (Tauri + Svelte, SQLite, Basis-UI)
-- [ ] **Phase 1.5** – i18n & UX (Mehrsprachigkeit, Tooltips, Einstellungen)
+- [x] **Phase 1.5** – i18n & UX (Mehrsprachigkeit, Tooltips, Einstellungen)
 - [ ] **v0.1** – Basis-Reader mit Feed-Sync
 - [ ] **v0.2** – KI-Integration (Zusammenfassung, Kategorien)
 - [ ] **v0.3** – Greyface Alert (Bias-Erkennung)

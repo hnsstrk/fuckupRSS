@@ -23,12 +23,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U.C.K.U.P. from the Illuminatus! trilogy. It uses Ollama for local AI processing with no cloud dependencies.
 
-**Status:** Phase 1 abgeschlossen (Grundgerüst)
+**Status:** Phase 1.5 abgeschlossen (i18n & UX)
 
 ### Implementierte Phasen
 
 - [x] **Phase 1:** Grundgerüst (Tauri + Svelte, SQLite, Basis-UI)
-- [ ] **Phase 1.5:** i18n & UX (Mehrsprachigkeit, Tooltips, Einstellungen)
+- [x] **Phase 1.5:** i18n & UX (Mehrsprachigkeit, Tooltips, Einstellungen)
 - [ ] **Phase 2:** Core Features (Feed-Parsing, Volltext, Ollama-Integration)
 - [ ] **Phase 3:** KI-Features (Discordian Analysis, Greyface Alert, Embeddings)
 - [ ] **Phase 4:** Polish (Operation Mindfuck, OPML, Shortcuts)
