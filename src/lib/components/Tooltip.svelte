@@ -79,37 +79,23 @@
     position: fixed;
     z-index: 1000;
     max-width: 300px;
-    padding: 8px 12px;
-    background: #1a1a2e;
-    border: 1px solid #4a4a6a;
-    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     pointer-events: none;
   }
 
   .tooltip-term {
     font-weight: 600;
-    color: #ffd700;
-    margin-bottom: 4px;
+    color: var(--accent-primary);
+    margin-bottom: 0.25rem;
   }
 
   .tooltip-description {
     font-size: 0.875rem;
-    color: #e0e0e0;
+    color: var(--text-primary);
     line-height: 1.4;
-  }
-
-  :global(.light) .tooltip {
-    background: #ffffff;
-    border-color: #d0d0d0;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-
-  :global(.light) .tooltip-term {
-    color: #b8860b;
-  }
-
-  :global(.light) .tooltip-description {
-    color: #333333;
   }
 </style>

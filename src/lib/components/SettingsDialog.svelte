@@ -1,6 +1,6 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { settings } from '../stores/settings.svelte';
+  import { settings, type Theme } from '../stores/settings.svelte';
   import { setLocale, locale } from '../i18n';
 
   interface Props {
@@ -15,7 +15,23 @@
   // Local state for form
   let selectedLocale = $state('de');
   let showTooltips = $state(true);
-  let selectedTheme = $state<'dark' | 'light'>('dark');
+  let selectedTheme = $state<Theme>('mocha');
+
+  // Dropdown open states
+  let langDropdownOpen = $state(false);
+  let themeDropdownOpen = $state(false);
+
+  const localeOptions = [
+    { value: 'de', labelKey: 'settings.languageGerman' },
+    { value: 'en', labelKey: 'settings.languageEnglish' },
+  ];
+
+  const themeOptions: { value: Theme; labelKey: string }[] = [
+    { value: 'mocha', labelKey: 'settings.themeMocha' },
+    { value: 'macchiato', labelKey: 'settings.themeMacchiato' },
+    { value: 'frappe', labelKey: 'settings.themeFrappe' },
+    { value: 'latte', labelKey: 'settings.themeLatte' },
+  ];
 
   // Sync local state when dialog opens
   $effect(() => {
@@ -25,6 +41,9 @@
       selectedLocale = $locale || 'de';
       showTooltips = settings.showTerminologyTooltips;
       selectedTheme = settings.theme;
+      // Close dropdowns
+      langDropdownOpen = false;
+      themeDropdownOpen = false;
     }
   });
 
@@ -48,8 +67,37 @@
 
   function handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
-      handleClose();
+      langDropdownOpen = false;
+      themeDropdownOpen = false;
     }
+  }
+
+  function selectLocale(value: string) {
+    selectedLocale = value;
+    langDropdownOpen = false;
+  }
+
+  function selectTheme(value: Theme) {
+    selectedTheme = value;
+    themeDropdownOpen = false;
+  }
+
+  function toggleLangDropdown() {
+    langDropdownOpen = !langDropdownOpen;
+    themeDropdownOpen = false;
+  }
+
+  function toggleThemeDropdown() {
+    themeDropdownOpen = !themeDropdownOpen;
+    langDropdownOpen = false;
+  }
+
+  function getLocaleLabelKey(value: string): string {
+    return localeOptions.find(o => o.value === value)?.labelKey || '';
+  }
+
+  function getThemeLabelKey(value: Theme): string {
+    return themeOptions.find(o => o.value === value)?.labelKey || '';
   }
 </script>
 
@@ -63,20 +111,52 @@
     <div class="dialog-content">
       <h2>{$_('settings.title')}</h2>
 
+      <!-- Language Dropdown -->
       <div class="setting-group">
-        <label for="language">{$_('settings.language')}</label>
-        <select id="language" bind:value={selectedLocale}>
-          <option value="de">{$_('settings.languageGerman')}</option>
-          <option value="en">{$_('settings.languageEnglish')}</option>
-        </select>
+        <span class="label">{$_('settings.language')}</span>
+        <div class="custom-select">
+          <button type="button" class="select-trigger" aria-label={$_('settings.language')} onclick={toggleLangDropdown}>
+            <span>{$_(getLocaleLabelKey(selectedLocale))}</span>
+            <span class="arrow">{langDropdownOpen ? '▲' : '▼'}</span>
+          </button>
+          {#if langDropdownOpen}
+            <div class="select-options">
+              {#each localeOptions as option}
+                <button
+                  type="button"
+                  class="select-option {selectedLocale === option.value ? 'selected' : ''}"
+                  onclick={() => selectLocale(option.value)}
+                >
+                  {$_(option.labelKey)}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
       </div>
 
+      <!-- Theme Dropdown -->
       <div class="setting-group">
-        <label for="theme">{$_('settings.theme')}</label>
-        <select id="theme" bind:value={selectedTheme}>
-          <option value="dark">{$_('settings.themeDark')}</option>
-          <option value="light">{$_('settings.themeLight')}</option>
-        </select>
+        <span class="label">{$_('settings.theme')}</span>
+        <div class="custom-select">
+          <button type="button" class="select-trigger" aria-label={$_('settings.theme')} onclick={toggleThemeDropdown}>
+            <span>{$_(getThemeLabelKey(selectedTheme))}</span>
+            <span class="arrow">{themeDropdownOpen ? '▲' : '▼'}</span>
+          </button>
+          {#if themeDropdownOpen}
+            <div class="select-options">
+              {#each themeOptions as option}
+                <button
+                  type="button"
+                  class="select-option {selectedTheme === option.value ? 'selected' : ''}"
+                  onclick={() => selectTheme(option.value)}
+                >
+                  {$_(option.labelKey)}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
       </div>
 
       <div class="setting-group checkbox-group">
@@ -106,12 +186,12 @@
     left: 50%;
     transform: translate(-50%, -50%);
     border: none;
-    border-radius: 12px;
+    border-radius: 0.75rem;
     padding: 0;
     max-width: 400px;
     width: 90%;
-    background: #1a1a2e;
-    color: #e0e0e0;
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   }
 
@@ -120,51 +200,102 @@
   }
 
   .dialog-content {
-    padding: 24px;
+    padding: 1.5rem;
   }
 
   h2 {
-    margin: 0 0 20px 0;
+    margin: 0 0 1.25rem 0;
     font-size: 1.25rem;
-    color: #ffd700;
+    color: var(--accent-primary);
   }
 
   .setting-group {
-    margin-bottom: 20px;
+    margin-bottom: 1.25rem;
   }
 
-  .setting-group label {
+  .setting-group > label,
+  .setting-group > .label {
     display: block;
-    margin-bottom: 6px;
+    margin-bottom: 0.375rem;
     font-weight: 500;
+    color: var(--text-primary);
   }
 
-  select {
+  /* Custom Select */
+  .custom-select {
+    position: relative;
+  }
+
+  .select-trigger {
     width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #4a4a6a;
-    border-radius: 6px;
-    background: #0f0f1a;
-    color: #e0e0e0;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    background-color: var(--bg-overlay);
+    color: var(--text-primary);
     font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
   }
 
-  select:focus {
-    outline: none;
-    border-color: #ffd700;
+  .select-trigger:hover {
+    border-color: var(--accent-primary);
+  }
+
+  .arrow {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .select-options {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 0.25rem;
+    background-color: var(--bg-overlay);
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    overflow: hidden;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .select-option {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-size: 1rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+
+  .select-option:hover {
+    background-color: var(--bg-muted);
+  }
+
+  .select-option.selected {
+    background-color: var(--bg-muted);
+    color: var(--accent-primary);
   }
 
   .checkbox-group label {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0.5rem;
     cursor: pointer;
   }
 
   .checkbox-group input[type="checkbox"] {
     width: 18px;
     height: 18px;
-    accent-color: #ffd700;
+    accent-color: var(--accent-primary);
   }
 
   .checkbox-label {
@@ -172,86 +303,44 @@
   }
 
   .setting-description {
-    margin: 4px 0 0 26px;
+    margin: 0.25rem 0 0 1.625rem;
     font-size: 0.875rem;
-    color: #888;
+    color: var(--text-muted);
   }
 
   .dialog-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 12px;
-    margin-top: 24px;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
   }
 
   .btn-primary,
   .btn-secondary {
-    padding: 8px 16px;
+    padding: 0.5rem 1rem;
     border: none;
-    border-radius: 6px;
+    border-radius: 0.375rem;
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
   }
 
   .btn-primary {
-    background: #ffd700;
-    color: #0f0f1a;
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
   }
 
   .btn-primary:hover {
-    background: #ffed4a;
+    filter: brightness(1.1);
   }
 
   .btn-secondary {
-    background: #4a4a6a;
-    color: #e0e0e0;
+    background-color: var(--bg-overlay);
+    color: var(--text-secondary);
   }
 
   .btn-secondary:hover {
-    background: #5a5a7a;
-  }
-
-  /* Light theme */
-  :global(.light) .settings-dialog {
-    background: #ffffff;
-    color: #333333;
-  }
-
-  :global(.light) h2 {
-    color: #b8860b;
-  }
-
-  :global(.light) select {
-    background: #f5f5f5;
-    border-color: #d0d0d0;
-    color: #333333;
-  }
-
-  :global(.light) select:focus {
-    border-color: #b8860b;
-  }
-
-  :global(.light) .setting-description {
-    color: #666666;
-  }
-
-  :global(.light) .btn-secondary {
-    background: #e0e0e0;
-    color: #333333;
-  }
-
-  :global(.light) .btn-secondary:hover {
-    background: #d0d0d0;
-  }
-
-  :global(.light) .btn-primary {
-    background: #b8860b;
-    color: #ffffff;
-  }
-
-  :global(.light) .btn-primary:hover {
-    background: #d4a017;
+    background-color: var(--bg-muted);
   }
 </style>

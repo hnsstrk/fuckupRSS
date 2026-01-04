@@ -51,8 +51,10 @@
     "tooltips": "Begriffserklarungen anzeigen",
     "tooltipsDescription": "Zeigt Erklarungen fuer Illuminatus!-Begriffe",
     "theme": "Design",
-    "themeDark": "Dunkel",
-    "themeLight": "Hell",
+    "themeMocha": "Mocha (dunkelster)",
+    "themeMacchiato": "Macchiato (dunkel)",
+    "themeFrappe": "Frappé (mittel)",
+    "themeLatte": "Latte (hell)",
     "save": "Speichern",
     "cancel": "Abbrechen"
   },
