@@ -256,6 +256,7 @@ show_greyface = true
 ## Roadmap
 
 - [x] Anforderungsdokument
+- [x] **Phase 1** – Grundgerüst (Tauri + Svelte, SQLite, Basis-UI)
 - [ ] **v0.1** – Basis-Reader mit Feed-Sync
 - [ ] **v0.2** – KI-Integration (Zusammenfassung, Kategorien)
 - [ ] **v0.3** – Greyface Alert (Bias-Erkennung)
