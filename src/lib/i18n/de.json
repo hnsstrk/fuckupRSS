@@ -1,0 +1,114 @@
+{
+  "app": {
+    "title": "fuckupRSS",
+    "subtitle": "First Universal Cybernetic-Kinetic RSS Processor"
+  },
+  "sidebar": {
+    "title": "Pentacles",
+    "addFeed": "Feed hinzufuegen",
+    "addFeedPlaceholder": "Feed-URL eingeben...",
+    "allFeeds": "Alle Feeds",
+    "unreadCount": "{count} ungelesen"
+  },
+  "articleList": {
+    "title": "Fnords",
+    "noArticles": "Keine Artikel vorhanden",
+    "selectFeed": "Waehle einen Feed aus der Seitenleiste",
+    "loading": "Lade Artikel..."
+  },
+  "articleView": {
+    "noSelection": "Kein Artikel ausgewaehlt",
+    "selectArticle": "Waehle einen Artikel aus der Liste",
+    "by": "von",
+    "source": "Quelle",
+    "greyface": {
+      "title": "Greyface Alert",
+      "bias": "Politische Tendenz",
+      "biasLeft": "Links",
+      "biasCenter": "Neutral",
+      "biasRight": "Rechts",
+      "sachlichkeit": "Sachlichkeit",
+      "quality": "Quellenqualitaet"
+    }
+  },
+  "status": {
+    "fnord": "Ungelesen",
+    "illuminated": "Gelesen",
+    "golden_apple": "Favorit"
+  },
+  "articleType": {
+    "news": "Nachricht",
+    "opinion": "Meinung",
+    "analysis": "Analyse",
+    "satire": "Satire",
+    "other": "Sonstiges"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "language": "Sprache",
+    "languageGerman": "Deutsch",
+    "languageEnglish": "English",
+    "tooltips": "Begriffserklarungen anzeigen",
+    "tooltipsDescription": "Zeigt Erklarungen fuer Illuminatus!-Begriffe",
+    "theme": "Design",
+    "themeDark": "Dunkel",
+    "themeLight": "Hell",
+    "save": "Speichern",
+    "cancel": "Abbrechen"
+  },
+  "terminology": {
+    "fnord": {
+      "term": "Fnord",
+      "description": "Ein ungelesener Artikel. In der Illuminatus!-Trilogie sind Fnords versteckte Woerter, die Angst ausloesen."
+    },
+    "illuminated": {
+      "term": "Illuminated",
+      "description": "Ein gelesener Artikel. 'Illuminiert' zu sein bedeutet, die Wahrheit zu kennen."
+    },
+    "golden_apple": {
+      "term": "Golden Apple",
+      "description": "Ein favorisierter Artikel. Der goldene Apfel ist das Symbol der Discordia."
+    },
+    "pentacle": {
+      "term": "Pentacle",
+      "description": "Eine Feed-Quelle. Das Pentakel ist ein fuenfzackiger Stern - Symbol mystischer Kraft."
+    },
+    "sephiroth": {
+      "term": "Sephiroth",
+      "description": "Eine Kategorie. Die Sephiroth sind die zehn Attribute der kabbalistischen Lebensbaum."
+    },
+    "immanentize": {
+      "term": "Immanentize",
+      "description": "Ein Stichwort/Tag. 'Die Eschaton immanentisieren' bedeutet, das Ende herbeizufuehren."
+    },
+    "greyface": {
+      "term": "Greyface Alert",
+      "description": "Bias-Warnung. Greyface ist der mythische Ursprung allen Ernstes und der Ordnung."
+    },
+    "discordian": {
+      "term": "Discordian Analysis",
+      "description": "KI-Zusammenfassung. Discordianismus ist die 'Religion' der Goettin Eris/Discordia."
+    },
+    "hagbard": {
+      "term": "Hagbard's Retrieval",
+      "description": "Volltext-Abruf. Hagbard Celine ist der Kapitaen des goldenen U-Boots in Illuminatus!"
+    },
+    "mindfuck": {
+      "term": "Operation Mindfuck",
+      "description": "Interessen-Profil. Operation Mindfuck ist die discordianische Praxis, Verwirrung zu stiften."
+    }
+  },
+  "actions": {
+    "delete": "Loeschen",
+    "refresh": "Aktualisieren",
+    "markRead": "Als gelesen markieren",
+    "markUnread": "Als ungelesen markieren",
+    "favorite": "Favorisieren",
+    "openInBrowser": "Im Browser oeffnen"
+  },
+  "confirm": {
+    "deleteFeed": "Feed wirklich loeschen?",
+    "yes": "Ja",
+    "no": "Nein"
+  }
+}

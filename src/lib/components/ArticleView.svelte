@@ -1,10 +1,13 @@
 <script lang="ts">
+  import { _, locale } from 'svelte-i18n';
   import { appState } from "../stores/state.svelte";
+  import Tooltip from "./Tooltip.svelte";
 
   function formatDate(dateStr: string | null): string {
     if (!dateStr) return "";
     const date = new Date(dateStr);
-    return date.toLocaleDateString("de-DE", {
+    const currentLocale = $locale || 'de';
+    return date.toLocaleDateString(currentLocale.startsWith('de') ? "de-DE" : "en-US", {
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -15,55 +18,45 @@
   }
 
   function getArticleTypeName(type: string | null): string {
-    switch (type) {
-      case "news":
-        return "Nachricht";
-      case "analysis":
-        return "Analyse";
-      case "opinion":
-        return "Meinung";
-      case "satire":
-        return "Satire";
-      case "ad":
-        return "Werbung";
-      default:
-        return "Unbekannt";
-    }
+    if (!type) return $locale?.startsWith('de') ? "Unbekannt" : "Unknown";
+    return $_(`articleType.${type}`);
   }
 
   function getBiasLabel(bias: number | null): string {
-    if (bias === null) return "Nicht bewertet";
+    if (bias === null) return $locale?.startsWith('de') ? "Nicht bewertet" : "Not rated";
+    const isGerman = $locale?.startsWith('de');
     switch (bias) {
       case -2:
-        return "Stark links";
+        return isGerman ? "Stark links" : "Strong left";
       case -1:
-        return "Leicht links";
+        return isGerman ? "Leicht links" : "Lean left";
       case 0:
-        return "Neutral";
+        return $_('articleView.greyface.biasCenter');
       case 1:
-        return "Leicht rechts";
+        return isGerman ? "Leicht rechts" : "Lean right";
       case 2:
-        return "Stark rechts";
+        return isGerman ? "Stark rechts" : "Strong right";
       default:
-        return "Unbekannt";
+        return isGerman ? "Unbekannt" : "Unknown";
     }
   }
 
   function getSachlichkeitLabel(s: number | null): string {
-    if (s === null) return "Nicht bewertet";
+    if (s === null) return $locale?.startsWith('de') ? "Nicht bewertet" : "Not rated";
+    const isGerman = $locale?.startsWith('de');
     switch (s) {
       case 0:
-        return "Stark emotional";
+        return isGerman ? "Stark emotional" : "Highly emotional";
       case 1:
-        return "Emotional";
+        return isGerman ? "Emotional" : "Emotional";
       case 2:
-        return "Gemischt";
+        return isGerman ? "Gemischt" : "Mixed";
       case 3:
-        return "Überwiegend sachlich";
+        return isGerman ? "Ueberwiegend sachlich" : "Mostly objective";
       case 4:
-        return "Sachlich";
+        return isGerman ? "Sachlich" : "Objective";
       default:
-        return "Unbekannt";
+        return isGerman ? "Unbekannt" : "Unknown";
     }
   }
 
@@ -77,8 +70,6 @@
     if (e.key === "v" && appState.selectedFnord) {
       e.preventDefault();
       openInBrowser();
-    } else if (e.key === "o" || e.key === "Enter") {
-      // Already handled in ArticleList, but we could expand content here
     }
   }
 </script>
@@ -101,7 +92,7 @@
           <span>{formatDate(fnord.published_at)}</span>
           {#if fnord.author}
             <span>·</span>
-            <span>{fnord.author}</span>
+            <span>{$_('articleView.by')} {fnord.author}</span>
           {/if}
         </div>
 
@@ -119,16 +110,18 @@
               ? 'bg-golden-600 text-white'
               : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}"
           >
-            🍎 {fnord.status === "golden_apple"
-              ? "Golden Apple"
-              : "Als Favorit markieren"}
+            <Tooltip termKey="golden_apple">
+              <span>{fnord.status === "golden_apple"
+                ? $_('terminology.golden_apple.term')
+                : $_('actions.favorite')}</span>
+            </Tooltip>
           </button>
 
           <button
             onclick={openInBrowser}
             class="px-3 py-1.5 rounded text-sm bg-zinc-800 text-zinc-400 hover:bg-zinc-700 transition-colors"
           >
-            🔗 Im Browser öffnen
+            {$_('actions.openInBrowser')}
           </button>
         </div>
       </div>
@@ -139,12 +132,14 @@
       <div class="p-4 bg-zinc-800/50 border-b border-zinc-800">
         <div class="max-w-3xl mx-auto">
           <div class="flex items-center gap-2 mb-3">
-            <span class="text-zinc-400 text-sm font-medium">Greyface Alert</span>
+            <span class="text-zinc-400 text-sm font-medium">
+              <Tooltip termKey="greyface">{$_('articleView.greyface.title')}</Tooltip>
+            </span>
           </div>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             {#if fnord.article_type}
               <div>
-                <div class="text-zinc-500 text-xs mb-1">Artikeltyp</div>
+                <div class="text-zinc-500 text-xs mb-1">{$locale?.startsWith('de') ? 'Artikeltyp' : 'Article Type'}</div>
                 <div class="text-zinc-300">
                   {getArticleTypeName(fnord.article_type)}
                 </div>
@@ -153,14 +148,14 @@
 
             {#if fnord.political_bias !== null}
               <div>
-                <div class="text-zinc-500 text-xs mb-1">Politische Tendenz</div>
+                <div class="text-zinc-500 text-xs mb-1">{$_('articleView.greyface.bias')}</div>
                 <div class="text-zinc-300">{getBiasLabel(fnord.political_bias)}</div>
               </div>
             {/if}
 
             {#if fnord.sachlichkeit !== null}
               <div>
-                <div class="text-zinc-500 text-xs mb-1">Sachlichkeit</div>
+                <div class="text-zinc-500 text-xs mb-1">{$_('articleView.greyface.sachlichkeit')}</div>
                 <div class="text-zinc-300">
                   {getSachlichkeitLabel(fnord.sachlichkeit)}
                 </div>
@@ -169,9 +164,9 @@
 
             {#if fnord.quality_score !== null}
               <div>
-                <div class="text-zinc-500 text-xs mb-1">Quellenqualität</div>
+                <div class="text-zinc-500 text-xs mb-1">{$_('articleView.greyface.quality')}</div>
                 <div class="text-golden-500">
-                  {"★".repeat(fnord.quality_score)}{"☆".repeat(
+                  {"\u2605".repeat(fnord.quality_score)}{"\u2606".repeat(
                     5 - fnord.quality_score
                   )}
                 </div>
@@ -187,9 +182,9 @@
       <div class="p-4 bg-zinc-800/30 border-b border-zinc-800">
         <div class="max-w-3xl mx-auto">
           <div class="flex items-center gap-2 mb-2">
-            <span class="text-zinc-400 text-sm font-medium"
-              >Discordian Analysis</span
-            >
+            <span class="text-zinc-400 text-sm font-medium">
+              <Tooltip termKey="discordian">{$_('terminology.discordian.term')}</Tooltip>
+            </span>
           </div>
           <p class="text-zinc-300 text-sm leading-relaxed">{fnord.summary}</p>
         </div>
@@ -208,8 +203,9 @@
             </p>
           {:else}
             <p class="text-zinc-500 italic">
-              Kein Inhalt verfügbar. Klicke auf "Im Browser öffnen" um den
-              vollständigen Artikel zu lesen.
+              {$locale?.startsWith('de')
+                ? 'Kein Inhalt verfuegbar. Klicke auf "Im Browser oeffnen" um den vollstaendigen Artikel zu lesen.'
+                : 'No content available. Click "Open in browser" to read the full article.'}
             </p>
           {/if}
         </article>
@@ -221,11 +217,13 @@
       class="h-full flex flex-col items-center justify-center text-zinc-500 p-8"
     >
       <div class="text-6xl mb-4">▲</div>
-      <h2 class="text-xl font-medium mb-2">Wähle einen Fnord</h2>
+      <h2 class="text-xl font-medium mb-2">
+        <Tooltip termKey="fnord">{$_('articleView.noSelection')}</Tooltip>
+      </h2>
       <p class="text-sm text-center max-w-md">
-        Wähle einen Artikel aus der Liste, um ihn hier anzuzeigen.<br />
-        Benutze <kbd class="bg-zinc-700 px-1 rounded">j</kbd> und
-        <kbd class="bg-zinc-700 px-1 rounded">k</kbd> zum Navigieren.
+        {$_('articleView.selectArticle')}<br />
+        {$locale?.startsWith('de') ? 'Benutze' : 'Use'} <kbd class="bg-zinc-700 px-1 rounded">j</kbd> {$locale?.startsWith('de') ? 'und' : 'and'}
+        <kbd class="bg-zinc-700 px-1 rounded">k</kbd> {$locale?.startsWith('de') ? 'zum Navigieren.' : 'to navigate.'}
       </p>
     </div>
   {/if}

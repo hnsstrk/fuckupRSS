@@ -1,0 +1,114 @@
+{
+  "app": {
+    "title": "fuckupRSS",
+    "subtitle": "First Universal Cybernetic-Kinetic RSS Processor"
+  },
+  "sidebar": {
+    "title": "Pentacles",
+    "addFeed": "Add Feed",
+    "addFeedPlaceholder": "Enter feed URL...",
+    "allFeeds": "All Feeds",
+    "unreadCount": "{count} unread"
+  },
+  "articleList": {
+    "title": "Fnords",
+    "noArticles": "No articles available",
+    "selectFeed": "Select a feed from the sidebar",
+    "loading": "Loading articles..."
+  },
+  "articleView": {
+    "noSelection": "No article selected",
+    "selectArticle": "Select an article from the list",
+    "by": "by",
+    "source": "Source",
+    "greyface": {
+      "title": "Greyface Alert",
+      "bias": "Political Bias",
+      "biasLeft": "Left",
+      "biasCenter": "Neutral",
+      "biasRight": "Right",
+      "sachlichkeit": "Objectivity",
+      "quality": "Source Quality"
+    }
+  },
+  "status": {
+    "fnord": "Unread",
+    "illuminated": "Read",
+    "golden_apple": "Favorite"
+  },
+  "articleType": {
+    "news": "News",
+    "opinion": "Opinion",
+    "analysis": "Analysis",
+    "satire": "Satire",
+    "other": "Other"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "languageGerman": "Deutsch",
+    "languageEnglish": "English",
+    "tooltips": "Show terminology explanations",
+    "tooltipsDescription": "Shows explanations for Illuminatus! terms",
+    "theme": "Theme",
+    "themeDark": "Dark",
+    "themeLight": "Light",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "terminology": {
+    "fnord": {
+      "term": "Fnord",
+      "description": "An unread article. In the Illuminatus! trilogy, fnords are hidden words that induce fear."
+    },
+    "illuminated": {
+      "term": "Illuminated",
+      "description": "A read article. Being 'illuminated' means knowing the truth."
+    },
+    "golden_apple": {
+      "term": "Golden Apple",
+      "description": "A favorited article. The golden apple is the symbol of Discordia."
+    },
+    "pentacle": {
+      "term": "Pentacle",
+      "description": "A feed source. The pentacle is a five-pointed star - symbol of mystical power."
+    },
+    "sephiroth": {
+      "term": "Sephiroth",
+      "description": "A category. The Sephiroth are the ten attributes of the kabbalistic Tree of Life."
+    },
+    "immanentize": {
+      "term": "Immanentize",
+      "description": "A keyword/tag. 'Immanentizing the Eschaton' means bringing about the end times."
+    },
+    "greyface": {
+      "term": "Greyface Alert",
+      "description": "Bias warning. Greyface is the mythical origin of all seriousness and order."
+    },
+    "discordian": {
+      "term": "Discordian Analysis",
+      "description": "AI summary. Discordianism is the 'religion' of the goddess Eris/Discordia."
+    },
+    "hagbard": {
+      "term": "Hagbard's Retrieval",
+      "description": "Full-text fetching. Hagbard Celine is the captain of the golden submarine in Illuminatus!"
+    },
+    "mindfuck": {
+      "term": "Operation Mindfuck",
+      "description": "Interest profile. Operation Mindfuck is the Discordian practice of causing confusion."
+    }
+  },
+  "actions": {
+    "delete": "Delete",
+    "refresh": "Refresh",
+    "markRead": "Mark as read",
+    "markUnread": "Mark as unread",
+    "favorite": "Favorite",
+    "openInBrowser": "Open in browser"
+  },
+  "confirm": {
+    "deleteFeed": "Really delete this feed?",
+    "yes": "Yes",
+    "no": "No"
+  }
+}

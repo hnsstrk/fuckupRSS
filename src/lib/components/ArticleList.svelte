@@ -1,16 +1,18 @@
 <script lang="ts">
+  import { _, locale } from 'svelte-i18n';
   import { appState, type Fnord } from "../stores/state.svelte";
+  import Tooltip from "./Tooltip.svelte";
 
   function getStatusIcon(status: string): string {
     switch (status) {
       case "fnord":
-        return "●";
+        return "\u25CF";
       case "illuminated":
-        return "○";
+        return "\u25CB";
       case "golden_apple":
-        return "🍎";
+        return "\uD83C\uDF4E";
       default:
-        return "○";
+        return "\u25CB";
     }
   }
 
@@ -36,14 +38,17 @@
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
+    const currentLocale = $locale || 'de';
+    const isGerman = currentLocale.startsWith('de');
+
     if (diffMins < 60) {
-      return `vor ${diffMins} Min`;
+      return isGerman ? `vor ${diffMins} Min` : `${diffMins} min ago`;
     } else if (diffHours < 24) {
-      return `vor ${diffHours} Std`;
+      return isGerman ? `vor ${diffHours} Std` : `${diffHours}h ago`;
     } else if (diffDays < 7) {
-      return `vor ${diffDays} Tagen`;
+      return isGerman ? `vor ${diffDays} Tagen` : `${diffDays}d ago`;
     } else {
-      return date.toLocaleDateString("de-DE", {
+      return date.toLocaleDateString(isGerman ? "de-DE" : "en-US", {
         day: "numeric",
         month: "short",
       });
@@ -53,17 +58,17 @@
   function getArticleTypeIcon(type: string | null): string {
     switch (type) {
       case "news":
-        return "📰";
+        return "\uD83D\uDCF0";
       case "analysis":
-        return "🔍";
+        return "\uD83D\uDD0D";
       case "opinion":
-        return "💭";
+        return "\uD83D\uDCAD";
       case "satire":
-        return "🎭";
+        return "\uD83C\uDFAD";
       case "ad":
-        return "📢";
+        return "\uD83D\uDCE2";
       default:
-        return "❓";
+        return "\u2753";
     }
   }
 
@@ -97,11 +102,11 @@
       {#if appState.selectedPentacle}
         {appState.selectedPentacle.title || "Feed"}
       {:else}
-        All Fnords
+        {$_('sidebar.allFeeds')} (<Tooltip termKey="fnord"><span class="text-fnord-400">{$_('terminology.fnord.term')}</span></Tooltip>)
       {/if}
     </h2>
     <p class="text-xs text-zinc-500 mt-1">
-      {appState.fnords.length} articles
+      {appState.fnords.length} {$locale?.startsWith('de') ? 'Artikel' : 'articles'}
     </p>
   </div>
 
@@ -144,13 +149,13 @@
             {#if fnord.article_type || fnord.quality_score}
               <div class="flex items-center gap-2 mt-1.5 text-xs">
                 {#if fnord.article_type}
-                  <span title="Article type">
+                  <span title={$_(`articleType.${fnord.article_type}`)}>
                     {getArticleTypeIcon(fnord.article_type)}
                   </span>
                 {/if}
                 {#if fnord.quality_score}
-                  <span class="text-zinc-500" title="Quality score">
-                    {"★".repeat(fnord.quality_score)}{"☆".repeat(
+                  <span class="text-zinc-500" title={$_('articleView.greyface.quality')}>
+                    {"\u2605".repeat(fnord.quality_score)}{"\u2606".repeat(
                       5 - fnord.quality_score
                     )}
                   </span>
@@ -158,9 +163,9 @@
                 {#if fnord.political_bias !== null && fnord.political_bias !== 0}
                   <span
                     class="text-zinc-500"
-                    title="Political bias: {fnord.political_bias}"
+                    title="{$_('articleView.greyface.bias')}: {fnord.political_bias}"
                   >
-                    {fnord.political_bias < 0 ? "←" : "→"}
+                    {fnord.political_bias < 0 ? "\u2190" : "\u2192"}
                   </span>
                 {/if}
               </div>
@@ -172,17 +177,17 @@
 
     {#if appState.fnords.length === 0 && !appState.loading}
       <div class="p-8 text-center text-zinc-500 text-sm">
-        No articles found.<br />
+        {$_('articleList.noArticles')}<br />
         {#if appState.pentacles.length === 0}
-          Add a Pentacle to get started.
+          <Tooltip termKey="pentacle">{$_('sidebar.addFeed')}</Tooltip>
         {:else}
-          Select a feed or refresh.
+          {$_('articleList.selectFeed')}
         {/if}
       </div>
     {/if}
 
     {#if appState.loading}
-      <div class="p-8 text-center text-zinc-500 text-sm">Loading...</div>
+      <div class="p-8 text-center text-zinc-500 text-sm">{$_('articleList.loading')}</div>
     {/if}
   </div>
 
@@ -190,9 +195,9 @@
   <div
     class="border-t border-zinc-700 p-2 text-xs text-zinc-600 flex justify-center gap-4"
   >
-    <span><kbd class="bg-zinc-700 px-1 rounded">j</kbd> next</span>
-    <span><kbd class="bg-zinc-700 px-1 rounded">k</kbd> prev</span>
-    <span><kbd class="bg-zinc-700 px-1 rounded">s</kbd> star</span>
+    <span><kbd class="bg-zinc-700 px-1 rounded">j</kbd> {$locale?.startsWith('de') ? 'weiter' : 'next'}</span>
+    <span><kbd class="bg-zinc-700 px-1 rounded">k</kbd> {$locale?.startsWith('de') ? 'zurueck' : 'prev'}</span>
+    <span><kbd class="bg-zinc-700 px-1 rounded">s</kbd> {$locale?.startsWith('de') ? 'Favorit' : 'star'}</span>
   </div>
 </div>
 
