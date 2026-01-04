@@ -22,6 +22,11 @@ tokio = { version = "1", features = ["full"] }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 dirs = "5"
+feed-rs = "2"
+reqwest_new = { package = "reqwest", version = "0.12", features = ["rustls-tls", "json", "gzip", "brotli", "deflate"], default-features = false }
+readability = "0.3"
+url = "2"
+bytes = "1"
 
 [profile.release]
 panic = "abort"
