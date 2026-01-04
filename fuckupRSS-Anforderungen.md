@@ -1,8 +1,8 @@
 # fuckupRSS – Anforderungsdokument
 
-**Version:** 0.2  
-**Datum:** 2025-01-04  
-**Status:** Spezifikation abgeschlossen
+**Version:** 0.3
+**Datum:** 2026-01-04
+**Status:** Phase 1 abgeschlossen, Phase 1.5 in Planung
 
 ---
 
@@ -23,10 +23,12 @@
 13. [Sortierung und Filterung](#13-sortierung-und-filterung)
 14. [Import/Export](#14-importexport)
 15. [Keyboard-Shortcuts](#15-keyboard-shortcuts)
-16. [Plattform-spezifische Details](#16-plattform-spezifische-details)
-17. [Zusammenfassung der Entscheidungen](#17-zusammenfassung-der-entscheidungen)
-18. [Nächste Schritte](#18-nächste-schritte)
-19. [Anhang](#anhang)
+16. [Internationalisierung (i18n)](#16-internationalisierung-i18n)
+17. [Benutzereinstellungen](#17-benutzereinstellungen)
+18. [Plattform-spezifische Details](#18-plattform-spezifische-details)
+19. [Zusammenfassung der Entscheidungen](#19-zusammenfassung-der-entscheidungen)
+20. [Nächste Schritte](#20-nächste-schritte)
+21. [Anhang](#anhang)
 
 ---
 
@@ -1145,9 +1147,143 @@ fn export_opml(pentacles: &[Pentacle]) -> String {
 
 ---
 
-## 16. Plattform-spezifische Details
+## 16. Internationalisierung (i18n)
 
-### 16.1 Datenpfade
+### 16.1 Unterstützte Sprachen
+
+| Sprache | Code | Status |
+|---------|------|--------|
+| Deutsch | `de` | Primär |
+| Englisch | `en` | Sekundär |
+
+### 16.2 Technische Umsetzung
+
+**Library:** `svelte-i18n`
+
+```typescript
+// src/lib/i18n/index.ts
+import { init, register, locale } from 'svelte-i18n';
+
+register('de', () => import('./locales/de.json'));
+register('en', () => import('./locales/en.json'));
+
+init({
+  fallbackLocale: 'en',
+  initialLocale: getLocaleFromNavigator(),
+});
+```
+
+### 16.3 Übersetzungsstruktur
+
+```json
+// src/lib/i18n/locales/de.json
+{
+  "app": {
+    "title": "fuckupRSS",
+    "tagline": "Immanentize the Eschaton"
+  },
+  "terminology": {
+    "fnord": {
+      "label": "Fnord",
+      "tooltip": "Ungelesener Artikel – aus der Illuminatus!-Trilogie"
+    },
+    "illuminated": {
+      "label": "Illuminated",
+      "tooltip": "Gelesener Artikel – du hast die Wahrheit gesehen"
+    },
+    "golden_apple": {
+      "label": "Golden Apple",
+      "tooltip": "Favorit – markiert mit dem Symbol der Eris"
+    },
+    "pentacle": {
+      "label": "Pentacle",
+      "tooltip": "Feed-Quelle – dein Portal zur Information"
+    },
+    "sephiroth": {
+      "label": "Sephiroth",
+      "tooltip": "Kategorie – aus der kabbalistischen Tradition"
+    },
+    "greyface": {
+      "label": "Greyface Alert",
+      "tooltip": "Bias-Warnung – Hinweis auf einseitige Berichterstattung"
+    }
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "language": "Sprache",
+    "tooltips": {
+      "label": "Terminologie-Tooltips",
+      "description": "Erklärungen für Illuminatus!-Begriffe anzeigen"
+    }
+  }
+}
+```
+
+### 16.4 Tooltips für Terminologie
+
+**Implementierung:**
+- Wiederverwendbare `<Tooltip>` Komponente
+- Automatische Erkennung von Terminologie-Begriffen
+- Hover-Delay: 500ms
+- Position: automatisch (oben/unten je nach Platz)
+
+**Einstellbar:**
+- Tooltips aktivieren/deaktivieren
+- In `config.toml` persistiert
+
+```svelte
+<!-- Beispiel Verwendung -->
+<Tooltip term="fnord">
+  <span class="fnord-indicator">●</span>
+</Tooltip>
+```
+
+---
+
+## 17. Benutzereinstellungen
+
+### 17.1 Einstellungen-Dialog
+
+Erreichbar über:
+- Menü: Einstellungen
+- Shortcut: `Ctrl+,`
+
+### 17.2 Verfügbare Einstellungen
+
+| Kategorie | Einstellung | Typ | Default |
+|-----------|-------------|-----|---------|
+| **Allgemein** | Sprache | Select | System-Sprache |
+| **Allgemein** | Theme | Select | dark |
+| **Anzeige** | Terminologie-Tooltips | Toggle | true |
+| **Anzeige** | Greyface Alert anzeigen | Toggle | true |
+| **Anzeige** | Thumbnails anzeigen | Toggle | true |
+| **Sync** | Sync-Intervall (Minuten) | Number | 30 |
+| **Sync** | Sync bei App-Start | Toggle | true |
+
+### 17.3 Persistenz
+
+Einstellungen werden in `config.toml` gespeichert:
+
+```toml
+[general]
+language = "de"
+theme = "dark"
+
+[display]
+show_tooltips = true
+show_greyface = true
+show_thumbnails = true
+
+[sync]
+interval_minutes = 30
+sync_on_start = true
+```
+
+---
+
+## 18. Plattform-spezifische Details
+
+### 18.1 Datenpfade
 
 | Plattform | Datenverzeichnis |
 |-----------|------------------|
@@ -1167,7 +1303,7 @@ fuckupRSS/
 └── config.toml         # Benutzer-Einstellungen
 ```
 
-### 16.2 Linux-spezifisch
+### 18.2 Linux-spezifisch
 
 **Abhängigkeiten:**
 - WebKitGTK (für Tauri)
@@ -1204,7 +1340,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart ollama
 ```
 
-### 16.3 macOS-spezifisch
+### 18.3 macOS-spezifisch
 
 **Installation Ollama:**
 
@@ -1226,7 +1362,7 @@ launchctl setenv OLLAMA_FLASH_ATTENTION 1
 
 ---
 
-## 17. Zusammenfassung der Entscheidungen
+## 19. Zusammenfassung der Entscheidungen
 
 | Aspekt | Entscheidung |
 |--------|--------------|
@@ -1253,15 +1389,22 @@ launchctl setenv OLLAMA_FLASH_ATTENTION 1
 
 ---
 
-## 18. Nächste Schritte
+## 20. Nächste Schritte
 
-### Phase 1: Grundgerüst
-- [ ] Tauri + Svelte Projekt aufsetzen
-- [ ] SQLite-Schema implementieren
-- [ ] Basis-UI (Feed-Liste, Artikel-Ansicht)
+### Phase 1: Grundgerüst ✅
+- [x] Tauri + Svelte Projekt aufsetzen
+- [x] SQLite-Schema implementieren
+- [x] Basis-UI (Feed-Liste, Artikel-Ansicht)
+
+### Phase 1.5: Internationalisierung & UX-Grundlagen
+- [ ] i18n-System (svelte-i18n) mit Deutsch und Englisch
+- [ ] Tooltips für Illuminatus!-Terminologie
+- [ ] Einstellungen-Dialog (Sprache, Tooltips ein/aus)
+- [ ] Persistente Benutzereinstellungen
 
 ### Phase 2: Core-Features
 - [ ] Feed-Parsing (feed-rs)
+- [ ] Automatische Feed-Synchronisation
 - [ ] Hagbard's Retrieval (Volltext)
 - [ ] Ollama-Integration (ollama-rs)
 - [ ] Basis-KI-Pipeline
@@ -1269,14 +1412,14 @@ launchctl setenv OLLAMA_FLASH_ATTENTION 1
 ### Phase 3: KI-Features
 - [ ] Discordian Analysis (Zusammenfassung, Kategorien, Stichworte)
 - [ ] Greyface Alert (Bias-Erkennung)
-- [ ] Embeddings + SQLite-VSS
+- [ ] Embeddings + sqlite-vec
 - [ ] Ähnliche Artikel
 
 ### Phase 4: Polish
 - [ ] Operation Mindfuck (Interessen-Profil)
 - [ ] Relevanz-Scoring
 - [ ] OPML Import/Export
-- [ ] Keyboard-Shortcuts
+- [ ] Erweiterte Keyboard-Shortcuts
 - [ ] Desktop-Notifications
 
 ### Phase 5: Release

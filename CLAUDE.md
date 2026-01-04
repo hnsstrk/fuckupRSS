@@ -28,6 +28,7 @@ fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U
 ### Implementierte Phasen
 
 - [x] **Phase 1:** Grundgerüst (Tauri + Svelte, SQLite, Basis-UI)
+- [ ] **Phase 1.5:** i18n & UX (Mehrsprachigkeit, Tooltips, Einstellungen)
 - [ ] **Phase 2:** Core Features (Feed-Parsing, Volltext, Ollama-Integration)
 - [ ] **Phase 3:** KI-Features (Discordian Analysis, Greyface Alert, Embeddings)
 - [ ] **Phase 4:** Polish (Operation Mindfuck, OPML, Shortcuts)
@@ -39,6 +40,7 @@ fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U
 - **Database:** SQLite + sqlite-vec (vector search, pure Rust)
 - **AI Backend:** Ollama (local) with qwen3-vl:8b and nomic-embed-text models
 - **Styling:** TailwindCSS
+- **i18n:** svelte-i18n (DE/EN)
 - **Target Platforms:** Linux (primary), macOS (secondary)
 
 ## Build Commands
@@ -148,6 +150,35 @@ fuckupRSS/
 ├── README.md                     # Projekt-Dokumentation
 └── CLAUDE.md                     # Diese Datei
 ```
+
+## i18n (Internationalisierung)
+
+Phase 1.5 führt Mehrsprachigkeit mit `svelte-i18n` ein:
+
+**Unterstützte Sprachen:** Deutsch (de), English (en)
+
+**Struktur:**
+```
+src/lib/i18n/
+├── index.ts          # i18n Setup
+├── de.json           # Deutsche Übersetzungen
+└── en.json           # English translations
+```
+
+**Verwendung in Svelte:**
+```svelte
+<script>
+  import { _ } from 'svelte-i18n';
+</script>
+<h1>{$_('sidebar.title')}</h1>
+```
+
+## Tooltips für Illuminatus!-Begriffe
+
+Alle Illuminatus!-Begriffe (Fnord, Pentacle, etc.) haben erklärende Tooltips:
+- In Settings deaktivierbar (`showTerminologyTooltips`)
+- Einheitliche `<Tooltip>` Komponente
+- Übersetzungen in i18n-Dateien
 
 ## Key Rust Crates
 

@@ -236,10 +236,19 @@ show_greyface = true
 |------------|-------------|
 | Framework | [Tauri](https://tauri.app/) 2.x |
 | Backend | Rust |
-| Frontend | Svelte |
-| Datenbank | SQLite + [SQLite-VSS](https://github.com/asg017/sqlite-vss) |
+| Frontend | Svelte 5 |
+| Datenbank | SQLite + sqlite-vec |
+| i18n | [svelte-i18n](https://github.com/kaisermann/svelte-i18n) |
 | KI | [Ollama](https://ollama.com/) (lokal) |
 | Modelle | qwen3-vl:8b, nomic-embed-text |
+
+### Mehrsprachigkeit
+
+fuckupRSS unterstützt mehrere Sprachen:
+- Deutsch (Standard)
+- English
+
+Die Sprache kann in den Einstellungen gewechselt werden.
 
 ---
 
@@ -257,6 +266,7 @@ show_greyface = true
 
 - [x] Anforderungsdokument
 - [x] **Phase 1** – Grundgerüst (Tauri + Svelte, SQLite, Basis-UI)
+- [ ] **Phase 1.5** – i18n & UX (Mehrsprachigkeit, Tooltips, Einstellungen)
 - [ ] **v0.1** – Basis-Reader mit Feed-Sync
 - [ ] **v0.2** – KI-Integration (Zusammenfassung, Kategorien)
 - [ ] **v0.3** – Greyface Alert (Bias-Erkennung)
