@@ -1,5 +1,8 @@
 mod commands;
 mod db;
+mod ollama;
+mod retrieval;
+mod sync;
 
 use db::Database;
 use std::sync::Mutex;
@@ -31,6 +34,14 @@ pub fn run() {
             commands::fnords::get_fnords,
             commands::fnords::get_fnord,
             commands::fnords::update_fnord_status,
+            commands::sync::sync_all_feeds,
+            commands::sync::sync_feed,
+            commands::retrieval::fetch_full_content,
+            commands::retrieval::fetch_truncated_articles,
+            commands::ollama::check_ollama,
+            commands::ollama::generate_summary,
+            commands::ollama::analyze_article,
+            commands::ollama::process_article,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
