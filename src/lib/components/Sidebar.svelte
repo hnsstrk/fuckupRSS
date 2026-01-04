@@ -13,10 +13,18 @@
   let showAddForm = $state(false);
   let newFeedUrl = $state("");
 
-  onMount(() => {
-    appState.loadPentacles();
-    appState.loadFnords();
+  onMount(async () => {
+    await appState.loadPentacles();
+    await appState.loadFnords();
+    // Auto-sync feeds on startup
+    appState.syncAllFeeds();
+    // Check Ollama availability
+    appState.checkOllama();
   });
+
+  function handleSync() {
+    appState.syncAllFeeds();
+  }
 
   function handleAddFeed(e: Event) {
     e.preventDefault();
@@ -36,97 +44,81 @@
   }
 </script>
 
-<aside
-  class="w-64 bg-zinc-800 border-r border-zinc-700 flex flex-col h-full shrink-0"
->
+<aside class="sidebar">
   <!-- Header -->
-  <div class="p-4 border-b border-zinc-700">
-    <div class="flex items-center justify-between">
-      <h1 class="text-lg font-bold text-zinc-100 flex items-center gap-2">
-        <span class="text-xl">▲</span>
+  <div class="sidebar-header">
+    <div class="header-row">
+      <h1 class="logo">
+        <span class="logo-icon">▲</span>
         {$_('app.title')}
       </h1>
-      {#if onsettings}
+      <div class="header-actions">
         <button
-          onclick={onsettings}
-          class="text-zinc-400 hover:text-zinc-100 transition-colors p-1"
-          title={$_('settings.title')}
+          onclick={handleSync}
+          class="icon-btn {appState.syncing ? 'syncing' : ''}"
+          title={$_('actions.refresh')}
+          disabled={appState.syncing}
         >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
           </svg>
         </button>
-      {/if}
+        {#if onsettings}
+          <button onclick={onsettings} class="icon-btn" title={$_('settings.title')}>
+            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+          </button>
+        {/if}
+      </div>
     </div>
-    <p class="text-xs text-zinc-500 mt-1">Immanentize the Eschaton</p>
+    <p class="tagline">Immanentize the Eschaton</p>
   </div>
 
   <!-- All Feeds -->
   <button
-    class="px-4 py-3 text-left hover:bg-zinc-700 transition-colors flex items-center justify-between {appState.selectedPentacleId ===
-    null
-      ? 'bg-zinc-700'
-      : ''}"
+    class="feed-item {appState.selectedPentacleId === null ? 'active' : ''}"
     onclick={handleSelectAll}
   >
-    <span class="font-medium">
-      {$_('sidebar.allFeeds')} (<Tooltip termKey="fnord"><span class="text-fnord-400">{$_('terminology.fnord.term')}</span></Tooltip>)
+    <span class="feed-name">
+      {$_('sidebar.allFeeds')} (<Tooltip termKey="fnord"><span class="text-fnord">{$_('terminology.fnord.term')}</span></Tooltip>)
     </span>
     {#if appState.totalUnread > 0}
-      <span
-        class="bg-fnord-600 text-white text-xs px-2 py-0.5 rounded-full font-medium"
-      >
-        {appState.totalUnread}
-      </span>
+      <span class="unread-badge">{appState.totalUnread}</span>
     {/if}
   </button>
 
   <!-- Pentacles List -->
-  <div class="flex-1 overflow-y-auto">
-    <div class="px-4 py-2 text-xs text-zinc-500 uppercase tracking-wide">
+  <div class="feed-list">
+    <div class="section-header">
       <Tooltip termKey="pentacle">{$_('sidebar.title')}</Tooltip>
     </div>
 
     {#each appState.pentacles as pentacle (pentacle.id)}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
-        class="w-full px-4 py-2 text-left hover:bg-zinc-700 transition-colors flex items-center justify-between group cursor-pointer {appState.selectedPentacleId ===
-        pentacle.id
-          ? 'bg-zinc-700'
-          : ''}"
+        class="feed-item {appState.selectedPentacleId === pentacle.id ? 'active' : ''}"
         onclick={() => handleSelectPentacle(pentacle.id)}
         onkeydown={(e) => e.key === 'Enter' && handleSelectPentacle(pentacle.id)}
         role="button"
         tabindex="0"
       >
-        <span class="truncate text-sm">
-          {pentacle.title || pentacle.url}
-        </span>
-        <div class="flex items-center gap-2">
+        <span class="feed-name">{pentacle.title || pentacle.url}</span>
+        <div class="feed-actions">
           {#if pentacle.unread_count > 0}
-            <span
-              class="bg-fnord-600 text-white text-xs px-1.5 py-0.5 rounded-full font-medium min-w-[20px] text-center"
-            >
-              {pentacle.unread_count}
-            </span>
+            <span class="unread-badge small">{pentacle.unread_count}</span>
           {/if}
           <button
-            class="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-400 transition-opacity"
-            onclick={(e) => {
-              e.stopPropagation();
-              appState.deletePentacle(pentacle.id);
-            }}
+            class="delete-btn"
+            onclick={(e) => { e.stopPropagation(); appState.deletePentacle(pentacle.id); }}
             title={$_('actions.delete')}
-          >
-            ×
-          </button>
+          >×</button>
         </div>
       </div>
     {/each}
 
     {#if appState.pentacles.length === 0 && !appState.loading}
-      <div class="px-4 py-8 text-center text-zinc-500 text-sm">
+      <div class="empty-state">
         {$_('articleList.noArticles')}<br />
         <Tooltip termKey="pentacle">{$_('sidebar.addFeed')}</Tooltip>
       </div>
@@ -134,59 +126,305 @@
   </div>
 
   <!-- Add Feed -->
-  <div class="border-t border-zinc-700 p-4">
+  <div class="add-feed">
     {#if showAddForm}
-      <form onsubmit={handleAddFeed} class="space-y-2">
+      <form onsubmit={handleAddFeed} class="add-form">
         <input
           type="url"
           bind:value={newFeedUrl}
           placeholder={$_('sidebar.addFeedPlaceholder')}
-          class="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
-          autofocus
+          class="add-input"
         />
-        <div class="flex gap-2">
-          <button
-            type="submit"
-            class="flex-1 bg-zinc-600 hover:bg-zinc-500 text-white text-sm py-1.5 rounded transition-colors"
-          >
-            {$_('sidebar.addFeed')}
-          </button>
-          <button
-            type="button"
-            onclick={() => (showAddForm = false)}
-            class="flex-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-sm py-1.5 rounded transition-colors"
-          >
+        <div class="add-buttons">
+          <button type="submit" class="btn-primary">{$_('sidebar.addFeed')}</button>
+          <button type="button" class="btn-secondary" onclick={() => (showAddForm = false)}>
             {$_('settings.cancel')}
           </button>
         </div>
       </form>
     {:else}
-      <button
-        onclick={() => (showAddForm = true)}
-        class="w-full bg-zinc-700 hover:bg-zinc-600 text-zinc-300 text-sm py-2 rounded transition-colors"
-      >
+      <button onclick={() => (showAddForm = true)} class="btn-add">
         + <Tooltip termKey="pentacle">{$_('sidebar.addFeed')}</Tooltip>
       </button>
     {/if}
   </div>
 
   <!-- Stats -->
-  <div class="border-t border-zinc-700 p-4 text-xs text-zinc-500">
-    <div class="flex justify-between">
+  <div class="stats">
+    <div class="stat-row">
       <span>● <Tooltip termKey="fnord">{$_('terminology.fnord.term')}</Tooltip></span>
       <span>{appState.totalUnread}</span>
     </div>
-    <div class="flex justify-between">
+    <div class="stat-row">
       <span>○ <Tooltip termKey="illuminated">{$_('terminology.illuminated.term')}</Tooltip></span>
-      <span
-        >{appState.fnords.filter((f) => f.status === "illuminated").length}</span
-      >
+      <span>{appState.fnords.filter((f) => f.status === "illuminated").length}</span>
     </div>
-    <div class="flex justify-between">
+    <div class="stat-row">
       <span><Tooltip termKey="golden_apple">{$_('terminology.golden_apple.term')}</Tooltip></span>
-      <span
-        >{appState.fnords.filter((f) => f.status === "golden_apple").length}</span
-      >
+      <span>{appState.fnords.filter((f) => f.status === "golden_apple").length}</span>
     </div>
   </div>
 </aside>
+
+<style>
+  .sidebar {
+    width: 16rem;
+    background-color: var(--bg-surface);
+    border-right: 1px solid var(--border-default);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    flex-shrink: 0;
+  }
+
+  .sidebar-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+  }
+
+  .logo-icon {
+    font-size: 1.25rem;
+    color: var(--accent-primary);
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .icon-btn {
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon-btn:hover:not(:disabled) {
+    color: var(--text-primary);
+  }
+
+  .icon-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .icon-btn .icon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .icon-btn.syncing .icon {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .tagline {
+    font-size: 0.75rem;
+    color: var(--text-faint);
+    margin: 0.25rem 0 0 0;
+  }
+
+  .feed-item {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background-color 0.2s;
+    color: var(--text-primary);
+  }
+
+  .feed-item:hover {
+    background-color: var(--bg-overlay);
+  }
+
+  .feed-item.active {
+    background-color: var(--bg-overlay);
+  }
+
+  .feed-name {
+    font-size: 0.875rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .feed-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .unread-badge {
+    background-color: var(--fnord-color);
+    color: var(--text-on-accent);
+    font-size: 0.75rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-weight: 500;
+  }
+
+  .unread-badge.small {
+    padding: 0.125rem 0.375rem;
+    min-width: 1.25rem;
+    text-align: center;
+  }
+
+  .delete-btn {
+    opacity: 0;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: opacity 0.2s, color 0.2s;
+  }
+
+  .feed-item:hover .delete-btn {
+    opacity: 1;
+  }
+
+  .delete-btn:hover {
+    color: var(--accent-error);
+  }
+
+  .feed-list {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .section-header {
+    padding: 0.5rem 1rem;
+    font-size: 0.75rem;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .empty-state {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+
+  .add-feed {
+    border-top: 1px solid var(--border-default);
+    padding: 1rem;
+  }
+
+  .add-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .add-input {
+    width: 100%;
+    background-color: var(--bg-overlay);
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+  }
+
+  .add-input::placeholder {
+    color: var(--text-faint);
+  }
+
+  .add-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+  }
+
+  .add-buttons {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .btn-primary, .btn-secondary, .btn-add {
+    flex: 1;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border: none;
+  }
+
+  .btn-primary {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+  }
+
+  .btn-primary:hover {
+    filter: brightness(1.1);
+  }
+
+  .btn-secondary {
+    background-color: var(--bg-overlay);
+    color: var(--text-secondary);
+  }
+
+  .btn-secondary:hover {
+    background-color: var(--bg-muted);
+  }
+
+  .btn-add {
+    width: 100%;
+    background-color: var(--bg-overlay);
+    color: var(--text-secondary);
+  }
+
+  .btn-add:hover {
+    background-color: var(--bg-muted);
+  }
+
+  .stats {
+    border-top: 1px solid var(--border-default);
+    padding: 1rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+  }
+
+  .text-fnord {
+    color: var(--fnord-color);
+  }
+</style>

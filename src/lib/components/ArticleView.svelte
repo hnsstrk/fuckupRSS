@@ -26,18 +26,12 @@
     if (bias === null) return $locale?.startsWith('de') ? "Nicht bewertet" : "Not rated";
     const isGerman = $locale?.startsWith('de');
     switch (bias) {
-      case -2:
-        return isGerman ? "Stark links" : "Strong left";
-      case -1:
-        return isGerman ? "Leicht links" : "Lean left";
-      case 0:
-        return $_('articleView.greyface.biasCenter');
-      case 1:
-        return isGerman ? "Leicht rechts" : "Lean right";
-      case 2:
-        return isGerman ? "Stark rechts" : "Strong right";
-      default:
-        return isGerman ? "Unbekannt" : "Unknown";
+      case -2: return isGerman ? "Stark links" : "Strong left";
+      case -1: return isGerman ? "Leicht links" : "Lean left";
+      case 0: return $_('articleView.greyface.biasCenter');
+      case 1: return isGerman ? "Leicht rechts" : "Lean right";
+      case 2: return isGerman ? "Stark rechts" : "Strong right";
+      default: return isGerman ? "Unbekannt" : "Unknown";
     }
   }
 
@@ -45,18 +39,12 @@
     if (s === null) return $locale?.startsWith('de') ? "Nicht bewertet" : "Not rated";
     const isGerman = $locale?.startsWith('de');
     switch (s) {
-      case 0:
-        return isGerman ? "Stark emotional" : "Highly emotional";
-      case 1:
-        return isGerman ? "Emotional" : "Emotional";
-      case 2:
-        return isGerman ? "Gemischt" : "Mixed";
-      case 3:
-        return isGerman ? "Ueberwiegend sachlich" : "Mostly objective";
-      case 4:
-        return isGerman ? "Sachlich" : "Objective";
-      default:
-        return isGerman ? "Unbekannt" : "Unknown";
+      case 0: return isGerman ? "Stark emotional" : "Highly emotional";
+      case 1: return isGerman ? "Emotional" : "Emotional";
+      case 2: return isGerman ? "Gemischt" : "Mixed";
+      case 3: return isGerman ? "Überwiegend sachlich" : "Mostly objective";
+      case 4: return isGerman ? "Sachlich" : "Objective";
+      default: return isGerman ? "Unbekannt" : "Unknown";
     }
   }
 
@@ -66,61 +54,92 @@
     }
   }
 
+  async function fetchFullContent() {
+    if (appState.selectedFnord) {
+      await appState.fetchFullContent(appState.selectedFnord.id);
+    }
+  }
+
+  async function analyzeWithAI() {
+    if (appState.selectedFnord && appState.ollamaStatus.available) {
+      await appState.processArticle(appState.selectedFnord.id);
+    }
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "v" && appState.selectedFnord) {
       e.preventDefault();
       openInBrowser();
+    }
+    // 'r' for retrieve full text
+    if (e.key === "r" && appState.selectedFnord && !appState.selectedFnord.content_full) {
+      e.preventDefault();
+      fetchFullContent();
     }
   }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="flex-1 bg-zinc-900 overflow-y-auto">
+<div class="article-view">
   {#if appState.selectedFnord}
     {@const fnord = appState.selectedFnord}
 
     <!-- Article Header -->
-    <div class="p-6 border-b border-zinc-800">
-      <div class="max-w-3xl mx-auto">
-        <!-- Source & Date -->
-        <div class="flex items-center gap-2 text-sm text-zinc-500 mb-3">
-          <span class="font-medium text-zinc-400">
-            {fnord.pentacle_title || "Unknown Source"}
-          </span>
-          <span>·</span>
+    <div class="article-header">
+      <div class="header-content">
+        <div class="article-meta">
+          <span class="source">{fnord.pentacle_title || "Unknown Source"}</span>
+          <span class="separator">·</span>
           <span>{formatDate(fnord.published_at)}</span>
           {#if fnord.author}
-            <span>·</span>
+            <span class="separator">·</span>
             <span>{$_('articleView.by')} {fnord.author}</span>
           {/if}
         </div>
 
-        <!-- Title -->
-        <h1 class="text-2xl font-bold text-zinc-100 leading-tight mb-4">
-          {fnord.title}
-        </h1>
+        <h1 class="article-title">{fnord.title}</h1>
 
-        <!-- Actions -->
-        <div class="flex items-center gap-3">
+        <div class="article-actions">
           <button
             onclick={() => appState.toggleGoldenApple(fnord.id)}
-            class="px-3 py-1.5 rounded text-sm transition-colors {fnord.status ===
-            'golden_apple'
-              ? 'bg-golden-600 text-white'
-              : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}"
+            class="btn {fnord.status === 'golden_apple' ? 'btn-golden' : 'btn-default'}"
           >
             <Tooltip termKey="golden_apple">
-              <span>{fnord.status === "golden_apple"
-                ? $_('terminology.golden_apple.term')
-                : $_('actions.favorite')}</span>
+              <span>{fnord.status === "golden_apple" ? $_('terminology.golden_apple.term') : $_('actions.favorite')}</span>
             </Tooltip>
           </button>
-
-          <button
-            onclick={openInBrowser}
-            class="px-3 py-1.5 rounded text-sm bg-zinc-800 text-zinc-400 hover:bg-zinc-700 transition-colors"
-          >
+          {#if !fnord.content_full}
+            <button
+              onclick={fetchFullContent}
+              class="btn btn-default {appState.retrieving ? 'retrieving' : ''}"
+              disabled={appState.retrieving}
+              title={$locale?.startsWith('de') ? 'Volltext abrufen (r)' : 'Fetch full text (r)'}
+            >
+              {#if appState.retrieving}
+                <span class="spinner">⟳</span>
+              {/if}
+              <Tooltip termKey="hagbard">
+                <span>{$locale?.startsWith('de') ? 'Volltext' : 'Full Text'}</span>
+              </Tooltip>
+            </button>
+          {/if}
+          {#if appState.ollamaStatus.available && !fnord.summary}
+            <button
+              onclick={analyzeWithAI}
+              class="btn btn-default {appState.analyzing ? 'retrieving' : ''}"
+              disabled={appState.analyzing}
+              title={$locale?.startsWith('de') ? 'KI-Analyse' : 'AI Analysis'}
+            >
+              {#if appState.analyzing}
+                <span class="spinner">⟳</span>
+              {/if}
+              <Tooltip termKey="discordian">
+                <span>{$locale?.startsWith('de') ? 'Analysieren' : 'Analyze'}</span>
+              </Tooltip>
+            </button>
+          {/if}
+          <button onclick={openInBrowser} class="btn btn-default">
             {$_('actions.openInBrowser')}
           </button>
         </div>
@@ -129,47 +148,34 @@
 
     <!-- Greyface Alert -->
     {#if fnord.political_bias !== null || fnord.sachlichkeit !== null || fnord.article_type}
-      <div class="p-4 bg-zinc-800/50 border-b border-zinc-800">
-        <div class="max-w-3xl mx-auto">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="text-zinc-400 text-sm font-medium">
-              <Tooltip termKey="greyface">{$_('articleView.greyface.title')}</Tooltip>
-            </span>
+      <div class="greyface-section">
+        <div class="section-content">
+          <div class="section-header">
+            <Tooltip termKey="greyface">{$_('articleView.greyface.title')}</Tooltip>
           </div>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div class="greyface-grid">
             {#if fnord.article_type}
-              <div>
-                <div class="text-zinc-500 text-xs mb-1">{$locale?.startsWith('de') ? 'Artikeltyp' : 'Article Type'}</div>
-                <div class="text-zinc-300">
-                  {getArticleTypeName(fnord.article_type)}
-                </div>
+              <div class="greyface-item">
+                <div class="item-label">{$locale?.startsWith('de') ? 'Artikeltyp' : 'Article Type'}</div>
+                <div class="item-value">{getArticleTypeName(fnord.article_type)}</div>
               </div>
             {/if}
-
             {#if fnord.political_bias !== null}
-              <div>
-                <div class="text-zinc-500 text-xs mb-1">{$_('articleView.greyface.bias')}</div>
-                <div class="text-zinc-300">{getBiasLabel(fnord.political_bias)}</div>
+              <div class="greyface-item">
+                <div class="item-label">{$_('articleView.greyface.bias')}</div>
+                <div class="item-value">{getBiasLabel(fnord.political_bias)}</div>
               </div>
             {/if}
-
             {#if fnord.sachlichkeit !== null}
-              <div>
-                <div class="text-zinc-500 text-xs mb-1">{$_('articleView.greyface.sachlichkeit')}</div>
-                <div class="text-zinc-300">
-                  {getSachlichkeitLabel(fnord.sachlichkeit)}
-                </div>
+              <div class="greyface-item">
+                <div class="item-label">{$_('articleView.greyface.sachlichkeit')}</div>
+                <div class="item-value">{getSachlichkeitLabel(fnord.sachlichkeit)}</div>
               </div>
             {/if}
-
             {#if fnord.quality_score !== null}
-              <div>
-                <div class="text-zinc-500 text-xs mb-1">{$_('articleView.greyface.quality')}</div>
-                <div class="text-golden-500">
-                  {"\u2605".repeat(fnord.quality_score)}{"\u2606".repeat(
-                    5 - fnord.quality_score
-                  )}
-                </div>
+              <div class="greyface-item">
+                <div class="item-label">{$_('articleView.greyface.quality')}</div>
+                <div class="item-value quality">{"★".repeat(fnord.quality_score)}{"☆".repeat(5 - fnord.quality_score)}</div>
               </div>
             {/if}
           </div>
@@ -179,32 +185,28 @@
 
     <!-- Summary (Discordian Analysis) -->
     {#if fnord.summary}
-      <div class="p-4 bg-zinc-800/30 border-b border-zinc-800">
-        <div class="max-w-3xl mx-auto">
-          <div class="flex items-center gap-2 mb-2">
-            <span class="text-zinc-400 text-sm font-medium">
-              <Tooltip termKey="discordian">{$_('terminology.discordian.term')}</Tooltip>
-            </span>
+      <div class="summary-section">
+        <div class="section-content">
+          <div class="section-header">
+            <Tooltip termKey="discordian">{$_('terminology.discordian.term')}</Tooltip>
           </div>
-          <p class="text-zinc-300 text-sm leading-relaxed">{fnord.summary}</p>
+          <p class="summary-text">{fnord.summary}</p>
         </div>
       </div>
     {/if}
 
     <!-- Content -->
-    <div class="p-6">
-      <div class="max-w-3xl mx-auto">
-        <article class="prose prose-invert prose-zinc max-w-none">
+    <div class="content-section">
+      <div class="section-content">
+        <article class="article-body">
           {#if fnord.content_full}
             {@html fnord.content_full}
           {:else if fnord.content_raw}
-            <p class="text-zinc-300 leading-relaxed whitespace-pre-wrap">
-              {fnord.content_raw}
-            </p>
+            <p class="content-text">{fnord.content_raw}</p>
           {:else}
-            <p class="text-zinc-500 italic">
+            <p class="no-content">
               {$locale?.startsWith('de')
-                ? 'Kein Inhalt verfuegbar. Klicke auf "Im Browser oeffnen" um den vollstaendigen Artikel zu lesen.'
+                ? 'Kein Inhalt verfügbar. Klicke auf "Im Browser öffnen" um den vollständigen Artikel zu lesen.'
                 : 'No content available. Click "Open in browser" to read the full article.'}
             </p>
           {/if}
@@ -213,56 +215,250 @@
     </div>
   {:else}
     <!-- Empty State -->
-    <div
-      class="h-full flex flex-col items-center justify-center text-zinc-500 p-8"
-    >
-      <div class="text-6xl mb-4">▲</div>
-      <h2 class="text-xl font-medium mb-2">
+    <div class="empty-state">
+      <div class="empty-icon">▲</div>
+      <h2 class="empty-title">
         <Tooltip termKey="fnord">{$_('articleView.noSelection')}</Tooltip>
       </h2>
-      <p class="text-sm text-center max-w-md">
+      <p class="empty-text">
         {$_('articleView.selectArticle')}<br />
-        {$locale?.startsWith('de') ? 'Benutze' : 'Use'} <kbd class="bg-zinc-700 px-1 rounded">j</kbd> {$locale?.startsWith('de') ? 'und' : 'and'}
-        <kbd class="bg-zinc-700 px-1 rounded">k</kbd> {$locale?.startsWith('de') ? 'zum Navigieren.' : 'to navigate.'}
+        {$locale?.startsWith('de') ? 'Benutze' : 'Use'} <kbd>j</kbd> {$locale?.startsWith('de') ? 'und' : 'and'}
+        <kbd>k</kbd> {$locale?.startsWith('de') ? 'zum Navigieren.' : 'to navigate.'}
       </p>
     </div>
   {/if}
 </div>
 
 <style>
-  /* Prose styles for article content */
-  :global(.prose) {
-    color: theme("colors.zinc.300");
+  .article-view {
+    flex: 1;
+    background-color: var(--bg-base);
+    overflow-y: auto;
   }
 
-  :global(.prose h1, .prose h2, .prose h3, .prose h4) {
-    color: theme("colors.zinc.100");
+  .article-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-default);
   }
 
-  :global(.prose a) {
-    color: theme("colors.blue.400");
+  .header-content,
+  .section-content {
+    max-width: 48rem;
+    margin: 0 auto;
   }
 
-  :global(.prose a:hover) {
-    color: theme("colors.blue.300");
+  .article-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
   }
 
-  :global(.prose strong) {
-    color: theme("colors.zinc.100");
+  .source {
+    font-weight: 500;
+    color: var(--text-secondary);
   }
 
-  :global(.prose code) {
-    background: theme("colors.zinc.800");
+  .separator {
+    color: var(--text-faint);
+  }
+
+  .article-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.3;
+    margin: 0 0 1rem 0;
+  }
+
+  .article-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .btn {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+  }
+
+  .btn-default {
+    background-color: var(--bg-surface);
+    color: var(--text-secondary);
+  }
+
+  .btn-default:hover {
+    background-color: var(--bg-overlay);
+  }
+
+  .btn-golden {
+    background-color: var(--golden-apple-color);
+    color: var(--text-on-accent);
+  }
+
+  .btn-golden:hover {
+    filter: brightness(1.1);
+  }
+
+  .btn.retrieving {
+    opacity: 0.7;
+    cursor: wait;
+  }
+
+  .spinner {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+    margin-right: 0.25rem;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .greyface-section,
+  .summary-section {
+    padding: 1rem 1.5rem;
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .section-header {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+  }
+
+  .greyface-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: 1rem;
+  }
+
+  .greyface-item {
+    font-size: 0.875rem;
+  }
+
+  .item-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+  }
+
+  .item-value {
+    color: var(--text-primary);
+  }
+
+  .item-value.quality {
+    color: var(--golden-apple-color);
+  }
+
+  .summary-text {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .content-section {
+    padding: 1.5rem;
+  }
+
+  .article-body {
+    color: var(--text-primary);
+    line-height: 1.7;
+  }
+
+  .article-body :global(h1),
+  .article-body :global(h2),
+  .article-body :global(h3),
+  .article-body :global(h4) {
+    color: var(--text-primary);
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .article-body :global(a) {
+    color: var(--accent-info);
+  }
+
+  .article-body :global(a:hover) {
+    text-decoration: underline;
+  }
+
+  .article-body :global(code) {
+    background-color: var(--bg-surface);
     padding: 0.125rem 0.25rem;
     border-radius: 0.25rem;
+    font-size: 0.875em;
   }
 
-  :global(.prose pre) {
-    background: theme("colors.zinc.800");
+  .article-body :global(pre) {
+    background-color: var(--bg-surface);
+    padding: 1rem;
+    border-radius: 0.375rem;
+    overflow-x: auto;
   }
 
-  :global(.prose blockquote) {
-    border-left-color: theme("colors.zinc.600");
-    color: theme("colors.zinc.400");
+  .article-body :global(blockquote) {
+    border-left: 3px solid var(--accent-primary);
+    padding-left: 1rem;
+    color: var(--text-secondary);
+    margin: 1rem 0;
+  }
+
+  .content-text {
+    white-space: pre-wrap;
+    margin: 0;
+  }
+
+  .no-content {
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 0;
+  }
+
+  .empty-state {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    padding: 2rem;
+  }
+
+  .empty-icon {
+    font-size: 4rem;
+    color: var(--accent-primary);
+    margin-bottom: 1rem;
+  }
+
+  .empty-title {
+    font-size: 1.25rem;
+    font-weight: 500;
+    margin: 0 0 0.5rem 0;
+  }
+
+  .empty-text {
+    font-size: 0.875rem;
+    text-align: center;
+    max-width: 20rem;
+    margin: 0;
+  }
+
+  kbd {
+    background-color: var(--bg-surface);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-family: inherit;
   }
 </style>

@@ -39,6 +39,53 @@ export interface FnordFilter {
   limit?: number;
 }
 
+export interface SyncResponse {
+  success: boolean;
+  results: SyncResultResponse[];
+  total_new: number;
+  total_updated: number;
+}
+
+export interface SyncResultResponse {
+  pentacle_id: number;
+  pentacle_title: string | null;
+  new_articles: number;
+  updated_articles: number;
+  error: string | null;
+}
+
+export interface RetrievalResponse {
+  fnord_id: number;
+  success: boolean;
+  content: string | null;
+  error: string | null;
+}
+
+export interface OllamaStatus {
+  available: boolean;
+  models: string[];
+}
+
+export interface SummaryResponse {
+  fnord_id: number;
+  success: boolean;
+  summary: string | null;
+  error: string | null;
+}
+
+export interface BiasAnalysis {
+  political_bias: number;
+  sachlichkeit: number;
+  article_type: string;
+}
+
+export interface AnalysisResponse {
+  fnord_id: number;
+  success: boolean;
+  analysis: BiasAnalysis | null;
+  error: string | null;
+}
+
 // Svelte 5 runes-based state
 class AppState {
   pentacles = $state<Pentacle[]>([]);
@@ -46,7 +93,13 @@ class AppState {
   selectedPentacleId = $state<number | null>(null);
   selectedFnordId = $state<number | null>(null);
   loading = $state(false);
+  syncing = $state(false);
+  retrieving = $state(false);
+  analyzing = $state(false);
   error = $state<string | null>(null);
+  lastSyncResult = $state<SyncResponse | null>(null);
+  ollamaStatus = $state<OllamaStatus>({ available: false, models: [] });
+  selectedModel = $state<string | null>(null);
 
   get selectedPentacle(): Pentacle | undefined {
     return this.pentacles.find((p) => p.id === this.selectedPentacleId);
@@ -186,6 +239,190 @@ class AppState {
     const newStatus =
       fnord.status === "golden_apple" ? "illuminated" : "golden_apple";
     this.updateFnordStatus(id, newStatus);
+  }
+
+  async syncAllFeeds(): Promise<SyncResponse | null> {
+    if (this.syncing) return null;
+
+    try {
+      this.syncing = true;
+      this.error = null;
+      const result = await invoke<SyncResponse>("sync_all_feeds");
+      this.lastSyncResult = result;
+
+      // Reload data after sync
+      await this.loadPentacles();
+      await this.loadFnords(
+        this.selectedPentacleId ? { pentacle_id: this.selectedPentacleId } : undefined
+      );
+
+      return result;
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to sync feeds:", e);
+      return null;
+    } finally {
+      this.syncing = false;
+    }
+  }
+
+  async syncFeed(pentacleId: number): Promise<void> {
+    try {
+      this.syncing = true;
+      this.error = null;
+      await invoke("sync_feed", { pentacleId });
+
+      // Reload data after sync
+      await this.loadPentacles();
+      if (this.selectedPentacleId === pentacleId || this.selectedPentacleId === null) {
+        await this.loadFnords(
+          this.selectedPentacleId ? { pentacle_id: this.selectedPentacleId } : undefined
+        );
+      }
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to sync feed:", e);
+    } finally {
+      this.syncing = false;
+    }
+  }
+
+  // Hagbard's Retrieval - Full-text fetching
+  async fetchFullContent(fnordId: number): Promise<RetrievalResponse | null> {
+    if (this.retrieving) return null;
+
+    try {
+      this.retrieving = true;
+      this.error = null;
+      const result = await invoke<RetrievalResponse>("fetch_full_content", { fnordId });
+
+      // Update local state if successful
+      if (result.success && result.content) {
+        const fnord = this.fnords.find((f) => f.id === fnordId);
+        if (fnord) {
+          fnord.content_full = result.content;
+        }
+      }
+
+      return result;
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to fetch full content:", e);
+      return null;
+    } finally {
+      this.retrieving = false;
+    }
+  }
+
+  async fetchTruncatedArticles(pentacleId?: number): Promise<RetrievalResponse[]> {
+    if (this.retrieving) return [];
+
+    try {
+      this.retrieving = true;
+      this.error = null;
+      const results = await invoke<RetrievalResponse[]>("fetch_truncated_articles", {
+        pentacleId: pentacleId ?? null,
+      });
+
+      // Update local state for successful fetches
+      for (const result of results) {
+        if (result.success && result.content) {
+          const fnord = this.fnords.find((f) => f.id === result.fnord_id);
+          if (fnord) {
+            fnord.content_full = result.content;
+          }
+        }
+      }
+
+      return results;
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to fetch truncated articles:", e);
+      return [];
+    } finally {
+      this.retrieving = false;
+    }
+  }
+
+  // Ollama AI Integration
+  async checkOllama(): Promise<OllamaStatus> {
+    try {
+      const status = await invoke<OllamaStatus>("check_ollama");
+      this.ollamaStatus = status;
+      if (status.available && status.models.length > 0 && !this.selectedModel) {
+        this.selectedModel = status.models[0];
+      }
+      return status;
+    } catch (e) {
+      console.error("Failed to check Ollama:", e);
+      this.ollamaStatus = { available: false, models: [] };
+      return this.ollamaStatus;
+    }
+  }
+
+  async generateSummary(fnordId: number): Promise<SummaryResponse | null> {
+    if (this.analyzing || !this.selectedModel) return null;
+
+    try {
+      this.analyzing = true;
+      this.error = null;
+      const result = await invoke<SummaryResponse>("generate_summary", {
+        fnordId,
+        model: this.selectedModel,
+      });
+
+      // Update local state if successful
+      if (result.success && result.summary) {
+        const fnord = this.fnords.find((f) => f.id === fnordId);
+        if (fnord) {
+          fnord.summary = result.summary;
+        }
+      }
+
+      return result;
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to generate summary:", e);
+      return null;
+    } finally {
+      this.analyzing = false;
+    }
+  }
+
+  async analyzeArticle(fnordId: number): Promise<AnalysisResponse | null> {
+    if (this.analyzing || !this.selectedModel) return null;
+
+    try {
+      this.analyzing = true;
+      this.error = null;
+      const result = await invoke<AnalysisResponse>("analyze_article", {
+        fnordId,
+        model: this.selectedModel,
+      });
+
+      // Update local state if successful
+      if (result.success && result.analysis) {
+        const fnord = this.fnords.find((f) => f.id === fnordId);
+        if (fnord) {
+          fnord.political_bias = result.analysis.political_bias;
+          fnord.sachlichkeit = result.analysis.sachlichkeit;
+          fnord.article_type = result.analysis.article_type;
+        }
+      }
+
+      return result;
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to analyze article:", e);
+      return null;
+    } finally {
+      this.analyzing = false;
+    }
+  }
+
+  async processArticle(fnordId: number): Promise<void> {
+    await this.generateSummary(fnordId);
+    await this.analyzeArticle(fnordId);
   }
 }
 
