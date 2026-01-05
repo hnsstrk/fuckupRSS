@@ -178,11 +178,16 @@ fn fix_json_string(json: &str) -> String {
     let mut result = json.to_string();
 
     // Replace single quotes with double quotes (common LLM mistake)
-    // Be careful to only replace quotes that are likely JSON string delimiters
     result = fix_quotes(&result);
 
     // Remove trailing commas before } or ]
     result = result.replace(",}", "}").replace(",]", "]");
+
+    // Fix unescaped quotes inside string values
+    result = fix_inner_quotes(&result);
+
+    // Fix number-as-string issue (e.g., "0" instead of 0 for numeric fields)
+    result = fix_numeric_strings(&result);
 
     result
 }
@@ -198,12 +203,93 @@ fn fix_quotes(input: &str) -> String {
 
         if c == '\'' {
             // Check if this looks like a JSON string delimiter
-            // (preceded by : or , or [ or { with optional whitespace, or followed by similar)
             result.push('"');
         } else {
             result.push(c);
         }
         i += 1;
+    }
+
+    result
+}
+
+/// Fix unescaped quotes inside JSON string values
+/// E.g., "summary": "He said "hello" to me" -> "summary": "He said \"hello\" to me"
+fn fix_inner_quotes(json: &str) -> String {
+    let mut result = String::with_capacity(json.len() + 100);
+    let chars: Vec<char> = json.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+    let mut in_string = false;
+
+    while i < len {
+        let c = chars[i];
+
+        if c == '"' && (i == 0 || chars[i - 1] != '\\') {
+            if !in_string {
+                // Starting a string
+                in_string = true;
+                result.push(c);
+            } else {
+                // Could be end of string or unescaped quote inside
+                // Look ahead to see if this looks like end of string
+                let next_non_ws = chars[i + 1..].iter().position(|&ch| !ch.is_whitespace());
+                let is_end_of_string = match next_non_ws {
+                    Some(pos) => {
+                        let next_char = chars[i + 1 + pos];
+                        // Valid JSON after string: , } ] :
+                        next_char == ',' || next_char == '}' || next_char == ']' || next_char == ':'
+                    }
+                    None => true, // End of input
+                };
+
+                if is_end_of_string {
+                    // This is the end of the string
+                    in_string = false;
+                    result.push(c);
+                } else {
+                    // This is an unescaped quote inside the string - escape it
+                    result.push('\\');
+                    result.push('"');
+                }
+            }
+        } else {
+            result.push(c);
+        }
+        i += 1;
+    }
+
+    result
+}
+
+/// Fix numeric fields that are incorrectly quoted as strings
+/// E.g., "political_bias": "0" -> "political_bias": 0
+fn fix_numeric_strings(json: &str) -> String {
+    // Pattern: "field_name": "number" -> "field_name": number
+    // Only for known numeric fields to avoid breaking actual string values
+    let numeric_fields = ["political_bias", "sachlichkeit", "quality_score"];
+    let mut result = json.to_string();
+
+    for field in &numeric_fields {
+        // Match patterns like "field": "0" or "field": "-1"
+        let patterns = [
+            (format!("\"{}\": \"", field), format!("\"{}\": ", field)),
+        ];
+
+        for (search, replace) in &patterns {
+            if let Some(start) = result.find(search) {
+                let value_start = start + search.len();
+                if let Some(end_quote) = result[value_start..].find('"') {
+                    let value = &result[value_start..value_start + end_quote];
+                    // Check if value is a valid number
+                    if value.parse::<f64>().is_ok() {
+                        let full_match = format!("{}{}", search, &result[value_start..value_start + end_quote + 1]);
+                        let replacement = format!("{}{}", replace, value);
+                        result = result.replace(&full_match, &replacement);
+                    }
+                }
+            }
+        }
     }
 
     result

@@ -351,3 +351,104 @@ fn test_extract_json_no_braces() {
     let result = extract_json_from_response(response);
     assert_eq!(result, "Just plain text");
 }
+
+// ============================================================
+// Inner quote fixing tests
+// ============================================================
+
+#[test]
+fn test_fix_inner_quotes_basic() {
+    let json = r#"{"summary": "He said "hello" to me"}"#;
+    let result = fix_inner_quotes(json);
+    assert!(result.contains(r#"\"hello\""#));
+}
+
+#[test]
+fn test_fix_inner_quotes_german_style() {
+    // German style quotes like "Koalition der Willigen"
+    let json = r#"{"summary": "Treffen der sogenannten "Koalition der Willigen" in Paris"}"#;
+    let result = fix_inner_quotes(json);
+    assert!(result.contains(r#"\"Koalition der Willigen\""#));
+}
+
+#[test]
+fn test_fix_inner_quotes_multiple() {
+    let json = r#"{"text": "He "said" and she "replied""}"#;
+    let result = fix_inner_quotes(json);
+    assert!(result.contains(r#"\"said\""#));
+    assert!(result.contains(r#"\"replied\""#));
+}
+
+#[test]
+fn test_fix_inner_quotes_no_change_needed() {
+    let json = r#"{"key": "normal value"}"#;
+    let result = fix_inner_quotes(json);
+    assert_eq!(result, json);
+}
+
+#[test]
+fn test_fix_inner_quotes_already_escaped() {
+    let json = r#"{"key": "already \"escaped\" value"}"#;
+    let result = fix_inner_quotes(json);
+    // Should not double-escape
+    assert!(!result.contains(r#"\\""#));
+}
+
+// ============================================================
+// Numeric string fixing tests
+// ============================================================
+
+#[test]
+fn test_fix_numeric_strings_political_bias() {
+    let json = r#"{"political_bias": "0", "other": "text"}"#;
+    let result = fix_numeric_strings(json);
+    assert!(result.contains(r#""political_bias": 0"#));
+    assert!(result.contains(r#""other": "text""#)); // unchanged
+}
+
+#[test]
+fn test_fix_numeric_strings_negative() {
+    let json = r#"{"political_bias": "-2"}"#;
+    let result = fix_numeric_strings(json);
+    assert!(result.contains(r#""political_bias": -2"#));
+}
+
+#[test]
+fn test_fix_numeric_strings_sachlichkeit() {
+    let json = r#"{"sachlichkeit": "3"}"#;
+    let result = fix_numeric_strings(json);
+    assert!(result.contains(r#""sachlichkeit": 3"#));
+}
+
+#[test]
+fn test_fix_numeric_strings_already_number() {
+    let json = r#"{"political_bias": 1}"#;
+    let result = fix_numeric_strings(json);
+    assert_eq!(result, json); // No change needed
+}
+
+#[test]
+fn test_fix_numeric_strings_unknown_field() {
+    // Unknown field should not be converted
+    let json = r#"{"unknown_field": "0"}"#;
+    let result = fix_numeric_strings(json);
+    assert!(result.contains(r#""unknown_field": "0""#));
+}
+
+// ============================================================
+// Integration test for complete fix_json_string
+// ============================================================
+
+#[test]
+fn test_fix_json_string_complete() {
+    // A complex broken JSON that has multiple issues
+    let json = r#"{"summary": "Treffen der "Willigen" geplant", "political_bias": "1",}"#;
+    let result = fix_json_string(json);
+
+    // Should fix inner quotes
+    assert!(result.contains(r#"\"Willigen\""#));
+    // Should fix numeric string
+    assert!(result.contains(r#""political_bias": 1"#));
+    // Should remove trailing comma
+    assert!(!result.contains(",}"));
+}

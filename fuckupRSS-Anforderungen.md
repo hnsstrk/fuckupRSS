@@ -2093,10 +2093,10 @@ launchctl setenv OLLAMA_FLASH_ATTENTION 1
 
 | Bereich | Anzahl Tests | Tool | Befehl |
 |---------|-------------|------|--------|
-| Rust Backend | 123 | `cargo test` | `cargo test --manifest-path src-tauri/Cargo.toml` |
+| Rust Backend | 134 | `cargo test` | `cargo test --manifest-path src-tauri/Cargo.toml` |
 | Frontend Unit | 37 | Vitest | `npm run test` |
 | E2E | 11 | Playwright | `npm run test:e2e` |
-| **Gesamt** | **171** | | |
+| **Gesamt** | **182** | | |
 
 ### Rust Tests
 

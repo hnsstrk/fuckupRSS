@@ -295,10 +295,10 @@ cargo tauri dev
 
 ### Tests
 
-Das Projekt hat umfangreiche Tests (171 insgesamt):
+Das Projekt hat umfangreiche Tests (182 insgesamt):
 
 ```bash
-# Rust Backend Tests (123 Tests)
+# Rust Backend Tests (134 Tests)
 cargo test --manifest-path src-tauri/Cargo.toml
 
 # Frontend Unit Tests (37 Tests)
