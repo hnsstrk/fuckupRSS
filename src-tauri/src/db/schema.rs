@@ -24,6 +24,12 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "CREATE INDEX IF NOT EXISTS idx_fnords_has_changes ON fnords(has_changes);"
     )?;
 
+    // Rename "Tech" to "Technik" if exists
+    conn.execute(
+        "UPDATE sephiroth SET name = 'Technik' WHERE name = 'Tech'",
+        [],
+    )?;
+
     Ok(())
 }
 
@@ -208,7 +214,7 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         -- DEFAULT SEPHIROTH (Kategorien)
         -- ============================================================
         INSERT OR IGNORE INTO sephiroth (name, icon, color) VALUES
-            ('Tech', '💻', '#3B82F6'),
+            ('Technik', '💻', '#3B82F6'),
             ('Politik', '🏛️', '#EF4444'),
             ('Wirtschaft', '📈', '#10B981'),
             ('Wissenschaft', '🔬', '#8B5CF6'),
@@ -218,7 +224,9 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             ('Umwelt', '🌍', '#22C55E'),
             ('Sicherheit', '🔒', '#6366F1'),
             ('Gesundheit', '🏥', '#F43F5E'),
-            ('Verteidigung', '🎖️', '#78716C');
+            ('Verteidigung', '🎖️', '#78716C'),
+            ('Energie', '⚡', '#FBBF24'),
+            ('Recht', '⚖️', '#7C3AED');
         "#,
     )?;
 
