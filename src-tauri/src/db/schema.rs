@@ -217,7 +217,8 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             ('Gesellschaft', '👥', '#EC4899'),
             ('Umwelt', '🌍', '#22C55E'),
             ('Sicherheit', '🔒', '#6366F1'),
-            ('Gesundheit', '🏥', '#F43F5E');
+            ('Gesundheit', '🏥', '#F43F5E'),
+            ('Verteidigung', '🎖️', '#78716C');
         "#,
     )?;
 

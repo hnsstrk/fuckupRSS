@@ -105,7 +105,7 @@ IMPORTANT: Respond ONLY with the JSON object below. No explanation, no markdown.
 
 Rules:
 - summary: 2-3 factual sentences
-- categories: 1-3 from ONLY these: Tech, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit
+- categories: 1-3 from ONLY these: Tech, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit, Verteidigung
 - keywords: 3-7 specific terms (people, places, organizations, concepts) - NOT generic words
 - political_bias: -2=strong left, -1=lean left, 0=neutral, 1=lean right, 2=strong right
 - sachlichkeit: 0=highly emotional, 1=emotional, 2=mixed, 3=mostly objective, 4=objective
