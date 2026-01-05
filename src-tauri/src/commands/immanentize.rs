@@ -41,8 +41,9 @@ pub struct KeywordCategory {
     pub article_count: i64,
 }
 
-/// Keyword cluster
+/// Keyword cluster (for future clustering feature)
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct KeywordCluster {
     pub id: i64,
     pub name: Option<String>,
@@ -386,7 +387,7 @@ pub fn get_network_stats(state: State<AppState>) -> Result<NetworkStats, String>
     })
 }
 
-/// Search keywords by name
+/// Search keywords by name (case-insensitive)
 #[tauri::command]
 pub fn search_keywords(
     state: State<AppState>,
@@ -395,7 +396,7 @@ pub fn search_keywords(
 ) -> Result<Vec<Keyword>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let limit = limit.unwrap_or(20);
-    let search_pattern = format!("%{}%", query);
+    let search_pattern = format!("%{}%", query.to_lowercase());
 
     let mut stmt = db
         .conn()
@@ -404,7 +405,7 @@ pub fn search_keywords(
             SELECT id, name, count, article_count, cluster_id,
                    is_canonical, canonical_id, first_seen, last_used
             FROM immanentize
-            WHERE name LIKE ?1
+            WHERE LOWER(name) LIKE ?1
             ORDER BY article_count DESC, count DESC
             LIMIT ?2
             "#,

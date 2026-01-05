@@ -490,6 +490,17 @@ pub async fn process_article_discordian(
             let mut tags_saved = Vec::new();
             let mut tag_ids: Vec<i64> = Vec::new();
 
+            // Get existing keyword IDs for this article (to avoid double-counting)
+            let existing_tag_ids: Vec<i64> = {
+                let mut stmt = db.conn()
+                    .prepare("SELECT immanentize_id FROM fnord_immanentize WHERE fnord_id = ?")
+                    .unwrap();
+                stmt.query_map([fnord_id], |row| row.get(0))
+                    .unwrap()
+                    .filter_map(|r| r.ok())
+                    .collect()
+            };
+
             db.conn()
                 .execute("DELETE FROM fnord_immanentize WHERE fnord_id = ?", [fnord_id])
                 .ok();
@@ -500,18 +511,40 @@ pub async fn process_article_discordian(
                     continue;
                 }
 
-                // Upsert tag with extended fields
-                db.conn()
-                    .execute(
-                        r#"INSERT INTO immanentize (name, count, article_count, first_seen, last_used)
-                           VALUES (?1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                           ON CONFLICT(name) DO UPDATE SET
-                               count = count + 1,
-                               article_count = article_count + 1,
-                               last_used = CURRENT_TIMESTAMP"#,
-                        [keyword],
-                    )
+                // Check if keyword already exists
+                let existing_id: Option<i64> = db.conn()
+                    .query_row("SELECT id FROM immanentize WHERE name = ?", [keyword], |row| row.get(0))
                     .ok();
+
+                let is_new_for_article = existing_id
+                    .map(|id| !existing_tag_ids.contains(&id))
+                    .unwrap_or(true);
+
+                if is_new_for_article {
+                    // New keyword or new association - increment article_count
+                    db.conn()
+                        .execute(
+                            r#"INSERT INTO immanentize (name, count, article_count, first_seen, last_used)
+                               VALUES (?1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                               ON CONFLICT(name) DO UPDATE SET
+                                   count = count + 1,
+                                   article_count = article_count + 1,
+                                   last_used = CURRENT_TIMESTAMP"#,
+                            [keyword],
+                        )
+                        .ok();
+                } else {
+                    // Existing association - only update count and last_used
+                    db.conn()
+                        .execute(
+                            r#"UPDATE immanentize SET
+                                   count = count + 1,
+                                   last_used = CURRENT_TIMESTAMP
+                               WHERE name = ?1"#,
+                            [keyword],
+                        )
+                        .ok();
+                }
 
                 // Get tag ID and link
                 if let Ok(tag_id) = db.conn().query_row::<i64, _, _>(
@@ -596,6 +629,21 @@ pub async fn process_article_discordian(
                     )
                     .ok();
             }
+
+            // 4. Recalculate combined_weight for neighbors
+            // combined_weight = cooccurrence / max_cooccurrence (normalized)
+            // Future: will include embedding_similarity when available
+            db.conn()
+                .execute(
+                    r#"UPDATE immanentize_neighbors
+                       SET combined_weight = CAST(cooccurrence AS REAL) / (
+                           SELECT MAX(cooccurrence) FROM immanentize_neighbors
+                       )
+                       WHERE immanentize_id_a IN (SELECT value FROM json_each(?1))
+                          OR immanentize_id_b IN (SELECT value FROM json_each(?1))"#,
+                    [serde_json::to_string(&tag_ids).unwrap_or_default()],
+                )
+                .ok();
 
             Ok(DiscordianResponse {
                 fnord_id,

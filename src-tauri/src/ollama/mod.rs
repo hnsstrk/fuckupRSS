@@ -53,13 +53,16 @@ struct PullResponse {
     status: String,
 }
 
+// Embedding structs for future nomic-embed-text integration
 #[derive(Serialize)]
+#[allow(dead_code)]
 struct EmbeddingRequest {
     model: String,
     prompt: String,
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct EmbeddingResponse {
     embedding: Vec<f32>,
 }
@@ -303,6 +306,7 @@ impl OllamaClient {
     }
 
     /// Generate embedding vector for text using nomic-embed-text or similar
+    #[allow(dead_code)]
     pub async fn generate_embedding(&self, model: &str, text: &str) -> Result<Vec<f32>, OllamaError> {
         let url = format!("{}/api/embeddings", self.base_url);
         let client = self.client();
@@ -337,6 +341,7 @@ impl OllamaClient {
     }
 
     /// Generate embeddings for multiple texts (batch)
+    #[allow(dead_code)]
     pub async fn generate_embeddings_batch(
         &self,
         model: &str,

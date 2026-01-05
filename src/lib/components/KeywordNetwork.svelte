@@ -140,6 +140,10 @@
         {#if networkStore.loading}
           <div class="loading-indicator">{$_('network.loading')}</div>
         {/if}
+
+        {#if networkStore.error}
+          <div class="error-message">{networkStore.error}</div>
+        {/if}
       </div>
     </div>
 
@@ -395,6 +399,16 @@
     text-align: center;
     color: var(--text-muted);
     font-size: 0.875rem;
+  }
+
+  .error-message {
+    padding: 0.75rem;
+    margin: 0.5rem;
+    background-color: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--accent-error);
+    border-radius: 0.375rem;
+    color: var(--accent-error);
+    font-size: 0.75rem;
   }
 
   /* Detail Panel */

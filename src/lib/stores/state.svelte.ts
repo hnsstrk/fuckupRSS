@@ -896,6 +896,7 @@ class ImmanentizeNetworkStore {
       if (reset) {
         this.offset = 0;
         this.keywords = [];
+        this.hasMore = true;
       }
 
       const newKeywords = await invoke<Keyword[]>("get_keywords", {
