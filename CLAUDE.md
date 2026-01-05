@@ -83,10 +83,10 @@ cargo tarpaulin --manifest-path src-tauri/Cargo.toml
 
 | Bereich | Anzahl Tests | Tool |
 |---------|-------------|------|
-| Rust Backend | 83 Tests | `cargo test` |
+| Rust Backend | 123 Tests | `cargo test` |
 | Frontend (Vitest) | 37 Tests | `npm run test` |
 | E2E (Playwright) | 11 Tests | `npm run test:e2e` |
-| **Gesamt** | **131 Tests** | |
+| **Gesamt** | **171 Tests** | |
 
 ### Test-Struktur
 
@@ -111,8 +111,11 @@ fuckupRSS/
 │       │   └── tests.rs         # Sync Unit Tests (14 Tests)
 │       ├── retrieval/
 │       │   └── tests.rs         # Retrieval Unit Tests (22 Tests)
-│       └── ollama/
-│           └── tests.rs         # Ollama Unit Tests (33 Tests)
+│       ├── ollama/
+│       │   └── tests.rs         # Ollama Unit Tests (33 Tests)
+│       └── commands/
+│           ├── tests.rs         # Batch-Analyse Unit Tests (31 Tests)
+│           └── batch_integration_tests.rs  # DB-Integration (9 Tests)
 ```
 
 ### Test-Anforderungen

@@ -2093,10 +2093,10 @@ launchctl setenv OLLAMA_FLASH_ATTENTION 1
 
 | Bereich | Anzahl Tests | Tool | Befehl |
 |---------|-------------|------|--------|
-| Rust Backend | 83 | `cargo test` | `cargo test --manifest-path src-tauri/Cargo.toml` |
+| Rust Backend | 123 | `cargo test` | `cargo test --manifest-path src-tauri/Cargo.toml` |
 | Frontend Unit | 37 | Vitest | `npm run test` |
 | E2E | 11 | Playwright | `npm run test:e2e` |
-| **Gesamt** | **131** | | |
+| **Gesamt** | **171** | | |
 
 ### Rust Tests
 
@@ -2108,8 +2108,13 @@ src-tauri/src/
 │                       # Hash-Berechnung, Change Detection
 ├── retrieval/tests.rs  # Retrieval-Tests (22 Tests)
 │                       # Truncation-Erkennung, Patterns
-└── ollama/tests.rs     # Ollama-Tests (33 Tests)
-                        # JSON-Extraktion, Bias-Analyse, Locale
+├── ollama/tests.rs     # Ollama-Tests (33 Tests)
+│                       # JSON-Extraktion, Bias-Analyse, Locale
+└── commands/
+    ├── tests.rs        # Batch-Analyse Unit Tests (31 Tests)
+    │                   # BatchProgress, BatchResult, Cancellation, Structs
+    └── batch_integration_tests.rs  # DB-Integration (9 Tests)
+                        # Unprocessed Query, Category/Keyword Assignment
 ```
 
 **Muster:**
