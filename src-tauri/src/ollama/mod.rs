@@ -403,9 +403,8 @@ impl OllamaClient {
 
         // Parse as RawBiasAnalysis (accepts floats) then convert to BiasAnalysis (integers)
         let raw: RawBiasAnalysis = serde_json::from_str(&json_str).map_err(|e| {
-            eprintln!("Failed to parse JSON. Raw response: {}", response);
-            eprintln!("Extracted/fixed JSON: {}", json_str);
-            OllamaError::GenerationFailed(format!("Failed to parse bias analysis: {} - Response was: {}", e, &response[..response.len().min(200)]))
+            eprintln!("JSON parse error: {}. Extracted JSON: {}", e, &json_str[..json_str.len().min(300)]);
+            OllamaError::GenerationFailed(format!("Failed to parse bias analysis: {}", e))
         })?;
 
         Ok(raw.into())
@@ -431,12 +430,11 @@ impl OllamaClient {
         let json_str = extract_json_from_response(&response);
 
         let raw: RawDiscordianAnalysis = serde_json::from_str(&json_str).map_err(|e| {
-            eprintln!("Failed to parse Discordian JSON. Raw response: {}", response);
-            eprintln!("Extracted/fixed JSON: {}", json_str);
+            // Only log on actual parse failure (after extraction was attempted)
+            eprintln!("JSON parse error: {}. Extracted JSON: {}", e, &json_str[..json_str.len().min(300)]);
             OllamaError::GenerationFailed(format!(
-                "Failed to parse Discordian analysis: {} - Response was: {}",
-                e,
-                &response[..response.len().min(200)]
+                "Failed to parse Discordian analysis: {}",
+                e
             ))
         })?;
 

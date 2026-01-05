@@ -720,7 +720,7 @@ pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount,
     Ok(UnprocessedCount { total, with_content })
 }
 
-/// Process all unprocessed articles in batch
+/// Process all unprocessed articles in batch using Discordian Analysis
 /// Emits 'batch-progress' events to the window
 #[tauri::command]
 pub async fn process_batch(
@@ -732,10 +732,8 @@ pub async fn process_batch(
     let client = OllamaClient::new(None);
     let batch_limit = limit.unwrap_or(100);
 
-    // Get locale and prompts once for the batch
+    // Get locale for the batch
     let locale = get_locale_from_db(&state);
-    let summary_prompt = get_summary_prompt(&state, &locale);
-    let analysis_prompt = get_analysis_prompt(&state, &locale);
 
     // Get unprocessed articles with content
     let articles: Vec<(i64, String, String)> = {
@@ -784,16 +782,15 @@ pub async fn process_batch(
             continue;
         }
 
-        // Generate summary with locale-aware prompt
-        let summary_result = client.summarize_with_prompt(&model, &content, &summary_prompt).await;
-
-        // Analyze bias with locale-aware prompt
-        let analysis_result = client.analyze_bias_with_prompt(&model, &title, &content, &analysis_prompt).await;
+        // Use Discordian Analysis for full processing (summary + bias + categories + keywords)
+        let analysis_result = client.discordian_analysis(&model, &title, &content, &locale).await;
 
         // Store results
-        let (success, error) = match (&summary_result, &analysis_result) {
-            (Ok(summary), Ok(analysis)) => {
+        let (success, error) = match analysis_result {
+            Ok(analysis) => {
                 let db = state.db.lock().map_err(|e| e.to_string())?;
+
+                // Store summary and bias analysis
                 let update_result = db.conn().execute(
                     r#"UPDATE fnords SET
                         summary = ?1,
@@ -803,31 +800,170 @@ pub async fn process_batch(
                         processed_at = CURRENT_TIMESTAMP
                     WHERE id = ?5"#,
                     (
-                        summary,
+                        &analysis.summary,
                         analysis.political_bias,
                         analysis.sachlichkeit,
                         &analysis.article_type,
                         fnord_id,
                     ),
                 );
-                match update_result {
-                    Ok(_) => {
-                        succeeded += 1;
-                        (true, None)
+
+                if update_result.is_err() {
+                    failed += 1;
+                    (false, Some("DB update failed".to_string()))
+                } else {
+                    // Store categories (Sephiroth)
+                    db.conn()
+                        .execute("DELETE FROM fnord_sephiroth WHERE fnord_id = ?", [fnord_id])
+                        .ok();
+
+                    for cat_name in &analysis.categories {
+                        if let Ok(sephiroth_id) = db.conn().query_row::<i64, _, _>(
+                            "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?)",
+                            [cat_name],
+                            |row| row.get(0),
+                        ) {
+                            db.conn()
+                                .execute(
+                                    r#"INSERT OR IGNORE INTO fnord_sephiroth
+                                       (fnord_id, sephiroth_id, confidence, source, assigned_at)
+                                       VALUES (?, ?, 1.0, 'ai', CURRENT_TIMESTAMP)"#,
+                                    rusqlite::params![fnord_id, sephiroth_id],
+                                )
+                                .ok();
+
+                            db.conn()
+                                .execute(
+                                    "UPDATE sephiroth SET article_count = (SELECT COUNT(*) FROM fnord_sephiroth WHERE sephiroth_id = ?) WHERE id = ?",
+                                    rusqlite::params![sephiroth_id, sephiroth_id],
+                                )
+                                .ok();
+                        }
                     }
-                    Err(e) => {
-                        failed += 1;
-                        (false, Some(e.to_string()))
+
+                    // Store keywords (Immanentize) and build network
+                    let mut tag_ids: Vec<i64> = Vec::new();
+
+                    let existing_tag_ids: Vec<i64> = {
+                        let mut stmt = db.conn()
+                            .prepare("SELECT immanentize_id FROM fnord_immanentize WHERE fnord_id = ?")
+                            .unwrap();
+                        stmt.query_map([fnord_id], |row| row.get(0))
+                            .unwrap()
+                            .filter_map(|r| r.ok())
+                            .collect()
+                    };
+
+                    db.conn()
+                        .execute("DELETE FROM fnord_immanentize WHERE fnord_id = ?", [fnord_id])
+                        .ok();
+
+                    for keyword in &analysis.keywords {
+                        let keyword = keyword.trim();
+                        if keyword.is_empty() {
+                            continue;
+                        }
+
+                        let existing_id: Option<i64> = db.conn()
+                            .query_row("SELECT id FROM immanentize WHERE name = ?", [keyword], |row| row.get(0))
+                            .ok();
+
+                        let is_new_for_article = existing_id
+                            .map(|id| !existing_tag_ids.contains(&id))
+                            .unwrap_or(true);
+
+                        if is_new_for_article {
+                            db.conn()
+                                .execute(
+                                    r#"INSERT INTO immanentize (name, count, article_count, first_seen, last_used)
+                                       VALUES (?1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                       ON CONFLICT(name) DO UPDATE SET
+                                           count = count + 1,
+                                           article_count = article_count + 1,
+                                           last_used = CURRENT_TIMESTAMP"#,
+                                    [keyword],
+                                )
+                                .ok();
+                        } else {
+                            db.conn()
+                                .execute(
+                                    r#"UPDATE immanentize SET
+                                           count = count + 1,
+                                           last_used = CURRENT_TIMESTAMP
+                                       WHERE name = ?1"#,
+                                    [keyword],
+                                )
+                                .ok();
+                        }
+
+                        if let Ok(tag_id) = db.conn().query_row::<i64, _, _>(
+                            "SELECT id FROM immanentize WHERE name = ?",
+                            [keyword],
+                            |row| row.get(0),
+                        ) {
+                            db.conn()
+                                .execute(
+                                    "INSERT OR IGNORE INTO fnord_immanentize (fnord_id, immanentize_id) VALUES (?, ?)",
+                                    rusqlite::params![fnord_id, tag_id],
+                                )
+                                .ok();
+                            tag_ids.push(tag_id);
+                        }
                     }
+
+                    // Update network: immanentize_sephiroth and immanentize_neighbors
+                    for tag_id in &tag_ids {
+                        for cat_name in &analysis.categories {
+                            if let Ok(sephiroth_id) = db.conn().query_row::<i64, _, _>(
+                                "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?)",
+                                [cat_name],
+                                |row| row.get(0),
+                            ) {
+                                db.conn()
+                                    .execute(
+                                        r#"INSERT INTO immanentize_sephiroth
+                                           (immanentize_id, sephiroth_id, weight, article_count, first_seen, updated_at)
+                                           VALUES (?1, ?2, 1.0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                           ON CONFLICT(immanentize_id, sephiroth_id) DO UPDATE SET
+                                               article_count = article_count + 1,
+                                               updated_at = CURRENT_TIMESTAMP"#,
+                                        rusqlite::params![tag_id, sephiroth_id],
+                                    )
+                                    .ok();
+                            }
+                        }
+                    }
+
+                    // Update cooccurrence neighbors
+                    for i in 0..tag_ids.len() {
+                        for j in (i + 1)..tag_ids.len() {
+                            let (id_a, id_b) = if tag_ids[i] < tag_ids[j] {
+                                (tag_ids[i], tag_ids[j])
+                            } else {
+                                (tag_ids[j], tag_ids[i])
+                            };
+
+                            db.conn()
+                                .execute(
+                                    r#"INSERT INTO immanentize_neighbors
+                                       (immanentize_id_a, immanentize_id_b, cooccurrence, first_seen, last_seen)
+                                       VALUES (?1, ?2, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                       ON CONFLICT(immanentize_id_a, immanentize_id_b) DO UPDATE SET
+                                           cooccurrence = cooccurrence + 1,
+                                           last_seen = CURRENT_TIMESTAMP"#,
+                                    rusqlite::params![id_a, id_b],
+                                )
+                                .ok();
+                        }
+                    }
+
+                    succeeded += 1;
+                    (true, None)
                 }
             }
-            (Err(e), _) => {
+            Err(e) => {
                 failed += 1;
-                (false, Some(format!("Summary: {}", e)))
-            }
-            (_, Err(e)) => {
-                failed += 1;
-                (false, Some(format!("Analyse: {}", e)))
+                (false, Some(e.to_string()))
             }
         };
 

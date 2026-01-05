@@ -236,22 +236,32 @@
       {/if}
     </div>
 
-    {#if appState.batchProcessing && appState.batchProgress}
+    {#if appState.batchProcessing}
       <div class="batch-progress">
-        <div class="progress-bar">
-          <div
-            class="progress-fill"
-            style="width: {(appState.batchProgress.current / appState.batchProgress.total) * 100}%"
-          ></div>
-        </div>
-        <div class="progress-text">
-          {appState.batchProgress.current} / {appState.batchProgress.total}
-        </div>
-        <div class="progress-title" title={appState.batchProgress.title}>
-          {appState.batchProgress.title.length > 30
-            ? appState.batchProgress.title.slice(0, 30) + "..."
-            : appState.batchProgress.title}
-        </div>
+        {#if appState.batchProgress}
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              style="width: {(appState.batchProgress.current / appState.batchProgress.total) * 100}%"
+            ></div>
+          </div>
+          <div class="progress-text">
+            {appState.batchProgress.current} / {appState.batchProgress.total}
+          </div>
+          <div class="progress-title" title={appState.batchProgress.title}>
+            {appState.batchProgress.title.length > 30
+              ? appState.batchProgress.title.slice(0, 30) + "..."
+              : appState.batchProgress.title}
+          </div>
+          {#if !appState.batchProgress.success && appState.batchProgress.error}
+            <div class="progress-error">{appState.batchProgress.error}</div>
+          {/if}
+        {:else}
+          <div class="progress-bar">
+            <div class="progress-fill indeterminate"></div>
+          </div>
+          <div class="progress-text">{$_('batch.starting')}</div>
+        {/if}
       </div>
     {:else if appState.ollamaStatus.available}
       <button
@@ -259,9 +269,7 @@
         class="btn-batch"
         disabled={appState.batchProcessing || appState.unprocessedCount.with_content === 0}
       >
-        {#if appState.batchProcessing}
-          {$_('batch.processing')}
-        {:else if appState.unprocessedCount.with_content > 0}
+        {#if appState.unprocessedCount.with_content > 0}
           {$_('batch.process')} ({appState.unprocessedCount.with_content})
         {:else}
           {$_('batch.process')}
@@ -643,6 +651,23 @@
     transition: width 0.3s ease;
   }
 
+  .progress-fill.indeterminate {
+    width: 30%;
+    animation: indeterminate 1.5s ease-in-out infinite;
+  }
+
+  @keyframes indeterminate {
+    0% {
+      transform: translateX(-100%);
+    }
+    50% {
+      transform: translateX(233%);
+    }
+    100% {
+      transform: translateX(-100%);
+    }
+  }
+
   .progress-text {
     color: var(--text-muted);
     text-align: center;
@@ -651,6 +676,15 @@
 
   .progress-title {
     color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .progress-error {
+    color: var(--accent-error);
+    font-size: 0.625rem;
+    margin-top: 0.25rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

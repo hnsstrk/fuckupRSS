@@ -44,6 +44,14 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         )?;
     }
 
+    // Create indexes for source and assigned_at (after migration ensures columns exist)
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_fnord_sephiroth_assigned ON fnord_sephiroth(assigned_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_fnord_sephiroth_source ON fnord_sephiroth(source);
+        "#,
+    )?;
+
     // Migration for Immanentize Network
     let has_article_count: bool = conn
         .prepare("SELECT COUNT(*) FROM pragma_table_info('immanentize') WHERE name = 'article_count'")?
@@ -373,20 +381,13 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
 
         -- Indizes für Kategorie-Statistiken
         CREATE INDEX IF NOT EXISTS idx_fnord_sephiroth_sephiroth ON fnord_sephiroth(sephiroth_id);
-        CREATE INDEX IF NOT EXISTS idx_fnord_sephiroth_assigned ON fnord_sephiroth(assigned_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_fnord_sephiroth_source ON fnord_sephiroth(source);
+        -- Note: idx_fnord_sephiroth_assigned and idx_fnord_sephiroth_source are created in migrations
+        -- because existing databases may not have these columns yet
         CREATE INDEX IF NOT EXISTS idx_immanentize_count ON immanentize(count DESC);
         CREATE INDEX IF NOT EXISTS idx_revisions_fnord ON fnord_revisions(fnord_id, revision_at DESC);
 
-        -- Indizes für Immanentize Network
-        CREATE INDEX IF NOT EXISTS idx_immanentize_cluster ON immanentize(cluster_id);
-        CREATE INDEX IF NOT EXISTS idx_immanentize_canonical ON immanentize(canonical_id);
-        CREATE INDEX IF NOT EXISTS idx_immanentize_article_count ON immanentize(article_count DESC);
-        CREATE INDEX IF NOT EXISTS idx_immanentize_sephiroth_seph ON immanentize_sephiroth(sephiroth_id);
-        CREATE INDEX IF NOT EXISTS idx_immanentize_neighbors_a ON immanentize_neighbors(immanentize_id_a);
-        CREATE INDEX IF NOT EXISTS idx_immanentize_neighbors_b ON immanentize_neighbors(immanentize_id_b);
-        CREATE INDEX IF NOT EXISTS idx_immanentize_neighbors_weight ON immanentize_neighbors(combined_weight DESC);
-        CREATE INDEX IF NOT EXISTS idx_fnord_immanentize_imm ON fnord_immanentize(immanentize_id);
+        -- Note: Immanentize Network indexes are created in migrations
+        -- because existing databases may not have these columns yet
 
         -- ============================================================
         -- DEFAULT SEPHIROTH (Kategorien)

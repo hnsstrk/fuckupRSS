@@ -187,6 +187,7 @@
     "title": "Discordian Analysis",
     "process": "Analyze",
     "processing": "Analyzing...",
+    "starting": "Starting analysis...",
     "unprocessed": "{count} unprocessed",
     "progress": "{current} of {total}",
     "complete": "Done: {succeeded} succeeded, {failed} failed",
