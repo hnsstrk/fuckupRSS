@@ -196,6 +196,8 @@ export interface ArticleCategory {
   icon: string | null;
   color: string | null;
   confidence: number;
+  source: 'ai' | 'manual';       // Quelle der Zuweisung
+  assigned_at: string | null;    // Zeitpunkt der Zuweisung
 }
 
 export interface Tag {

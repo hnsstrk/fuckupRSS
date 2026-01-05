@@ -21,6 +21,8 @@ pub struct ArticleCategory {
     pub icon: Option<String>,
     pub color: Option<String>,
     pub confidence: f64,
+    pub source: String,           // 'ai' or 'manual'
+    pub assigned_at: Option<String>,
 }
 
 /// Get all available categories (Sephiroth)
@@ -69,7 +71,8 @@ pub fn get_article_categories(
         .conn()
         .prepare(
             r#"
-            SELECT s.id, s.name, s.icon, s.color, fs.confidence
+            SELECT s.id, s.name, s.icon, s.color, fs.confidence,
+                   COALESCE(fs.source, 'ai') as source, fs.assigned_at
             FROM fnord_sephiroth fs
             JOIN sephiroth s ON s.id = fs.sephiroth_id
             WHERE fs.fnord_id = ?
@@ -86,6 +89,8 @@ pub fn get_article_categories(
                 icon: row.get(2)?,
                 color: row.get(3)?,
                 confidence: row.get(4)?,
+                source: row.get(5)?,
+                assigned_at: row.get(6)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -95,7 +100,7 @@ pub fn get_article_categories(
     Ok(categories)
 }
 
-/// Set categories for an article (replaces existing)
+/// Set categories for an article (replaces existing) - manual assignment
 #[tauri::command]
 pub fn set_article_categories(
     state: State<AppState>,
@@ -109,7 +114,7 @@ pub fn set_article_categories(
         .execute("DELETE FROM fnord_sephiroth WHERE fnord_id = ?", [fnord_id])
         .map_err(|e| e.to_string())?;
 
-    // Then insert new assignments
+    // Then insert new assignments with source='manual'
     for name in &category_names {
         // Find category by name (case-insensitive)
         let sephiroth_id: Option<i64> = db
@@ -124,7 +129,9 @@ pub fn set_article_categories(
         if let Some(id) = sephiroth_id {
             db.conn()
                 .execute(
-                    "INSERT OR IGNORE INTO fnord_sephiroth (fnord_id, sephiroth_id, confidence) VALUES (?, ?, 1.0)",
+                    r#"INSERT OR IGNORE INTO fnord_sephiroth
+                       (fnord_id, sephiroth_id, confidence, source, assigned_at)
+                       VALUES (?, ?, 1.0, 'manual', CURRENT_TIMESTAMP)"#,
                     rusqlite::params![fnord_id, id],
                 )
                 .map_err(|e| e.to_string())?;

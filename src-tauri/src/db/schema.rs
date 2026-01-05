@@ -30,6 +30,20 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    // Add source and assigned_at columns to fnord_sephiroth if missing
+    let has_source: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('fnord_sephiroth') WHERE name = 'source'")?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_source {
+        conn.execute_batch(
+            r#"
+            ALTER TABLE fnord_sephiroth ADD COLUMN source TEXT DEFAULT 'ai' CHECK(source IN ('ai', 'manual'));
+            ALTER TABLE fnord_sephiroth ADD COLUMN assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP;
+            "#,
+        )?;
+    }
+
     Ok(())
 }
 
@@ -163,11 +177,14 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
 
         -- ============================================================
         -- FNORD ↔ SEPHIROTH (Artikel-Kategorien-Zuordnung)
+        -- 1:n Beziehung - Ein Artikel hat mindestens eine Kategorie
         -- ============================================================
         CREATE TABLE IF NOT EXISTS fnord_sephiroth (
             fnord_id INTEGER NOT NULL,
             sephiroth_id INTEGER NOT NULL,
             confidence REAL DEFAULT 1.0,
+            source TEXT DEFAULT 'ai' CHECK(source IN ('ai', 'manual')),
+            assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (fnord_id, sephiroth_id),
             FOREIGN KEY (fnord_id) REFERENCES fnords(id) ON DELETE CASCADE,
             FOREIGN KEY (sephiroth_id) REFERENCES sephiroth(id) ON DELETE CASCADE
@@ -207,6 +224,11 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         CREATE INDEX IF NOT EXISTS idx_fnords_processed ON fnords(processed_at);
         CREATE INDEX IF NOT EXISTS idx_fnords_relevance ON fnords(relevance_score DESC);
         CREATE INDEX IF NOT EXISTS idx_pentacles_last_sync ON pentacles(last_sync);
+
+        -- Indizes für Kategorie-Statistiken
+        CREATE INDEX IF NOT EXISTS idx_fnord_sephiroth_sephiroth ON fnord_sephiroth(sephiroth_id);
+        CREATE INDEX IF NOT EXISTS idx_fnord_sephiroth_assigned ON fnord_sephiroth(assigned_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_fnord_sephiroth_source ON fnord_sephiroth(source);
         CREATE INDEX IF NOT EXISTS idx_immanentize_count ON immanentize(count DESC);
         CREATE INDEX IF NOT EXISTS idx_revisions_fnord ON fnord_revisions(fnord_id, revision_at DESC);
 

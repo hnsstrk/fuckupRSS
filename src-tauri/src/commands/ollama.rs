@@ -467,7 +467,9 @@ pub async fn process_article_discordian(
                 ) {
                     db.conn()
                         .execute(
-                            "INSERT OR IGNORE INTO fnord_sephiroth (fnord_id, sephiroth_id, confidence) VALUES (?, ?, 1.0)",
+                            r#"INSERT OR IGNORE INTO fnord_sephiroth
+                               (fnord_id, sephiroth_id, confidence, source, assigned_at)
+                               VALUES (?, ?, 1.0, 'ai', CURRENT_TIMESTAMP)"#,
                             rusqlite::params![fnord_id, sephiroth_id],
                         )
                         .ok();
