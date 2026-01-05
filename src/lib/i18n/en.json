@@ -30,6 +30,8 @@
     "aiAnalysis": "AI Analysis",
     "analyze": "Analyze",
     "articleType": "Article Type",
+    "categories": "Categories",
+    "keywords": "Keywords",
     "unknown": "Unknown",
     "notRated": "Not rated",
     "biasStrongLeft": "Strong left",
@@ -76,6 +78,14 @@
     "languageEnglish": "English",
     "tooltips": "Show terminology explanations",
     "tooltipsDescription": "Shows explanations for Illuminatus! terms",
+    "sync": {
+      "title": "Synchronization",
+      "interval": "Sync Interval",
+      "intervalDescription": "Automatic sync interval in minutes",
+      "minutes": "{count} minutes",
+      "onStart": "Sync on startup",
+      "onStartDescription": "Automatically update feeds when the app starts"
+    },
     "theme": "Theme",
     "themeMocha": "Mocha (darkest)",
     "themeMacchiato": "Macchiato (dark)",
@@ -158,7 +168,20 @@
     "markRead": "Mark as read",
     "markUnread": "Mark as unread",
     "favorite": "Favorite",
-    "openInBrowser": "Open in browser"
+    "openInBrowser": "Open in browser",
+    "close": "Close"
+  },
+  "toast": {
+    "syncSuccess": "{newCount} new articles, {updatedCount} updated",
+    "syncSuccessNoNew": "Feeds updated, no new articles",
+    "syncError": "Sync failed: {error}",
+    "fetchSuccess": "Full text loaded successfully",
+    "fetchError": "Failed to load full text: {error}",
+    "analyzeSuccess": "Analysis complete",
+    "analyzeError": "Analysis failed: {error}",
+    "feedAdded": "Feed added",
+    "feedDeleted": "Feed deleted",
+    "feedError": "Failed to add feed: {error}"
   },
   "batch": {
     "title": "Discordian Analysis",

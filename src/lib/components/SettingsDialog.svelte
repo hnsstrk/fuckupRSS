@@ -19,6 +19,8 @@
   let selectedLocale = $state('de');
   let showTooltips = $state(true);
   let selectedTheme = $state<Theme>('mocha');
+  let syncInterval = $state(30);
+  let syncOnStart = $state(true);
 
   // Ollama state
   let ollamaStatus = $state<{
@@ -69,6 +71,8 @@
       selectedLocale = $locale || 'de';
       showTooltips = settings.showTerminologyTooltips;
       selectedTheme = settings.theme;
+      syncInterval = settings.syncInterval;
+      syncOnStart = settings.syncOnStart;
       // Close dropdowns
       closeAllDropdowns();
       // Reset tab
@@ -133,10 +137,14 @@
     await setLocale(selectedLocale);
     settings.showTerminologyTooltips = showTooltips;
     settings.theme = selectedTheme;
+    settings.syncInterval = syncInterval;
+    settings.syncOnStart = syncOnStart;
 
     // Save model preferences
     if (selectedMainModel) {
       await invoke('set_setting', { key: 'main_model', value: selectedMainModel });
+      // Update appState so the model is used immediately
+      appState.selectedModel = selectedMainModel;
     }
     if (selectedEmbeddingModel) {
       await invoke('set_setting', { key: 'embedding_model', value: selectedEmbeddingModel });
@@ -346,6 +354,36 @@
               <span class="checkbox-label">{$_('settings.tooltips')}</span>
             </label>
             <p class="setting-description">{$_('settings.tooltipsDescription')}</p>
+          </div>
+
+          <!-- Sync Settings -->
+          <div class="setting-group">
+            <span class="label">{$_('settings.sync.title')}</span>
+          </div>
+
+          <div class="setting-group">
+            <label class="label" for="sync-interval">{$_('settings.sync.interval')}</label>
+            <div class="slider-row">
+              <input
+                id="sync-interval"
+                type="range"
+                min="5"
+                max="120"
+                step="5"
+                bind:value={syncInterval}
+                class="slider"
+              />
+              <span class="slider-value">{$_('settings.sync.minutes', { values: { count: syncInterval }})}</span>
+            </div>
+            <p class="setting-description">{$_('settings.sync.intervalDescription')}</p>
+          </div>
+
+          <div class="setting-group checkbox-group">
+            <label>
+              <input type="checkbox" bind:checked={syncOnStart} />
+              <span class="checkbox-label">{$_('settings.sync.onStart')}</span>
+            </label>
+            <p class="setting-description">{$_('settings.sync.onStartDescription')}</p>
           </div>
 
         {:else if activeTab === 'ollama'}
@@ -783,6 +821,52 @@
     margin: 0.25rem 0 0 0;
     font-size: 0.875rem;
     color: var(--text-muted);
+  }
+
+  /* Slider */
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .slider {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    appearance: none;
+    background: var(--bg-overlay);
+    cursor: pointer;
+  }
+
+  .slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+
+  .slider::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+  }
+
+  .slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    cursor: pointer;
+    border: none;
+  }
+
+  .slider-value {
+    min-width: 6rem;
+    text-align: right;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
   }
 
   /* Prompts */

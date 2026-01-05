@@ -1,11 +1,16 @@
 <script lang="ts">
   import { _, locale } from 'svelte-i18n';
-  import { appState, type FnordRevision } from "../stores/state.svelte";
+  import { appState, toasts, type FnordRevision, type ArticleCategory, type Tag } from "../stores/state.svelte";
   import Tooltip from "./Tooltip.svelte";
 
   let showRevisions = $state(false);
   let revisions = $state<FnordRevision[]>([]);
   let loadingRevisions = $state(false);
+
+  // Categories and Tags
+  let categories = $state<ArticleCategory[]>([]);
+  let tags = $state<Tag[]>([]);
+  let loadingMeta = $state(false);
 
   async function loadRevisions() {
     if (!appState.selectedFnord || loadingRevisions) return;
@@ -25,6 +30,29 @@
   $effect(() => {
     if (appState.selectedFnord?.has_changes) {
       appState.acknowledgeChanges(appState.selectedFnord.id);
+    }
+  });
+
+  // Load categories and tags when article changes
+  $effect(() => {
+    const fnordId = appState.selectedFnord?.id;
+    if (fnordId) {
+      loadingMeta = true;
+      Promise.all([
+        appState.getArticleCategories(fnordId),
+        appState.getArticleTags(fnordId)
+      ]).then(([cats, tgs]) => {
+        categories = cats;
+        tags = tgs;
+        loadingMeta = false;
+      }).catch(() => {
+        categories = [];
+        tags = [];
+        loadingMeta = false;
+      });
+    } else {
+      categories = [];
+      tags = [];
     }
   });
 
@@ -91,13 +119,30 @@
 
   async function fetchFullContent() {
     if (appState.selectedFnord) {
-      await appState.fetchFullContent(appState.selectedFnord.id);
+      const result = await appState.fetchFullContent(appState.selectedFnord.id);
+      if (result?.success) {
+        toasts.success($_('toast.fetchSuccess'));
+      } else if (result?.error) {
+        toasts.error($_('toast.fetchError', { values: { error: result.error }}));
+      } else if (appState.error) {
+        toasts.error($_('toast.fetchError', { values: { error: appState.error }}));
+      }
     }
   }
 
   async function analyzeWithAI() {
     if (appState.selectedFnord && appState.ollamaStatus.available) {
-      await appState.processArticle(appState.selectedFnord.id);
+      const result = await appState.processArticleDiscordian(appState.selectedFnord.id);
+      if (result?.success) {
+        // Reload categories and tags after analysis
+        categories = await appState.getArticleCategories(appState.selectedFnord.id);
+        tags = await appState.getArticleTags(appState.selectedFnord.id);
+        toasts.success($_('toast.analyzeSuccess'));
+      } else if (result?.error) {
+        toasts.error($_('toast.analyzeError', { values: { error: result.error }}));
+      } else if (appState.error) {
+        toasts.error($_('toast.analyzeError', { values: { error: appState.error }}));
+      }
     }
   }
 
@@ -261,6 +306,45 @@
             <Tooltip termKey="discordian">{$_('terminology.discordian.term')}</Tooltip>
           </div>
           <p class="summary-text">{stripHtml(fnord.summary)}</p>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Sephiroth (Categories) & Immanentize (Tags) -->
+    {#if categories.length > 0 || tags.length > 0}
+      <div class="meta-section">
+        <div class="section-content">
+          {#if categories.length > 0}
+            <div class="meta-row">
+              <div class="meta-label">
+                <Tooltip termKey="sephiroth">{$_('articleView.categories')}</Tooltip>
+              </div>
+              <div class="category-badges">
+                {#each categories as cat}
+                  <span
+                    class="category-badge"
+                    style="background-color: {cat.color || 'var(--bg-overlay)'}; color: {cat.color ? 'white' : 'var(--text-primary)'}"
+                  >
+                    {#if cat.icon}<span class="badge-icon">{cat.icon}</span>{/if}
+                    {cat.name}
+                  </span>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          {#if tags.length > 0}
+            <div class="meta-row">
+              <div class="meta-label">
+                <Tooltip termKey="immanentize">{$_('articleView.keywords')}</Tooltip>
+              </div>
+              <div class="tag-list">
+                {#each tags as tag}
+                  <span class="tag-badge">{tag.name}</span>
+                {/each}
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -507,6 +591,66 @@
     color: var(--text-primary);
     line-height: 1.6;
     margin: 0;
+  }
+
+  /* Sephiroth (Categories) & Immanentize (Tags) */
+  .meta-section {
+    padding: 1rem 1.5rem;
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .meta-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .meta-row:last-child {
+    margin-bottom: 0;
+  }
+
+  .meta-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    min-width: 5rem;
+    padding-top: 0.25rem;
+  }
+
+  .category-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .category-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  .badge-icon {
+    font-size: 0.875rem;
+  }
+
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .tag-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    background-color: var(--bg-overlay);
+    color: var(--text-secondary);
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
   }
 
   .content-section {

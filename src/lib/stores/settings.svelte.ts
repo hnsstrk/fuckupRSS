@@ -9,6 +9,8 @@ interface Settings {
   locale: string;
   theme: Theme;
   show_terminology_tooltips: boolean;
+  sync_interval: number; // in minutes
+  sync_on_start: boolean;
 }
 
 const THEME_CLASSES: Theme[] = ['mocha', 'macchiato', 'frappe', 'latte'];
@@ -18,6 +20,8 @@ class SettingsStore {
     locale: 'de',
     theme: 'mocha',
     show_terminology_tooltips: true,
+    sync_interval: 30,
+    sync_on_start: true,
   });
   #initialized = false;
 
@@ -49,6 +53,24 @@ class SettingsStore {
     this.#saveSetting('locale', value);
   }
 
+  get syncInterval() {
+    return this.#settings.sync_interval;
+  }
+
+  set syncInterval(value: number) {
+    this.#settings.sync_interval = value;
+    this.#saveSetting('syncInterval', String(value));
+  }
+
+  get syncOnStart() {
+    return this.#settings.sync_on_start;
+  }
+
+  set syncOnStart(value: boolean) {
+    this.#settings.sync_on_start = value;
+    this.#saveSetting('syncOnStart', value ? 'true' : 'false');
+  }
+
   async #saveSetting(key: string, value: string) {
     try {
       await invoke('set_setting', { key, value });
@@ -73,10 +95,12 @@ class SettingsStore {
     if (this.#initialized) return;
 
     try {
-      const dbSettings = await invoke<Settings>('get_settings');
-      this.#settings.locale = dbSettings.locale;
+      const dbSettings = await invoke<Partial<Settings>>('get_settings');
+      this.#settings.locale = dbSettings.locale || 'de';
       this.#settings.theme = (dbSettings.theme as Theme) || 'mocha';
-      this.#settings.show_terminology_tooltips = dbSettings.show_terminology_tooltips;
+      this.#settings.show_terminology_tooltips = dbSettings.show_terminology_tooltips ?? true;
+      this.#settings.sync_interval = dbSettings.sync_interval ?? 30;
+      this.#settings.sync_on_start = dbSettings.sync_on_start ?? true;
       this.#initialized = true;
     } catch (e) {
       console.error('Failed to load settings:', e);

@@ -4,8 +4,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum OllamaError {
-    #[error("HTTP error: {0}")]
-    Http(String),
     #[error("Ollama not available: {0}")]
     NotAvailable(String),
     #[error("Generation failed: {0}")]
@@ -15,10 +13,16 @@ pub enum OllamaError {
 }
 
 #[derive(Serialize)]
+struct GenerateOptions {
+    num_ctx: u32,
+}
+
+#[derive(Serialize)]
 struct GenerateRequest {
     model: String,
     prompt: String,
     stream: bool,
+    options: GenerateOptions,
 }
 
 #[derive(Deserialize)]
@@ -50,7 +54,9 @@ struct PullResponse {
 }
 
 /// Recommended models for fuckupRSS
-pub const RECOMMENDED_MAIN_MODEL: &str = "qwen3-vl:8b";
+/// Note: qwen3-vl is a Vision-Language model (slow for text-only tasks)
+/// ministral-3 is faster for pure text analysis
+pub const RECOMMENDED_MAIN_MODEL: &str = "ministral-3:latest";
 pub const RECOMMENDED_EMBEDDING_MODEL: &str = "nomic-embed-text";
 
 /// Default prompts (English prompts with {language} placeholder for output language)
@@ -76,6 +82,34 @@ Respond in the following JSON format (ONLY the JSON, no explanation):
   "sachlichkeit": <0 to 4, where 0=highly emotional, 4=very objective>,
   "article_type": "<news|opinion|analysis|satire|ad|unknown>"
 }
+
+Title: {title}
+Content: {content}
+
+JSON:"#;
+
+/// Combined prompt for full Discordian Analysis (summary + bias + categories + keywords)
+pub const DEFAULT_DISCORDIAN_PROMPT: &str = r#"/no_think
+Analyze this news article comprehensively. Respond in {language}.
+
+IMPORTANT: Respond ONLY with the JSON object below. No explanation, no markdown.
+
+{
+  "summary": "<2-3 sentence summary in {language}>",
+  "categories": ["<category1>", "<category2>"],
+  "keywords": ["<keyword1>", "<keyword2>", "<keyword3>"],
+  "political_bias": <-2 to 2>,
+  "sachlichkeit": <0 to 4>,
+  "article_type": "<type>"
+}
+
+Rules:
+- summary: 2-3 factual sentences
+- categories: 1-3 from ONLY these: Tech, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit
+- keywords: 3-7 specific terms (people, places, organizations, concepts) - NOT generic words
+- political_bias: -2=strong left, -1=lean left, 0=neutral, 1=lean right, 2=strong right
+- sachlichkeit: 0=highly emotional, 1=emotional, 2=mixed, 3=mostly objective, 4=objective
+- article_type: news, opinion, analysis, satire, ad, or unknown
 
 Title: {title}
 Content: {content}
@@ -207,6 +241,7 @@ impl OllamaClient {
     }
 
     /// Check if Ollama is running
+    #[allow(dead_code)]
     pub async fn is_available(&self) -> bool {
         self.list_models().await.is_ok()
     }
@@ -246,6 +281,7 @@ impl OllamaClient {
     }
 
     /// Check if a specific model is installed
+    #[allow(dead_code)]
     pub async fn has_model(&self, model_name: &str) -> bool {
         match self.list_models().await {
             Ok(models) => models.iter().any(|m| {
@@ -256,6 +292,7 @@ impl OllamaClient {
     }
 
     /// Generate a summary for article content
+    #[allow(dead_code)]
     pub async fn summarize(&self, model: &str, content: &str) -> Result<String, OllamaError> {
         self.summarize_with_prompt(model, content, DEFAULT_SUMMARY_PROMPT).await
     }
@@ -273,6 +310,7 @@ impl OllamaClient {
     }
 
     /// Analyze article for bias and objectivity
+    #[allow(dead_code)]
     pub async fn analyze_bias(
         &self,
         model: &str,
@@ -310,6 +348,38 @@ impl OllamaClient {
         Ok(raw.into())
     }
 
+    /// Full Discordian Analysis: Summary + Bias + Categories + Keywords in one call
+    pub async fn discordian_analysis(
+        &self,
+        model: &str,
+        title: &str,
+        content: &str,
+        locale: &str,
+    ) -> Result<DiscordianAnalysis, OllamaError> {
+        let language = get_language_for_locale(locale);
+        let truncated_content = content.chars().take(6000).collect::<String>();
+
+        let prompt = DEFAULT_DISCORDIAN_PROMPT
+            .replace("{language}", language)
+            .replace("{title}", title)
+            .replace("{content}", &truncated_content);
+
+        let response = self.generate(model, &prompt).await?;
+        let json_str = extract_json_from_response(&response);
+
+        let raw: RawDiscordianAnalysis = serde_json::from_str(&json_str).map_err(|e| {
+            eprintln!("Failed to parse Discordian JSON. Raw response: {}", response);
+            eprintln!("Extracted/fixed JSON: {}", json_str);
+            OllamaError::GenerationFailed(format!(
+                "Failed to parse Discordian analysis: {} - Response was: {}",
+                e,
+                &response[..response.len().min(200)]
+            ))
+        })?;
+
+        Ok(raw.into())
+    }
+
     /// Generate text with Ollama
     async fn generate(&self, model: &str, prompt: &str) -> Result<String, OllamaError> {
         let url = format!("{}/api/generate", self.base_url);
@@ -319,6 +389,9 @@ impl OllamaClient {
             model: model.to_string(),
             prompt: prompt.to_string(),
             stream: false,
+            options: GenerateOptions {
+                num_ctx: 8192, // 8K context is enough for article analysis
+            },
         };
 
         let resp: reqwest_new::Response = client
@@ -381,5 +454,42 @@ impl From<RawBiasAnalysis> for BiasAnalysis {
 impl Default for OllamaClient {
     fn default() -> Self {
         Self::new(None)
+    }
+}
+
+/// Raw Discordian analysis from LLM (accepts floats)
+#[derive(Deserialize, Debug)]
+struct RawDiscordianAnalysis {
+    summary: String,
+    #[serde(default)]
+    categories: Vec<String>,
+    #[serde(default)]
+    keywords: Vec<String>,
+    political_bias: f64,
+    sachlichkeit: f64,
+    article_type: String,
+}
+
+/// Full Discordian analysis with all KI-extracted data
+#[derive(Serialize, Debug, Clone)]
+pub struct DiscordianAnalysis {
+    pub summary: String,
+    pub categories: Vec<String>,
+    pub keywords: Vec<String>,
+    pub political_bias: i32,
+    pub sachlichkeit: i32,
+    pub article_type: String,
+}
+
+impl From<RawDiscordianAnalysis> for DiscordianAnalysis {
+    fn from(raw: RawDiscordianAnalysis) -> Self {
+        Self {
+            summary: raw.summary,
+            categories: raw.categories,
+            keywords: raw.keywords,
+            political_bias: raw.political_bias.round() as i32,
+            sachlichkeit: raw.sachlichkeit.round() as i32,
+            article_type: raw.article_type,
+        }
     }
 }

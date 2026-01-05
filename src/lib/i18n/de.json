@@ -30,6 +30,8 @@
     "aiAnalysis": "KI-Analyse",
     "analyze": "Analysieren",
     "articleType": "Artikeltyp",
+    "categories": "Kategorien",
+    "keywords": "Stichworte",
     "unknown": "Unbekannt",
     "notRated": "Nicht bewertet",
     "biasStrongLeft": "Stark links",
@@ -76,6 +78,14 @@
     "languageEnglish": "English",
     "tooltips": "Begriffserklarungen anzeigen",
     "tooltipsDescription": "Zeigt Erklarungen fuer Illuminatus!-Begriffe",
+    "sync": {
+      "title": "Synchronisierung",
+      "interval": "Sync-Intervall",
+      "intervalDescription": "Automatisches Sync-Intervall in Minuten",
+      "minutes": "{count} Minuten",
+      "onStart": "Beim Start synchronisieren",
+      "onStartDescription": "Feeds automatisch beim App-Start aktualisieren"
+    },
     "theme": "Design",
     "themeMocha": "Mocha (dunkelster)",
     "themeMacchiato": "Macchiato (dunkel)",
@@ -158,7 +168,20 @@
     "markRead": "Als gelesen markieren",
     "markUnread": "Als ungelesen markieren",
     "favorite": "Favorisieren",
-    "openInBrowser": "Im Browser oeffnen"
+    "openInBrowser": "Im Browser oeffnen",
+    "close": "Schliessen"
+  },
+  "toast": {
+    "syncSuccess": "{newCount} neue Artikel, {updatedCount} aktualisiert",
+    "syncSuccessNoNew": "Feeds aktualisiert, keine neuen Artikel",
+    "syncError": "Sync fehlgeschlagen: {error}",
+    "fetchSuccess": "Volltext erfolgreich geladen",
+    "fetchError": "Volltext konnte nicht geladen werden: {error}",
+    "analyzeSuccess": "Analyse abgeschlossen",
+    "analyzeError": "Analyse fehlgeschlagen: {error}",
+    "feedAdded": "Feed hinzugefuegt",
+    "feedDeleted": "Feed geloescht",
+    "feedError": "Feed konnte nicht hinzugefuegt werden: {error}"
   },
   "batch": {
     "title": "Discordian Analysis",

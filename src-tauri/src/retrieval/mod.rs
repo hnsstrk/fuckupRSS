@@ -18,8 +18,10 @@ pub enum RetrievalError {
 /// Extracted article content
 #[derive(Debug, Clone)]
 pub struct ExtractedArticle {
+    #[allow(dead_code)]
     pub title: Option<String>,
     pub content: String,
+    #[allow(dead_code)]
     pub text_content: String,
 }
 

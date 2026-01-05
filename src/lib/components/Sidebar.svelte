@@ -1,6 +1,6 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { appState, type BatchProgress } from "../stores/state.svelte";
+  import { appState, toasts, type BatchProgress } from "../stores/state.svelte";
   import { onMount, onDestroy } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import Tooltip from "./Tooltip.svelte";
@@ -38,16 +38,33 @@
     if (unlisten) unlisten();
   });
 
-  function handleSync() {
-    appState.syncAllFeeds();
+  async function handleSync() {
+    const result = await appState.syncAllFeeds();
+    if (result) {
+      if (result.total_new > 0 || result.total_updated > 0) {
+        toasts.success($_('toast.syncSuccess', {
+          values: { newCount: result.total_new, updatedCount: result.total_updated }
+        }));
+      } else {
+        toasts.info($_('toast.syncSuccessNoNew'));
+      }
+    } else if (appState.error) {
+      toasts.error($_('toast.syncError', { values: { error: appState.error }}));
+    }
   }
 
-  function handleAddFeed(e: Event) {
+  async function handleAddFeed(e: Event) {
     e.preventDefault();
     if (newFeedUrl.trim()) {
-      appState.addPentacle(newFeedUrl.trim());
+      const url = newFeedUrl.trim();
       newFeedUrl = "";
       showAddForm = false;
+      await appState.addPentacle(url);
+      if (appState.error) {
+        toasts.error($_('toast.feedError', { values: { error: appState.error }}));
+      } else {
+        toasts.success($_('toast.feedAdded'));
+      }
     }
   }
 
@@ -62,6 +79,24 @@
   function handleSelectPentacle(id: number) {
     appState.selectedView = "pentacle";
     appState.selectPentacle(id);
+  }
+
+  async function handleDeletePentacle(id: number) {
+    await appState.deletePentacle(id);
+    if (!appState.error) {
+      toasts.success($_('toast.feedDeleted'));
+    }
+  }
+
+  async function handleBatchProcessing() {
+    const result = await appState.startBatchProcessing();
+    if (result) {
+      toasts.success($_('batch.complete', {
+        values: { succeeded: result.succeeded, failed: result.failed }
+      }));
+    } else if (appState.error) {
+      toasts.error($_('toast.analyzeError', { values: { error: appState.error }}));
+    }
   }
 </script>
 
@@ -144,7 +179,7 @@
           {/if}
           <button
             class="delete-btn"
-            onclick={(e) => { e.stopPropagation(); appState.deletePentacle(pentacle.id); }}
+            onclick={(e) => { e.stopPropagation(); handleDeletePentacle(pentacle.id); }}
             title={$_('actions.delete')}
           >×</button>
         </div>
@@ -211,7 +246,7 @@
       </div>
     {:else if appState.ollamaStatus.available}
       <button
-        onclick={() => appState.startBatchProcessing()}
+        onclick={handleBatchProcessing}
         class="btn-batch"
         disabled={appState.batchProcessing || appState.unprocessedCount.with_content === 0}
       >

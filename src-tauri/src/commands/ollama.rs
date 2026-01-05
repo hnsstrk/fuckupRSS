@@ -1,5 +1,5 @@
 use crate::ollama::{
-    BiasAnalysis, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
+    BiasAnalysis, DiscordianAnalysis, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
     RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale,
 };
 use crate::AppState;
@@ -48,6 +48,16 @@ pub struct AnalysisResponse {
     pub fnord_id: i64,
     pub success: bool,
     pub analysis: Option<BiasAnalysis>,
+    pub error: Option<String>,
+}
+
+#[derive(serde::Serialize, Clone)]
+pub struct DiscordianResponse {
+    pub fnord_id: i64,
+    pub success: bool,
+    pub analysis: Option<DiscordianAnalysis>,
+    pub categories_saved: Vec<String>,
+    pub tags_saved: Vec<String>,
     pub error: Option<String>,
 }
 
@@ -276,18 +286,262 @@ pub async fn analyze_article(
     }
 }
 
-/// Generate summary and analysis for an article (combined)
+/// Generate summary and analysis for an article (combined, parallel)
 #[tauri::command]
 pub async fn process_article(
     state: State<'_, AppState>,
     fnord_id: i64,
     model: String,
 ) -> Result<(SummaryResponse, AnalysisResponse), String> {
-    // Run both operations
-    let summary_result = generate_summary(state.clone(), fnord_id, model.clone()).await?;
-    let analysis_result = analyze_article(state, fnord_id, model).await?;
+    let client = OllamaClient::new(None);
+    let locale = get_locale_from_db(&state);
+    let summary_prompt_template = get_summary_prompt(&state, &locale);
+    let analysis_prompt_template = get_analysis_prompt(&state, &locale);
 
-    Ok((summary_result, analysis_result))
+    // Get article content once
+    let (title, content): (String, String) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.conn()
+            .query_row(
+                "SELECT title, COALESCE(content_full, content_raw, '') FROM fnords WHERE id = ?1",
+                [fnord_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| e.to_string())?
+    };
+
+    if content.is_empty() {
+        return Ok((
+            SummaryResponse {
+                fnord_id,
+                success: false,
+                summary: None,
+                error: Some("No content available".to_string()),
+            },
+            AnalysisResponse {
+                fnord_id,
+                success: false,
+                analysis: None,
+                error: Some("No content available".to_string()),
+            },
+        ));
+    }
+
+    // Run both API calls in parallel
+    let model_clone = model.clone();
+    let content_clone = content.clone();
+    let summary_future = client.summarize_with_prompt(&model, &content, &summary_prompt_template);
+    let analysis_future = client.analyze_bias_with_prompt(&model_clone, &title, &content_clone, &analysis_prompt_template);
+
+    let (summary_result, analysis_result) = tokio::join!(summary_future, analysis_future);
+
+    // Process results
+    let summary_response = match summary_result {
+        Ok(summary) => {
+            // Store summary
+            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let _ = db.conn().execute(
+                "UPDATE fnords SET summary = ?1 WHERE id = ?2",
+                (&summary, fnord_id),
+            );
+            SummaryResponse {
+                fnord_id,
+                success: true,
+                summary: Some(summary),
+                error: None,
+            }
+        }
+        Err(e) => SummaryResponse {
+            fnord_id,
+            success: false,
+            summary: None,
+            error: Some(e.to_string()),
+        },
+    };
+
+    let analysis_response = match analysis_result {
+        Ok(analysis) => {
+            // Store analysis
+            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let _ = db.conn().execute(
+                r#"UPDATE fnords SET
+                    political_bias = ?1,
+                    sachlichkeit = ?2,
+                    article_type = ?3,
+                    processed_at = CURRENT_TIMESTAMP
+                WHERE id = ?4"#,
+                (
+                    analysis.political_bias,
+                    analysis.sachlichkeit,
+                    &analysis.article_type,
+                    fnord_id,
+                ),
+            );
+            AnalysisResponse {
+                fnord_id,
+                success: true,
+                analysis: Some(analysis),
+                error: None,
+            }
+        }
+        Err(e) => AnalysisResponse {
+            fnord_id,
+            success: false,
+            analysis: None,
+            error: Some(e.to_string()),
+        },
+    };
+
+    Ok((summary_response, analysis_response))
+}
+
+/// Full Discordian Analysis: Summary + Bias + Categories + Keywords in one call
+#[tauri::command]
+pub async fn process_article_discordian(
+    state: State<'_, AppState>,
+    fnord_id: i64,
+    model: String,
+) -> Result<DiscordianResponse, String> {
+    let client = OllamaClient::new(None);
+    let locale = get_locale_from_db(&state);
+
+    // Get article content
+    let (title, content): (String, String) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.conn()
+            .query_row(
+                "SELECT title, COALESCE(content_full, content_raw, '') FROM fnords WHERE id = ?1",
+                [fnord_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| e.to_string())?
+    };
+
+    if content.is_empty() {
+        return Ok(DiscordianResponse {
+            fnord_id,
+            success: false,
+            analysis: None,
+            categories_saved: vec![],
+            tags_saved: vec![],
+            error: Some("No content available".to_string()),
+        });
+    }
+
+    // Run Discordian Analysis
+    match client.discordian_analysis(&model, &title, &content, &locale).await {
+        Ok(analysis) => {
+            let db = state.db.lock().map_err(|e| e.to_string())?;
+
+            // Store summary and bias analysis
+            db.conn()
+                .execute(
+                    r#"UPDATE fnords SET
+                        summary = ?1,
+                        political_bias = ?2,
+                        sachlichkeit = ?3,
+                        article_type = ?4,
+                        processed_at = CURRENT_TIMESTAMP
+                    WHERE id = ?5"#,
+                    (
+                        &analysis.summary,
+                        analysis.political_bias,
+                        analysis.sachlichkeit,
+                        &analysis.article_type,
+                        fnord_id,
+                    ),
+                )
+                .map_err(|e| e.to_string())?;
+
+            // Store categories (Sephiroth)
+            let mut categories_saved = Vec::new();
+            db.conn()
+                .execute("DELETE FROM fnord_sephiroth WHERE fnord_id = ?", [fnord_id])
+                .ok();
+
+            for cat_name in &analysis.categories {
+                if let Ok(sephiroth_id) = db.conn().query_row::<i64, _, _>(
+                    "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?)",
+                    [cat_name],
+                    |row| row.get(0),
+                ) {
+                    db.conn()
+                        .execute(
+                            "INSERT OR IGNORE INTO fnord_sephiroth (fnord_id, sephiroth_id, confidence) VALUES (?, ?, 1.0)",
+                            rusqlite::params![fnord_id, sephiroth_id],
+                        )
+                        .ok();
+
+                    // Update article count
+                    db.conn()
+                        .execute(
+                            "UPDATE sephiroth SET article_count = (SELECT COUNT(*) FROM fnord_sephiroth WHERE sephiroth_id = ?) WHERE id = ?",
+                            rusqlite::params![sephiroth_id, sephiroth_id],
+                        )
+                        .ok();
+
+                    categories_saved.push(cat_name.clone());
+                }
+            }
+
+            // Store keywords (Immanentize)
+            let mut tags_saved = Vec::new();
+            db.conn()
+                .execute("DELETE FROM fnord_immanentize WHERE fnord_id = ?", [fnord_id])
+                .ok();
+
+            for keyword in &analysis.keywords {
+                let keyword = keyword.trim();
+                if keyword.is_empty() {
+                    continue;
+                }
+
+                // Upsert tag
+                db.conn()
+                    .execute(
+                        r#"INSERT INTO immanentize (name, count, last_used)
+                           VALUES (?, 1, CURRENT_TIMESTAMP)
+                           ON CONFLICT(name) DO UPDATE SET
+                               count = count + 1,
+                               last_used = CURRENT_TIMESTAMP"#,
+                        [keyword],
+                    )
+                    .ok();
+
+                // Get tag ID and link
+                if let Ok(tag_id) = db.conn().query_row::<i64, _, _>(
+                    "SELECT id FROM immanentize WHERE name = ?",
+                    [keyword],
+                    |row| row.get(0),
+                ) {
+                    db.conn()
+                        .execute(
+                            "INSERT OR IGNORE INTO fnord_immanentize (fnord_id, immanentize_id) VALUES (?, ?)",
+                            rusqlite::params![fnord_id, tag_id],
+                        )
+                        .ok();
+                    tags_saved.push(keyword.to_string());
+                }
+            }
+
+            Ok(DiscordianResponse {
+                fnord_id,
+                success: true,
+                analysis: Some(analysis),
+                categories_saved,
+                tags_saved,
+                error: None,
+            })
+        }
+        Err(e) => Ok(DiscordianResponse {
+            fnord_id,
+            success: false,
+            analysis: None,
+            categories_saved: vec![],
+            tags_saved: vec![],
+            error: Some(e.to_string()),
+        }),
+    }
 }
 
 // ============================================================

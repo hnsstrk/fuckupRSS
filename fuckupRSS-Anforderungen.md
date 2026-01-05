@@ -1,8 +1,8 @@
 # fuckupRSS – Anforderungsdokument
 
-**Version:** 0.4
-**Datum:** 2026-01-04
-**Status:** Phase 1.5 abgeschlossen (i18n & UX)
+**Version:** 0.5
+**Datum:** 2026-01-05
+**Status:** Phase 2 abgeschlossen (Core Features)
 
 ---
 
@@ -16,6 +16,7 @@
 6. [Embeddings und Vektorsuche](#6-embeddings-und-vektorsuche)
 7. [Batch-Verarbeitung (Fnord Processing)](#7-batch-verarbeitung-fnord-processing)
 8. [Volltext-Abruf (Hagbard's Retrieval)](#8-volltext-abruf-hagbards-retrieval)
+8b. [Revisionsverwaltung (Fnord History)](#8b-revisionsverwaltung-fnord-history)
 9. [Sync-Verhalten](#9-sync-verhalten)
 10. [Datenbank-Schema](#10-datenbank-schema)
 11. [Prompt-Design](#11-prompt-design)
@@ -167,14 +168,23 @@ Die Software verwendet durchgängig Begriffe aus der Illuminatus!-Trilogie:
 
 ### 4.1 Modell-Auswahl
 
-| Modell | Größe | Zweck |
-|--------|-------|-------|
-| `qwen3-vl:8b` | 6.1 GB | Hauptmodell für alle Tasks |
-| `nomic-embed-text` | 274 MB | Embeddings für Vektorsuche |
+| Modell | Größe | Zweck | Hinweis |
+|--------|-------|-------|---------|
+| `ministral-3:latest` | 6.0 GB | **Hauptmodell** für Textanalyse | Empfohlen (schnell) |
+| `qwen3-vl:8b` | 6.1 GB | Alternative mit Vision-Support | Langsamer, für Bildanalyse |
+| `nomic-embed-text` | 274 MB | Embeddings für Vektorsuche | |
 
-**Gesamter VRAM-Bedarf:** ~6.4 GB + Overhead = ~9-10 GB (passt in 12 GB)
+**Wichtig:** `qwen3-vl` ist ein Vision-Language-Modell und hat deutlich mehr Overhead bei reinen Textaufgaben. Für die Greyface-Analyse ist `ministral-3` ~4x schneller.
 
-Beide Modelle können **gleichzeitig** im VRAM geladen bleiben.
+**VRAM-Bedarf:** ~6-7 GB + Overhead = ~8-9 GB
+
+### 4.1b Performance-Optimierungen
+
+| Optimierung | Wert | Effekt |
+|-------------|------|--------|
+| `num_ctx` | 8192 | Reduziert RAM von ~27 GB auf ~8 GB |
+| Parallele Calls | Ja | Summary + Analyse gleichzeitig |
+| Modell-Wechsel | Vermeiden | Entladen/Laden kostet Zeit |
 
 ### 4.2 Warum qwen3-vl:8b?
 
@@ -482,11 +492,47 @@ Phase 2 (Embeddings) und Phase 3 (Analyse) können **parallel** laufen, da beide
 
 ## 8. Volltext-Abruf (Hagbard's Retrieval)
 
-### 8.1 Problem
+### 8.1 Grundprinzip
 
-Viele RSS-Feeds liefern nur gekürzte Artikel (Teaser). Das ist unerwünscht.
+**fuckupRSS versucht IMMER den Volltext zu laden** – unabhängig davon, ob der Feed gekürzt ist oder nicht. Der Volltext ist die primäre Quelle für:
+- Die Anzeige im Artikel-View
+- Die KI-Analyse (Greyface Alert, Discordian Analysis)
+- Die Änderungserkennung (Revisionen)
 
-### 8.2 Entscheidungslogik
+### 8.2 Anzeige im UI
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ EU verabschiedet AI Act – Strengere Regeln                      │
+│ heise.de • 05.01.2026 • 📰 Nachricht                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│ [Feed-Content / Teaser]                                         │
+│ Die EU hat heute den AI Act verabschiedet...                    │
+│                                                                 │
+│ ─────────────────────────────────────────────────────────────── │
+│                                                                 │
+│ [Volltext – Hagbard's Retrieval]                                │
+│ BRÜSSEL (dpa) – Nach jahrelangen Verhandlungen hat das          │
+│ Europäische Parlament heute den AI Act final verabschiedet...   │
+│ [vollständiger Artikel]                                         │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Bei Fehler:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ ─────────────────────────────────────────────────────────────── │
+│                                                                 │
+│ ⚠️ Volltext konnte nicht geladen werden                         │
+│ Grund: HTTP 403 – Paywall erkannt                               │
+│ [🔄 Erneut versuchen]                                           │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 8.3 Entscheidungslogik (Legacy – jetzt immer Volltext)
 
 ```
 Neuer Artikel
@@ -563,6 +609,147 @@ async fn hagbards_retrieval(fnord: &mut Fnord) -> Result<()> {
 | **Nur URLs** (Standard) | Bilder werden bei Bedarf geladen |
 | **Thumbnail-Cache** (Optional) | Komprimierte Vorschau lokal speichern |
 | **Größenlimit** | Cache max. 500 MB |
+
+### 8.6 Volltext für KI-Analyse
+
+Die Greyface-Analyse (Bias-Erkennung) verwendet **immer den Volltext** (`content_full`), sofern verfügbar:
+
+```rust
+let content_for_analysis = fnord.content_full
+    .as_ref()
+    .unwrap_or(&fnord.content_raw);
+```
+
+**Reihenfolge der Präferenz:**
+1. `content_full` – Volltext via Hagbard's Retrieval
+2. `content_raw` – Original Feed-Content (Fallback)
+
+---
+
+## 8b. Revisionsverwaltung (Fnord History)
+
+### 8b.1 Grundprinzip
+
+Artikel können sich ändern – sei es durch Korrekturen, Updates oder "stille" Änderungen. fuckupRSS speichert **alle Versionen** eines Artikels und macht Änderungen sichtbar.
+
+### 8b.2 Was wird auf Änderungen geprüft?
+
+| Feld | Prüfung | Speicherung |
+|------|---------|-------------|
+| `title` | Ja | In Revision |
+| `content_raw` | Ja (Hash) | In Revision |
+| `content_full` | Ja (Hash) | In Revision |
+| `author` | Ja | In Revision |
+| `published_at` | Ja | In Revision |
+| `summary` (KI) | Nein | Nur aktuell |
+
+### 8b.3 Datenbank-Schema für Revisionen
+
+```sql
+CREATE TABLE fnord_revisions (
+    id INTEGER PRIMARY KEY,
+    fnord_id INTEGER NOT NULL,
+
+    -- Snapshot des Artikels zu diesem Zeitpunkt
+    title TEXT NOT NULL,
+    author TEXT,
+    content_raw TEXT,
+    content_full TEXT,
+    published_at DATETIME,
+
+    -- Metadaten der Revision
+    content_hash TEXT NOT NULL,        -- SHA256 von content_full oder content_raw
+    revision_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    revision_number INTEGER NOT NULL,  -- 1 = Original, 2 = erste Änderung, etc.
+
+    -- Was hat sich geändert?
+    changes_summary TEXT,              -- JSON: {"title": true, "content": true, ...}
+
+    FOREIGN KEY (fnord_id) REFERENCES fnords(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_revisions_fnord ON fnord_revisions(fnord_id);
+CREATE INDEX idx_revisions_date ON fnord_revisions(revision_at DESC);
+```
+
+### 8b.4 UI: Revisionen durchblättern
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ EU verabschiedet AI Act – Strengere Regeln                      │
+│ ─────────────────────────────────────────────────────────────── │
+│                                                                 │
+│ 📜 Revisionen: 3 Versionen                                      │
+│ ┌─────────────────────────────────────────────────────────────┐ │
+│ │ [◀ Vorherige]  Version 2 von 3  [Nächste ▶]                │ │
+│ │                                                             │ │
+│ │ 📅 05.01.2026 14:23 (Original: 05.01.2026 09:15)           │ │
+│ │                                                             │ │
+│ │ Änderungen:                                                 │ │
+│ │ • Titel: ✓ geändert                                         │ │
+│ │ • Inhalt: ✓ geändert (423 Zeichen Differenz)               │ │
+│ │ • Autor: — unverändert                                      │ │
+│ │                                                             │ │
+│ │ [Diff anzeigen] [Zur aktuellen Version]                    │ │
+│ └─────────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│ [Alter Inhalt dieser Revision...]                               │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 8b.5 Metadaten pro Revision
+
+Jede Revision enthält **vollständige Metadaten**:
+
+| Feld | Beschreibung |
+|------|--------------|
+| `revision_number` | Fortlaufende Nummer (1 = Original) |
+| `revision_at` | Wann diese Version erfasst wurde |
+| `published_at` | Veröffentlichungsdatum laut Feed (kann sich ändern!) |
+| `title` | Titel zu diesem Zeitpunkt |
+| `author` | Autor zu diesem Zeitpunkt |
+| `content_raw` | Feed-Content zu diesem Zeitpunkt |
+| `content_full` | Volltext zu diesem Zeitpunkt |
+| `content_hash` | Hash zur Änderungserkennung |
+| `changes_summary` | JSON mit geänderten Feldern |
+
+### 8b.6 Änderungserkennung beim Sync
+
+```
+Feed-Sync
+    │
+    ├─► Artikel existiert bereits? (via GUID)
+    │       │
+    │       ├─► Nein ──► Neuer Artikel, Revision 1 anlegen
+    │       │
+    │       └─► Ja ──► Content-Hash vergleichen
+    │                   │
+    │                   ├─► Hash identisch ──► Keine Aktion
+    │                   │
+    │                   └─► Hash unterschiedlich ──► Neue Revision anlegen
+    │                                               ──► has_changes = TRUE
+    │                                               ──► Volltext neu abrufen
+```
+
+### 8b.7 Kennzeichnung geänderter Artikel
+
+In der Artikel-Liste:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ 📰 heise.de                                              │
+├──────────────────────────────────────────────────────────┤
+│ ● EU verabschiedet AI Act                    vor 2 Std  │
+│ ⚡ Microsoft kündigt Entlassungen an [🔄 3]   vor 4 Std  │  ← Geändert, 3 Revisionen
+│ ● Neue GPT-5 Gerüchte                        vor 5 Std  │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Legende:**
+- `●` = Normale Artikel
+- `⚡` = Artikel mit Änderungen (Fnord!)
+- `[🔄 3]` = 3 Revisionen vorhanden
 
 ---
 

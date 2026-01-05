@@ -1,6 +1,58 @@
 import { invoke } from "@tauri-apps/api/core";
 
+// ============================================================
+// TOAST NOTIFICATIONS
+// ============================================================
+
+export interface Toast {
+  id: number;
+  type: 'success' | 'error' | 'info';
+  message: string;
+}
+
+let toastId = 0;
+
+class ToastStore {
+  items = $state<Toast[]>([]);
+
+  add(type: Toast['type'], message: string, duration = 4000): void {
+    const id = ++toastId;
+    this.items = [...this.items, { id, type, message }];
+
+    // Auto-remove after duration
+    if (duration > 0) {
+      setTimeout(() => {
+        this.remove(id);
+      }, duration);
+    }
+  }
+
+  remove(id: number): void {
+    this.items = this.items.filter(t => t.id !== id);
+  }
+
+  success(message: string, duration = 4000): void {
+    this.add('success', message, duration);
+  }
+
+  error(message: string, duration = 6000): void {
+    this.add('error', message, duration);
+  }
+
+  info(message: string, duration = 4000): void {
+    this.add('info', message, duration);
+  }
+}
+
+export const toasts = new ToastStore();
+
+export function removeToast(id: number): void {
+  toasts.remove(id);
+}
+
+// ============================================================
 // Types matching Rust structs
+// ============================================================
 export interface Pentacle {
   id: number;
   url: string;
@@ -123,6 +175,52 @@ export interface BatchResult {
   processed: number;
   succeeded: number;
   failed: number;
+}
+
+// ============================================================
+// SEPHIROTH (Categories) & IMMANENTIZE (Tags)
+// ============================================================
+
+export interface Sephiroth {
+  id: number;
+  name: string;
+  description: string | null;
+  color: string | null;
+  icon: string | null;
+  article_count: number;
+}
+
+export interface ArticleCategory {
+  sephiroth_id: number;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  confidence: number;
+}
+
+export interface Tag {
+  id: number;
+  name: string;
+  count: number;
+  last_used: string | null;
+}
+
+export interface DiscordianAnalysis {
+  summary: string;
+  categories: string[];
+  keywords: string[];
+  political_bias: number;
+  sachlichkeit: number;
+  article_type: string;
+}
+
+export interface DiscordianResponse {
+  fnord_id: number;
+  success: boolean;
+  analysis: DiscordianAnalysis | null;
+  categories_saved: string[];
+  tags_saved: string[];
+  error: string | null;
 }
 
 // Svelte 5 runes-based state
@@ -406,8 +504,25 @@ class AppState {
     try {
       const status = await invoke<OllamaStatus>("check_ollama");
       this.ollamaStatus = status;
+
       if (status.available && status.models.length > 0 && !this.selectedModel) {
-        this.selectedModel = status.models[0];
+        // Try to load saved model preference
+        try {
+          const savedModel = await invoke<string | null>("get_setting", { key: "main_model" });
+          if (savedModel && status.models.includes(savedModel)) {
+            this.selectedModel = savedModel;
+          } else {
+            // Fall back to recommended model if available, otherwise first model
+            this.selectedModel = status.has_recommended_main
+              ? status.recommended_main
+              : status.models[0];
+          }
+        } catch {
+          // Fall back to recommended model if available, otherwise first model
+          this.selectedModel = status.has_recommended_main
+            ? status.recommended_main
+            : status.models[0];
+        }
       }
       return status;
     } catch (e) {
@@ -608,6 +723,80 @@ class AppState {
 
   updateBatchProgress(progress: BatchProgress): void {
     this.batchProgress = progress;
+  }
+
+  // ============================================================
+  // SEPHIROTH (Categories) & IMMANENTIZE (Tags)
+  // ============================================================
+
+  async getArticleCategories(fnordId: number): Promise<ArticleCategory[]> {
+    try {
+      return await invoke<ArticleCategory[]>("get_article_categories", { fnordId });
+    } catch (e) {
+      console.error("Failed to get article categories:", e);
+      return [];
+    }
+  }
+
+  async getArticleTags(fnordId: number): Promise<Tag[]> {
+    try {
+      return await invoke<Tag[]>("get_article_tags", { fnordId });
+    } catch (e) {
+      console.error("Failed to get article tags:", e);
+      return [];
+    }
+  }
+
+  async getAllCategories(): Promise<Sephiroth[]> {
+    try {
+      return await invoke<Sephiroth[]>("get_all_categories");
+    } catch (e) {
+      console.error("Failed to get all categories:", e);
+      return [];
+    }
+  }
+
+  async getAllTags(limit?: number): Promise<Tag[]> {
+    try {
+      return await invoke<Tag[]>("get_all_tags", { limit: limit ?? 100 });
+    } catch (e) {
+      console.error("Failed to get all tags:", e);
+      return [];
+    }
+  }
+
+  // Full Discordian Analysis - Summary + Bias + Categories + Keywords
+  async processArticleDiscordian(fnordId: number): Promise<DiscordianResponse | null> {
+    if (this.analyzing || !this.selectedModel) return null;
+
+    try {
+      this.analyzing = true;
+      this.error = null;
+      const result = await invoke<DiscordianResponse>("process_article_discordian", {
+        fnordId,
+        model: this.selectedModel,
+      });
+
+      // Update local fnord state if successful
+      if (result.success && result.analysis) {
+        const fnord = this.fnords.find((f) => f.id === fnordId);
+        if (fnord) {
+          fnord.summary = result.analysis.summary;
+          fnord.political_bias = result.analysis.political_bias;
+          fnord.sachlichkeit = result.analysis.sachlichkeit;
+          fnord.article_type = result.analysis.article_type;
+          fnord.processed_at = new Date().toISOString();
+        }
+      }
+
+      return result;
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to process article (Discordian):", e);
+      return null;
+    } finally {
+      this.analyzing = false;
+    }
   }
 }
 
