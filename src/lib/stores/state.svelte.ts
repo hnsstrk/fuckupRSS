@@ -225,6 +225,54 @@ export interface DiscordianResponse {
   error: string | null;
 }
 
+// ============================================================
+// IMMANENTIZE NETWORK (Semantic Keyword Network)
+// ============================================================
+
+export interface Keyword {
+  id: number;
+  name: string;
+  count: number;
+  article_count: number;
+  cluster_id: number | null;
+  is_canonical: boolean;
+  canonical_id: number | null;
+  first_seen: string | null;
+  last_used: string | null;
+}
+
+export interface KeywordNeighbor {
+  id: number;
+  name: string;
+  cooccurrence: number;
+  embedding_similarity: number | null;
+  combined_weight: number;
+}
+
+export interface KeywordCategory {
+  sephiroth_id: number;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  weight: number;
+  article_count: number;
+}
+
+export interface TrendingKeyword {
+  id: number;
+  name: string;
+  total_count: number;
+  recent_count: number;
+  growth_rate: number;
+}
+
+export interface NetworkStats {
+  total_keywords: number;
+  total_connections: number;
+  total_clusters: number;
+  avg_neighbors_per_keyword: number;
+}
+
 // Svelte 5 runes-based state
 class AppState {
   pentacles = $state<Pentacle[]>([]);
@@ -816,3 +864,175 @@ export const selectedFnord = {
     return appState.selectedFnord;
   },
 };
+
+// ============================================================
+// IMMANENTIZE NETWORK STORE
+// ============================================================
+
+class ImmanentizeNetworkStore {
+  keywords = $state<Keyword[]>([]);
+  selectedKeyword = $state<Keyword | null>(null);
+  neighbors = $state<KeywordNeighbor[]>([]);
+  keywordCategories = $state<KeywordCategory[]>([]);
+  trendingKeywords = $state<TrendingKeyword[]>([]);
+  networkStats = $state<NetworkStats | null>(null);
+  searchResults = $state<Keyword[]>([]);
+  searchQuery = $state('');
+  loading = $state(false);
+  error = $state<string | null>(null);
+
+  // Pagination
+  offset = $state(0);
+  limit = $state(50);
+  hasMore = $state(true);
+
+  async loadKeywords(reset = false): Promise<void> {
+    if (this.loading) return;
+
+    try {
+      this.loading = true;
+      this.error = null;
+
+      if (reset) {
+        this.offset = 0;
+        this.keywords = [];
+      }
+
+      const newKeywords = await invoke<Keyword[]>("get_keywords", {
+        limit: this.limit,
+        offset: this.offset,
+      });
+
+      if (newKeywords.length < this.limit) {
+        this.hasMore = false;
+      }
+
+      this.keywords = reset ? newKeywords : [...this.keywords, ...newKeywords];
+      this.offset += newKeywords.length;
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to load keywords:", e);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async loadMoreKeywords(): Promise<void> {
+    if (!this.hasMore || this.loading) return;
+    await this.loadKeywords(false);
+  }
+
+  async selectKeyword(id: number | null): Promise<void> {
+    if (id === null) {
+      this.selectedKeyword = null;
+      this.neighbors = [];
+      this.keywordCategories = [];
+      return;
+    }
+
+    try {
+      this.loading = true;
+      this.error = null;
+
+      // Load keyword details, neighbors, and categories in parallel
+      const [keyword, neighbors, categories] = await Promise.all([
+        invoke<Keyword | null>("get_keyword", { id }),
+        invoke<KeywordNeighbor[]>("get_keyword_neighbors", { id, limit: 20 }),
+        invoke<KeywordCategory[]>("get_keyword_categories", { id }),
+      ]);
+
+      this.selectedKeyword = keyword;
+      this.neighbors = neighbors;
+      this.keywordCategories = categories;
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to load keyword details:", e);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async searchKeywords(query: string): Promise<void> {
+    this.searchQuery = query;
+
+    if (!query.trim()) {
+      this.searchResults = [];
+      return;
+    }
+
+    try {
+      this.loading = true;
+      this.error = null;
+      this.searchResults = await invoke<Keyword[]>("search_keywords", {
+        query,
+        limit: 20,
+      });
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to search keywords:", e);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async loadTrendingKeywords(days = 7): Promise<void> {
+    try {
+      this.loading = true;
+      this.error = null;
+      this.trendingKeywords = await invoke<TrendingKeyword[]>("get_trending_keywords", {
+        days,
+        limit: 20,
+      });
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to load trending keywords:", e);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async loadNetworkStats(): Promise<void> {
+    try {
+      this.networkStats = await invoke<NetworkStats>("get_network_stats");
+    } catch (e) {
+      console.error("Failed to load network stats:", e);
+    }
+  }
+
+  async loadCategoryKeywords(sephirothId: number): Promise<Keyword[]> {
+    try {
+      return await invoke<Keyword[]>("get_category_keywords", {
+        sephirothId,
+        limit: 50,
+      });
+    } catch (e) {
+      console.error("Failed to load category keywords:", e);
+      return [];
+    }
+  }
+
+  // Navigate to a neighbor keyword
+  async navigateToNeighbor(neighborId: number): Promise<void> {
+    await this.selectKeyword(neighborId);
+  }
+
+  clearSearch(): void {
+    this.searchQuery = '';
+    this.searchResults = [];
+  }
+
+  reset(): void {
+    this.keywords = [];
+    this.selectedKeyword = null;
+    this.neighbors = [];
+    this.keywordCategories = [];
+    this.trendingKeywords = [];
+    this.searchResults = [];
+    this.searchQuery = '';
+    this.offset = 0;
+    this.hasMore = true;
+    this.error = null;
+  }
+}
+
+export const networkStore = new ImmanentizeNetworkStore();

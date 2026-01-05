@@ -196,5 +196,27 @@
     "deleteFeed": "Feed wirklich loeschen?",
     "yes": "Ja",
     "no": "Nein"
+  },
+  "network": {
+    "title": "Immanentize Network",
+    "keywords": "Stichworte",
+    "connections": "Verbindungen",
+    "avgNeighbors": "Nachbarn/Stichwort",
+    "searchPlaceholder": "Stichwort suchen...",
+    "searchResults": "Suchergebnisse",
+    "noResults": "Keine Ergebnisse gefunden",
+    "trending": "Trending",
+    "allKeywords": "Alle Stichworte",
+    "loadMore": "Weitere laden",
+    "loading": "Lade...",
+    "selectKeyword": "Waehle ein Stichwort aus der Liste",
+    "articleCount": "Artikel",
+    "firstSeen": "Erstmals",
+    "lastUsed": "Zuletzt",
+    "categories": "Kategorien",
+    "neighbors": "Verwandte Stichworte",
+    "cooccurrence": "Gemeinsames Auftreten",
+    "similarity": "Semantische Aehnlichkeit",
+    "noNeighbors": "Keine verwandten Stichworte gefunden"
   }
 }

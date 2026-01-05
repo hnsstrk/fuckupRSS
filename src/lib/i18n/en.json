@@ -196,5 +196,27 @@
     "deleteFeed": "Really delete this feed?",
     "yes": "Yes",
     "no": "No"
+  },
+  "network": {
+    "title": "Immanentize Network",
+    "keywords": "Keywords",
+    "connections": "Connections",
+    "avgNeighbors": "Neighbors/Keyword",
+    "searchPlaceholder": "Search keyword...",
+    "searchResults": "Search Results",
+    "noResults": "No results found",
+    "trending": "Trending",
+    "allKeywords": "All Keywords",
+    "loadMore": "Load more",
+    "loading": "Loading...",
+    "selectKeyword": "Select a keyword from the list",
+    "articleCount": "Articles",
+    "firstSeen": "First seen",
+    "lastUsed": "Last used",
+    "categories": "Categories",
+    "neighbors": "Related Keywords",
+    "cooccurrence": "Co-occurrence",
+    "similarity": "Semantic Similarity",
+    "noNeighbors": "No related keywords found"
   }
 }
