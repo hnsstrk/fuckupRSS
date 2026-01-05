@@ -207,8 +207,9 @@ The codebase uses terms from the Illuminatus! trilogy:
 | Illuminated | Read article | `fnords.status = 'illuminated'` |
 | Golden Apple | Favorited article | `fnords.status = 'golden_apple'` |
 | Pentacle | Feed source | `pentacles` |
-| Sephiroth | Category | `sephiroth` |
+| Sephiroth | Category (13 fixed) | `sephiroth` |
 | Immanentize | Keyword/tag | `immanentize` |
+| Immanentize Network | Semantic keyword graph | `immanentize_*` tables |
 | Greyface Alert | Bias warning | `fnords.political_bias`, `sachlichkeit` |
 | Discordian Analysis | AI summary | `fnords.summary` |
 | Operation Mindfuck | User interests | `operation_mindfuck` |
@@ -216,14 +217,29 @@ The codebase uses terms from the Illuminatus! trilogy:
 
 ## Database Schema Key Tables
 
+### Core Tables
 - `pentacles` - Feed sources (URL, title, sync settings)
 - `fnords` - Articles (content, status, bias scores)
-- `sephiroth` - Categories (with default set)
-- `immanentize` - Keywords/tags
-- `fnord_sephiroth` - Article ↔ Category mapping
+- `fnord_revisions` - Article version history
+
+### Kategorien (13 fest definiert)
+- `sephiroth` - Categories: Technik, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit, Verteidigung, Energie, Recht
+- `fnord_sephiroth` - Article ↔ Category mapping (source: 'ai'|'manual', assigned_at)
+
+### Immanentize Network (Schlagwort-Wissensnetz)
+- `immanentize` - Keywords/tags (with embedding_at, cluster_id, canonical_id)
+- `immanentize_vss` - Schlagwort-Embeddings (sqlite-vec, 768 dim)
+- `immanentize_sephiroth` - Schlagwort ↔ Kategorie Assoziation
+- `immanentize_neighbors` - Kookkurrenz-Netzwerk (cooccurrence + embedding_similarity)
+- `immanentize_clusters` - Themen-Cluster
+- `immanentize_clusters_vss` - Cluster-Zentroide
 - `fnord_immanentize` - Article ↔ Tag mapping
 
+### Embeddings
+- `fnords_vss` - Article embeddings (sqlite-vec)
+
 Schema-Definition: `src-tauri/src/db/schema.rs`
+Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
 
 ## Tauri Commands (Frontend → Backend)
 
@@ -281,9 +297,13 @@ Schema-Definition: `src-tauri/src/db/schema.rs`
 ## AI Processing Pipeline
 
 1. **Hagbard's Retrieval** - Fetch full text for truncated feeds
-2. **Immanentizing** - Generate embeddings via nomic-embed-text
-3. **Discordian Analysis** - Summarize, categorize, extract keywords via qwen3-vl:8b
-4. **Greyface Alert** - Bias detection (political_bias: -2 to +2, sachlichkeit: 0-4)
+2. **Discordian Analysis** - Summarize, categorize, extract keywords via ministral/qwen
+3. **Greyface Alert** - Bias detection (political_bias: -2 to +2, sachlichkeit: 0-4)
+4. **Immanentize Network** - Schlagwort-Verarbeitung:
+   - Neue Schlagworte: Embedding via nomic-embed-text
+   - Kategorie-Assoziation: immanentize_sephiroth aktualisieren
+   - Nachbar-Update: Kookkurrenz + Embedding-Similarity
+   - Synonym-Erkennung: Bei embedding_similarity > 0.92
 
 ## Ollama Setup
 

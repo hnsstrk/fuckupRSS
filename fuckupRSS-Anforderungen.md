@@ -14,6 +14,7 @@
 4. [KI-Integration](#4-ki-integration)
 5. [Bias-Erkennung (Greyface Alert)](#5-bias-erkennung-greyface-alert)
 6. [Embeddings und Vektorsuche](#6-embeddings-und-vektorsuche)
+6b. [Schlagwort-Netzwerk (Immanentize Network)](#6b-schlagwort-netzwerk-immanentize-network)
 7. [Batch-Verarbeitung (Fnord Processing)](#7-batch-verarbeitung-fnord-processing)
 8. [Volltext-Abruf (Hagbard's Retrieval)](#8-volltext-abruf-hagbards-retrieval)
 8b. [Revisionsverwaltung (Fnord History)](#8b-revisionsverwaltung-fnord-history)
@@ -399,6 +400,373 @@ LIMIT 10;
 5. Später: Ähnlichkeitssuche
    SELECT * FROM fnords_vss WHERE vss_search(embedding, query_vektor) LIMIT 10
 ```
+
+---
+
+## 6b. Schlagwort-Netzwerk (Immanentize Network)
+
+### 6b.1 Konzept: Semantisches Wissensnetz
+
+Das Immanentize Network ist ein hybrides System, das **statistische Kookkurrenz** mit **semantischen Embeddings** kombiniert, um ein intelligentes Schlagwort-Netzwerk aufzubauen.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    SEMANTISCHES SCHLAGWORT-NETZWERK                         │
+│                                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │                     EMBEDDING-SPACE (768 dim)                       │  │
+│   │                                                                     │  │
+│   │         "KI" ●────── 0.95 ──────● "AI"                             │  │
+│   │              \                  /                                   │  │
+│   │          0.82 \              / 0.78                                 │  │
+│   │                \            /                                       │  │
+│   │                 ● "Machine Learning"                                │  │
+│   │                        |                                            │  │
+│   │                   0.71 |                                            │  │
+│   │                        ▼                                            │  │
+│   │              ● "Deep Learning"                                      │  │
+│   │                                                                     │  │
+│   │   ● "EU" ←──── 0.45 ────→ ● "USA"  (thematisch verwandt)          │  │
+│   │       ↑                                                             │  │
+│   │  0.88 │  (Kookkurrenz hoch)                                        │  │
+│   │       ↓                                                             │  │
+│   │   ● "Brüssel"                                                       │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│   Gewicht = α × Kookkurrenz + β × Embedding-Ähnlichkeit                    │
+│             (statistisch)       (semantisch)                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 6b.2 Zwei-Säulen-Ansatz
+
+| Säule | Methode | Stärke | Beispiel |
+|-------|---------|--------|----------|
+| **Kookkurrenz** | Statistisch | Kontextuelle Beziehung | "EU" + "Brüssel" (oft im selben Artikel) |
+| **Embeddings** | Semantisch | Bedeutungsgleichheit | "KI" ≈ "AI" (auch ohne gemeinsame Artikel) |
+
+**Kombination:** Ein Schlagwort-Paar kann hohe Kookkurrenz haben (oft zusammen genannt) ODER hohe Embedding-Ähnlichkeit (ähnliche Bedeutung) ODER beides.
+
+### 6b.3 Datenmodell
+
+#### Erweiterte Schlagwort-Tabelle (immanentize)
+
+```sql
+CREATE TABLE immanentize (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+
+    -- Statistik
+    count INTEGER DEFAULT 1,              -- Anzahl Verwendungen
+    article_count INTEGER DEFAULT 0,      -- Anzahl Artikel mit diesem Schlagwort
+
+    -- Embedding-Status
+    embedding_at DATETIME,                -- Wann Embedding erstellt wurde
+
+    -- Clustering
+    cluster_id INTEGER,                   -- Zugehöriger Themen-Cluster
+
+    -- Synonym-Handling
+    is_canonical BOOLEAN DEFAULT TRUE,    -- Ist dies das Haupt-Schlagwort?
+    canonical_id INTEGER,                 -- Verweis auf Haupt-Synonym (falls Duplikat)
+
+    -- Zeitstempel
+    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_used DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (canonical_id) REFERENCES immanentize(id),
+    FOREIGN KEY (cluster_id) REFERENCES immanentize_clusters(id)
+);
+```
+
+#### Schlagwort-Embeddings (immanentize_vss)
+
+```sql
+-- Virtuelle Tabelle für Vektor-Suche (sqlite-vec)
+CREATE VIRTUAL TABLE immanentize_vss USING vss0(
+    embedding(768)  -- nomic-embed-text Dimension
+);
+
+-- rowid entspricht immanentize.id
+```
+
+#### Schlagwort-Kategorien (immanentize_sephiroth)
+
+```sql
+CREATE TABLE immanentize_sephiroth (
+    immanentize_id INTEGER NOT NULL,
+    sephiroth_id INTEGER NOT NULL,
+
+    -- Stärke der Assoziation
+    weight REAL DEFAULT 1.0,              -- Normalisierte Gewichtung (0.0-1.0)
+    article_count INTEGER DEFAULT 1,      -- Wie oft zusammen vorgekommen
+
+    -- Zeitstempel
+    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (immanentize_id, sephiroth_id),
+    FOREIGN KEY (immanentize_id) REFERENCES immanentize(id) ON DELETE CASCADE,
+    FOREIGN KEY (sephiroth_id) REFERENCES sephiroth(id) ON DELETE CASCADE
+);
+```
+
+**Beispiel:**
+
+| Schlagwort | Kategorie | weight | article_count |
+|------------|-----------|--------|---------------|
+| EU | Politik | 0.85 | 127 |
+| EU | Wirtschaft | 0.45 | 68 |
+| EU | Recht | 0.30 | 42 |
+| KI | Technik | 0.92 | 234 |
+| KI | Wirtschaft | 0.38 | 89 |
+
+#### Nachbar-Netzwerk (immanentize_neighbors)
+
+```sql
+CREATE TABLE immanentize_neighbors (
+    immanentize_id_a INTEGER NOT NULL,    -- Schlagwort A (kleinere ID)
+    immanentize_id_b INTEGER NOT NULL,    -- Schlagwort B (größere ID)
+
+    -- Statistische Beziehung
+    cooccurrence INTEGER DEFAULT 0,       -- Wie oft zusammen in Artikeln
+
+    -- Semantische Beziehung
+    embedding_similarity REAL,            -- Cosine-Ähnlichkeit (0.0-1.0)
+
+    -- Kombiniertes Gewicht
+    combined_weight REAL DEFAULT 0.0,     -- α×cooc_norm + β×embed_sim
+
+    -- Zeitstempel
+    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (immanentize_id_a, immanentize_id_b),
+    FOREIGN KEY (immanentize_id_a) REFERENCES immanentize(id) ON DELETE CASCADE,
+    FOREIGN KEY (immanentize_id_b) REFERENCES immanentize(id) ON DELETE CASCADE,
+    CHECK (immanentize_id_a < immanentize_id_b)  -- Symmetrie vermeiden
+);
+```
+
+#### Themen-Cluster (immanentize_clusters)
+
+```sql
+CREATE TABLE immanentize_clusters (
+    id INTEGER PRIMARY KEY,
+    name TEXT,                            -- "KI & Machine Learning", "EU-Politik"
+    description TEXT,
+
+    -- Cluster-Metadaten
+    auto_generated BOOLEAN DEFAULT TRUE,  -- Automatisch oder manuell erstellt
+    keyword_count INTEGER DEFAULT 0,      -- Anzahl Schlagworte im Cluster
+
+    -- Zeitstempel
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Cluster-Zentroid für schnelle Zuordnung neuer Schlagworte
+CREATE VIRTUAL TABLE immanentize_clusters_vss USING vss0(
+    centroid(768)
+);
+```
+
+### 6b.4 Gewichtungs-Algorithmus
+
+#### Kookkurrenz-Normalisierung
+
+```
+cooc_normalized = cooccurrence(A,B) / min(total_articles(A), total_articles(B))
+```
+
+**Beispiel:** "EU" erscheint in 100 Artikeln, "Brüssel" in 50 Artikeln, beide zusammen in 45:
+- `cooc_normalized = 45 / min(100, 50) = 45 / 50 = 0.90`
+
+#### Embedding-Ähnlichkeit
+
+```
+embedding_similarity = cosine_similarity(embedding(A), embedding(B))
+```
+
+Berechnet über sqlite-vec bei Embedding-Erstellung.
+
+#### Kombiniertes Gewicht
+
+```
+combined_weight = α × cooc_normalized + β × embedding_similarity
+
+Standardwerte:
+- α = 0.4 (Kookkurrenz-Gewicht)
+- β = 0.6 (Embedding-Gewicht)
+```
+
+### 6b.5 Verarbeitungs-Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    IMMANENTIZING PIPELINE                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ARTIKEL WIRD ANALYSIERT (Discordian Analysis)                             │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 1. KEYWORD EXTRACTION (ministral/qwen)                              │   │
+│  │    Keywords: ["Künstliche Intelligenz", "EU", "Regulierung"]        │   │
+│  │    Kategorien: [Politik, Technik]                                   │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 2. SCHLAGWORT-VERARBEITUNG                                          │   │
+│  │    Für jedes Keyword:                                               │   │
+│  │    a) INSERT/UPDATE immanentize (count++, article_count++)          │   │
+│  │    b) INSERT fnord_immanentize (Artikel ↔ Schlagwort)               │   │
+│  │    c) Falls NEU: Embedding via nomic-embed-text generieren          │   │
+│  │       → INSERT immanentize_vss                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 3. KATEGORIE-ASSOZIATION                                            │   │
+│  │    Für jedes Keyword × Kategorie des Artikels:                      │   │
+│  │    UPDATE immanentize_sephiroth (weight neu berechnen)              │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 4. NACHBAR-AKTUALISIERUNG                                           │   │
+│  │    Für alle Keyword-Paare im Artikel (n*(n-1)/2):                   │   │
+│  │    a) UPDATE cooccurrence++                                         │   │
+│  │    b) embedding_similarity aus VSS (falls noch nicht berechnet)     │   │
+│  │    c) combined_weight neu berechnen                                 │   │
+│  │                                                                     │   │
+│  │    Beispiel: 4 Keywords = 6 Paare                                   │   │
+│  │    KI↔EU, KI↔Regulierung, KI↔Brüssel,                              │   │
+│  │    EU↔Regulierung, EU↔Brüssel, Regulierung↔Brüssel                 │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 5. SYNONYM-ERKENNUNG (bei neuen Schlagworten)                       │   │
+│  │    VSS-Suche: Gibt es Schlagwort mit embedding_similarity > 0.92?   │   │
+│  │    → Falls ja: canonical_id setzen, is_canonical = FALSE            │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    CLUSTERING JOB (periodisch, z.B. täglich)               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. Alle Schlagwort-Embeddings aus immanentize_vss laden                   │
+│  2. K-Means oder DBSCAN Clustering durchführen                             │
+│  3. Cluster-Zentroide berechnen und in immanentize_clusters_vss speichern  │
+│  4. immanentize.cluster_id für jedes Schlagwort aktualisieren              │
+│  5. Cluster-Namen automatisch generieren (häufigstes Schlagwort)           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 6b.6 API-Endpoints
+
+| Endpoint | Parameter | Rückgabe | Beschreibung |
+|----------|-----------|----------|--------------|
+| `get_keyword_neighbors` | id, limit | `Vec<Neighbor>` | Top-N Nachbar-Schlagworte |
+| `get_keyword_categories` | id | `Vec<CategoryWeight>` | Kategorien eines Schlagworts |
+| `get_category_keywords` | sephiroth_id, limit | `Vec<Keyword>` | Top-Schlagworte einer Kategorie |
+| `get_keyword_cluster` | id | `Cluster` | Cluster-Info eines Schlagworts |
+| `get_cluster_keywords` | cluster_id | `Vec<Keyword>` | Alle Schlagworte im Cluster |
+| `get_similar_keywords` | id, limit | `Vec<Keyword>` | Semantisch ähnliche (via Embedding) |
+| `get_trending_keywords` | days, limit | `Vec<TrendingKeyword>` | Trending Schlagworte |
+| `find_synonyms` | id | `Vec<Keyword>` | Erkannte Synonyme |
+| `merge_keywords` | source_id, target_id | - | Manuelles Zusammenführen |
+
+### 6b.7 Anwendungsfälle
+
+| Feature | Methode | Beispiel |
+|---------|---------|----------|
+| **Synonym-Erkennung** | Embedding-Distanz < 0.08 | "KI" ≈ "AI" ≈ "Künstliche Intelligenz" |
+| **Themen-Cluster** | K-Means auf Embeddings | Cluster "Technologie": KI, Software, Digital |
+| **Semantische Suche** | VSS-Query | "Klimawandel" findet auch "Erderwärmung" |
+| **Trend-Erkennung** | Zeitreihe + Wachstumsrate | Neue Begriffe mit hoher Frequenz |
+| **Ähnliche Artikel** | Schlagwort-Überlappung + Embedding | "Zeige mir Artikel wie diesen" |
+| **Kategorie-Analyse** | immanentize_sephiroth | "Welche Schlagworte dominieren Politik?" |
+| **Netzwerk-Visualisierung** | Graph aus neighbors | Interaktive Themen-Karte |
+
+### 6b.8 Beispiel-Abfragen
+
+```sql
+-- Top-10 Nachbarn eines Schlagworts
+SELECT
+    i.name,
+    n.cooccurrence,
+    n.embedding_similarity,
+    n.combined_weight
+FROM immanentize_neighbors n
+JOIN immanentize i ON i.id = CASE
+    WHEN n.immanentize_id_a = ?1 THEN n.immanentize_id_b
+    ELSE n.immanentize_id_a
+END
+WHERE n.immanentize_id_a = ?1 OR n.immanentize_id_b = ?1
+ORDER BY n.combined_weight DESC
+LIMIT 10;
+
+-- Semantisch ähnliche Schlagworte (via Embedding)
+SELECT i.name, distance
+FROM immanentize_vss v
+JOIN immanentize i ON i.id = v.rowid
+WHERE vss_search(v.embedding, (
+    SELECT embedding FROM immanentize_vss WHERE rowid = ?1
+))
+AND v.rowid != ?1
+ORDER BY distance ASC
+LIMIT 10;
+
+-- Top-Schlagworte einer Kategorie
+SELECT i.name, ims.weight, ims.article_count
+FROM immanentize_sephiroth ims
+JOIN immanentize i ON i.id = ims.immanentize_id
+WHERE ims.sephiroth_id = ?1
+ORDER BY ims.weight DESC
+LIMIT 20;
+
+-- Trending: Schlagworte mit starkem Wachstum (letzte 7 Tage)
+SELECT
+    i.name,
+    i.article_count as total,
+    (SELECT COUNT(DISTINCT fi.fnord_id)
+     FROM fnord_immanentize fi
+     JOIN fnords f ON f.id = fi.fnord_id
+     WHERE fi.immanentize_id = i.id
+     AND f.published_at > datetime('now', '-7 days')) as last_week
+FROM immanentize i
+WHERE i.article_count > 5
+ORDER BY last_week DESC
+LIMIT 20;
+
+-- Cluster-Übersicht
+SELECT
+    c.id,
+    c.name,
+    c.keyword_count,
+    GROUP_CONCAT(i.name, ', ') as top_keywords
+FROM immanentize_clusters c
+JOIN immanentize i ON i.cluster_id = c.id
+GROUP BY c.id
+ORDER BY c.keyword_count DESC;
+```
+
+### 6b.9 Konfiguration
+
+| Parameter | Default | Beschreibung |
+|-----------|---------|--------------|
+| `COOC_WEIGHT` (α) | 0.4 | Gewicht der Kookkurrenz |
+| `EMBED_WEIGHT` (β) | 0.6 | Gewicht der Embedding-Ähnlichkeit |
+| `SYNONYM_THRESHOLD` | 0.92 | Embedding-Ähnlichkeit für Synonym-Erkennung |
+| `MIN_COOCCURRENCE` | 2 | Mindest-Kookkurrenz für Nachbar-Speicherung |
+| `CLUSTER_MIN_SIZE` | 5 | Mindestgröße für Cluster |
+| `TRENDING_DAYS` | 7 | Zeitraum für Trend-Berechnung |
 
 ---
 
@@ -811,23 +1179,38 @@ WHERE title LIKE '%Podcast%';  -- 1 Tag
 ### 10.1 Übersicht
 
 ```
-┌─────────────────┐     ┌─────────────────┐
-│    pentacles    │────<│     fnords      │
-│  (Feed-Quellen) │     │    (Artikel)    │
-└─────────────────┘     └─────────────────┘
-                               │
-              ┌────────────────┼────────────────┐
-              ▼                ▼                ▼
-      ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-      │  sephiroth  │  │ immanentize │  │ fnords_vss  │
-      │ (Kategorien)│  │ (Stichworte)│  │  (Vektoren) │
-      └─────────────┘  └─────────────┘  └─────────────┘
-              ▲                ▲
-              │                │
-      ┌───────┴────────────────┴───────┐
-      │       operation_mindfuck       │
-      │       (User-Interessen)        │
-      └────────────────────────────────┘
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│    pentacles    │────<│     fnords      │────>│   fnords_vss    │
+│  (Feed-Quellen) │     │    (Artikel)    │     │   (Embeddings)  │
+└─────────────────┘     └────────┬────────┘     └─────────────────┘
+                                 │
+              ┌──────────────────┼──────────────────┐
+              ▼                  ▼                  ▼
+      ┌─────────────┐    ┌─────────────────┐    ┌─────────────────┐
+      │  sephiroth  │    │   immanentize   │    │ fnord_revisions │
+      │ (Kategorien)│    │  (Schlagworte)  │    │   (Versionen)   │
+      └──────┬──────┘    └────────┬────────┘    └─────────────────┘
+             │                    │
+             │    ┌───────────────┼───────────────┐
+             │    ▼               ▼               ▼
+             │  ┌───────────┐ ┌─────────────┐ ┌─────────────────┐
+             │  │immanentize│ │ immanentize │ │   immanentize   │
+             └─>│ _sephiroth│ │ _neighbors  │ │     _vss        │
+                │(Kat↔Schlag)│ │(Kookkurrenz)│ │  (Embeddings)   │
+                └───────────┘ └─────────────┘ └─────────────────┘
+                                    │
+                              ┌─────┴─────┐
+                              ▼           ▼
+                      ┌───────────┐ ┌───────────────┐
+                      │immanentize│ │  immanentize  │
+                      │ _clusters │ │ _clusters_vss │
+                      │ (Themen)  │ │  (Zentroide)  │
+                      └───────────┘ └───────────────┘
+
+      ┌────────────────────────────────────────────┐
+      │           operation_mindfuck               │
+      │           (User-Interessen)                │
+      └────────────────────────────────────────────┘
 ```
 
 ### 10.2 Tabellen-Definitionen
@@ -919,14 +1302,90 @@ CREATE TABLE sephiroth (
 );
 
 -- ============================================================
--- IMMANENTIZE (Stichworte/Tags)
+-- IMMANENTIZE (Schlagworte/Tags)
+-- Erweitert für Immanentize Network (siehe Kapitel 6b)
 -- ============================================================
 CREATE TABLE immanentize (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
-    count INTEGER DEFAULT 1,    -- Wie oft verwendet
+
+    -- Statistik
+    count INTEGER DEFAULT 1,              -- Wie oft verwendet
+    article_count INTEGER DEFAULT 0,      -- Anzahl Artikel mit diesem Schlagwort
+
+    -- Embedding-Status
+    embedding_at DATETIME,                -- Wann Embedding erstellt wurde
+
+    -- Clustering
+    cluster_id INTEGER,                   -- Zugehöriger Themen-Cluster
+
+    -- Synonym-Handling
+    is_canonical BOOLEAN DEFAULT TRUE,    -- Ist dies das Haupt-Schlagwort?
+    canonical_id INTEGER,                 -- Verweis auf Haupt-Synonym
+
+    -- Zeitstempel
+    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_used DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+
+    FOREIGN KEY (canonical_id) REFERENCES immanentize(id),
+    FOREIGN KEY (cluster_id) REFERENCES immanentize_clusters(id)
+);
+
+-- ============================================================
+-- IMMANENTIZE_VSS (Schlagwort-Embeddings)
+-- ============================================================
+CREATE VIRTUAL TABLE immanentize_vss USING vss0(
+    embedding(768)  -- nomic-embed-text Dimension, rowid = immanentize.id
+);
+
+-- ============================================================
+-- IMMANENTIZE_SEPHIROTH (Schlagwort ↔ Kategorie)
+-- ============================================================
+CREATE TABLE immanentize_sephiroth (
+    immanentize_id INTEGER NOT NULL,
+    sephiroth_id INTEGER NOT NULL,
+    weight REAL DEFAULT 1.0,              -- Normalisierte Stärke (0.0-1.0)
+    article_count INTEGER DEFAULT 1,      -- Wie oft zusammen vorgekommen
+    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (immanentize_id, sephiroth_id),
+    FOREIGN KEY (immanentize_id) REFERENCES immanentize(id) ON DELETE CASCADE,
+    FOREIGN KEY (sephiroth_id) REFERENCES sephiroth(id) ON DELETE CASCADE
+);
+
+-- ============================================================
+-- IMMANENTIZE_NEIGHBORS (Kookkurrenz-Netzwerk)
+-- ============================================================
+CREATE TABLE immanentize_neighbors (
+    immanentize_id_a INTEGER NOT NULL,    -- Kleinere ID
+    immanentize_id_b INTEGER NOT NULL,    -- Größere ID
+    cooccurrence INTEGER DEFAULT 0,       -- Wie oft zusammen in Artikeln
+    embedding_similarity REAL,            -- Cosine-Ähnlichkeit (0.0-1.0)
+    combined_weight REAL DEFAULT 0.0,     -- α×cooc_norm + β×embed_sim
+    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (immanentize_id_a, immanentize_id_b),
+    FOREIGN KEY (immanentize_id_a) REFERENCES immanentize(id) ON DELETE CASCADE,
+    FOREIGN KEY (immanentize_id_b) REFERENCES immanentize(id) ON DELETE CASCADE,
+    CHECK (immanentize_id_a < immanentize_id_b)
+);
+
+-- ============================================================
+-- IMMANENTIZE_CLUSTERS (Themen-Cluster)
+-- ============================================================
+CREATE TABLE immanentize_clusters (
+    id INTEGER PRIMARY KEY,
+    name TEXT,                            -- "KI & ML", "EU-Politik"
+    description TEXT,
+    auto_generated BOOLEAN DEFAULT TRUE,
+    keyword_count INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Cluster-Zentroide für schnelle Zuordnung
+CREATE VIRTUAL TABLE immanentize_clusters_vss USING vss0(
+    centroid(768)
 );
 
 -- ============================================================
@@ -1010,22 +1469,35 @@ CREATE INDEX idx_fnords_relevance ON fnords(relevance_score DESC);
 CREATE INDEX idx_pentacles_last_sync ON pentacles(last_sync);
 CREATE INDEX idx_immanentize_count ON immanentize(count DESC);
 CREATE INDEX idx_reading_history_fnord ON reading_history(fnord_id);
+
+-- Immanentize Network Indizes
+CREATE INDEX idx_immanentize_cluster ON immanentize(cluster_id);
+CREATE INDEX idx_immanentize_canonical ON immanentize(canonical_id);
+CREATE INDEX idx_immanentize_sephiroth_seph ON immanentize_sephiroth(sephiroth_id);
+CREATE INDEX idx_immanentize_neighbors_a ON immanentize_neighbors(immanentize_id_a);
+CREATE INDEX idx_immanentize_neighbors_b ON immanentize_neighbors(immanentize_id_b);
+CREATE INDEX idx_immanentize_neighbors_weight ON immanentize_neighbors(combined_weight DESC);
 ```
 
 ### 10.3 Standard-Kategorien (Sephiroth)
 
+13 fest definierte Kategorien (nicht vom Benutzer änderbar):
+
 ```sql
 INSERT INTO sephiroth (name, icon, color) VALUES
-    ('Tech', '💻', '#3B82F6'),
-    ('Politik', '🏛️', '#EF4444'),
-    ('Wirtschaft', '📈', '#10B981'),
-    ('Wissenschaft', '🔬', '#8B5CF6'),
-    ('Kultur', '🎭', '#F59E0B'),
-    ('Sport', '⚽', '#06B6D4'),
-    ('Gesellschaft', '👥', '#EC4899'),
-    ('Umwelt', '🌍', '#22C55E'),
-    ('Sicherheit', '🔒', '#6366F1'),
-    ('Gesundheit', '🏥', '#F43F5E');
+    ('Technik', '💻', '#3B82F6'),       -- IT, Software, Digital
+    ('Politik', '🏛️', '#EF4444'),       -- Parteien, Wahlen, Regierung
+    ('Wirtschaft', '📈', '#10B981'),    -- Finanzen, Unternehmen, Märkte
+    ('Wissenschaft', '🔬', '#8B5CF6'),  -- Forschung, Studien
+    ('Kultur', '🎭', '#F59E0B'),        -- Kunst, Musik, Film
+    ('Sport', '⚽', '#06B6D4'),         -- Fußball, etc.
+    ('Gesellschaft', '👥', '#EC4899'),  -- Soziales, Demografie
+    ('Umwelt', '🌍', '#22C55E'),        -- Klima, Natur
+    ('Sicherheit', '🔒', '#6366F1'),    -- Cybersecurity, Datenschutz
+    ('Gesundheit', '🏥', '#F43F5E'),    -- Medizin, Krankheiten
+    ('Verteidigung', '🎖️', '#78716C'), -- Militär, NATO, Bundeswehr
+    ('Energie', '⚡', '#FBBF24'),       -- Strom, Öl, Erneuerbare
+    ('Recht', '⚖️', '#7C3AED');        -- Justiz, Gesetze, Urteile
 ```
 
 ---
