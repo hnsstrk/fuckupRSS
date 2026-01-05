@@ -53,6 +53,17 @@ struct PullResponse {
     status: String,
 }
 
+#[derive(Serialize)]
+struct EmbeddingRequest {
+    model: String,
+    prompt: String,
+}
+
+#[derive(Deserialize)]
+struct EmbeddingResponse {
+    embedding: Vec<f32>,
+}
+
 /// Recommended models for fuckupRSS
 /// Note: qwen3-vl is a Vision-Language model (slow for text-only tasks)
 /// ministral-3 is faster for pure text analysis
@@ -289,6 +300,53 @@ impl OllamaClient {
             }),
             Err(_) => false,
         }
+    }
+
+    /// Generate embedding vector for text using nomic-embed-text or similar
+    pub async fn generate_embedding(&self, model: &str, text: &str) -> Result<Vec<f32>, OllamaError> {
+        let url = format!("{}/api/embeddings", self.base_url);
+        let client = self.client();
+
+        let request = EmbeddingRequest {
+            model: model.to_string(),
+            prompt: text.to_string(),
+        };
+
+        let resp = client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| OllamaError::GenerationFailed(format!("Embedding request failed: {}", e)))?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(OllamaError::GenerationFailed(format!(
+                "Embedding failed with status {}: {}",
+                status, body
+            )));
+        }
+
+        let result: EmbeddingResponse = resp
+            .json()
+            .await
+            .map_err(|e| OllamaError::GenerationFailed(format!("Failed to parse embedding: {}", e)))?;
+
+        Ok(result.embedding)
+    }
+
+    /// Generate embeddings for multiple texts (batch)
+    pub async fn generate_embeddings_batch(
+        &self,
+        model: &str,
+        texts: &[String],
+    ) -> Vec<Result<Vec<f32>, OllamaError>> {
+        let mut results = Vec::with_capacity(texts.len());
+        for text in texts {
+            results.push(self.generate_embedding(model, text).await);
+        }
+        results
     }
 
     /// Generate a summary for article content

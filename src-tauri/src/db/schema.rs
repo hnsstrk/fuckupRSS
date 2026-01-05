@@ -44,6 +44,87 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         )?;
     }
 
+    // Migration for Immanentize Network
+    let has_article_count: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('immanentize') WHERE name = 'article_count'")?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_article_count {
+        // Add new columns to immanentize
+        conn.execute_batch(
+            r#"
+            ALTER TABLE immanentize ADD COLUMN article_count INTEGER DEFAULT 0;
+            ALTER TABLE immanentize ADD COLUMN embedding_at DATETIME;
+            ALTER TABLE immanentize ADD COLUMN cluster_id INTEGER;
+            ALTER TABLE immanentize ADD COLUMN is_canonical BOOLEAN DEFAULT TRUE;
+            ALTER TABLE immanentize ADD COLUMN canonical_id INTEGER;
+            ALTER TABLE immanentize ADD COLUMN first_seen DATETIME DEFAULT CURRENT_TIMESTAMP;
+            "#,
+        )?;
+
+        // Update article_count from existing fnord_immanentize data
+        conn.execute(
+            r#"
+            UPDATE immanentize SET article_count = (
+                SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize
+                WHERE immanentize_id = immanentize.id
+            )
+            "#,
+            [],
+        )?;
+    }
+
+    // Create immanentize_clusters if not exists (for existing DBs)
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS immanentize_clusters (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            description TEXT,
+            auto_generated BOOLEAN DEFAULT TRUE,
+            keyword_count INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS immanentize_sephiroth (
+            immanentize_id INTEGER NOT NULL,
+            sephiroth_id INTEGER NOT NULL,
+            weight REAL DEFAULT 1.0,
+            article_count INTEGER DEFAULT 1,
+            first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (immanentize_id, sephiroth_id),
+            FOREIGN KEY (immanentize_id) REFERENCES immanentize(id) ON DELETE CASCADE,
+            FOREIGN KEY (sephiroth_id) REFERENCES sephiroth(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS immanentize_neighbors (
+            immanentize_id_a INTEGER NOT NULL,
+            immanentize_id_b INTEGER NOT NULL,
+            cooccurrence INTEGER DEFAULT 1,
+            embedding_similarity REAL,
+            combined_weight REAL DEFAULT 0.0,
+            first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (immanentize_id_a, immanentize_id_b),
+            FOREIGN KEY (immanentize_id_a) REFERENCES immanentize(id) ON DELETE CASCADE,
+            FOREIGN KEY (immanentize_id_b) REFERENCES immanentize(id) ON DELETE CASCADE,
+            CHECK (immanentize_id_a < immanentize_id_b)
+        );
+
+        -- Create missing indexes
+        CREATE INDEX IF NOT EXISTS idx_immanentize_cluster ON immanentize(cluster_id);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_canonical ON immanentize(canonical_id);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_article_count ON immanentize(article_count DESC);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_sephiroth_seph ON immanentize_sephiroth(sephiroth_id);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_neighbors_a ON immanentize_neighbors(immanentize_id_a);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_neighbors_b ON immanentize_neighbors(immanentize_id_b);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_neighbors_weight ON immanentize_neighbors(combined_weight DESC);
+        CREATE INDEX IF NOT EXISTS idx_fnord_immanentize_imm ON fnord_immanentize(immanentize_id);
+        "#,
+    )?;
+
     Ok(())
 }
 
@@ -165,14 +246,79 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         );
 
         -- ============================================================
-        -- IMMANENTIZE (Stichworte/Tags)
+        -- IMMANENTIZE_CLUSTERS (Themen-Cluster)
+        -- Muss vor immanentize erstellt werden wegen FK
+        -- ============================================================
+        CREATE TABLE IF NOT EXISTS immanentize_clusters (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            description TEXT,
+            auto_generated BOOLEAN DEFAULT TRUE,
+            keyword_count INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- ============================================================
+        -- IMMANENTIZE (Schlagworte/Tags)
+        -- Erweitert für Immanentize Network
         -- ============================================================
         CREATE TABLE IF NOT EXISTS immanentize (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
+
+            -- Statistik
             count INTEGER DEFAULT 1,
+            article_count INTEGER DEFAULT 0,
+
+            -- Embedding-Status
+            embedding_at DATETIME,
+
+            -- Clustering
+            cluster_id INTEGER,
+
+            -- Synonym-Handling
+            is_canonical BOOLEAN DEFAULT TRUE,
+            canonical_id INTEGER,
+
+            -- Zeitstempel
+            first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
             last_used DATETIME DEFAULT CURRENT_TIMESTAMP,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+
+            FOREIGN KEY (canonical_id) REFERENCES immanentize(id) ON DELETE SET NULL,
+            FOREIGN KEY (cluster_id) REFERENCES immanentize_clusters(id) ON DELETE SET NULL
+        );
+
+        -- ============================================================
+        -- IMMANENTIZE_SEPHIROTH (Schlagwort ↔ Kategorie)
+        -- ============================================================
+        CREATE TABLE IF NOT EXISTS immanentize_sephiroth (
+            immanentize_id INTEGER NOT NULL,
+            sephiroth_id INTEGER NOT NULL,
+            weight REAL DEFAULT 1.0,
+            article_count INTEGER DEFAULT 1,
+            first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (immanentize_id, sephiroth_id),
+            FOREIGN KEY (immanentize_id) REFERENCES immanentize(id) ON DELETE CASCADE,
+            FOREIGN KEY (sephiroth_id) REFERENCES sephiroth(id) ON DELETE CASCADE
+        );
+
+        -- ============================================================
+        -- IMMANENTIZE_NEIGHBORS (Kookkurrenz-Netzwerk)
+        -- ============================================================
+        CREATE TABLE IF NOT EXISTS immanentize_neighbors (
+            immanentize_id_a INTEGER NOT NULL,
+            immanentize_id_b INTEGER NOT NULL,
+            cooccurrence INTEGER DEFAULT 1,
+            embedding_similarity REAL,
+            combined_weight REAL DEFAULT 0.0,
+            first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (immanentize_id_a, immanentize_id_b),
+            FOREIGN KEY (immanentize_id_a) REFERENCES immanentize(id) ON DELETE CASCADE,
+            FOREIGN KEY (immanentize_id_b) REFERENCES immanentize(id) ON DELETE CASCADE,
+            CHECK (immanentize_id_a < immanentize_id_b)
         );
 
         -- ============================================================
@@ -231,6 +377,16 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         CREATE INDEX IF NOT EXISTS idx_fnord_sephiroth_source ON fnord_sephiroth(source);
         CREATE INDEX IF NOT EXISTS idx_immanentize_count ON immanentize(count DESC);
         CREATE INDEX IF NOT EXISTS idx_revisions_fnord ON fnord_revisions(fnord_id, revision_at DESC);
+
+        -- Indizes für Immanentize Network
+        CREATE INDEX IF NOT EXISTS idx_immanentize_cluster ON immanentize(cluster_id);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_canonical ON immanentize(canonical_id);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_article_count ON immanentize(article_count DESC);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_sephiroth_seph ON immanentize_sephiroth(sephiroth_id);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_neighbors_a ON immanentize_neighbors(immanentize_id_a);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_neighbors_b ON immanentize_neighbors(immanentize_id_b);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_neighbors_weight ON immanentize_neighbors(combined_weight DESC);
+        CREATE INDEX IF NOT EXISTS idx_fnord_immanentize_imm ON fnord_immanentize(immanentize_id);
 
         -- ============================================================
         -- DEFAULT SEPHIROTH (Kategorien)

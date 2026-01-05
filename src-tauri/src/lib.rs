@@ -66,6 +66,15 @@ pub fn run() {
             commands::settings::get_settings,
             commands::settings::set_setting,
             commands::settings::get_setting,
+            // Immanentize Network
+            commands::immanentize::get_keywords,
+            commands::immanentize::get_keyword,
+            commands::immanentize::get_keyword_neighbors,
+            commands::immanentize::get_keyword_categories,
+            commands::immanentize::get_category_keywords,
+            commands::immanentize::get_trending_keywords,
+            commands::immanentize::get_network_stats,
+            commands::immanentize::search_keywords,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

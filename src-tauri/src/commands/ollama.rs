@@ -486,8 +486,10 @@ pub async fn process_article_discordian(
                 }
             }
 
-            // Store keywords (Immanentize)
+            // Store keywords (Immanentize) and build network
             let mut tags_saved = Vec::new();
+            let mut tag_ids: Vec<i64> = Vec::new();
+
             db.conn()
                 .execute("DELETE FROM fnord_immanentize WHERE fnord_id = ?", [fnord_id])
                 .ok();
@@ -498,13 +500,14 @@ pub async fn process_article_discordian(
                     continue;
                 }
 
-                // Upsert tag
+                // Upsert tag with extended fields
                 db.conn()
                     .execute(
-                        r#"INSERT INTO immanentize (name, count, last_used)
-                           VALUES (?, 1, CURRENT_TIMESTAMP)
+                        r#"INSERT INTO immanentize (name, count, article_count, first_seen, last_used)
+                           VALUES (?1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                            ON CONFLICT(name) DO UPDATE SET
                                count = count + 1,
+                               article_count = article_count + 1,
                                last_used = CURRENT_TIMESTAMP"#,
                         [keyword],
                     )
@@ -523,7 +526,75 @@ pub async fn process_article_discordian(
                         )
                         .ok();
                     tags_saved.push(keyword.to_string());
+                    tag_ids.push(tag_id);
                 }
+            }
+
+            // ============================================================
+            // IMMANENTIZE NETWORK UPDATE
+            // ============================================================
+
+            // 1. Update immanentize_sephiroth (Keyword ↔ Category associations)
+            for tag_id in &tag_ids {
+                for cat_name in &categories_saved {
+                    if let Ok(sephiroth_id) = db.conn().query_row::<i64, _, _>(
+                        "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?)",
+                        [cat_name],
+                        |row| row.get(0),
+                    ) {
+                        db.conn()
+                            .execute(
+                                r#"INSERT INTO immanentize_sephiroth
+                                   (immanentize_id, sephiroth_id, weight, article_count, first_seen, updated_at)
+                                   VALUES (?1, ?2, 1.0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                   ON CONFLICT(immanentize_id, sephiroth_id) DO UPDATE SET
+                                       article_count = article_count + 1,
+                                       updated_at = CURRENT_TIMESTAMP"#,
+                                rusqlite::params![tag_id, sephiroth_id],
+                            )
+                            .ok();
+                    }
+                }
+            }
+
+            // 2. Update immanentize_neighbors (Cooccurrence network)
+            // For all pairs of keywords in this article
+            for i in 0..tag_ids.len() {
+                for j in (i + 1)..tag_ids.len() {
+                    let (id_a, id_b) = if tag_ids[i] < tag_ids[j] {
+                        (tag_ids[i], tag_ids[j])
+                    } else {
+                        (tag_ids[j], tag_ids[i])
+                    };
+
+                    db.conn()
+                        .execute(
+                            r#"INSERT INTO immanentize_neighbors
+                               (immanentize_id_a, immanentize_id_b, cooccurrence, first_seen, last_seen)
+                               VALUES (?1, ?2, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                               ON CONFLICT(immanentize_id_a, immanentize_id_b) DO UPDATE SET
+                                   cooccurrence = cooccurrence + 1,
+                                   last_seen = CURRENT_TIMESTAMP"#,
+                            rusqlite::params![id_a, id_b],
+                        )
+                        .ok();
+                }
+            }
+
+            // 3. Recalculate weights for immanentize_sephiroth
+            // weight = article_count / max(article_count) for this keyword
+            for tag_id in &tag_ids {
+                db.conn()
+                    .execute(
+                        r#"UPDATE immanentize_sephiroth
+                           SET weight = CAST(article_count AS REAL) / (
+                               SELECT MAX(article_count) FROM immanentize_sephiroth
+                               WHERE immanentize_id = ?1
+                           )
+                           WHERE immanentize_id = ?1"#,
+                        [tag_id],
+                    )
+                    .ok();
             }
 
             Ok(DiscordianResponse {

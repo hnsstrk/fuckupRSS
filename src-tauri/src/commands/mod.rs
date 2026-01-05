@@ -1,5 +1,6 @@
 pub mod categories;
 pub mod fnords;
+pub mod immanentize;
 pub mod ollama;
 pub mod pentacles;
 pub mod retrieval;
