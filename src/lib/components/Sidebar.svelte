@@ -31,9 +31,14 @@
     appState.loadUnprocessedCount();
 
     // Listen for batch progress events
+    console.log("Setting up batch-progress event listener...");
     unlisten = await listen<BatchProgress>("batch-progress", (event) => {
+      console.log("Batch progress event received:", event.payload);
+      console.log("Current batchProgress before update:", appState.batchProgress);
       appState.updateBatchProgress(event.payload);
+      console.log("Current batchProgress after update:", appState.batchProgress);
     });
+    console.log("Batch-progress listener set up successfully");
   });
 
   onDestroy(() => {
@@ -99,6 +104,10 @@
     } else if (appState.error) {
       toasts.error($_('toast.analyzeError', { values: { error: appState.error }}));
     }
+  }
+
+  function handleCancelBatch() {
+    appState.cancelBatch();
   }
 </script>
 
@@ -238,7 +247,7 @@
 
     {#if appState.batchProcessing}
       <div class="batch-progress">
-        {#if appState.batchProgress}
+        {#if appState.batchProgress && appState.batchProgress.current > 0}
           <div class="progress-bar">
             <div
               class="progress-fill"
@@ -246,7 +255,7 @@
             ></div>
           </div>
           <div class="progress-text">
-            {appState.batchProgress.current} / {appState.batchProgress.total}
+            {$_('batch.progress', { values: { current: appState.batchProgress.current, total: appState.batchProgress.total }})}
           </div>
           <div class="progress-title" title={appState.batchProgress.title}>
             {appState.batchProgress.title.length > 30
@@ -256,12 +265,22 @@
           {#if !appState.batchProgress.success && appState.batchProgress.error}
             <div class="progress-error">{appState.batchProgress.error}</div>
           {/if}
+        {:else if appState.batchProgress}
+          <!-- Initial event received (current=0), show total -->
+          <div class="progress-bar">
+            <div class="progress-fill indeterminate"></div>
+          </div>
+          <div class="progress-text">{$_('batch.starting')} ({appState.batchProgress.total})</div>
         {:else}
+          <!-- No event yet -->
           <div class="progress-bar">
             <div class="progress-fill indeterminate"></div>
           </div>
           <div class="progress-text">{$_('batch.starting')}</div>
         {/if}
+        <button onclick={handleCancelBatch} class="btn-cancel" title={$_('batch.cancel')}>
+          {$_('batch.cancel')}
+        </button>
       </div>
     {:else if appState.ollamaStatus.available}
       <button
@@ -695,5 +714,25 @@
     color: var(--text-muted);
     text-align: center;
     padding: 0.5rem;
+  }
+
+  .btn-cancel {
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    margin-top: 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.625rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid var(--accent-error);
+    background-color: transparent;
+    color: var(--accent-error);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .btn-cancel:hover {
+    background-color: var(--accent-error);
+    color: var(--text-on-accent);
   }
 </style>

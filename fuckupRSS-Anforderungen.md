@@ -2083,6 +2083,108 @@ launchctl setenv OLLAMA_FLASH_ATTENTION 1
 
 ---
 
+## 21. Testing
+
+### Grundsatz
+
+**Alle neuen Features und Bugfixes müssen mit Tests abgedeckt werden.** Code ohne Tests wird nicht akzeptiert.
+
+### Test-Übersicht
+
+| Bereich | Anzahl Tests | Tool | Befehl |
+|---------|-------------|------|--------|
+| Rust Backend | 83 | `cargo test` | `cargo test --manifest-path src-tauri/Cargo.toml` |
+| Frontend Unit | 37 | Vitest | `npm run test` |
+| E2E | 11 | Playwright | `npm run test:e2e` |
+| **Gesamt** | **131** | | |
+
+### Rust Tests
+
+```
+src-tauri/src/
+├── db/tests.rs         # Datenbank-Tests (14 Tests)
+│                       # Schema, CRUD, Cascade Delete, Settings
+├── sync/tests.rs       # Sync-Tests (14 Tests)
+│                       # Hash-Berechnung, Change Detection
+├── retrieval/tests.rs  # Retrieval-Tests (22 Tests)
+│                       # Truncation-Erkennung, Patterns
+└── ollama/tests.rs     # Ollama-Tests (33 Tests)
+                        # JSON-Extraktion, Bias-Analyse, Locale
+```
+
+**Muster:**
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_function_name() {
+        // Arrange
+        let db = Database::new_in_memory().unwrap();
+
+        // Act
+        let result = function(&db);
+
+        // Assert
+        assert!(result.is_ok());
+    }
+}
+```
+
+### Frontend Tests (Vitest)
+
+```
+src/lib/__tests__/
+├── setup.ts            # Test-Setup mit Tauri/i18n Mocks
+├── stores/
+│   └── state.test.ts   # Store-Tests (18 Tests)
+└── components/
+    └── Toast.test.ts   # Component-Tests (19 Tests)
+```
+
+**Muster:**
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+
+describe('Component/Store', () => {
+  it('should do something', () => {
+    // Test mit gemockten Tauri-Aufrufen
+  });
+});
+```
+
+### E2E Tests (Playwright)
+
+```
+e2e/
+├── fixtures.ts         # Tauri API Mocks
+└── app.spec.ts         # App-Tests (11 Tests)
+                        # Layout, Sidebar, Settings, Accessibility
+```
+
+**Muster:**
+```typescript
+import { test, expect } from './fixtures';
+
+test('user flow', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('.element')).toBeVisible();
+});
+```
+
+### Wann Tests schreiben?
+
+| Änderung | Tests erforderlich |
+|----------|-------------------|
+| Neues Feature | Ja - Unit + ggf. E2E |
+| Bugfix | Ja - Test der den Bug reproduziert |
+| Refactoring | Bestehende Tests müssen grün bleiben |
+| UI-Änderung | E2E Tests aktualisieren |
+| API-Änderung | Command Tests aktualisieren |
+
+---
+
 ## Anhang
 
 ### A. Verfügbare Ollama-Modelle (auf dem Entwicklungssystem)

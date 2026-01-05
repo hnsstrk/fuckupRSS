@@ -188,6 +188,8 @@
     "process": "Analysieren",
     "processing": "Analysiere...",
     "starting": "Starte Analyse...",
+    "cancel": "Abbrechen",
+    "cancelled": "Abgebrochen",
     "unprocessed": "{count} unverarbeitet",
     "progress": "{current} von {total}",
     "complete": "Fertig: {succeeded} erfolgreich, {failed} fehlgeschlagen",

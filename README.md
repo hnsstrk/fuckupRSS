@@ -293,6 +293,23 @@ cargo tauri dev
 - Node.js 20+
 - Tauri CLI (`cargo install tauri-cli`)
 
+### Tests
+
+Das Projekt hat umfangreiche Tests (131 insgesamt):
+
+```bash
+# Rust Backend Tests (83 Tests)
+cargo test --manifest-path src-tauri/Cargo.toml
+
+# Frontend Unit Tests (37 Tests)
+npm run test
+
+# E2E Tests (11 Tests)
+npm run test:e2e
+```
+
+**Wichtig:** Alle neuen Features und Bugfixes müssen mit Tests abgedeckt werden.
+
 ---
 
 ## Lizenz

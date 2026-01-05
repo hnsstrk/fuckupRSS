@@ -1,4 +1,6 @@
 mod schema;
+#[cfg(test)]
+mod tests;
 
 use rusqlite::Connection;
 use std::path::PathBuf;
@@ -36,6 +38,27 @@ impl Database {
         // Initialize schema
         schema::init(&conn)?;
 
+        Ok(Self { conn })
+    }
+
+    /// Create an in-memory database for testing
+    #[cfg(test)]
+    pub fn new_in_memory() -> Result<Self, DbError> {
+        let conn = Connection::open_in_memory()?;
+        conn.execute_batch("PRAGMA foreign_keys=ON;")?;
+        schema::init(&conn)?;
+        Ok(Self { conn })
+    }
+
+    /// Create a database at a specific path (for testing)
+    #[cfg(test)]
+    pub fn new_at_path(path: &std::path::Path) -> Result<Self, DbError> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let conn = Connection::open(path)?;
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
+        schema::init(&conn)?;
         Ok(Self { conn })
     }
 

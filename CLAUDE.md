@@ -59,6 +59,127 @@ npm run tauri build
 npm run dev
 ```
 
+## Testing (PFLICHT)
+
+**WICHTIG:** Alle neuen Features und Bugfixes MÜSSEN mit Tests abgedeckt werden. Code ohne Tests wird nicht akzeptiert.
+
+### Test-Befehle
+
+```bash
+# Alle Tests ausführen
+npm run test           # Frontend (Vitest)
+npm run test:e2e       # E2E Tests (Playwright)
+cargo test --manifest-path src-tauri/Cargo.toml  # Backend (Rust)
+
+# Tests im Watch-Modus
+npm run test:watch
+
+# Test-Coverage
+npm run test:coverage
+cargo tarpaulin --manifest-path src-tauri/Cargo.toml
+```
+
+### Test-Übersicht
+
+| Bereich | Anzahl Tests | Tool |
+|---------|-------------|------|
+| Rust Backend | 83 Tests | `cargo test` |
+| Frontend (Vitest) | 37 Tests | `npm run test` |
+| E2E (Playwright) | 11 Tests | `npm run test:e2e` |
+| **Gesamt** | **131 Tests** | |
+
+### Test-Struktur
+
+```
+fuckupRSS/
+├── src/
+│   └── lib/
+│       └── __tests__/           # Frontend Unit Tests (Vitest)
+│           ├── setup.ts         # Test-Setup mit Mocks
+│           ├── stores/          # Store Tests
+│           │   └── state.test.ts
+│           └── components/      # Component Tests
+│               └── Toast.test.ts
+├── e2e/                         # E2E Tests (Playwright)
+│   ├── fixtures.ts              # Tauri API Mocks
+│   └── app.spec.ts              # App-Tests
+├── src-tauri/
+│   └── src/
+│       ├── db/
+│       │   └── tests.rs         # DB Unit Tests (14 Tests)
+│       ├── sync/
+│       │   └── tests.rs         # Sync Unit Tests (14 Tests)
+│       ├── retrieval/
+│       │   └── tests.rs         # Retrieval Unit Tests (22 Tests)
+│       └── ollama/
+│           └── tests.rs         # Ollama Unit Tests (33 Tests)
+```
+
+### Test-Anforderungen
+
+| Bereich | Anforderung | Tool |
+|---------|-------------|------|
+| Rust Backend | Unit Tests für alle Module | `cargo test` |
+| Tauri Commands | Integration Tests | `cargo test` |
+| Svelte Stores | Unit Tests für State-Logik | Vitest |
+| Svelte Components | Component Tests | Vitest + Testing Library |
+| User Flows | E2E Tests | Playwright |
+
+### Test-Patterns
+
+**Rust Unit Test:**
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_function_name() {
+        // Arrange
+        let input = ...;
+
+        // Act
+        let result = function_name(input);
+
+        // Assert
+        assert_eq!(result, expected);
+    }
+}
+```
+
+**Frontend Component Test (Vitest):**
+```typescript
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/svelte';
+import Component from './Component.svelte';
+
+describe('Component', () => {
+  it('renders correctly', () => {
+    render(Component, { props: { ... } });
+    expect(screen.getByText('...')).toBeInTheDocument();
+  });
+});
+```
+
+**E2E Test (Playwright):**
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('user can add a feed', async ({ page }) => {
+  await page.goto('/');
+  await page.fill('[data-testid="feed-url"]', 'https://example.com/feed.xml');
+  await page.click('[data-testid="add-feed"]');
+  await expect(page.locator('.feed-item')).toBeVisible();
+});
+```
+
+### Wann Tests schreiben?
+
+- **VOR dem Implementieren:** TDD bevorzugt
+- **WÄHREND der Implementierung:** Bei komplexer Logik
+- **NACH der Implementierung:** Mindestens für alle public APIs
+- **Bei Bugfixes:** Erst Test schreiben der Bug reproduziert, dann fixen
+
 ## Git Workflow & Commit-Strategie
 
 ### Branch-Strategie

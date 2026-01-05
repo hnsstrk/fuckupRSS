@@ -3,6 +3,9 @@ use std::time::Duration;
 use thiserror::Error;
 use url::Url;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Error, Debug)]
 pub enum RetrievalError {
     #[error("HTTP error: {0}")]

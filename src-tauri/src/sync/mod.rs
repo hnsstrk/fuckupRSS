@@ -4,6 +4,9 @@ use sha2::{Sha256, Digest};
 use std::time::Duration;
 use thiserror::Error;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Error, Debug)]
 pub enum SyncError {
     #[error("HTTP error: {0}")]

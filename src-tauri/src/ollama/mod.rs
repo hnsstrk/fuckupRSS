@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use thiserror::Error;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Error, Debug)]
 pub enum OllamaError {
     #[error("Ollama not available: {0}")]

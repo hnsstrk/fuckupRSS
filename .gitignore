@@ -31,3 +31,8 @@ data/
 
 # npm
 package-lock.json
+
+# Test output
+playwright-report/
+test-results/
+coverage/

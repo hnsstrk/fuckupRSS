@@ -746,8 +746,18 @@ class AppState {
     if (!model) return null;
 
     this.batchProcessing = true;
-    this.batchProgress = null;
+    // Set initial progress immediately so UI shows something
+    this.batchProgress = {
+      current: 0,
+      total: this.unprocessedCount.with_content,
+      fnord_id: 0,
+      title: "Starting...",
+      success: true,
+      error: null
+    };
     this.error = null;
+
+    console.log("Starting batch processing, initial progress:", this.batchProgress);
 
     try {
       const result = await invoke<BatchResult>("process_batch", {
@@ -772,7 +782,17 @@ class AppState {
   }
 
   updateBatchProgress(progress: BatchProgress): void {
-    this.batchProgress = progress;
+    console.log("updateBatchProgress called with:", progress);
+    this.batchProgress = { ...progress };  // Create new object to ensure reactivity
+    console.log("batchProgress is now:", this.batchProgress);
+  }
+
+  async cancelBatch(): Promise<void> {
+    try {
+      await invoke("cancel_batch");
+    } catch (e) {
+      console.error("Failed to cancel batch:", e);
+    }
   }
 
   // ============================================================

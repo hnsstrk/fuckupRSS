@@ -3,6 +3,7 @@ use crate::ollama::{
     RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale,
 };
 use crate::AppState;
+use std::sync::atomic::Ordering;
 use tauri::{Emitter, State, Window};
 
 #[derive(serde::Serialize)]
@@ -763,7 +764,41 @@ pub async fn process_batch(
     let mut succeeded: i64 = 0;
     let mut failed: i64 = 0;
 
+    // Reset cancel flag at start
+    state.batch_cancel.store(false, Ordering::SeqCst);
+
+    // Emit initial progress event so UI knows batch has started
+    if total > 0 {
+        let _ = window.emit(
+            "batch-progress",
+            BatchProgress {
+                current: 0,
+                total,
+                fnord_id: 0,
+                title: "Starting...".to_string(),
+                success: true,
+                error: None,
+            },
+        );
+    }
+
     for (idx, (fnord_id, title, content)) in articles.into_iter().enumerate() {
+        // Check for cancellation
+        if state.batch_cancel.load(Ordering::SeqCst) {
+            let _ = window.emit(
+                "batch-progress",
+                BatchProgress {
+                    current: (idx + 1) as i64,
+                    total,
+                    fnord_id: 0,
+                    title: "Cancelled".to_string(),
+                    success: false,
+                    error: Some("Batch cancelled by user".to_string()),
+                },
+            );
+            break;
+        }
+
         let current = (idx + 1) as i64;
 
         if content.is_empty() {
@@ -986,6 +1021,13 @@ pub async fn process_batch(
         succeeded,
         failed,
     })
+}
+
+/// Cancel ongoing batch processing
+#[tauri::command]
+pub fn cancel_batch(state: State<AppState>) -> Result<(), String> {
+    state.batch_cancel.store(true, Ordering::SeqCst);
+    Ok(())
 }
 
 // ============================================================

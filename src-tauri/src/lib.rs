@@ -5,11 +5,13 @@ mod retrieval;
 mod sync;
 
 use db::Database;
+use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 use tauri::Manager;
 
 pub struct AppState {
     pub db: Mutex<Database>,
+    pub batch_cancel: AtomicBool,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -24,7 +26,10 @@ pub fn run() {
             #[cfg(debug_assertions)]
             db.seed_dev_data()?;
 
-            app.manage(AppState { db: Mutex::new(db) });
+            app.manage(AppState {
+                db: Mutex::new(db),
+                batch_cancel: AtomicBool::new(false),
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -50,6 +55,7 @@ pub fn run() {
             commands::ollama::process_article_discordian,
             commands::ollama::get_unprocessed_count,
             commands::ollama::process_batch,
+            commands::ollama::cancel_batch,
             commands::ollama::pull_model,
             commands::ollama::get_default_prompts,
             commands::ollama::get_prompts,
