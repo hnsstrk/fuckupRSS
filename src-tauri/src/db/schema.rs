@@ -133,6 +133,17 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration: Add content_full to fnord_revisions for existing databases
+    let has_revision_content_full: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('fnord_revisions') WHERE name = 'content_full'")?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_revision_content_full {
+        conn.execute_batch(
+            "ALTER TABLE fnord_revisions ADD COLUMN content_full TEXT;"
+        )?;
+    }
+
     // Migration for immanentize_daily table (trend data)
     conn.execute_batch(
         r#"
@@ -264,6 +275,7 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             title TEXT NOT NULL,
             author TEXT,
             content_raw TEXT,
+            content_full TEXT,
             summary TEXT,
 
             -- Hash zur schnellen Vergleichsprüfung

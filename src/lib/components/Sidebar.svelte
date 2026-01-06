@@ -16,10 +16,12 @@
   interface Props {
     onsettings?: () => void;
     onnetwork?: () => void;
+    onfnord?: () => void;
     networkActive?: boolean;
+    fnordActive?: boolean;
   }
 
-  let { onsettings, onnetwork, networkActive = false }: Props = $props();
+  let { onsettings, onnetwork, onfnord, networkActive = false, fnordActive = false }: Props = $props();
 
   let showAddForm = $state(false);
   let newFeedUrl = $state("");
@@ -176,6 +178,13 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
           </svg>
         </button>
+        {#if onfnord}
+          <button onclick={onfnord} class="icon-btn {fnordActive ? 'active' : ''}" title={$_('fnordView.title')}>
+            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+            </svg>
+          </button>
+        {/if}
         {#if onnetwork}
           <button onclick={onnetwork} class="icon-btn {networkActive ? 'active' : ''}" title={$_('network.title')}>
             <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -195,19 +204,6 @@
     </div>
     <p class="tagline">Immanentize the Eschaton</p>
   </div>
-
-  <!-- Fnord (Changed Articles) -->
-  <button
-    class="feed-item fnord-view {appState.selectedView === 'changed' ? 'active' : ''}"
-    onclick={handleSelectChanged}
-  >
-    <span class="feed-name">
-      <Tooltip termKey="fnord"><span class="text-fnord">{$_('terminology.fnord.term')}</span></Tooltip>
-    </span>
-    {#if appState.changedCount > 0}
-      <span class="unread-badge changed">{appState.changedCount}</span>
-    {/if}
-  </button>
 
   <!-- All Feeds -->
   <button
@@ -378,7 +374,7 @@
 
 <style>
   .sidebar {
-    width: 16rem;
+    width: 18rem;
     background-color: var(--bg-surface);
     border-right: 1px solid var(--border-default);
     display: flex;
@@ -647,18 +643,6 @@
   .stat-icon.concealed { color: var(--fnord-color); }
   .stat-icon.illuminated { color: var(--illuminated-color); }
   .stat-icon.golden { color: var(--golden-apple-color); }
-
-  .text-fnord {
-    color: var(--fnord-color);
-  }
-
-  .fnord-view {
-    border-bottom: 1px solid var(--border-default);
-  }
-
-  .unread-badge.changed {
-    background-color: var(--accent-warning);
-  }
 
   /* Batch Processing */
   .batch-section {

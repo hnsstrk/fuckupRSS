@@ -173,17 +173,17 @@ impl FeedSyncer {
                 entry.summary.as_deref(),
             );
 
-            // Check if article already exists and get current data
-            let existing: Option<(i64, String, Option<String>, Option<String>, Option<String>, Option<String>)> = conn
+            // Check if article already exists and get current data (including content_full for revision)
+            let existing: Option<(i64, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> = conn
                 .query_row(
-                    r#"SELECT id, title, author, content_raw, summary, content_hash
+                    r#"SELECT id, title, author, content_raw, content_full, summary, content_hash
                        FROM fnords WHERE pentacle_id = ?1 AND guid = ?2"#,
                     (&pentacle_id, &entry.guid),
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
                 )
                 .optional()?;
 
-            if let Some((fnord_id, old_title, old_author, old_content, old_summary, old_hash)) = existing {
+            if let Some((fnord_id, old_title, old_author, old_content, old_content_full, old_summary, old_hash)) = existing {
                 // Article exists - check if content changed via hash comparison
                 // Only consider it a change if we had a previous hash AND it differs
                 let content_changed = match &old_hash {
@@ -192,13 +192,13 @@ impl FeedSyncer {
                 };
 
                 if content_changed {
-                    // Save old version to revisions table
+                    // Save old version to revisions table (including content_full if available)
                     let old_hash_str = old_hash.as_ref().unwrap(); // Safe: content_changed is only true if old_hash is Some
 
                     conn.execute(
-                        r#"INSERT INTO fnord_revisions (fnord_id, title, author, content_raw, summary, content_hash)
-                           VALUES (?1, ?2, ?3, ?4, ?5, ?6)"#,
-                        (&fnord_id, &old_title, &old_author, &old_content, &old_summary, &old_hash_str),
+                        r#"INSERT INTO fnord_revisions (fnord_id, title, author, content_raw, content_full, summary, content_hash)
+                           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"#,
+                        (&fnord_id, &old_title, &old_author, &old_content, &old_content_full, &old_summary, &old_hash_str),
                     )?;
 
                     // Update article with new content and mark as changed

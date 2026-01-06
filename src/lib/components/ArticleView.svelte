@@ -2,6 +2,7 @@
   import { _, locale } from 'svelte-i18n';
   import { appState, toasts, type FnordRevision, type ArticleCategory, type Tag } from "../stores/state.svelte";
   import Tooltip from "./Tooltip.svelte";
+  import RevisionView from "./RevisionView.svelte";
 
   let showRevisions = $state(false);
   let revisions = $state<FnordRevision[]>([]);
@@ -30,6 +31,20 @@
   $effect(() => {
     if (appState.selectedFnord?.has_changes) {
       appState.acknowledgeChanges(appState.selectedFnord.id);
+    }
+  });
+
+  // Auto-load revisions when article has revisions
+  $effect(() => {
+    const fnord = appState.selectedFnord;
+    if (fnord && fnord.revision_count > 0) {
+      loadingRevisions = true;
+      appState.getRevisions(fnord.id).then(revs => {
+        revisions = revs;
+        loadingRevisions = false;
+      });
+    } else {
+      revisions = [];
     }
   });
 
@@ -231,33 +246,23 @@
       </div>
     </div>
 
-    <!-- Revision History Section -->
-    {#if fnord.revision_count > 0}
+    <!-- Revision History Section with Diff -->
+    {#if fnord.revision_count > 0 && revisions.length > 0}
       <div class="revision-section">
         <div class="section-content">
           <button class="revision-header" onclick={toggleRevisions}>
             <span class="revision-icon">{showRevisions ? '▼' : '▶'}</span>
             <span class="revision-title">
-              {$_('articleView.changes.revisions')} ({fnord.revision_count})
+              <Tooltip termKey="fnord">{$_('articleView.changes.revisions')}</Tooltip> ({fnord.revision_count})
             </span>
           </button>
 
           {#if showRevisions}
-            <div class="revision-list">
+            <div class="revision-detail">
               {#if loadingRevisions}
                 <div class="revision-loading">{$_('articleList.loading')}</div>
-              {:else if revisions.length === 0}
-                <div class="revision-empty">{$_('articleView.changes.noRevisions')}</div>
               {:else}
-                {#each revisions as revision, i}
-                  <div class="revision-item">
-                    <div class="revision-meta">
-                      <span class="revision-number">v{fnord.revision_count - i}</span>
-                      <span class="revision-date">{formatDate(revision.revision_at)}</span>
-                    </div>
-                    <div class="revision-title-text">{revision.title}</div>
-                  </div>
-                {/each}
+                <RevisionView {fnord} {revisions} />
               {/if}
             </div>
           {/if}
@@ -517,45 +522,17 @@
     font-weight: 500;
   }
 
-  .revision-list {
-    margin-top: 0.5rem;
-    padding-left: 1.25rem;
-    border-left: 2px solid var(--border-default);
-  }
-
-  .revision-item {
-    padding: 0.5rem 0 0.5rem 0.75rem;
-    border-bottom: 1px solid var(--border-muted);
-  }
-
-  .revision-item:last-child {
-    border-bottom: none;
-  }
-
-  .revision-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin-bottom: 0.25rem;
-  }
-
-  .revision-number {
-    font-weight: 600;
-    color: var(--accent-primary);
-  }
-
-  .revision-title-text {
-    font-size: 0.875rem;
-    color: var(--text-primary);
-  }
-
-  .revision-loading,
-  .revision-empty {
+  .revision-loading {
     font-size: 0.875rem;
     color: var(--text-muted);
     padding: 0.5rem 0;
+  }
+
+  .revision-detail {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
   }
 
   .greyface-section,

@@ -34,6 +34,7 @@ pub struct FnordRevision {
     pub title: String,
     pub author: Option<String>,
     pub content_raw: Option<String>,
+    pub content_full: Option<String>,
     pub summary: Option<String>,
     pub content_hash: String,
     pub revision_at: String,
@@ -328,7 +329,7 @@ pub fn get_fnord_revisions(state: State<AppState>, fnord_id: i64) -> Result<Vec<
         .conn()
         .prepare(
             r#"
-            SELECT id, fnord_id, title, author, content_raw, summary, content_hash, revision_at
+            SELECT id, fnord_id, title, author, content_raw, content_full, summary, content_hash, revision_at
             FROM fnord_revisions
             WHERE fnord_id = ?1
             ORDER BY revision_at DESC
@@ -344,9 +345,10 @@ pub fn get_fnord_revisions(state: State<AppState>, fnord_id: i64) -> Result<Vec<
                 title: row.get(2)?,
                 author: row.get(3)?,
                 content_raw: row.get(4)?,
-                summary: row.get(5)?,
-                content_hash: row.get(6)?,
-                revision_at: row.get(7)?,
+                content_full: row.get(5)?,
+                summary: row.get(6)?,
+                content_hash: row.get(7)?,
+                revision_at: row.get(8)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -391,4 +393,125 @@ pub fn reset_all_changes(state: State<AppState>) -> Result<i64, String> {
         .map_err(|e| e.to_string())?;
 
     Ok(affected as i64)
+}
+
+// ============================================================
+// Fnord Statistics (für Fnord-Tab)
+// ============================================================
+
+#[derive(Debug, Serialize)]
+pub struct FnordStats {
+    pub total_revisions: i64,
+    pub articles_with_changes: i64,
+    pub by_category: Vec<CategoryRevisionStats>,
+    pub by_source: Vec<SourceRevisionStats>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CategoryRevisionStats {
+    pub sephiroth_id: i64,
+    pub name: String,
+    pub icon: Option<String>,
+    pub color: Option<String>,
+    pub revision_count: i64,
+    pub article_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SourceRevisionStats {
+    pub pentacle_id: i64,
+    pub title: Option<String>,
+    pub revision_count: i64,
+    pub article_count: i64,
+}
+
+/// Get Fnord statistics: revision counts by category and source
+#[tauri::command]
+pub fn get_fnord_stats(state: State<AppState>) -> Result<FnordStats, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Total revisions
+    let total_revisions: i64 = db
+        .conn()
+        .query_row("SELECT COUNT(*) FROM fnord_revisions", [], |r| r.get(0))
+        .unwrap_or(0);
+
+    // Articles with changes (have at least one revision)
+    let articles_with_changes: i64 = db
+        .conn()
+        .query_row(
+            "SELECT COUNT(DISTINCT fnord_id) FROM fnord_revisions",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+
+    // By category - count revisions for articles in each category
+    let mut stmt_cat = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT s.id, s.name, s.icon, s.color,
+                   COUNT(DISTINCT r.id) as revision_count,
+                   COUNT(DISTINCT r.fnord_id) as article_count
+            FROM sephiroth s
+            LEFT JOIN fnord_sephiroth fs ON fs.sephiroth_id = s.id
+            LEFT JOIN fnord_revisions r ON r.fnord_id = fs.fnord_id
+            GROUP BY s.id
+            ORDER BY revision_count DESC
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let by_category = stmt_cat
+        .query_map([], |row| {
+            Ok(CategoryRevisionStats {
+                sephiroth_id: row.get(0)?,
+                name: row.get(1)?,
+                icon: row.get(2)?,
+                color: row.get(3)?,
+                revision_count: row.get(4)?,
+                article_count: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    // By source - count revisions for articles from each pentacle
+    let mut stmt_src = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT p.id, p.title,
+                   COUNT(DISTINCT r.id) as revision_count,
+                   COUNT(DISTINCT r.fnord_id) as article_count
+            FROM pentacles p
+            LEFT JOIN fnords f ON f.pentacle_id = p.id
+            LEFT JOIN fnord_revisions r ON r.fnord_id = f.id
+            GROUP BY p.id
+            ORDER BY revision_count DESC
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let by_source = stmt_src
+        .query_map([], |row| {
+            Ok(SourceRevisionStats {
+                pentacle_id: row.get(0)?,
+                title: row.get(1)?,
+                revision_count: row.get(2)?,
+                article_count: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(FnordStats {
+        total_revisions,
+        articles_with_changes,
+        by_category,
+        by_source,
+    })
 }

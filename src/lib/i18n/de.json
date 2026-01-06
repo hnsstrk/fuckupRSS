@@ -200,6 +200,29 @@
     "yes": "Ja",
     "no": "Nein"
   },
+  "fnordView": {
+    "title": "Fnord-Statistiken",
+    "totalRevisions": "Revisionen gesamt",
+    "articlesWithChanges": "Geaenderte Artikel",
+    "statsTab": "Statistiken",
+    "articlesTab": "Geaenderte Artikel",
+    "byCategory": "Nach Kategorie",
+    "bySource": "Nach Quelle",
+    "category": "Kategorie",
+    "source": "Quelle",
+    "revisions": "Revisionen",
+    "articles": "Artikel",
+    "loading": "Laden...",
+    "noData": "Keine Daten",
+    "noChangedArticles": "Keine geaenderten Artikel",
+    "changedAt": "Geaendert"
+  },
+  "revisions": {
+    "current": "Aktuell",
+    "showChanges": "Aenderungen anzeigen",
+    "noContent": "Kein Inhalt verfuegbar",
+    "titleChanged": "Titel geaendert"
+  },
   "network": {
     "title": "Immanentize Network",
     "keywords": "Stichworte",

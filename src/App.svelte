@@ -5,14 +5,15 @@
   import ArticleList from "./lib/components/ArticleList.svelte";
   import ArticleView from "./lib/components/ArticleView.svelte";
   import KeywordNetwork from "./lib/components/KeywordNetwork.svelte";
+  import FnordView from "./lib/components/FnordView.svelte";
   import SettingsDialog from "./lib/components/SettingsDialog.svelte";
   import Toast from "./lib/components/Toast.svelte";
   import { settings } from "./lib/stores/settings.svelte";
   import { initLocaleFromDb } from "./lib/i18n";
-  import { networkStore } from "./lib/stores/state.svelte";
+  import { networkStore, appState } from "./lib/stores/state.svelte";
 
   let showSettings = $state(false);
-  let mainView = $state<'articles' | 'network'>('articles');
+  let mainView = $state<'articles' | 'network' | 'fnord'>('articles');
 
   // Listen for navigation events from other components
   function handleNavigateToNetwork(event: CustomEvent<{ keywordId?: number }>) {
@@ -22,14 +23,22 @@
     }
   }
 
+  // Listen for article navigation events
+  function handleNavigateToArticle(event: CustomEvent<{ articleId: number }>) {
+    mainView = 'articles';
+    appState.selectFnord(event.detail.articleId);
+  }
+
   onMount(async () => {
     await settings.init();
     await initLocaleFromDb();
     window.addEventListener('navigate-to-network', handleNavigateToNetwork as EventListener);
+    window.addEventListener('navigate-to-article', handleNavigateToArticle as EventListener);
   });
 
   onDestroy(() => {
     window.removeEventListener('navigate-to-network', handleNavigateToNetwork as EventListener);
+    window.removeEventListener('navigate-to-article', handleNavigateToArticle as EventListener);
   });
 </script>
 
@@ -41,7 +50,9 @@
     <Sidebar
       onsettings={() => showSettings = true}
       onnetwork={() => mainView = mainView === 'network' ? 'articles' : 'network'}
+      onfnord={() => mainView = mainView === 'fnord' ? 'articles' : 'fnord'}
       networkActive={mainView === 'network'}
+      fnordActive={mainView === 'fnord'}
     />
 
     <!-- Main content area -->
@@ -49,6 +60,9 @@
       {#if mainView === 'network'}
         <!-- Keyword Network View -->
         <KeywordNetwork />
+      {:else if mainView === 'fnord'}
+        <!-- Fnord Statistics View -->
+        <FnordView />
       {:else}
         <!-- Article list (Fnords) -->
         <ArticleList />

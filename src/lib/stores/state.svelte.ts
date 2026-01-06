@@ -95,9 +95,37 @@ export interface FnordRevision {
   title: string;
   author: string | null;
   content_raw: string | null;
+  content_full: string | null;
   summary: string | null;
   content_hash: string;
   revision_at: string;
+}
+
+// ============================================================
+// FNORD STATISTICS (Revision tracking by category/source)
+// ============================================================
+
+export interface FnordStats {
+  total_revisions: number;
+  articles_with_changes: number;
+  by_category: CategoryRevisionStats[];
+  by_source: SourceRevisionStats[];
+}
+
+export interface CategoryRevisionStats {
+  sephiroth_id: number;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  revision_count: number;
+  article_count: number;
+}
+
+export interface SourceRevisionStats {
+  pentacle_id: number;
+  title: string | null;
+  revision_count: number;
+  article_count: number;
 }
 
 export interface FnordFilter {
@@ -732,6 +760,16 @@ class AppState {
     }
   }
 
+  async getFnordStats(): Promise<FnordStats | null> {
+    try {
+      return await invoke<FnordStats>("get_fnord_stats");
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to get fnord stats:", e);
+      return null;
+    }
+  }
+
   selectView(view: "all" | "changed" | "pentacle"): void {
     this.selectedView = view;
     this.selectedFnordId = null;
@@ -1107,7 +1145,7 @@ export const networkStore = new ImmanentizeNetworkStore();
 // NAVIGATION STORE (App-wide view control)
 // ============================================================
 
-export type MainView = 'articles' | 'network';
+export type MainView = 'articles' | 'network' | 'fnord';
 
 class NavigationStore {
   currentView = $state<MainView>('articles');
@@ -1125,6 +1163,11 @@ class NavigationStore {
 
   navigateToArticles(): void {
     this.currentView = 'articles';
+    this.pendingKeywordId = null;
+  }
+
+  navigateToFnord(): void {
+    this.currentView = 'fnord';
     this.pendingKeywordId = null;
   }
 

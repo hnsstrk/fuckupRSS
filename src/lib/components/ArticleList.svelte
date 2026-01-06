@@ -76,7 +76,7 @@
       {#if appState.selectedPentacle}
         {appState.selectedPentacle.title || "Feed"}
       {:else}
-        {$_('sidebar.allFeeds')} (<Tooltip termKey="fnord"><span class="text-fnord">{$_('terminology.fnord.term')}</span></Tooltip>)
+        {$_('sidebar.allFeeds')}
       {/if}
     </h2>
     <p class="list-count">

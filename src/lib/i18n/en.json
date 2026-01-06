@@ -200,6 +200,29 @@
     "yes": "Yes",
     "no": "No"
   },
+  "fnordView": {
+    "title": "Fnord Statistics",
+    "totalRevisions": "Total Revisions",
+    "articlesWithChanges": "Changed Articles",
+    "statsTab": "Statistics",
+    "articlesTab": "Changed Articles",
+    "byCategory": "By Category",
+    "bySource": "By Source",
+    "category": "Category",
+    "source": "Source",
+    "revisions": "Revisions",
+    "articles": "Articles",
+    "loading": "Loading...",
+    "noData": "No data",
+    "noChangedArticles": "No changed articles",
+    "changedAt": "Changed"
+  },
+  "revisions": {
+    "current": "Current",
+    "showChanges": "Show changes",
+    "noContent": "No content available",
+    "titleChanged": "Title changed"
+  },
   "network": {
     "title": "Immanentize Network",
     "keywords": "Keywords",
