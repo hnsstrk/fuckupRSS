@@ -432,3 +432,337 @@ pub fn search_keywords(
 
     Ok(keywords)
 }
+
+// ============================================================
+// GRAPH & TREND VISUALIZATION API
+// ============================================================
+
+/// Daily count for trend visualization
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DailyCount {
+    pub date: String,      // "2024-01-15"
+    pub count: i64,
+}
+
+/// Graph node for Cytoscape visualization
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GraphNode {
+    pub id: i64,
+    pub name: String,
+    pub count: i64,
+    pub article_count: i64,
+    pub cluster_id: Option<i64>,
+}
+
+/// Graph edge for Cytoscape visualization
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GraphEdge {
+    pub source: i64,
+    pub target: i64,
+    pub weight: f64,
+    pub cooccurrence: i64,
+}
+
+/// Network graph data for visualization
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NetworkGraph {
+    pub nodes: Vec<GraphNode>,
+    pub edges: Vec<GraphEdge>,
+}
+
+/// Trend comparison data for multiple keywords
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TrendComparison {
+    pub keywords: Vec<KeywordTrendData>,
+    pub dates: Vec<String>,
+}
+
+/// Trend data for a single keyword
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct KeywordTrendData {
+    pub id: i64,
+    pub name: String,
+    pub counts: Vec<i64>,  // Counts aligned with dates
+}
+
+/// Get daily trend data for a keyword
+#[tauri::command]
+pub fn get_keyword_trend(
+    state: State<AppState>,
+    id: i64,
+    days: Option<i64>,
+) -> Result<Vec<DailyCount>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let days = days.unwrap_or(30);
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT date, count
+            FROM immanentize_daily
+            WHERE immanentize_id = ?1
+            AND date >= DATE('now', '-' || ?2 || ' days')
+            ORDER BY date ASC
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let trend = stmt
+        .query_map(rusqlite::params![id, days], |row| {
+            Ok(DailyCount {
+                date: row.get(0)?,
+                count: row.get(1)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(trend)
+}
+
+/// Get network graph data for visualization
+#[tauri::command]
+pub fn get_network_graph(
+    state: State<AppState>,
+    limit: Option<i64>,
+    min_weight: Option<f64>,
+) -> Result<NetworkGraph, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let limit = limit.unwrap_or(100);
+    let min_weight = min_weight.unwrap_or(0.1);
+
+    // Get top keywords as nodes
+    let mut node_stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT id, name, count, article_count, cluster_id
+            FROM immanentize
+            WHERE (is_canonical = TRUE OR is_canonical IS NULL)
+            AND article_count > 0
+            ORDER BY article_count DESC
+            LIMIT ?
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let nodes: Vec<GraphNode> = node_stmt
+        .query_map([limit], |row| {
+            Ok(GraphNode {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                count: row.get(2)?,
+                article_count: row.get::<_, Option<i64>>(3)?.unwrap_or(0),
+                cluster_id: row.get(4)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    // Get node IDs for filtering edges
+    let node_ids: Vec<i64> = nodes.iter().map(|n| n.id).collect();
+    if node_ids.is_empty() {
+        return Ok(NetworkGraph {
+            nodes: vec![],
+            edges: vec![],
+        });
+    }
+
+    // Build a parameterized query for edges
+    let placeholders: Vec<String> = node_ids.iter().map(|_| "?".to_string()).collect();
+    let placeholders_str = placeholders.join(",");
+
+    let query = format!(
+        r#"
+        SELECT immanentize_id_a, immanentize_id_b, combined_weight, cooccurrence
+        FROM immanentize_neighbors
+        WHERE immanentize_id_a IN ({0})
+        AND immanentize_id_b IN ({0})
+        AND combined_weight >= ?
+        ORDER BY combined_weight DESC
+        "#,
+        placeholders_str
+    );
+
+    let mut edge_stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
+
+    // Build parameters: node_ids twice (for a and b) + min_weight
+    let mut params: Vec<rusqlite::types::Value> = node_ids
+        .iter()
+        .map(|&id| rusqlite::types::Value::Integer(id))
+        .collect();
+    params.extend(
+        node_ids
+            .iter()
+            .map(|&id| rusqlite::types::Value::Integer(id)),
+    );
+    params.push(rusqlite::types::Value::Real(min_weight));
+
+    let edges: Vec<GraphEdge> = edge_stmt
+        .query_map(rusqlite::params_from_iter(params.iter()), |row| {
+            Ok(GraphEdge {
+                source: row.get(0)?,
+                target: row.get(1)?,
+                weight: row.get::<_, Option<f64>>(2)?.unwrap_or(0.0),
+                cooccurrence: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(NetworkGraph { nodes, edges })
+}
+
+/// Get trend comparison for multiple keywords
+#[tauri::command]
+pub fn get_trending_comparison(
+    state: State<AppState>,
+    ids: Vec<i64>,
+    days: Option<i64>,
+) -> Result<TrendComparison, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let days = days.unwrap_or(30);
+
+    if ids.is_empty() {
+        return Ok(TrendComparison {
+            keywords: vec![],
+            dates: vec![],
+        });
+    }
+
+    // Generate all dates in the range
+    let mut date_stmt = db
+        .conn()
+        .prepare(
+            r#"
+            WITH RECURSIVE dates(date) AS (
+                SELECT DATE('now', '-' || ?1 || ' days')
+                UNION ALL
+                SELECT DATE(date, '+1 day')
+                FROM dates
+                WHERE date < DATE('now')
+            )
+            SELECT date FROM dates ORDER BY date
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let dates: Vec<String> = date_stmt
+        .query_map([days], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    // Get trend data for each keyword
+    let mut keywords: Vec<KeywordTrendData> = Vec::new();
+
+    for id in ids {
+        // Get keyword name
+        let name: String = db
+            .conn()
+            .query_row("SELECT name FROM immanentize WHERE id = ?", [id], |row| {
+                row.get(0)
+            })
+            .unwrap_or_else(|_| format!("Keyword {}", id));
+
+        // Get daily counts
+        let mut daily_counts: std::collections::HashMap<String, i64> =
+            std::collections::HashMap::new();
+
+        let mut stmt = db
+            .conn()
+            .prepare(
+                r#"
+                SELECT date, count
+                FROM immanentize_daily
+                WHERE immanentize_id = ?1
+                AND date >= DATE('now', '-' || ?2 || ' days')
+                "#,
+            )
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map(rusqlite::params![id, days], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })
+            .map_err(|e| e.to_string())?;
+
+        for row in rows {
+            if let Ok((date, count)) = row {
+                daily_counts.insert(date, count);
+            }
+        }
+
+        // Build counts array aligned with dates
+        let counts: Vec<i64> = dates
+            .iter()
+            .map(|d| *daily_counts.get(d).unwrap_or(&0))
+            .collect();
+
+        keywords.push(KeywordTrendData { id, name, counts });
+    }
+
+    Ok(TrendComparison { keywords, dates })
+}
+
+// ============================================================
+// KEYWORD ARTICLES API
+// ============================================================
+
+/// Article linked to a keyword (minimal info for list display)
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct KeywordArticle {
+    pub id: i64,
+    pub title: String,
+    pub pentacle_title: Option<String>,
+    pub published_at: Option<String>,
+    pub status: String,
+}
+
+/// Get articles that have a specific keyword
+#[tauri::command]
+pub fn get_keyword_articles(
+    state: State<AppState>,
+    id: i64,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<Vec<KeywordArticle>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let limit = limit.unwrap_or(20);
+    let offset = offset.unwrap_or(0);
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT f.id, f.title, p.title as pentacle_title, f.published_at, f.status
+            FROM fnords f
+            JOIN fnord_immanentize fi ON fi.fnord_id = f.id
+            LEFT JOIN pentacles p ON p.id = f.pentacle_id
+            WHERE fi.immanentize_id = ?1
+            ORDER BY f.published_at DESC
+            LIMIT ?2 OFFSET ?3
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let articles = stmt
+        .query_map(rusqlite::params![id, limit, offset], |row| {
+            Ok(KeywordArticle {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                pentacle_title: row.get(2)?,
+                published_at: row.get(3)?,
+                status: row.get(4)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(articles)
+}

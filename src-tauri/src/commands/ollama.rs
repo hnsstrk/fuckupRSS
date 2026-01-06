@@ -16,6 +16,19 @@ pub struct OllamaStatus {
     pub has_recommended_embedding: bool,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct LoadedModel {
+    pub name: String,
+    pub size: u64,
+    pub size_vram: u64,
+    pub parameter_size: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct LoadedModelsResponse {
+    pub models: Vec<LoadedModel>,
+}
+
 #[derive(serde::Serialize)]
 pub struct ModelPullResult {
     pub success: bool,
@@ -97,6 +110,148 @@ pub async fn check_ollama() -> Result<OllamaStatus, String> {
             has_recommended_embedding: false,
         }),
     }
+}
+
+/// Get currently loaded models in Ollama VRAM
+#[tauri::command]
+pub async fn get_loaded_models() -> Result<LoadedModelsResponse, String> {
+    let client = reqwest_new::Client::new();
+
+    let response = client
+        .get("http://localhost:11434/api/ps")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to connect to Ollama: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err("Failed to get loaded models".to_string());
+    }
+
+    #[derive(serde::Deserialize)]
+    struct PsResponse {
+        models: Option<Vec<PsModel>>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct PsModel {
+        name: String,
+        size: u64,
+        size_vram: u64,
+        details: PsModelDetails,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct PsModelDetails {
+        parameter_size: String,
+    }
+
+    let ps_response: PsResponse = response.json().await.map_err(|e| e.to_string())?;
+
+    let models = ps_response.models.unwrap_or_default()
+        .into_iter()
+        .map(|m| LoadedModel {
+            name: m.name,
+            size: m.size,
+            size_vram: m.size_vram,
+            parameter_size: m.details.parameter_size,
+        })
+        .collect();
+
+    Ok(LoadedModelsResponse { models })
+}
+
+/// Load a model into Ollama VRAM and keep it loaded indefinitely
+#[tauri::command]
+pub async fn load_model(model: String) -> Result<bool, String> {
+    let client = reqwest_new::Client::new();
+
+    // Use keep_alive: -1 to keep the model loaded indefinitely
+    // For embedding models, use /api/embeddings endpoint
+    // For generation models, use /api/generate endpoint
+
+    // Try embedding first (works for nomic-embed-text)
+    let embed_body = serde_json::json!({
+        "model": model,
+        "prompt": "test",
+        "keep_alive": -1
+    });
+
+    let response = client
+        .post("http://localhost:11434/api/embeddings")
+        .json(&embed_body)
+        .send()
+        .await;
+
+    if let Ok(resp) = response {
+        if resp.status().is_success() {
+            return Ok(true);
+        }
+    }
+
+    // If embedding fails, try generate (for LLM models)
+    let gen_body = serde_json::json!({
+        "model": model,
+        "prompt": "",
+        "keep_alive": -1
+    });
+
+    let response = client
+        .post("http://localhost:11434/api/generate")
+        .json(&gen_body)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to load model: {}", e))?;
+
+    Ok(response.status().is_success())
+}
+
+/// Unload a model from Ollama VRAM
+#[tauri::command]
+pub async fn unload_model(model: String) -> Result<bool, String> {
+    let client = reqwest_new::Client::new();
+
+    let body = format!(
+        r#"{{"model":"{}","prompt":"","keep_alive":0}}"#,
+        model
+    );
+
+    let response: reqwest_new::Response = client
+        .post("http://localhost:11434/api/generate")
+        .header("Content-Type", "application/json")
+        .body(body)
+        .send()
+        .await
+        .map_err(|e: reqwest_new::Error| format!("Failed to unload model: {}", e))?;
+
+    Ok(response.status().is_success())
+}
+
+/// Ensure only the specified models are loaded (main + embedding)
+#[tauri::command]
+pub async fn ensure_models_loaded(main_model: String, embedding_model: String) -> Result<LoadedModelsResponse, String> {
+    // First, get currently loaded models
+    let loaded = get_loaded_models().await?;
+    let loaded_names: Vec<&str> = loaded.models.iter().map(|m| m.name.as_str()).collect();
+
+    // Unload models that aren't needed
+    for model in &loaded.models {
+        if model.name != main_model && model.name != embedding_model {
+            let _ = unload_model(model.name.clone()).await;
+        }
+    }
+
+    // Load embedding model first (smaller, faster)
+    if !loaded_names.contains(&embedding_model.as_str()) {
+        load_model(embedding_model).await?;
+    }
+
+    // Load main model
+    if !loaded_names.contains(&main_model.as_str()) {
+        load_model(main_model).await?;
+    }
+
+    // Return updated list
+    get_loaded_models().await
 }
 
 /// Helper to get locale from settings
@@ -406,14 +561,14 @@ pub async fn process_article_discordian(
     let client = OllamaClient::new(None);
     let locale = get_locale_from_db(&state);
 
-    // Get article content
-    let (title, content): (String, String) = {
+    // Get article content and date
+    let (title, content, article_date): (String, String, Option<String>) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         db.conn()
             .query_row(
-                "SELECT title, COALESCE(content_full, content_raw, '') FROM fnords WHERE id = ?1",
+                "SELECT title, COALESCE(content_full, content_raw, ''), DATE(COALESCE(published_at, fetched_at)) FROM fnords WHERE id = ?1",
                 [fnord_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .map_err(|e| e.to_string())?
     };
@@ -559,6 +714,19 @@ pub async fn process_article_discordian(
                             rusqlite::params![fnord_id, tag_id],
                         )
                         .ok();
+
+                    // Update immanentize_daily for trend tracking
+                    if let Some(ref date) = article_date {
+                        db.conn()
+                            .execute(
+                                r#"INSERT INTO immanentize_daily (immanentize_id, date, count)
+                                   VALUES (?1, ?2, 1)
+                                   ON CONFLICT(immanentize_id, date) DO UPDATE SET count = count + 1"#,
+                                rusqlite::params![tag_id, date],
+                            )
+                            .ok();
+                    }
+
                     tags_saved.push(keyword.to_string());
                     tag_ids.push(tag_id);
                 }
@@ -731,29 +899,39 @@ pub async fn process_batch(
     limit: Option<i64>,
 ) -> Result<BatchResult, String> {
     let client = OllamaClient::new(None);
-    let batch_limit = limit.unwrap_or(100);
 
     // Get locale for the batch
     let locale = get_locale_from_db(&state);
 
-    // Get unprocessed articles with content
-    let articles: Vec<(i64, String, String)> = {
+    // Get unprocessed articles with content (including date for trend tracking)
+    let articles: Vec<(i64, String, String, Option<String>)> = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        let mut stmt = db
-            .conn()
-            .prepare(
-                r#"SELECT id, title, COALESCE(content_full, content_raw, '') as content
+
+        // Use limit if provided, otherwise process all
+        let query = match limit {
+            Some(n) => format!(
+                r#"SELECT id, title, COALESCE(content_full, content_raw, '') as content,
+                          DATE(COALESCE(published_at, fetched_at)) as article_date
                    FROM fnords
                    WHERE processed_at IS NULL
                    AND (content_full IS NOT NULL OR content_raw IS NOT NULL)
                    ORDER BY published_at DESC
-                   LIMIT ?1"#,
-            )
-            .map_err(|e| e.to_string())?;
+                   LIMIT {}"#,
+                n
+            ),
+            None => r#"SELECT id, title, COALESCE(content_full, content_raw, '') as content,
+                          DATE(COALESCE(published_at, fetched_at)) as article_date
+                   FROM fnords
+                   WHERE processed_at IS NULL
+                   AND (content_full IS NOT NULL OR content_raw IS NOT NULL)
+                   ORDER BY published_at DESC"#.to_string(),
+        };
+
+        let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
 
         let rows = stmt
-            .query_map([batch_limit], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
             })
             .map_err(|e| e.to_string())?;
 
@@ -782,7 +960,7 @@ pub async fn process_batch(
         );
     }
 
-    for (idx, (fnord_id, title, content)) in articles.into_iter().enumerate() {
+    for (idx, (fnord_id, title, content, article_date)) in articles.into_iter().enumerate() {
         // Check for cancellation
         if state.batch_cancel.load(Ordering::SeqCst) {
             let _ = window.emit(
@@ -942,6 +1120,19 @@ pub async fn process_batch(
                                     rusqlite::params![fnord_id, tag_id],
                                 )
                                 .ok();
+
+                            // Update immanentize_daily for trend tracking
+                            if let Some(ref date) = article_date {
+                                db.conn()
+                                    .execute(
+                                        r#"INSERT INTO immanentize_daily (immanentize_id, date, count)
+                                           VALUES (?1, ?2, 1)
+                                           ON CONFLICT(immanentize_id, date) DO UPDATE SET count = count + 1"#,
+                                        rusqlite::params![tag_id, date],
+                                    )
+                                    .ok();
+                            }
+
                             tag_ids.push(tag_id);
                         }
                     }

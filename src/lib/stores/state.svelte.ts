@@ -273,6 +273,27 @@ export interface NetworkStats {
   avg_neighbors_per_keyword: number;
 }
 
+// Graph visualization types
+export interface GraphNode {
+  id: number;
+  name: string;
+  count: number;
+  article_count: number;
+  cluster_id: number | null;
+}
+
+export interface GraphEdge {
+  source: number;
+  target: number;
+  weight: number;
+  cooccurrence: number;
+}
+
+export interface NetworkGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
 // Svelte 5 runes-based state
 class AppState {
   pentacles = $state<Pentacle[]>([]);
@@ -762,7 +783,7 @@ class AppState {
     try {
       const result = await invoke<BatchResult>("process_batch", {
         model,
-        limit: limit ?? 50,
+        limit: limit ?? null,  // null = process all
       });
 
       // Refresh data after batch processing
@@ -901,6 +922,10 @@ class ImmanentizeNetworkStore {
   loading = $state(false);
   error = $state<string | null>(null);
 
+  // Graph visualization
+  graphData = $state<NetworkGraph | null>(null);
+  graphLoading = $state(false);
+
   // Pagination
   offset = $state(0);
   limit = $state(50);
@@ -1020,6 +1045,24 @@ class ImmanentizeNetworkStore {
     }
   }
 
+  async loadNetworkGraph(limit = 100, minWeight = 0.1): Promise<void> {
+    if (this.graphLoading) return;
+
+    try {
+      this.graphLoading = true;
+      this.error = null;
+      this.graphData = await invoke<NetworkGraph>("get_network_graph", {
+        limit,
+        minWeight,
+      });
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to load network graph:", e);
+    } finally {
+      this.graphLoading = false;
+    }
+  }
+
   async loadCategoryKeywords(sephirothId: number): Promise<Keyword[]> {
     try {
       return await invoke<Keyword[]>("get_category_keywords", {
@@ -1050,6 +1093,8 @@ class ImmanentizeNetworkStore {
     this.trendingKeywords = [];
     this.searchResults = [];
     this.searchQuery = '';
+    this.graphData = null;
+    this.graphLoading = false;
     this.offset = 0;
     this.hasMore = true;
     this.error = null;
@@ -1057,3 +1102,46 @@ class ImmanentizeNetworkStore {
 }
 
 export const networkStore = new ImmanentizeNetworkStore();
+
+// ============================================================
+// NAVIGATION STORE (App-wide view control)
+// ============================================================
+
+export type MainView = 'articles' | 'network';
+
+class NavigationStore {
+  currentView = $state<MainView>('articles');
+  pendingKeywordId = $state<number | null>(null);
+
+  // Navigate to network view and optionally select a keyword
+  navigateToNetwork(keywordId?: number): void {
+    this.currentView = 'network';
+    if (keywordId !== undefined) {
+      this.pendingKeywordId = keywordId;
+      // Select the keyword immediately
+      networkStore.selectKeyword(keywordId);
+    }
+  }
+
+  navigateToArticles(): void {
+    this.currentView = 'articles';
+    this.pendingKeywordId = null;
+  }
+
+  toggleView(): void {
+    if (this.currentView === 'network') {
+      this.navigateToArticles();
+    } else {
+      this.navigateToNetwork();
+    }
+  }
+
+  // Consume pending keyword (call this after handling)
+  consumePendingKeyword(): number | null {
+    const id = this.pendingKeywordId;
+    this.pendingKeywordId = null;
+    return id;
+  }
+}
+
+export const navigationStore = new NavigationStore();

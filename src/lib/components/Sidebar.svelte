@@ -3,7 +3,15 @@
   import { appState, toasts, type BatchProgress } from "../stores/state.svelte";
   import { onMount, onDestroy } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+  import { invoke } from "@tauri-apps/api/core";
   import Tooltip from "./Tooltip.svelte";
+
+  interface LoadedModel {
+    name: string;
+    size: number;
+    size_vram: number;
+    parameter_size: string;
+  }
 
   interface Props {
     onsettings?: () => void;
@@ -16,6 +24,23 @@
   let showAddForm = $state(false);
   let newFeedUrl = $state("");
   let unlisten: UnlistenFn | null = null;
+  let unlistenModels: UnlistenFn | null = null;
+  let loadedModels = $state<LoadedModel[]>([]);
+
+  async function loadLoadedModels() {
+    try {
+      const response = await invoke<{ models: LoadedModel[] }>('get_loaded_models');
+      loadedModels = response.models;
+    } catch (e) {
+      console.error('Failed to load loaded models:', e);
+      loadedModels = [];
+    }
+  }
+
+  function formatVram(bytes: number): string {
+    const gb = bytes / (1024 * 1024 * 1024);
+    return `${gb.toFixed(1)}G`;
+  }
 
   onMount(async () => {
     await appState.loadPentacles();
@@ -29,6 +54,8 @@
     appState.checkOllama();
     // Load unprocessed count
     appState.loadUnprocessedCount();
+    // Load currently loaded models
+    await loadLoadedModels();
 
     // Listen for batch progress events
     console.log("Setting up batch-progress event listener...");
@@ -39,10 +66,17 @@
       console.log("Current batchProgress after update:", appState.batchProgress);
     });
     console.log("Batch-progress listener set up successfully");
+
+    // Listen for model changes from Settings
+    unlistenModels = await listen("models-changed", async () => {
+      console.log("Models changed event received, refreshing loaded models...");
+      await loadLoadedModels();
+    });
   });
 
   onDestroy(() => {
     if (unlisten) unlisten();
+    if (unlistenModels) unlistenModels();
   });
 
   async function handleSync() {
@@ -96,7 +130,19 @@
   }
 
   async function handleBatchProcessing() {
+    console.log("=== handleBatchProcessing called ===");
+    console.log("batchProcessing:", appState.batchProcessing);
+    console.log("ollamaStatus:", appState.ollamaStatus);
+    console.log("selectedModel:", appState.selectedModel);
+    console.log("unprocessedCount:", appState.unprocessedCount);
+
     const result = await appState.startBatchProcessing();
+    console.log("startBatchProcessing result:", result);
+    console.log("appState.error:", appState.error);
+
+    // Refresh loaded models after batch processing (model may have been loaded)
+    await loadLoadedModels();
+
     if (result) {
       toasts.success($_('batch.complete', {
         values: { succeeded: result.succeeded, failed: result.failed }
@@ -298,6 +344,20 @@
       <div class="batch-unavailable">{$_('batch.noOllama')}</div>
     {/if}
   </div>
+
+  <!-- Loaded Models -->
+  {#if loadedModels.length > 0}
+    <div class="loaded-models-status">
+      <span class="loaded-label">VRAM:</span>
+      {#each loadedModels as model, i}
+        <span class="loaded-model-chip" title="{model.name} ({model.parameter_size})">
+          {model.name.split(':')[0]}
+          <span class="vram-size">{formatVram(model.size_vram)}</span>
+        </span>
+        {#if i < loadedModels.length - 1}<span class="model-sep">·</span>{/if}
+      {/each}
+    </div>
+  {/if}
 
   <!-- Stats -->
   <div class="stats">
@@ -734,5 +794,42 @@
   .btn-cancel:hover {
     background-color: var(--accent-error);
     color: var(--text-on-accent);
+  }
+
+  /* Loaded Models Status */
+  .loaded-models-status {
+    padding: 0.5rem 1rem;
+    border-top: 1px solid var(--border-default);
+    font-size: 0.625rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .loaded-label {
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .loaded-model-chip {
+    background-color: var(--bg-overlay);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .vram-size {
+    color: var(--accent-primary);
+    font-weight: 600;
+  }
+
+  .model-sep {
+    color: var(--text-muted);
   }
 </style>

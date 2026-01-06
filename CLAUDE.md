@@ -84,9 +84,9 @@ cargo tarpaulin --manifest-path src-tauri/Cargo.toml
 | Bereich | Anzahl Tests | Tool |
 |---------|-------------|------|
 | Rust Backend | 134 Tests | `cargo test` |
-| Frontend (Vitest) | 37 Tests | `npm run test` |
+| Frontend (Vitest) | 89 Tests | `npm run test` |
 | E2E (Playwright) | 11 Tests | `npm run test:e2e` |
-| **Gesamt** | **182 Tests** | |
+| **Gesamt** | **234 Tests** | |
 
 ### Test-Struktur
 
@@ -97,9 +97,11 @@ fuckupRSS/
 │       └── __tests__/           # Frontend Unit Tests (Vitest)
 │           ├── setup.ts         # Test-Setup mit Mocks
 │           ├── stores/          # Store Tests
-│           │   └── state.test.ts
+│           │   ├── state.test.ts      # State Management Tests (18 Tests)
+│           │   ├── network.test.ts    # Immanentize Network Tests (31 Tests)
+│           │   └── navigation.test.ts # Navigation Events Tests (21 Tests)
 │           └── components/      # Component Tests
-│               └── Toast.test.ts
+│               └── Toast.test.ts      # Toast Component Tests (19 Tests)
 ├── e2e/                         # E2E Tests (Playwright)
 │   ├── fixtures.ts              # Tauri API Mocks
 │   └── app.spec.ts              # App-Tests

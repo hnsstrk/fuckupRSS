@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
-  import { listen } from '@tauri-apps/api/event';
+  import { listen, emit } from '@tauri-apps/api/event';
   import { settings, type Theme } from '../stores/settings.svelte';
   import { setLocale, locale } from '../i18n';
   import { appState } from '../stores/state.svelte';
@@ -31,10 +31,17 @@
     has_recommended_main: boolean;
     has_recommended_embedding: boolean;
   } | null>(null);
+  let loadedModels = $state<{
+    name: string;
+    size: number;
+    size_vram: number;
+    parameter_size: string;
+  }[]>([]);
   let selectedMainModel = $state('');
   let selectedEmbeddingModel = $state('');
   let downloadingModel = $state<string | null>(null);
   let downloadError = $state<string | null>(null);
+  let loadingModels = $state(false);
 
   // Prompts state
   let summaryPrompt = $state('');
@@ -96,10 +103,32 @@
         // Update appState
         appState.ollamaStatus = ollamaStatus;
       }
+
+      // Load currently loaded models
+      await loadLoadedModels();
     } catch (e) {
       console.error('Failed to load Ollama status:', e);
       ollamaStatus = null;
     }
+  }
+
+  async function loadLoadedModels() {
+    try {
+      const response = await invoke<{ models: typeof loadedModels }>('get_loaded_models');
+      loadedModels = response.models;
+    } catch (e) {
+      console.error('Failed to load loaded models:', e);
+      loadedModels = [];
+    }
+  }
+
+  function formatBytes(bytes: number): string {
+    const gb = bytes / (1024 * 1024 * 1024);
+    return `${gb.toFixed(1)} GB`;
+  }
+
+  function isModelLoaded(modelName: string): boolean {
+    return loadedModels.some(m => m.name === modelName);
   }
 
   async function loadPrompts() {
@@ -148,6 +177,22 @@
     }
     if (selectedEmbeddingModel) {
       await invoke('set_setting', { key: 'embedding_model', value: selectedEmbeddingModel });
+    }
+
+    // Ensure only the selected models are loaded
+    if (selectedMainModel && selectedEmbeddingModel) {
+      loadingModels = true;
+      try {
+        await invoke('ensure_models_loaded', {
+          mainModel: selectedMainModel,
+          embeddingModel: selectedEmbeddingModel
+        });
+        // Notify Sidebar to refresh loaded models display
+        await emit('models-changed');
+      } catch (e) {
+        console.error('Failed to ensure models loaded:', e);
+      }
+      loadingModels = false;
     }
 
     // Save prompts
@@ -409,6 +454,23 @@
           </div>
 
           {#if ollamaStatus?.available}
+            <!-- Loaded Models Display -->
+            <div class="setting-group">
+              <span class="label">{$_('settings.ollama.loadedModels') || 'Geladene Modelle (VRAM)'}</span>
+              <div class="loaded-models">
+                {#if loadedModels.length === 0}
+                  <div class="no-models">{$_('settings.ollama.noLoadedModels') || 'Keine Modelle geladen'}</div>
+                {:else}
+                  {#each loadedModels as model}
+                    <div class="loaded-model">
+                      <span class="model-name">{model.name}</span>
+                      <span class="model-info">{model.parameter_size} · {formatBytes(model.size_vram)}</span>
+                    </div>
+                  {/each}
+                {/if}
+              </div>
+            </div>
+
             <!-- Main Model Selection -->
             <div class="setting-group">
               <span class="label">{$_('settings.ollama.mainModel')}</span>
@@ -417,6 +479,9 @@
                   <button type="button" class="select-trigger" onclick={toggleMainModelDropdown}>
                     <span>
                       {selectedMainModel || $_('settings.ollama.noModels')}
+                      {#if isModelLoaded(selectedMainModel)}
+                        <span class="loaded-badge">●</span>
+                      {/if}
                       {#if ollamaStatus && isRecommendedModel(selectedMainModel, ollamaStatus.recommended_main)}
                         <span class="recommended">{$_('settings.ollama.recommended')}</span>
                       {/if}
@@ -432,6 +497,9 @@
                           onclick={() => selectMainModel(model)}
                         >
                           {model}
+                          {#if isModelLoaded(model)}
+                            <span class="loaded-badge">●</span>
+                          {/if}
                           {#if isRecommendedModel(model, ollamaStatus.recommended_main)}
                             <span class="recommended">{$_('settings.ollama.recommended')}</span>
                           {/if}
@@ -726,6 +794,48 @@
     font-size: 0.75rem;
     color: var(--accent-secondary);
     margin-left: 0.5rem;
+  }
+
+  .loaded-badge {
+    font-size: 0.625rem;
+    color: var(--status-success);
+    margin-left: 0.25rem;
+  }
+
+  /* Loaded Models Display */
+  .loaded-models {
+    padding: 0.5rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-default);
+  }
+
+  .no-models {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-style: italic;
+  }
+
+  .loaded-model {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.375rem 0;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .loaded-model:last-child {
+    border-bottom: none;
+  }
+
+  .model-name {
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .model-info {
+    font-size: 0.75rem;
+    color: var(--text-muted);
   }
 
   /* Model row */

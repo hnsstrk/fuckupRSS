@@ -220,6 +220,19 @@
     "neighbors": "Related Keywords",
     "cooccurrence": "Co-occurrence",
     "similarity": "Semantic Similarity",
-    "noNeighbors": "No related keywords found"
+    "noNeighbors": "No related keywords found",
+    "listTab": "Keywords",
+    "graphTab": "Graph",
+    "trendsTab": "Trends",
+    "graphLoading": "Loading graph...",
+    "noData": "No network data available",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "resetView": "Reset view",
+    "trendFor": "Trend for",
+    "days7": "7 days",
+    "days30": "30 days",
+    "days90": "90 days",
+    "selectKeywordForTrend": "Select a keyword from the Keywords tab to see its trend"
   }
 }

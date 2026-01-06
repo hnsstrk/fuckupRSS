@@ -133,6 +133,42 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration for immanentize_daily table (trend data)
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS immanentize_daily (
+            immanentize_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            count INTEGER DEFAULT 0,
+            PRIMARY KEY (immanentize_id, date),
+            FOREIGN KEY (immanentize_id) REFERENCES immanentize(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_immanentize_daily_date ON immanentize_daily(date DESC);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_daily_id ON immanentize_daily(immanentize_id);
+        "#,
+    )?;
+
+    // Backfill immanentize_daily from existing data (only if table is empty)
+    let daily_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM immanentize_daily", [], |row| row.get(0))
+        .unwrap_or(0);
+
+    if daily_count == 0 {
+        // Aggregate existing fnord_immanentize data by date
+        conn.execute(
+            r#"INSERT OR IGNORE INTO immanentize_daily (immanentize_id, date, count)
+               SELECT fi.immanentize_id,
+                      DATE(COALESCE(f.published_at, f.fetched_at)) as date,
+                      COUNT(*) as count
+               FROM fnord_immanentize fi
+               JOIN fnords f ON f.id = fi.fnord_id
+               WHERE DATE(COALESCE(f.published_at, f.fetched_at)) IS NOT NULL
+               GROUP BY fi.immanentize_id, DATE(COALESCE(f.published_at, f.fetched_at))"#,
+            [],
+        )?;
+    }
+
     Ok(())
 }
 
@@ -354,6 +390,20 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             FOREIGN KEY (fnord_id) REFERENCES fnords(id) ON DELETE CASCADE,
             FOREIGN KEY (immanentize_id) REFERENCES immanentize(id) ON DELETE CASCADE
         );
+
+        -- ============================================================
+        -- IMMANENTIZE_DAILY (Zeitreihen für Trend-Analyse)
+        -- ============================================================
+        CREATE TABLE IF NOT EXISTS immanentize_daily (
+            immanentize_id INTEGER NOT NULL,
+            date TEXT NOT NULL,  -- 'YYYY-MM-DD'
+            count INTEGER DEFAULT 0,
+            PRIMARY KEY (immanentize_id, date),
+            FOREIGN KEY (immanentize_id) REFERENCES immanentize(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_immanentize_daily_date ON immanentize_daily(date DESC);
+        CREATE INDEX IF NOT EXISTS idx_immanentize_daily_id ON immanentize_daily(immanentize_id);
 
         -- ============================================================
         -- SETTINGS (Benutzereinstellungen)

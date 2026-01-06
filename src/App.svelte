@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { isLoading } from 'svelte-i18n';
   import Sidebar from "./lib/components/Sidebar.svelte";
   import ArticleList from "./lib/components/ArticleList.svelte";
@@ -9,13 +9,27 @@
   import Toast from "./lib/components/Toast.svelte";
   import { settings } from "./lib/stores/settings.svelte";
   import { initLocaleFromDb } from "./lib/i18n";
+  import { networkStore } from "./lib/stores/state.svelte";
 
   let showSettings = $state(false);
   let mainView = $state<'articles' | 'network'>('articles');
 
+  // Listen for navigation events from other components
+  function handleNavigateToNetwork(event: CustomEvent<{ keywordId?: number }>) {
+    mainView = 'network';
+    if (event.detail?.keywordId !== undefined) {
+      networkStore.selectKeyword(event.detail.keywordId);
+    }
+  }
+
   onMount(async () => {
     await settings.init();
     await initLocaleFromDb();
+    window.addEventListener('navigate-to-network', handleNavigateToNetwork as EventListener);
+  });
+
+  onDestroy(() => {
+    window.removeEventListener('navigate-to-network', handleNavigateToNetwork as EventListener);
   });
 </script>
 

@@ -220,6 +220,19 @@
     "neighbors": "Verwandte Stichworte",
     "cooccurrence": "Gemeinsames Auftreten",
     "similarity": "Semantische Aehnlichkeit",
-    "noNeighbors": "Keine verwandten Stichworte gefunden"
+    "noNeighbors": "Keine verwandten Stichworte gefunden",
+    "listTab": "Keywords",
+    "graphTab": "Graph",
+    "trendsTab": "Trends",
+    "graphLoading": "Graph wird geladen...",
+    "noData": "Keine Netzwerkdaten verfuegbar",
+    "zoomIn": "Vergroessern",
+    "zoomOut": "Verkleinern",
+    "resetView": "Ansicht zuruecksetzen",
+    "trendFor": "Trend fuer",
+    "days7": "7 Tage",
+    "days30": "30 Tage",
+    "days90": "90 Tage",
+    "selectKeywordForTrend": "Waehle ein Keyword im Keywords-Tab um den Trend zu sehen"
   }
 }

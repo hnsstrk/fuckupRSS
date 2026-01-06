@@ -61,6 +61,10 @@ pub fn run() {
             commands::ollama::get_prompts,
             commands::ollama::set_prompts,
             commands::ollama::reset_prompts,
+            commands::ollama::get_loaded_models,
+            commands::ollama::load_model,
+            commands::ollama::unload_model,
+            commands::ollama::ensure_models_loaded,
             commands::categories::get_all_categories,
             commands::categories::get_article_categories,
             commands::categories::set_article_categories,
@@ -81,6 +85,11 @@ pub fn run() {
             commands::immanentize::get_trending_keywords,
             commands::immanentize::get_network_stats,
             commands::immanentize::search_keywords,
+            // Graph & Trend Visualization
+            commands::immanentize::get_keyword_trend,
+            commands::immanentize::get_network_graph,
+            commands::immanentize::get_trending_comparison,
+            commands::immanentize::get_keyword_articles,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -16,6 +16,8 @@
   "dependencies": {
     "@tauri-apps/api": "^2.1.1",
     "@tauri-apps/plugin-shell": "^2.0.1",
+    "chart.js": "^4.5.1",
+    "cytoscape": "^3.33.1",
     "svelte-i18n": "^4.0.1"
   },
   "devDependencies": {
@@ -24,6 +26,7 @@
     "@tauri-apps/cli": "^2.1.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/svelte": "^5.2.6",
+    "@types/cytoscape": "^3.21.9",
     "autoprefixer": "^10.4.20",
     "jsdom": "^25.0.1",
     "playwright": "^1.57.0",

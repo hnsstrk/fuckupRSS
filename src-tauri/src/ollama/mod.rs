@@ -5,6 +5,19 @@ use thiserror::Error;
 #[cfg(test)]
 mod tests;
 
+/// Safely truncate a string to at most `max_bytes` bytes at a character boundary
+fn truncate_str(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    // Find the last character boundary at or before max_bytes
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 #[derive(Error, Debug)]
 pub enum OllamaError {
     #[error("Ollama not available: {0}")]
@@ -492,7 +505,7 @@ impl OllamaClient {
 
         // Parse as RawBiasAnalysis (accepts floats) then convert to BiasAnalysis (integers)
         let raw: RawBiasAnalysis = serde_json::from_str(&json_str).map_err(|e| {
-            eprintln!("JSON parse error: {}. Extracted JSON: {}", e, &json_str[..json_str.len().min(300)]);
+            eprintln!("JSON parse error: {}. Extracted JSON: {}", e, truncate_str(&json_str, 300));
             OllamaError::GenerationFailed(format!("Failed to parse bias analysis: {}", e))
         })?;
 
@@ -520,7 +533,7 @@ impl OllamaClient {
 
         let raw: RawDiscordianAnalysis = serde_json::from_str(&json_str).map_err(|e| {
             // Only log on actual parse failure (after extraction was attempted)
-            eprintln!("JSON parse error: {}. Extracted JSON: {}", e, &json_str[..json_str.len().min(300)]);
+            eprintln!("JSON parse error: {}. Extracted JSON: {}", e, truncate_str(&json_str, 300));
             OllamaError::GenerationFailed(format!(
                 "Failed to parse Discordian analysis: {}",
                 e

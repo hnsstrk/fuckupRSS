@@ -157,6 +157,10 @@
       fetchFullContent();
     }
   }
+
+  function navigateToKeyword(tagId: number) {
+    window.dispatchEvent(new CustomEvent('navigate-to-network', { detail: { keywordId: tagId } }));
+  }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -340,7 +344,13 @@
               </div>
               <div class="tag-list">
                 {#each tags as tag}
-                  <span class="tag-badge">{tag.name}</span>
+                  <button
+                    class="tag-badge clickable"
+                    onclick={() => navigateToKeyword(tag.id)}
+                    title={$_('network.title')}
+                  >
+                    {tag.name}
+                  </button>
                 {/each}
               </div>
             </div>
@@ -651,6 +661,17 @@
     color: var(--text-secondary);
     border-radius: 0.25rem;
     font-size: 0.75rem;
+    border: none;
+  }
+
+  .tag-badge.clickable {
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tag-badge.clickable:hover {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
   }
 
   .content-section {
