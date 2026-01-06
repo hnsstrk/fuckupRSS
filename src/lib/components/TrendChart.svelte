@@ -26,6 +26,10 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
 
+  // Track previous values to prevent unnecessary re-renders
+  let prevKeywordId: number | null = null;
+  let mounted = false;
+
   async function loadTrendData() {
     if (!keywordId) return;
 
@@ -176,21 +180,26 @@
   }
 
   onMount(() => {
+    mounted = true;
     if (keywordId) {
+      prevKeywordId = keywordId;
       loadTrendData();
     }
   });
 
   onDestroy(() => {
+    mounted = false;
     if (chart) {
       chart.destroy();
       chart = null;
     }
   });
 
-  // Reload when keywordId changes
+  // Reload when keywordId changes (with stability check)
   $effect(() => {
-    if (keywordId) {
+    // Only run after mount and if keywordId actually changed
+    if (mounted && keywordId && keywordId !== prevKeywordId) {
+      prevKeywordId = keywordId;
       loadTrendData();
     }
   });

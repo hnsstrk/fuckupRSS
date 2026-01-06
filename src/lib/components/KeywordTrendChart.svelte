@@ -21,6 +21,11 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
 
+  // Track previous values to prevent unnecessary re-renders
+  let prevKeywordId: number | null = null;
+  let prevNeighborIdsKey = '';
+  let mounted = false;
+
   // Color palette: main keyword first, then neighbors
   const colors = [
     { border: '#cba6f7', bg: 'rgba(203, 166, 247, 0.3)' }, // Mauve - Main keyword
@@ -191,23 +196,36 @@
   }
 
   onMount(() => {
+    mounted = true;
+    // Initialize tracking values
+    prevKeywordId = keywordId;
+    prevNeighborIdsKey = neighborIds.join(',');
     loadTrendData();
   });
 
   onDestroy(() => {
+    mounted = false;
     if (chart) {
       chart.destroy();
       chart = null;
     }
   });
 
-  // Reload when keywordId or neighborIds change
+  // Reload when keywordId or neighborIds change (with stability check)
   $effect(() => {
-    // Track dependencies
-    const _ = keywordId;
-    const __ = neighborIds;
+    // Only run after mount
+    if (!mounted) return;
+
+    // Create a stable key for neighbor comparison
+    const currentNeighborIdsKey = neighborIds.join(',');
+
+    // Only reload if something actually changed
     if (keywordId && canvas) {
-      loadTrendData();
+      if (keywordId !== prevKeywordId || currentNeighborIdsKey !== prevNeighborIdsKey) {
+        prevKeywordId = keywordId;
+        prevNeighborIdsKey = currentNeighborIdsKey;
+        loadTrendData();
+      }
     }
   });
 </script>

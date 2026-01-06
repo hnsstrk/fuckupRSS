@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1024"
+     height="1024"
+     viewBox="0 0 1024 1024">
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="60%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+
+    <linearGradient id="fg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#cbd5f5"/>
+    </linearGradient>
+
+    <radialGradient id="sheen" cx="30%" cy="25%" r="70%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18"
+        flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+
+    <filter id="symbolShadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10"
+        flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <path
+      d="M512 80
+         C700 80 824 92 904 172
+         C984 252 996 376 996 512
+         C996 648 984 772 904 852
+         C824 932 700 944 512 944
+         C324 944 200 932 120 852
+         C40 772 28 648 28 512
+         C28 376 40 252 120 172
+         C200 92 324 80 512 80 Z"
+      fill="url(#bg)"
+    />
+    <path
+      d="M512 80
+         C700 80 824 92 904 172
+         C984 252 996 376 996 512
+         C996 648 984 772 904 852
+         C824 932 700 944 512 944
+         C324 944 200 932 120 852
+         C40 772 28 648 28 512
+         C28 376 40 252 120 172
+         C200 92 324 80 512 80 Z"
+      fill="url(#sheen)"
+    />
+  </g>
+
+  <g filter="url(#symbolShadow)">
+    <path
+      d="M512 240
+         L780 740
+         H244
+         Z"
+      fill="none"
+      stroke="url(#fg)"
+      stroke-width="64"
+      stroke-linejoin="round"
+      stroke-linecap="round"
+    />
+
+    <path
+      d="M352 560
+         C408 500 460 470 512 470
+         C564 470 616 500 672 560
+         C616 620 564 650 512 650
+         C460 650 408 620 352 560 Z"
+      fill="url(#fg)"
+    />
+
+    <circle cx="512" cy="560" r="36" fill="#020617"/>
+  </g>
+</svg>
