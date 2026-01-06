@@ -34,6 +34,10 @@
   let container: HTMLDivElement;
   let cy: cytoscape.Core | null = null;
 
+  // Track previous graphData to prevent unnecessary re-renders
+  let prevGraphDataKey = '';
+  let mounted = false;
+
   function transformData(data: NetworkGraphData): cytoscape.ElementDefinition[] {
     const elements: cytoscape.ElementDefinition[] = [];
 
@@ -191,21 +195,44 @@
     }
   }
 
+  // Generate a stable key that includes node IDs
+  function generateGraphKey(data: NetworkGraphData | null): string {
+    if (!data || data.nodes.length === 0) return '';
+    const nodeIds = data.nodes.map(n => n.id).sort((a, b) => a - b).join(',');
+    return `${data.nodes.length}-${data.edges.length}-${nodeIds}`;
+  }
+
   onMount(() => {
+    mounted = true;
+    // Initialize tracking value
+    if (graphData) {
+      prevGraphDataKey = generateGraphKey(graphData);
+    }
     initGraph();
   });
 
   onDestroy(() => {
+    mounted = false;
     if (cy) {
       cy.destroy();
       cy = null;
     }
   });
 
-  // Re-initialize when graphData changes
+  // Re-initialize when graphData changes (with stability check)
   $effect(() => {
+    // Only run after mount
+    if (!mounted) return;
+
     if (graphData && container) {
-      initGraph();
+      // Create a stable key that includes node IDs
+      const currentKey = generateGraphKey(graphData);
+
+      // Only re-initialize if data actually changed
+      if (currentKey !== prevGraphDataKey) {
+        prevGraphDataKey = currentKey;
+        initGraph();
+      }
     }
   });
 </script>

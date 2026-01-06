@@ -42,6 +42,9 @@
   const limit = 50;
   const articlesLimit = 10;
 
+  // Stable empty graph data to prevent re-renders
+  const emptyGraphData: NetworkGraphType = { nodes: [], edges: [] };
+
   async function loadKeywords(reset = false) {
     if (loading) return;
     loading = true;
@@ -137,11 +140,11 @@
     window.dispatchEvent(new CustomEvent('navigate-to-article', { detail: { articleId } }));
   }
 
-  async function loadGraphDataAsync() {
-    if (graphData) return;
+  async function loadGraphDataAsync(forceRefresh = false) {
+    if (graphData && !forceRefresh) return;
     graphLoading = true;
     try {
-      graphData = await invoke<NetworkGraphType>('get_network_graph', { limit: 100, minWeight: 0.1 });
+      graphData = await invoke<NetworkGraphType>('get_network_graph', { limit: 100, minWeight: 0.01 });
     } catch (e) {
       console.error('Failed to load graph:', e);
     } finally {
@@ -172,7 +175,8 @@
   function handleTabChange(tab: TabType) {
     activeTab = tab;
     if (tab === 'graph') {
-      loadGraphDataAsync();
+      // Always refresh graph when switching to tab
+      loadGraphDataAsync(true);
     }
   }
 
@@ -197,12 +201,20 @@
 
   function handleSearch() {
     if (searchTimeout) clearTimeout(searchTimeout);
+
+    // If input is empty, clear search immediately
+    if (!searchInput.trim()) {
+      searchResults = [];
+      return;
+    }
+
     searchTimeout = setTimeout(() => {
       searchKeywordsLocal(searchInput);
     }, 300);
   }
 
   function clearSearch() {
+    if (searchTimeout) clearTimeout(searchTimeout);
     searchInput = '';
     searchResults = [];
   }
@@ -454,7 +466,7 @@
   <!-- Graph View -->
   <div class="graph-view">
     <NetworkGraph
-      graphData={graphData || { nodes: [], edges: [] }}
+      graphData={graphData || emptyGraphData}
       onNodeClick={handleGraphNodeClick}
       loading={graphLoading}
     />
