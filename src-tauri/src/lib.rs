@@ -1,8 +1,13 @@
+mod categories;
 mod commands;
 mod db;
+mod keywords;
 mod ollama;
 mod retrieval;
 mod sync;
+
+pub use categories::{classify_by_keywords, CategoryClassifier, SEPHIROTH_CATEGORIES};
+pub use keywords::{extract_keywords, KeywordExtractor, Language};
 
 use db::Database;
 use std::sync::atomic::AtomicBool;
