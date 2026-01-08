@@ -714,3 +714,153 @@ pub fn get_keyword_articles(
 
     Ok(articles)
 }
+
+#[derive(Debug, Serialize)]
+pub struct PruneResult {
+    pub removed_keywords: i64,
+    pub removed_orphan_relations: i64,
+}
+
+#[tauri::command]
+pub fn prune_keywords(
+    state: State<AppState>,
+    min_article_count: Option<i64>,
+    older_than_days: Option<i64>,
+) -> Result<PruneResult, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    let min_articles = min_article_count.unwrap_or(1);
+    let days = older_than_days.unwrap_or(30);
+
+    let removed_keywords: i64 = conn
+        .query_row(
+            r#"SELECT COUNT(*) FROM immanentize 
+               WHERE article_count <= ?1 
+               AND last_used < datetime('now', '-' || ?2 || ' days')"#,
+            rusqlite::params![min_articles, days],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    conn.execute(
+        r#"DELETE FROM immanentize 
+           WHERE article_count <= ?1 
+           AND last_used < datetime('now', '-' || ?2 || ' days')"#,
+        rusqlite::params![min_articles, days],
+    )
+    .map_err(|e| e.to_string())?;
+
+    let removed_orphan_relations: i64 = conn
+        .query_row(
+            r#"SELECT COUNT(*) FROM immanentize_neighbors 
+               WHERE immanentize_id_a NOT IN (SELECT id FROM immanentize)
+               OR immanentize_id_b NOT IN (SELECT id FROM immanentize)"#,
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    conn.execute(
+        r#"DELETE FROM immanentize_neighbors 
+           WHERE immanentize_id_a NOT IN (SELECT id FROM immanentize)
+           OR immanentize_id_b NOT IN (SELECT id FROM immanentize)"#,
+        [],
+    )
+    .ok();
+
+    conn.execute(
+        r#"DELETE FROM immanentize_sephiroth 
+           WHERE immanentize_id NOT IN (SELECT id FROM immanentize)"#,
+        [],
+    )
+    .ok();
+
+    conn.execute(
+        r#"DELETE FROM immanentize_daily 
+           WHERE immanentize_id NOT IN (SELECT id FROM immanentize)"#,
+        [],
+    )
+    .ok();
+
+    Ok(PruneResult {
+        removed_keywords,
+        removed_orphan_relations,
+    })
+}
+
+#[derive(Debug, Serialize)]
+pub struct KeywordHealthStats {
+    pub total_keywords: i64,
+    pub single_use_keywords: i64,
+    pub active_keywords: i64,
+    pub orphan_keywords: i64,
+    pub duplicate_candidates: i64,
+    pub oldest_unused_days: i64,
+}
+
+#[tauri::command]
+pub fn get_keyword_health(state: State<AppState>) -> Result<KeywordHealthStats, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    let total_keywords: i64 = conn
+        .query_row("SELECT COUNT(*) FROM immanentize", [], |row| row.get(0))
+        .unwrap_or(0);
+
+    let single_use_keywords: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM immanentize WHERE article_count <= 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    let active_keywords: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM immanentize WHERE last_used > datetime('now', '-7 days')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    let orphan_keywords: i64 = conn
+        .query_row(
+            r#"SELECT COUNT(*) FROM immanentize 
+               WHERE id NOT IN (SELECT DISTINCT immanentize_id FROM fnord_immanentize)"#,
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    let duplicate_candidates: i64 = conn
+        .query_row(
+            r#"SELECT COUNT(*) FROM (
+                SELECT LOWER(name) as ln, COUNT(*) as cnt 
+                FROM immanentize 
+                GROUP BY LOWER(name) 
+                HAVING cnt > 1
+            )"#,
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    let oldest_unused_days: i64 = conn
+        .query_row(
+            r#"SELECT COALESCE(MAX(CAST((julianday('now') - julianday(last_used)) AS INTEGER)), 0) 
+               FROM immanentize"#,
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    Ok(KeywordHealthStats {
+        total_keywords,
+        single_use_keywords,
+        active_keywords,
+        orphan_keywords,
+        duplicate_candidates,
+        oldest_unused_days,
+    })
+}

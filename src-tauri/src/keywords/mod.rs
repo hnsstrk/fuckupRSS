@@ -405,3 +405,61 @@ pub fn extract_keywords(title: &str, content: &str, max_keywords: usize) -> Vec<
         .map(|kw| kw.text)
         .collect()
 }
+
+pub fn normalize_keyword(keyword: &str) -> Option<String> {
+    let trimmed = keyword.trim();
+
+    if trimmed.len() < 2 || trimmed.len() > 50 {
+        return None;
+    }
+
+    if trimmed
+        .chars()
+        .all(|c| c.is_numeric() || c.is_whitespace() || c == '.' || c == ',')
+    {
+        return None;
+    }
+
+    let dominated_by_special = {
+        let special_count = trimmed
+            .chars()
+            .filter(|c| !c.is_alphanumeric() && !c.is_whitespace())
+            .count();
+        special_count > trimmed.len() / 3
+    };
+    if dominated_by_special {
+        return None;
+    }
+
+    if KNOWN_ACRONYMS.contains(trimmed) {
+        return Some(trimmed.to_string());
+    }
+
+    let words: Vec<&str> = trimmed.split_whitespace().collect();
+    let is_proper_noun = words.len() <= 3
+        && words
+            .iter()
+            .all(|w| w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) && w.len() >= 2);
+
+    if is_proper_noun {
+        return Some(trimmed.to_string());
+    }
+
+    Some(trimmed.to_lowercase())
+}
+
+pub fn normalize_and_dedupe_keywords(keywords: &[String]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut result = Vec::new();
+
+    for kw in keywords {
+        if let Some(normalized) = normalize_keyword(kw) {
+            let key = normalized.to_lowercase();
+            if seen.insert(key) {
+                result.push(normalized);
+            }
+        }
+    }
+
+    result
+}

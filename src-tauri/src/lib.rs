@@ -7,7 +7,7 @@ mod retrieval;
 mod sync;
 
 pub use categories::{classify_by_keywords, CategoryClassifier, SEPHIROTH_CATEGORIES};
-pub use keywords::{extract_keywords, KeywordExtractor, Language};
+pub use keywords::{extract_keywords, normalize_keyword, normalize_and_dedupe_keywords, KeywordExtractor, Language};
 
 use db::Database;
 use std::sync::atomic::AtomicBool;
@@ -96,6 +96,9 @@ pub fn run() {
             commands::immanentize::get_network_graph,
             commands::immanentize::get_trending_comparison,
             commands::immanentize::get_keyword_articles,
+            // Keyword Maintenance
+            commands::immanentize::prune_keywords,
+            commands::immanentize::get_keyword_health,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

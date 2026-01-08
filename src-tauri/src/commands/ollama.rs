@@ -2,7 +2,7 @@ use crate::ollama::{
     BiasAnalysis, DiscordianAnalysis, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
     RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale,
 };
-use crate::{extract_keywords, classify_by_keywords, SEPHIROTH_CATEGORIES};
+use crate::{extract_keywords, classify_by_keywords, normalize_keyword, SEPHIROTH_CATEGORIES};
 use crate::AppState;
 use std::sync::atomic::Ordering;
 use tauri::{Emitter, State, Window};
@@ -145,15 +145,15 @@ fn save_article_keywords_and_network(
         .ok();
 
     for keyword in keywords {
-        let keyword = keyword.trim();
-        if keyword.is_empty() {
-            continue;
-        }
+        let keyword = match normalize_keyword(keyword) {
+            Some(k) => k,
+            None => continue,
+        };
 
         let existing_id: Option<i64> = conn
             .query_row(
-                "SELECT id FROM immanentize WHERE name = ?",
-                [keyword],
+                "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?)",
+                [&keyword],
                 |row| row.get(0),
             )
             .ok();
@@ -163,30 +163,38 @@ fn save_article_keywords_and_network(
             .unwrap_or(true);
 
         if is_new_for_article {
-            conn.execute(
-                r#"INSERT INTO immanentize (name, count, article_count, first_seen, last_used)
-                   VALUES (?1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                   ON CONFLICT(name) DO UPDATE SET
-                       count = count + 1,
-                       article_count = article_count + 1,
-                       last_used = CURRENT_TIMESTAMP"#,
-                [keyword],
-            )
-            .ok();
+            if existing_id.is_some() {
+                conn.execute(
+                    r#"UPDATE immanentize SET
+                           count = count + 1,
+                           article_count = article_count + 1,
+                           last_used = CURRENT_TIMESTAMP
+                       WHERE LOWER(name) = LOWER(?1)"#,
+                    [&keyword],
+                )
+                .ok();
+            } else {
+                conn.execute(
+                    r#"INSERT INTO immanentize (name, count, article_count, first_seen, last_used)
+                       VALUES (?1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"#,
+                    [&keyword],
+                )
+                .ok();
+            }
         } else {
             conn.execute(
                 r#"UPDATE immanentize SET
                        count = count + 1,
                        last_used = CURRENT_TIMESTAMP
-                   WHERE name = ?1"#,
-                [keyword],
+                   WHERE LOWER(name) = LOWER(?1)"#,
+                [&keyword],
             )
             .ok();
         }
 
         if let Ok(tag_id) = conn.query_row::<i64, _, _>(
-            "SELECT id FROM immanentize WHERE name = ?",
-            [keyword],
+            "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?)",
+            [&keyword],
             |row| row.get(0),
         ) {
             conn.execute(
