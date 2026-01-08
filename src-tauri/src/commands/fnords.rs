@@ -1,4 +1,5 @@
 use crate::AppState;
+use rusqlite::Row;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -47,8 +48,61 @@ pub struct FnordFilter {
     pub limit: Option<i64>,
 }
 
+fn fnord_from_row(row: &Row) -> Result<Fnord, rusqlite::Error> {
+    Ok(Fnord {
+        id: row.get(0)?,
+        pentacle_id: row.get(1)?,
+        pentacle_title: row.get(2)?,
+        guid: row.get(3)?,
+        url: row.get(4)?,
+        title: row.get(5)?,
+        author: row.get(6)?,
+        content_raw: row.get(7)?,
+        content_full: row.get(8)?,
+        summary: row.get(9)?,
+        image_url: row.get(10)?,
+        published_at: row.get(11)?,
+        processed_at: row.get(12)?,
+        status: row.get(13)?,
+        political_bias: row.get(14)?,
+        sachlichkeit: row.get(15)?,
+        quality_score: row.get(16)?,
+        article_type: row.get(17)?,
+        has_changes: row.get(18)?,
+        changed_at: row.get(19)?,
+        revision_count: row.get(20)?,
+    })
+}
+
+const FNORD_SELECT_COLUMNS: &str = r#"
+    f.id,
+    f.pentacle_id,
+    p.title as pentacle_title,
+    f.guid,
+    f.url,
+    f.title,
+    f.author,
+    f.content_raw,
+    f.content_full,
+    f.summary,
+    f.image_url,
+    f.published_at,
+    f.processed_at,
+    f.status,
+    f.political_bias,
+    f.sachlichkeit,
+    f.quality_score,
+    f.article_type,
+    COALESCE(f.has_changes, FALSE) as has_changes,
+    f.changed_at,
+    COALESCE(f.revision_count, 0) as revision_count
+"#;
+
 #[tauri::command]
-pub fn get_fnords(state: State<AppState>, filter: Option<FnordFilter>) -> Result<Vec<Fnord>, String> {
+pub fn get_fnords(
+    state: State<AppState>,
+    filter: Option<FnordFilter>,
+) -> Result<Vec<Fnord>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     let filter = filter.unwrap_or(FnordFilter {
@@ -57,34 +111,9 @@ pub fn get_fnords(state: State<AppState>, filter: Option<FnordFilter>) -> Result
         limit: Some(100),
     });
 
-    let mut sql = String::from(
-        r#"
-        SELECT
-            f.id,
-            f.pentacle_id,
-            p.title as pentacle_title,
-            f.guid,
-            f.url,
-            f.title,
-            f.author,
-            f.content_raw,
-            f.content_full,
-            f.summary,
-            f.image_url,
-            f.published_at,
-            f.processed_at,
-            f.status,
-            f.political_bias,
-            f.sachlichkeit,
-            f.quality_score,
-            f.article_type,
-            COALESCE(f.has_changes, FALSE) as has_changes,
-            f.changed_at,
-            COALESCE(f.revision_count, 0) as revision_count
-        FROM fnords f
-        LEFT JOIN pentacles p ON p.id = f.pentacle_id
-        WHERE 1=1
-        "#,
+    let mut sql = format!(
+        "SELECT {} FROM fnords f LEFT JOIN pentacles p ON p.id = f.pentacle_id WHERE 1=1",
+        FNORD_SELECT_COLUMNS
     );
 
     let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
@@ -110,31 +139,7 @@ pub fn get_fnords(state: State<AppState>, filter: Option<FnordFilter>) -> Result
     let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
 
     let fnords = stmt
-        .query_map(param_refs.as_slice(), |row| {
-            Ok(Fnord {
-                id: row.get(0)?,
-                pentacle_id: row.get(1)?,
-                pentacle_title: row.get(2)?,
-                guid: row.get(3)?,
-                url: row.get(4)?,
-                title: row.get(5)?,
-                author: row.get(6)?,
-                content_raw: row.get(7)?,
-                content_full: row.get(8)?,
-                summary: row.get(9)?,
-                image_url: row.get(10)?,
-                published_at: row.get(11)?,
-                processed_at: row.get(12)?,
-                status: row.get(13)?,
-                political_bias: row.get(14)?,
-                sachlichkeit: row.get(15)?,
-                quality_score: row.get(16)?,
-                article_type: row.get(17)?,
-                has_changes: row.get(18)?,
-                changed_at: row.get(19)?,
-                revision_count: row.get(20)?,
-            })
-        })
+        .query_map(param_refs.as_slice(), fnord_from_row)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
@@ -146,63 +151,14 @@ pub fn get_fnords(state: State<AppState>, filter: Option<FnordFilter>) -> Result
 pub fn get_fnord(state: State<AppState>, id: i64) -> Result<Fnord, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
+    let sql = format!(
+        "SELECT {} FROM fnords f LEFT JOIN pentacles p ON p.id = f.pentacle_id WHERE f.id = ?1",
+        FNORD_SELECT_COLUMNS
+    );
+
     let fnord = db
         .conn()
-        .query_row(
-            r#"
-            SELECT
-                f.id,
-                f.pentacle_id,
-                p.title as pentacle_title,
-                f.guid,
-                f.url,
-                f.title,
-                f.author,
-                f.content_raw,
-                f.content_full,
-                f.summary,
-                f.image_url,
-                f.published_at,
-                f.processed_at,
-                f.status,
-                f.political_bias,
-                f.sachlichkeit,
-                f.quality_score,
-                f.article_type,
-                COALESCE(f.has_changes, FALSE) as has_changes,
-                f.changed_at,
-                COALESCE(f.revision_count, 0) as revision_count
-            FROM fnords f
-            LEFT JOIN pentacles p ON p.id = f.pentacle_id
-            WHERE f.id = ?1
-            "#,
-            [id],
-            |row| {
-                Ok(Fnord {
-                    id: row.get(0)?,
-                    pentacle_id: row.get(1)?,
-                    pentacle_title: row.get(2)?,
-                    guid: row.get(3)?,
-                    url: row.get(4)?,
-                    title: row.get(5)?,
-                    author: row.get(6)?,
-                    content_raw: row.get(7)?,
-                    content_full: row.get(8)?,
-                    summary: row.get(9)?,
-                    image_url: row.get(10)?,
-                    published_at: row.get(11)?,
-                    processed_at: row.get(12)?,
-                    status: row.get(13)?,
-                    political_bias: row.get(14)?,
-                    sachlichkeit: row.get(15)?,
-                    quality_score: row.get(16)?,
-                    article_type: row.get(17)?,
-                    has_changes: row.get(18)?,
-                    changed_at: row.get(19)?,
-                    revision_count: row.get(20)?,
-                })
-            },
-        )
+        .query_row(&sql, [id], fnord_from_row)
         .map_err(|e| e.to_string())?;
 
     Ok(fnord)
@@ -238,66 +194,15 @@ pub fn update_fnord_status(state: State<AppState>, id: i64, status: String) -> R
 pub fn get_changed_fnords(state: State<AppState>) -> Result<Vec<Fnord>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
-            SELECT
-                f.id,
-                f.pentacle_id,
-                p.title as pentacle_title,
-                f.guid,
-                f.url,
-                f.title,
-                f.author,
-                f.content_raw,
-                f.content_full,
-                f.summary,
-                f.image_url,
-                f.published_at,
-                f.processed_at,
-                f.status,
-                f.political_bias,
-                f.sachlichkeit,
-                f.quality_score,
-                f.article_type,
-                f.has_changes,
-                f.changed_at,
-                COALESCE(f.revision_count, 0) as revision_count
-            FROM fnords f
-            LEFT JOIN pentacles p ON p.id = f.pentacle_id
-            WHERE f.has_changes = TRUE
-            ORDER BY f.changed_at DESC
-            "#,
-        )
-        .map_err(|e| e.to_string())?;
+    let sql = format!(
+        "SELECT {} FROM fnords f LEFT JOIN pentacles p ON p.id = f.pentacle_id WHERE f.has_changes = TRUE ORDER BY f.changed_at DESC",
+        FNORD_SELECT_COLUMNS
+    );
+
+    let mut stmt = db.conn().prepare(&sql).map_err(|e| e.to_string())?;
 
     let fnords = stmt
-        .query_map([], |row| {
-            Ok(Fnord {
-                id: row.get(0)?,
-                pentacle_id: row.get(1)?,
-                pentacle_title: row.get(2)?,
-                guid: row.get(3)?,
-                url: row.get(4)?,
-                title: row.get(5)?,
-                author: row.get(6)?,
-                content_raw: row.get(7)?,
-                content_full: row.get(8)?,
-                summary: row.get(9)?,
-                image_url: row.get(10)?,
-                published_at: row.get(11)?,
-                processed_at: row.get(12)?,
-                status: row.get(13)?,
-                political_bias: row.get(14)?,
-                sachlichkeit: row.get(15)?,
-                quality_score: row.get(16)?,
-                article_type: row.get(17)?,
-                has_changes: row.get(18)?,
-                changed_at: row.get(19)?,
-                revision_count: row.get(20)?,
-            })
-        })
+        .query_map([], fnord_from_row)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
@@ -311,10 +216,7 @@ pub fn acknowledge_changes(state: State<AppState>, id: i64) -> Result<(), String
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     db.conn()
-        .execute(
-            "UPDATE fnords SET has_changes = FALSE WHERE id = ?1",
-            [id],
-        )
+        .execute("UPDATE fnords SET has_changes = FALSE WHERE id = ?1", [id])
         .map_err(|e| e.to_string())?;
 
     Ok(())
@@ -322,7 +224,10 @@ pub fn acknowledge_changes(state: State<AppState>, id: i64) -> Result<(), String
 
 /// Get revision history for an article
 #[tauri::command]
-pub fn get_fnord_revisions(state: State<AppState>, fnord_id: i64) -> Result<Vec<FnordRevision>, String> {
+pub fn get_fnord_revisions(
+    state: State<AppState>,
+    fnord_id: i64,
+) -> Result<Vec<FnordRevision>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     let mut stmt = db

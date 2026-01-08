@@ -1,328 +1,60 @@
 import { invoke } from "@tauri-apps/api/core";
+import type {
+  Pentacle,
+  Fnord,
+  FnordRevision,
+  FnordStats,
+  FnordFilter,
+  SyncResponse,
+  RetrievalResponse,
+  OllamaStatus,
+  SummaryResponse,
+  AnalysisResponse,
+  UnprocessedCount,
+  BatchProgress,
+  BatchResult,
+  Sephiroth,
+  ArticleCategory,
+  Tag,
+  DiscordianResponse,
+  Keyword,
+  KeywordNeighbor,
+  KeywordCategory,
+  TrendingKeyword,
+  NetworkStats,
+  NetworkGraph,
+  MainView,
+} from "../types";
 
-// ============================================================
-// TOAST NOTIFICATIONS
-// ============================================================
+export { toasts, removeToast } from "./toast.svelte";
 
-export interface Toast {
-  id: number;
-  type: 'success' | 'error' | 'info';
-  message: string;
-}
+export type {
+  Pentacle,
+  Fnord,
+  FnordRevision,
+  FnordStats,
+  FnordFilter,
+  SyncResponse,
+  RetrievalResponse,
+  OllamaStatus,
+  SummaryResponse,
+  AnalysisResponse,
+  UnprocessedCount,
+  BatchProgress,
+  BatchResult,
+  Sephiroth,
+  ArticleCategory,
+  Tag,
+  DiscordianResponse,
+  Keyword,
+  KeywordNeighbor,
+  KeywordCategory,
+  TrendingKeyword,
+  NetworkStats,
+  NetworkGraph,
+  MainView,
+};
 
-let toastId = 0;
-
-class ToastStore {
-  items = $state<Toast[]>([]);
-
-  add(type: Toast['type'], message: string, duration = 4000): void {
-    const id = ++toastId;
-    this.items = [...this.items, { id, type, message }];
-
-    // Auto-remove after duration
-    if (duration > 0) {
-      setTimeout(() => {
-        this.remove(id);
-      }, duration);
-    }
-  }
-
-  remove(id: number): void {
-    this.items = this.items.filter(t => t.id !== id);
-  }
-
-  success(message: string, duration = 4000): void {
-    this.add('success', message, duration);
-  }
-
-  error(message: string, duration = 6000): void {
-    this.add('error', message, duration);
-  }
-
-  info(message: string, duration = 4000): void {
-    this.add('info', message, duration);
-  }
-}
-
-export const toasts = new ToastStore();
-
-export function removeToast(id: number): void {
-  toasts.remove(id);
-}
-
-// ============================================================
-// Types matching Rust structs
-// ============================================================
-export interface Pentacle {
-  id: number;
-  url: string;
-  title: string | null;
-  description: string | null;
-  site_url: string | null;
-  icon_url: string | null;
-  default_quality: number;
-  article_count: number;
-  unread_count: number;
-}
-
-export interface Fnord {
-  id: number;
-  pentacle_id: number;
-  pentacle_title: string | null;
-  guid: string;
-  url: string;
-  title: string;
-  author: string | null;
-  content_raw: string | null;
-  content_full: string | null;
-  summary: string | null;
-  image_url: string | null;
-  published_at: string | null;
-  processed_at: string | null;
-  status: "concealed" | "illuminated" | "golden_apple";
-  political_bias: number | null;
-  sachlichkeit: number | null;
-  quality_score: number | null;
-  article_type: string | null;
-  has_changes: boolean;
-  changed_at: string | null;
-  revision_count: number;
-}
-
-export interface FnordRevision {
-  id: number;
-  fnord_id: number;
-  title: string;
-  author: string | null;
-  content_raw: string | null;
-  content_full: string | null;
-  summary: string | null;
-  content_hash: string;
-  revision_at: string;
-}
-
-// ============================================================
-// FNORD STATISTICS (Revision tracking by category/source)
-// ============================================================
-
-export interface FnordStats {
-  total_revisions: number;
-  articles_with_changes: number;
-  by_category: CategoryRevisionStats[];
-  by_source: SourceRevisionStats[];
-}
-
-export interface CategoryRevisionStats {
-  sephiroth_id: number;
-  name: string;
-  icon: string | null;
-  color: string | null;
-  revision_count: number;
-  article_count: number;
-}
-
-export interface SourceRevisionStats {
-  pentacle_id: number;
-  title: string | null;
-  revision_count: number;
-  article_count: number;
-}
-
-export interface FnordFilter {
-  pentacle_id?: number;
-  status?: string;
-  limit?: number;
-}
-
-export interface SyncResponse {
-  success: boolean;
-  results: SyncResultResponse[];
-  total_new: number;
-  total_updated: number;
-}
-
-export interface SyncResultResponse {
-  pentacle_id: number;
-  pentacle_title: string | null;
-  new_articles: number;
-  updated_articles: number;
-  error: string | null;
-}
-
-export interface RetrievalResponse {
-  fnord_id: number;
-  success: boolean;
-  content: string | null;
-  error: string | null;
-}
-
-export interface OllamaStatus {
-  available: boolean;
-  models: string[];
-  recommended_main: string;
-  recommended_embedding: string;
-  has_recommended_main: boolean;
-  has_recommended_embedding: boolean;
-}
-
-export interface SummaryResponse {
-  fnord_id: number;
-  success: boolean;
-  summary: string | null;
-  error: string | null;
-}
-
-export interface BiasAnalysis {
-  political_bias: number;
-  sachlichkeit: number;
-  article_type: string;
-}
-
-export interface AnalysisResponse {
-  fnord_id: number;
-  success: boolean;
-  analysis: BiasAnalysis | null;
-  error: string | null;
-}
-
-export interface UnprocessedCount {
-  total: number;
-  with_content: number;
-}
-
-export interface BatchProgress {
-  current: number;
-  total: number;
-  fnord_id: number;
-  title: string;
-  success: boolean;
-  error: string | null;
-}
-
-export interface BatchResult {
-  processed: number;
-  succeeded: number;
-  failed: number;
-}
-
-// ============================================================
-// SEPHIROTH (Categories) & IMMANENTIZE (Tags)
-// ============================================================
-
-export interface Sephiroth {
-  id: number;
-  name: string;
-  description: string | null;
-  color: string | null;
-  icon: string | null;
-  article_count: number;
-}
-
-export interface ArticleCategory {
-  sephiroth_id: number;
-  name: string;
-  icon: string | null;
-  color: string | null;
-  confidence: number;
-  source: 'ai' | 'manual';       // Quelle der Zuweisung
-  assigned_at: string | null;    // Zeitpunkt der Zuweisung
-}
-
-export interface Tag {
-  id: number;
-  name: string;
-  count: number;
-  last_used: string | null;
-}
-
-export interface DiscordianAnalysis {
-  summary: string;
-  categories: string[];
-  keywords: string[];
-  political_bias: number;
-  sachlichkeit: number;
-  article_type: string;
-}
-
-export interface DiscordianResponse {
-  fnord_id: number;
-  success: boolean;
-  analysis: DiscordianAnalysis | null;
-  categories_saved: string[];
-  tags_saved: string[];
-  error: string | null;
-}
-
-// ============================================================
-// IMMANENTIZE NETWORK (Semantic Keyword Network)
-// ============================================================
-
-export interface Keyword {
-  id: number;
-  name: string;
-  count: number;
-  article_count: number;
-  cluster_id: number | null;
-  is_canonical: boolean;
-  canonical_id: number | null;
-  first_seen: string | null;
-  last_used: string | null;
-}
-
-export interface KeywordNeighbor {
-  id: number;
-  name: string;
-  cooccurrence: number;
-  embedding_similarity: number | null;
-  combined_weight: number;
-}
-
-export interface KeywordCategory {
-  sephiroth_id: number;
-  name: string;
-  icon: string | null;
-  color: string | null;
-  weight: number;
-  article_count: number;
-}
-
-export interface TrendingKeyword {
-  id: number;
-  name: string;
-  total_count: number;
-  recent_count: number;
-  growth_rate: number;
-}
-
-export interface NetworkStats {
-  total_keywords: number;
-  total_connections: number;
-  total_clusters: number;
-  avg_neighbors_per_keyword: number;
-}
-
-// Graph visualization types
-export interface GraphNode {
-  id: number;
-  name: string;
-  count: number;
-  article_count: number;
-  cluster_id: number | null;
-}
-
-export interface GraphEdge {
-  source: number;
-  target: number;
-  weight: number;
-  cooccurrence: number;
-}
-
-export interface NetworkGraph {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
-
-// Svelte 5 runes-based state
 class AppState {
   pentacles = $state<Pentacle[]>([]);
   fnords = $state<Fnord[]>([]);
@@ -786,10 +518,6 @@ class AppState {
     // "pentacle" view is handled by selectPentacle
   }
 
-  // ============================================================
-  // BATCH PROCESSING (Fnord Processing)
-  // ============================================================
-
   async loadUnprocessedCount(): Promise<void> {
     try {
       this.unprocessedCount = await invoke<UnprocessedCount>("get_unprocessed_count");
@@ -853,10 +581,6 @@ class AppState {
       console.error("Failed to cancel batch:", e);
     }
   }
-
-  // ============================================================
-  // SEPHIROTH (Categories) & IMMANENTIZE (Tags)
-  // ============================================================
 
   async getArticleCategories(fnordId: number): Promise<ArticleCategory[]> {
     try {
@@ -944,247 +668,5 @@ export const selectedFnord = {
   },
 };
 
-// ============================================================
-// IMMANENTIZE NETWORK STORE
-// ============================================================
-
-class ImmanentizeNetworkStore {
-  keywords = $state<Keyword[]>([]);
-  selectedKeyword = $state<Keyword | null>(null);
-  neighbors = $state<KeywordNeighbor[]>([]);
-  keywordCategories = $state<KeywordCategory[]>([]);
-  trendingKeywords = $state<TrendingKeyword[]>([]);
-  networkStats = $state<NetworkStats | null>(null);
-  searchResults = $state<Keyword[]>([]);
-  searchQuery = $state('');
-  loading = $state(false);
-  error = $state<string | null>(null);
-
-  // Graph visualization
-  graphData = $state<NetworkGraph | null>(null);
-  graphLoading = $state(false);
-
-  // Pagination
-  offset = $state(0);
-  limit = $state(50);
-  hasMore = $state(true);
-
-  async loadKeywords(reset = false): Promise<void> {
-    if (this.loading) return;
-
-    try {
-      this.loading = true;
-      this.error = null;
-
-      if (reset) {
-        this.offset = 0;
-        this.keywords = [];
-        this.hasMore = true;
-      }
-
-      const newKeywords = await invoke<Keyword[]>("get_keywords", {
-        limit: this.limit,
-        offset: this.offset,
-      });
-
-      if (newKeywords.length < this.limit) {
-        this.hasMore = false;
-      }
-
-      this.keywords = reset ? newKeywords : [...this.keywords, ...newKeywords];
-      this.offset += newKeywords.length;
-    } catch (e) {
-      this.error = String(e);
-      console.error("Failed to load keywords:", e);
-    } finally {
-      this.loading = false;
-    }
-  }
-
-  async loadMoreKeywords(): Promise<void> {
-    if (!this.hasMore || this.loading) return;
-    await this.loadKeywords(false);
-  }
-
-  async selectKeyword(id: number | null): Promise<void> {
-    if (id === null) {
-      this.selectedKeyword = null;
-      this.neighbors = [];
-      this.keywordCategories = [];
-      return;
-    }
-
-    try {
-      this.loading = true;
-      this.error = null;
-
-      // Load keyword details, neighbors, and categories in parallel
-      const [keyword, neighbors, categories] = await Promise.all([
-        invoke<Keyword | null>("get_keyword", { id }),
-        invoke<KeywordNeighbor[]>("get_keyword_neighbors", { id, limit: 20 }),
-        invoke<KeywordCategory[]>("get_keyword_categories", { id }),
-      ]);
-
-      this.selectedKeyword = keyword;
-      this.neighbors = neighbors;
-      this.keywordCategories = categories;
-    } catch (e) {
-      this.error = String(e);
-      console.error("Failed to load keyword details:", e);
-    } finally {
-      this.loading = false;
-    }
-  }
-
-  async searchKeywords(query: string): Promise<void> {
-    this.searchQuery = query;
-
-    if (!query.trim()) {
-      this.searchResults = [];
-      return;
-    }
-
-    try {
-      this.loading = true;
-      this.error = null;
-      this.searchResults = await invoke<Keyword[]>("search_keywords", {
-        query,
-        limit: 20,
-      });
-    } catch (e) {
-      this.error = String(e);
-      console.error("Failed to search keywords:", e);
-    } finally {
-      this.loading = false;
-    }
-  }
-
-  async loadTrendingKeywords(days = 7): Promise<void> {
-    try {
-      this.loading = true;
-      this.error = null;
-      this.trendingKeywords = await invoke<TrendingKeyword[]>("get_trending_keywords", {
-        days,
-        limit: 20,
-      });
-    } catch (e) {
-      this.error = String(e);
-      console.error("Failed to load trending keywords:", e);
-    } finally {
-      this.loading = false;
-    }
-  }
-
-  async loadNetworkStats(): Promise<void> {
-    try {
-      this.networkStats = await invoke<NetworkStats>("get_network_stats");
-    } catch (e) {
-      console.error("Failed to load network stats:", e);
-    }
-  }
-
-  async loadNetworkGraph(limit = 100, minWeight = 0.1): Promise<void> {
-    if (this.graphLoading) return;
-
-    try {
-      this.graphLoading = true;
-      this.error = null;
-      this.graphData = await invoke<NetworkGraph>("get_network_graph", {
-        limit,
-        minWeight,
-      });
-    } catch (e) {
-      this.error = String(e);
-      console.error("Failed to load network graph:", e);
-    } finally {
-      this.graphLoading = false;
-    }
-  }
-
-  async loadCategoryKeywords(sephirothId: number): Promise<Keyword[]> {
-    try {
-      return await invoke<Keyword[]>("get_category_keywords", {
-        sephirothId,
-        limit: 50,
-      });
-    } catch (e) {
-      console.error("Failed to load category keywords:", e);
-      return [];
-    }
-  }
-
-  // Navigate to a neighbor keyword
-  async navigateToNeighbor(neighborId: number): Promise<void> {
-    await this.selectKeyword(neighborId);
-  }
-
-  clearSearch(): void {
-    this.searchQuery = '';
-    this.searchResults = [];
-  }
-
-  reset(): void {
-    this.keywords = [];
-    this.selectedKeyword = null;
-    this.neighbors = [];
-    this.keywordCategories = [];
-    this.trendingKeywords = [];
-    this.searchResults = [];
-    this.searchQuery = '';
-    this.graphData = null;
-    this.graphLoading = false;
-    this.offset = 0;
-    this.hasMore = true;
-    this.error = null;
-  }
-}
-
-export const networkStore = new ImmanentizeNetworkStore();
-
-// ============================================================
-// NAVIGATION STORE (App-wide view control)
-// ============================================================
-
-export type MainView = 'articles' | 'network' | 'fnord';
-
-class NavigationStore {
-  currentView = $state<MainView>('articles');
-  pendingKeywordId = $state<number | null>(null);
-
-  // Navigate to network view and optionally select a keyword
-  navigateToNetwork(keywordId?: number): void {
-    this.currentView = 'network';
-    if (keywordId !== undefined) {
-      this.pendingKeywordId = keywordId;
-      // Select the keyword immediately
-      networkStore.selectKeyword(keywordId);
-    }
-  }
-
-  navigateToArticles(): void {
-    this.currentView = 'articles';
-    this.pendingKeywordId = null;
-  }
-
-  navigateToFnord(): void {
-    this.currentView = 'fnord';
-    this.pendingKeywordId = null;
-  }
-
-  toggleView(): void {
-    if (this.currentView === 'network') {
-      this.navigateToArticles();
-    } else {
-      this.navigateToNetwork();
-    }
-  }
-
-  // Consume pending keyword (call this after handling)
-  consumePendingKeyword(): number | null {
-    const id = this.pendingKeywordId;
-    this.pendingKeywordId = null;
-    return id;
-  }
-}
-
-export const navigationStore = new NavigationStore();
+export { networkStore } from "./network.svelte";
+export { navigationStore } from "./navigation.svelte";
