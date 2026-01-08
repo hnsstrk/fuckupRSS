@@ -28,6 +28,7 @@
   let unlisten: UnlistenFn | null = null;
   let unlistenModels: UnlistenFn | null = null;
   let loadedModels = $state<LoadedModel[]>([]);
+  let maintenanceInterval: ReturnType<typeof setInterval> | null = null;
 
   async function loadLoadedModels() {
     try {
@@ -74,11 +75,17 @@
       console.log("Models changed event received, refreshing loaded models...");
       await loadLoadedModels();
     });
+
+    // Schedule periodic maintenance (every 60 minutes)
+    maintenanceInterval = setInterval(() => {
+      runBackgroundMaintenance();
+    }, 60 * 60 * 1000);
   });
 
   onDestroy(() => {
     if (unlisten) unlisten();
     if (unlistenModels) unlistenModels();
+    if (maintenanceInterval) clearInterval(maintenanceInterval);
   });
 
   async function handleSync() {
@@ -88,11 +95,20 @@
         toasts.success($_('toast.syncSuccess', {
           values: { newCount: result.total_new, updatedCount: result.total_updated }
         }));
+        runBackgroundMaintenance();
       } else {
         toasts.info($_('toast.syncSuccessNoNew'));
       }
     } else if (appState.error) {
       toasts.error($_('toast.syncError', { values: { error: appState.error }}));
+    }
+  }
+
+  async function runBackgroundMaintenance() {
+    try {
+      await invoke('calculate_keyword_quality_scores', { limit: 500 });
+    } catch (e) {
+      console.debug('Background maintenance skipped:', e);
     }
   }
 
@@ -213,9 +229,6 @@
     <span class="feed-name">
       {$_('sidebar.allFeeds')}
     </span>
-    {#if appState.totalUnread > 0}
-      <span class="unread-badge">{appState.totalUnread}</span>
-    {/if}
   </button>
 
   <!-- Pentacles List -->
@@ -234,9 +247,6 @@
       >
         <span class="feed-name">{pentacle.title || pentacle.url}</span>
         <div class="feed-actions">
-          {#if pentacle.unread_count > 0}
-            <span class="unread-badge small">{pentacle.unread_count}</span>
-          {/if}
           <button
             class="delete-btn"
             onclick={(e) => { e.stopPropagation(); handleDeletePentacle(pentacle.id); }}

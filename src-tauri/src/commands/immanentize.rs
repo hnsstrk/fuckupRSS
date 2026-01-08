@@ -1,4 +1,6 @@
+use crate::ollama::{OllamaClient, RECOMMENDED_EMBEDDING_MODEL};
 use crate::{find_canonical_keyword, normalize_keyword, AppState};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -6,7 +8,6 @@ use tauri::State;
 // IMMANENTIZE NETWORK API
 // ============================================================
 
-/// Keyword with full network data
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Keyword {
     pub id: i64,
@@ -18,6 +19,7 @@ pub struct Keyword {
     pub canonical_id: Option<i64>,
     pub first_seen: Option<String>,
     pub last_used: Option<String>,
+    pub quality_score: Option<f64>,
 }
 
 /// Keyword neighbor with relationship strength
@@ -75,7 +77,6 @@ pub struct NetworkStats {
 // HELPER FUNCTIONS
 // ============================================================
 
-/// Map a database row to a Keyword struct
 fn keyword_from_row(row: &rusqlite::Row) -> Result<Keyword, rusqlite::Error> {
     Ok(Keyword {
         id: row.get(0)?,
@@ -87,12 +88,12 @@ fn keyword_from_row(row: &rusqlite::Row) -> Result<Keyword, rusqlite::Error> {
         canonical_id: row.get(6)?,
         first_seen: row.get(7)?,
         last_used: row.get(8)?,
+        quality_score: row.get(9)?,
     })
 }
 
-/// SQL columns for Keyword queries (must match keyword_from_row order)
 const KEYWORD_SELECT_COLUMNS: &str =
-    "id, name, count, article_count, cluster_id, is_canonical, canonical_id, first_seen, last_used";
+    "id, name, count, article_count, cluster_id, is_canonical, canonical_id, first_seen, last_used, quality_score";
 
 // ============================================================
 // QUERIES
@@ -239,7 +240,7 @@ pub fn get_category_keywords(
     let mut stmt = db
         .conn()
         .prepare(
-            "SELECT i.id, i.name, i.count, i.article_count, i.cluster_id, i.is_canonical, i.canonical_id, i.first_seen, i.last_used \
+            "SELECT i.id, i.name, i.count, i.article_count, i.cluster_id, i.is_canonical, i.canonical_id, i.first_seen, i.last_used, i.quality_score \
              FROM immanentize_sephiroth ims \
              JOIN immanentize i ON i.id = ims.immanentize_id \
              WHERE ims.sephiroth_id = ? \
@@ -1010,4 +1011,612 @@ pub fn cleanup_garbage_keywords(state: State<AppState>) -> Result<CleanupResult,
         removed_garbage,
         removed_relations,
     })
+}
+
+// ============================================================
+// QUALITY SCORE SYSTEM
+// ============================================================
+
+#[derive(Debug, Serialize)]
+pub struct QualityScoreResult {
+    pub updated_count: i64,
+    pub avg_score: f64,
+    pub low_quality_count: i64,
+    pub high_quality_count: i64,
+}
+
+fn calculate_single_keyword_quality(
+    conn: &rusqlite::Connection,
+    keyword_id: i64,
+) -> Result<f64, rusqlite::Error> {
+    let article_count: i64 = conn
+        .query_row(
+            "SELECT COALESCE(article_count, 0) FROM immanentize WHERE id = ?",
+            [keyword_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    let neighbor_count: i64 = conn
+        .query_row(
+            r#"SELECT COUNT(*) FROM immanentize_neighbors 
+               WHERE immanentize_id_a = ?1 OR immanentize_id_b = ?1"#,
+            [keyword_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    let category_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM immanentize_sephiroth WHERE immanentize_id = ?",
+            [keyword_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    let days_since_last_use: i64 = conn
+        .query_row(
+            r#"SELECT COALESCE(CAST(julianday('now') - julianday(last_used) AS INTEGER), 365) 
+               FROM immanentize WHERE id = ?"#,
+            [keyword_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(365);
+
+    let article_score = (article_count as f64).ln_1p() / 5.0;
+    let neighbor_score = (neighbor_count as f64).ln_1p() / 4.0;
+    let category_score = if category_count > 0 && category_count <= 3 {
+        0.2
+    } else if category_count > 3 {
+        0.1
+    } else {
+        0.0
+    };
+    let recency_score = if days_since_last_use <= 7 {
+        0.2
+    } else if days_since_last_use <= 30 {
+        0.1
+    } else {
+        0.0
+    };
+
+    let raw_score = article_score + neighbor_score + category_score + recency_score;
+    let normalized = (raw_score / 1.5).min(1.0).max(0.0);
+
+    Ok(normalized)
+}
+
+#[tauri::command]
+pub fn calculate_keyword_quality_scores(
+    state: State<AppState>,
+    limit: Option<i64>,
+) -> Result<QualityScoreResult, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+    let limit = limit.unwrap_or(1000);
+
+    let keyword_ids: Vec<i64> = conn
+        .prepare(
+            r#"SELECT id FROM immanentize 
+               WHERE quality_calculated_at IS NULL 
+               OR quality_calculated_at < datetime('now', '-1 day')
+               ORDER BY article_count DESC
+               LIMIT ?"#,
+        )
+        .map_err(|e| e.to_string())?
+        .query_map([limit], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut updated_count = 0i64;
+    let mut total_score = 0.0;
+    let mut low_quality_count = 0i64;
+    let mut high_quality_count = 0i64;
+
+    for id in &keyword_ids {
+        if let Ok(score) = calculate_single_keyword_quality(conn, *id) {
+            conn.execute(
+                r#"UPDATE immanentize 
+                   SET quality_score = ?1, quality_calculated_at = datetime('now')
+                   WHERE id = ?2"#,
+                params![score, id],
+            )
+            .ok();
+
+            updated_count += 1;
+            total_score += score;
+
+            if score < 0.3 {
+                low_quality_count += 1;
+            } else if score >= 0.7 {
+                high_quality_count += 1;
+            }
+        }
+    }
+
+    let avg_score = if updated_count > 0 {
+        total_score / updated_count as f64
+    } else {
+        0.0
+    };
+
+    Ok(QualityScoreResult {
+        updated_count,
+        avg_score,
+        low_quality_count,
+        high_quality_count,
+    })
+}
+
+#[derive(Debug, Serialize)]
+pub struct LowQualityKeyword {
+    pub id: i64,
+    pub name: String,
+    pub quality_score: f64,
+    pub article_count: i64,
+    pub days_old: i64,
+}
+
+#[tauri::command]
+pub fn get_low_quality_keywords(
+    state: State<AppState>,
+    threshold: Option<f64>,
+    limit: Option<i64>,
+) -> Result<Vec<LowQualityKeyword>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+    let threshold = threshold.unwrap_or(0.3);
+    let limit = limit.unwrap_or(100);
+
+    let keywords: Vec<LowQualityKeyword> = conn
+        .prepare(
+            r#"SELECT id, name, COALESCE(quality_score, 0.0), 
+                      COALESCE(article_count, 0),
+                      COALESCE(CAST(julianday('now') - julianday(first_seen) AS INTEGER), 0)
+               FROM immanentize 
+               WHERE quality_score IS NOT NULL AND quality_score < ?1
+               ORDER BY quality_score ASC
+               LIMIT ?2"#,
+        )
+        .map_err(|e| e.to_string())?
+        .query_map(params![threshold, limit], |row| {
+            Ok(LowQualityKeyword {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                quality_score: row.get(2)?,
+                article_count: row.get(3)?,
+                days_old: row.get(4)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(keywords)
+}
+
+#[derive(Debug, Serialize)]
+pub struct AutoPruneResult {
+    pub pruned_count: i64,
+    pub pruned_keywords: Vec<String>,
+}
+
+#[tauri::command]
+pub fn auto_prune_low_quality(
+    state: State<AppState>,
+    quality_threshold: Option<f64>,
+    min_age_days: Option<i64>,
+    dry_run: Option<bool>,
+) -> Result<AutoPruneResult, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+    let threshold = quality_threshold.unwrap_or(0.2);
+    let min_age = min_age_days.unwrap_or(7);
+    let dry_run = dry_run.unwrap_or(true);
+
+    let candidates: Vec<(i64, String)> = conn
+        .prepare(
+            r#"SELECT id, name FROM immanentize 
+               WHERE quality_score IS NOT NULL 
+               AND quality_score < ?1
+               AND first_seen < datetime('now', '-' || ?2 || ' days')
+               AND article_count <= 1"#,
+        )
+        .map_err(|e| e.to_string())?
+        .query_map(params![threshold, min_age], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let pruned_keywords: Vec<String> = candidates.iter().map(|(_, name)| name.clone()).collect();
+    let pruned_count = candidates.len() as i64;
+
+    if !dry_run {
+        for (id, _) in &candidates {
+            conn.execute(
+                "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
+                [id],
+            )
+            .ok();
+            conn.execute(
+                "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
+                params![id, id],
+            )
+            .ok();
+            conn.execute(
+                "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
+                [id],
+            )
+            .ok();
+            conn.execute(
+                "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
+                [id],
+            )
+            .ok();
+            conn.execute("DELETE FROM immanentize WHERE id = ?", [id])
+                .ok();
+        }
+    }
+
+    Ok(AutoPruneResult {
+        pruned_count,
+        pruned_keywords,
+    })
+}
+
+// ============================================================
+// EMBEDDING-BASED SYNONYM DETECTION
+// ============================================================
+
+fn embedding_to_blob(embedding: &[f32]) -> Vec<u8> {
+    embedding
+        .iter()
+        .flat_map(|f| f.to_le_bytes())
+        .collect()
+}
+
+fn blob_to_embedding(blob: &[u8]) -> Vec<f32> {
+    blob.chunks_exact(4)
+        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .collect()
+}
+
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
+
+    let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+    if norm_a == 0.0 || norm_b == 0.0 {
+        return 0.0;
+    }
+
+    (dot / (norm_a * norm_b)) as f64
+}
+
+#[derive(Debug, Serialize)]
+pub struct EmbeddingResult {
+    pub generated_count: i64,
+    pub failed_count: i64,
+    pub skipped_count: i64,
+}
+
+#[tauri::command]
+pub async fn generate_keyword_embeddings(
+    state: State<'_, AppState>,
+    limit: Option<i64>,
+    model: Option<String>,
+) -> Result<EmbeddingResult, String> {
+    let limit = limit.unwrap_or(50);
+    let model = model.unwrap_or_else(|| RECOMMENDED_EMBEDDING_MODEL.to_string());
+
+    let keywords: Vec<(i64, String)> = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let mut stmt = db.conn()
+            .prepare(
+                r#"SELECT id, name FROM immanentize 
+                   WHERE embedding IS NULL 
+                   AND article_count > 0
+                   ORDER BY article_count DESC
+                   LIMIT ?"#,
+            )
+            .map_err(|e| e.to_string())?;
+        
+        let result: Vec<(i64, String)> = stmt
+            .query_map([limit], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+        result
+    };
+
+    if keywords.is_empty() {
+        return Ok(EmbeddingResult {
+            generated_count: 0,
+            failed_count: 0,
+            skipped_count: 0,
+        });
+    }
+
+    let client = OllamaClient::new(None);
+    let mut generated_count = 0i64;
+    let mut failed_count = 0i64;
+
+    for (id, name) in &keywords {
+        // Add unique suffix to work around Ollama embedding cache issue
+        let embedding_text = format!("{}_{}", name, id);
+        match client.generate_embedding(&model, &embedding_text).await {
+            Ok(embedding) => {
+                let blob = embedding_to_blob(&embedding);
+                let db = state.db.lock().map_err(|e| e.to_string())?;
+                db.conn()
+                    .execute(
+                        "UPDATE immanentize SET embedding = ?1, embedding_at = datetime('now') WHERE id = ?2",
+                        params![blob, id],
+                    )
+                    .ok();
+                generated_count += 1;
+            }
+            Err(e) => {
+                eprintln!("Failed to generate embedding for '{}': {}", name, e);
+                failed_count += 1;
+            }
+        }
+    }
+
+    Ok(EmbeddingResult {
+        generated_count,
+        failed_count,
+        skipped_count: 0,
+    })
+}
+
+#[derive(Debug, Serialize)]
+pub struct SimilarKeyword {
+    pub id: i64,
+    pub name: String,
+    pub similarity: f64,
+    pub article_count: i64,
+}
+
+#[tauri::command]
+pub fn find_similar_keywords(
+    state: State<AppState>,
+    keyword_id: i64,
+    threshold: Option<f64>,
+    limit: Option<i64>,
+) -> Result<Vec<SimilarKeyword>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+    let threshold = threshold.unwrap_or(0.7);
+    let limit = limit.unwrap_or(20);
+
+    let target_embedding: Option<Vec<u8>> = conn
+        .query_row(
+            "SELECT embedding FROM immanentize WHERE id = ?",
+            [keyword_id],
+            |row| row.get(0),
+        )
+        .ok()
+        .flatten();
+
+    let target_embedding = match target_embedding {
+        Some(blob) => blob_to_embedding(&blob),
+        None => return Ok(vec![]),
+    };
+
+    let all_keywords: Vec<(i64, String, Vec<u8>, i64)> = conn
+        .prepare(
+            r#"SELECT id, name, embedding, COALESCE(article_count, 0)
+               FROM immanentize 
+               WHERE embedding IS NOT NULL AND id != ?"#,
+        )
+        .map_err(|e| e.to_string())?
+        .query_map([keyword_id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut similar: Vec<SimilarKeyword> = all_keywords
+        .into_iter()
+        .filter_map(|(id, name, blob, article_count)| {
+            let embedding = blob_to_embedding(&blob);
+            let similarity = cosine_similarity(&target_embedding, &embedding);
+            if similarity >= threshold {
+                Some(SimilarKeyword {
+                    id,
+                    name,
+                    similarity,
+                    article_count,
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    similar.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
+    similar.truncate(limit as usize);
+
+    Ok(similar)
+}
+
+#[derive(Debug, Serialize)]
+pub struct SynonymCandidate {
+    pub keyword_a_id: i64,
+    pub keyword_a_name: String,
+    pub keyword_b_id: i64,
+    pub keyword_b_name: String,
+    pub similarity: f64,
+}
+
+#[tauri::command]
+pub fn find_synonym_candidates(
+    state: State<AppState>,
+    threshold: Option<f64>,
+    limit: Option<i64>,
+) -> Result<Vec<SynonymCandidate>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+    let threshold = threshold.unwrap_or(0.85);
+    let limit = limit.unwrap_or(50);
+
+    let dismissed: std::collections::HashSet<(i64, i64)> = conn
+        .prepare("SELECT keyword_a_id, keyword_b_id FROM dismissed_synonyms")
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let keywords_with_embeddings: Vec<(i64, String, Vec<f32>)> = conn
+        .prepare(
+            r#"SELECT id, name, embedding FROM immanentize 
+               WHERE embedding IS NOT NULL
+               ORDER BY article_count DESC
+               LIMIT 500"#,
+        )
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| {
+            let blob: Vec<u8> = row.get(2)?;
+            Ok((row.get(0)?, row.get(1)?, blob_to_embedding(&blob)))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut candidates: Vec<SynonymCandidate> = Vec::new();
+
+    for i in 0..keywords_with_embeddings.len() {
+        for j in (i + 1)..keywords_with_embeddings.len() {
+            let (id_a, name_a, emb_a) = &keywords_with_embeddings[i];
+            let (id_b, name_b, emb_b) = &keywords_with_embeddings[j];
+
+            let (min_id, max_id) = if id_a < id_b { (*id_a, *id_b) } else { (*id_b, *id_a) };
+            if dismissed.contains(&(min_id, max_id)) {
+                continue;
+            }
+
+            let similarity = cosine_similarity(emb_a, emb_b);
+            if similarity >= threshold {
+                candidates.push(SynonymCandidate {
+                    keyword_a_id: *id_a,
+                    keyword_a_name: name_a.clone(),
+                    keyword_b_id: *id_b,
+                    keyword_b_name: name_b.clone(),
+                    similarity,
+                });
+            }
+        }
+
+        if candidates.len() >= limit as usize {
+            break;
+        }
+    }
+
+    candidates.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
+    candidates.truncate(limit as usize);
+
+    Ok(candidates)
+}
+
+#[derive(Debug, Serialize)]
+pub struct MergeSynonymsResult {
+    pub merged_pairs: i64,
+    pub affected_articles: i64,
+}
+
+#[tauri::command]
+pub fn merge_keyword_pair(
+    state: State<AppState>,
+    keep_id: i64,
+    remove_id: i64,
+) -> Result<MergeSynonymsResult, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    let affected: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM fnord_immanentize WHERE immanentize_id = ?",
+            [remove_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    conn.execute(
+        "UPDATE OR IGNORE fnord_immanentize SET immanentize_id = ?1 WHERE immanentize_id = ?2",
+        params![keep_id, remove_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
+        [remove_id],
+    )
+    .ok();
+
+    conn.execute(
+        r#"UPDATE immanentize SET 
+           article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?1)
+           WHERE id = ?1"#,
+        [keep_id],
+    )
+    .ok();
+
+    conn.execute(
+        "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
+        params![remove_id, remove_id],
+    )
+    .ok();
+
+    conn.execute(
+        "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
+        [remove_id],
+    )
+    .ok();
+
+    conn.execute(
+        "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
+        [remove_id],
+    )
+    .ok();
+
+    conn.execute("DELETE FROM immanentize WHERE id = ?", [remove_id])
+        .ok();
+
+    Ok(MergeSynonymsResult {
+        merged_pairs: 1,
+        affected_articles: affected,
+    })
+}
+
+#[tauri::command]
+pub fn dismiss_synonym_pair(
+    state: State<AppState>,
+    keyword_a_id: i64,
+    keyword_b_id: i64,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let (min_id, max_id) = if keyword_a_id < keyword_b_id {
+        (keyword_a_id, keyword_b_id)
+    } else {
+        (keyword_b_id, keyword_a_id)
+    };
+    
+    db.conn()
+        .execute(
+            "INSERT OR IGNORE INTO dismissed_synonyms (keyword_a_id, keyword_b_id) VALUES (?1, ?2)",
+            params![min_id, max_id],
+        )
+        .map_err(|e| e.to_string())?;
+    
+    Ok(())
 }

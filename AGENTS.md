@@ -137,6 +137,7 @@ The codebase uses terms from the Illuminatus! trilogy:
 - `immanentize_daily` - Daily keyword counts for trends
 - `fnord_immanentize` - Article ↔ Keyword mapping
 - `fnord_sephiroth` - Article ↔ Category mapping
+- `dismissed_synonyms` - Dismissed synonym pair suggestions
 
 ---
 
@@ -153,7 +154,7 @@ Commands are organized by domain in `src-tauri/src/commands/`:
 | `ollama.rs` | `check_ollama`, `process_batch`, `process_article_discordian`, etc. |
 | `categories.rs` | `get_all_categories`, `get_article_categories`, etc. |
 | `tags.rs` | `get_all_tags`, `get_article_tags`, etc. |
-| `immanentize.rs` | `get_keywords`, `get_keyword_neighbors`, `get_network_graph`, etc. |
+| `immanentize.rs` | `get_keywords`, `get_keyword_neighbors`, `get_network_graph`, `calculate_keyword_quality_scores`, `generate_keyword_embeddings`, `find_synonym_candidates`, `merge_keyword_pair`, `dismiss_synonym_pair`, etc. |
 | `settings.rs` | `get_settings`, `set_setting`, `get_setting` |
 
 ---

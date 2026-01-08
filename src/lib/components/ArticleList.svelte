@@ -1,6 +1,6 @@
 <script lang="ts">
   import { _, locale } from 'svelte-i18n';
-  import { appState, type Fnord } from "../stores/state.svelte";
+  import { appState } from "../stores/state.svelte";
   import Tooltip from "./Tooltip.svelte";
 
   function getStatusIcon(status: string): string {
@@ -46,6 +46,30 @@
       case "satire": return "🎭";
       case "ad": return "📢";
       default: return "❓";
+    }
+  }
+
+  function getBiasIndicator(bias: number): string {
+    switch (bias) {
+      case -2: return "◀◀";
+      case -1: return "◀";
+      case 0: return "●";
+      case 1: return "▶";
+      case 2: return "▶▶";
+      default: return "●";
+    }
+  }
+
+  function getBiasLabel(bias: number): string {
+    const currentLocale = $locale || 'de';
+    const isGerman = currentLocale.startsWith('de');
+    switch (bias) {
+      case -2: return isGerman ? "Stark links" : "Strong left";
+      case -1: return isGerman ? "Leicht links" : "Lean left";
+      case 0: return isGerman ? "Neutral" : "Neutral";
+      case 1: return isGerman ? "Leicht rechts" : "Lean right";
+      case 2: return isGerman ? "Stark rechts" : "Strong right";
+      default: return "";
     }
   }
 
@@ -100,8 +124,20 @@
               <span class="separator">·</span>
               <span>{formatDate(fnord.published_at)}</span>
             </div>
-            {#if fnord.article_type || fnord.quality_score}
+            {#if fnord.article_type || fnord.quality_score || fnord.categories.length > 0 || fnord.revision_count > 0}
               <div class="article-indicators">
+                {#if fnord.categories.length > 0}
+                  <span class="category-dots" title={fnord.categories.map(c => c.name).join(', ')}>
+                    {#each fnord.categories.slice(0, 3) as cat}
+                      <span class="category-dot" style="background-color: {cat.color || 'var(--text-muted)'}"></span>
+                    {/each}
+                  </span>
+                {/if}
+                {#if fnord.revision_count > 0}
+                  <span class="revision-count" title="{$_('articleView.changes.revisions')}: {fnord.revision_count}">
+                    ✎{fnord.revision_count}
+                  </span>
+                {/if}
                 {#if fnord.article_type}
                   <span title={$_(`articleType.${fnord.article_type}`)}>{getArticleTypeIcon(fnord.article_type)}</span>
                 {/if}
@@ -111,8 +147,8 @@
                   </span>
                 {/if}
                 {#if fnord.political_bias !== null && fnord.political_bias !== 0}
-                  <span class="bias" title="{$_('articleView.greyface.bias')}: {fnord.political_bias}">
-                    {fnord.political_bias < 0 ? "←" : "→"}
+                  <span class="bias bias-{fnord.political_bias < 0 ? 'left' : 'right'}" title="{getBiasLabel(fnord.political_bias)}">
+                    {getBiasIndicator(fnord.political_bias)}
                   </span>
                 {/if}
               </div>
@@ -269,7 +305,36 @@
   }
 
   .bias {
-    color: var(--text-muted);
+    font-size: 0.65rem;
+    padding: 0.1rem 0.25rem;
+    border-radius: 0.2rem;
+    background-color: var(--bg-overlay);
+  }
+
+  .bias-left {
+    color: #89b4fa;
+  }
+
+  .bias-right {
+    color: #f38ba8;
+  }
+
+  .category-dots {
+    display: flex;
+    gap: 0.2rem;
+    align-items: center;
+  }
+
+  .category-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .revision-count {
+    color: var(--accent-secondary);
+    font-size: 0.7rem;
   }
 
   .empty-state {

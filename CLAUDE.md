@@ -83,10 +83,10 @@ cargo tarpaulin --manifest-path src-tauri/Cargo.toml
 
 | Bereich | Anzahl Tests | Tool |
 |---------|-------------|------|
-| Rust Backend | 134 Tests | `cargo test` |
+| Rust Backend | 160 Tests | `cargo test` |
 | Frontend (Vitest) | 89 Tests | `npm run test` |
 | E2E (Playwright) | 11 Tests | `npm run test:e2e` |
-| **Gesamt** | **234 Tests** | |
+| **Gesamt** | **260 Tests** | |
 
 ### Test-Struktur
 
@@ -353,13 +353,15 @@ The codebase uses terms from the Illuminatus! trilogy:
 - `fnord_sephiroth` - Article ↔ Category mapping (source: 'ai'|'manual', assigned_at)
 
 ### Immanentize Network (Schlagwort-Wissensnetz)
-- `immanentize` - Keywords/tags (with embedding_at, cluster_id, canonical_id)
+- `immanentize` - Keywords/tags (with quality_score, embedding, embedding_at, cluster_id, canonical_id)
 - `immanentize_vss` - Schlagwort-Embeddings (sqlite-vec, 768 dim)
 - `immanentize_sephiroth` - Schlagwort ↔ Kategorie Assoziation
 - `immanentize_neighbors` - Kookkurrenz-Netzwerk (cooccurrence + embedding_similarity)
 - `immanentize_clusters` - Themen-Cluster
 - `immanentize_clusters_vss` - Cluster-Zentroide
+- `immanentize_daily` - Tägliche Keyword-Zählungen für Trends
 - `fnord_immanentize` - Article ↔ Tag mapping
+- `dismissed_synonyms` - Ignorierte Synonym-Vorschläge
 
 ### Embeddings
 - `fnords_vss` - Article embeddings (sqlite-vec)
@@ -419,6 +421,17 @@ Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
 | `get_settings` | - | `Settings` | Alle Einstellungen |
 | `set_setting` | `key`, `value` | - | Einstellung speichern |
 | `get_setting` | `key` | `Option<String>` | Einstellung laden |
+
+### Immanentize (Keyword Quality & Synonyms)
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `calculate_keyword_quality_scores` | `limit?` | `QualityScoreResult` | Quality-Scores berechnen |
+| `get_low_quality_keywords` | `threshold`, `limit` | `Vec<LowQualityKeyword>` | Low-Quality Keywords |
+| `auto_prune_low_quality` | `quality_threshold`, `min_age_days`, `dry_run` | `PruneResult` | Low-Quality bereinigen |
+| `generate_keyword_embeddings` | `limit?`, `model?` | `EmbeddingResult` | Embeddings generieren |
+| `find_synonym_candidates` | `threshold?`, `limit?` | `Vec<SynonymCandidate>` | Synonym-Kandidaten finden |
+| `merge_keyword_pair` | `keep_id`, `remove_id` | `MergeSynonymsResult` | Keywords zusammenführen |
+| `dismiss_synonym_pair` | `keyword_a_id`, `keyword_b_id` | - | Synonym-Vorschlag ignorieren |
 
 ## AI Processing Pipeline
 

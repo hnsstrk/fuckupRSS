@@ -1288,3 +1288,29 @@ pub fn reset_prompts(state: State<AppState>) -> Result<PromptTemplates, String> 
         analysis_prompt: DEFAULT_ANALYSIS_PROMPT.to_string(),
     })
 }
+
+#[derive(serde::Serialize)]
+pub struct ResetForReprocessingResult {
+    pub reset_count: i64,
+}
+
+#[tauri::command]
+pub fn reset_articles_for_reprocessing(
+    state: State<AppState>,
+    only_with_content: Option<bool>,
+) -> Result<ResetForReprocessingResult, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let only_with_content = only_with_content.unwrap_or(true);
+
+    let sql = if only_with_content {
+        r#"UPDATE fnords SET processed_at = NULL 
+           WHERE (content_raw IS NOT NULL AND content_raw != '') 
+           OR (content_full IS NOT NULL AND content_full != '')"#
+    } else {
+        "UPDATE fnords SET processed_at = NULL"
+    };
+
+    let reset_count = db.conn().execute(sql, []).map_err(|e| e.to_string())? as i64;
+
+    Ok(ResetForReprocessingResult { reset_count })
+}

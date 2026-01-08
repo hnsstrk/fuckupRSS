@@ -21,7 +21,7 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     // Create index for has_changes (after migration ensures column exists)
     conn.execute_batch(
-        "CREATE INDEX IF NOT EXISTS idx_fnords_has_changes ON fnords(has_changes);"
+        "CREATE INDEX IF NOT EXISTS idx_fnords_has_changes ON fnords(has_changes);",
     )?;
 
     // Rename "Tech" to "Technik" if exists
@@ -54,7 +54,9 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     // Migration for Immanentize Network
     let has_article_count: bool = conn
-        .prepare("SELECT COUNT(*) FROM pragma_table_info('immanentize') WHERE name = 'article_count'")?
+        .prepare(
+            "SELECT COUNT(*) FROM pragma_table_info('immanentize') WHERE name = 'article_count'",
+        )?
         .query_row([], |row| row.get(0))?;
 
     if !has_article_count {
@@ -135,13 +137,13 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     // Migration: Add content_full to fnord_revisions for existing databases
     let has_revision_content_full: bool = conn
-        .prepare("SELECT COUNT(*) FROM pragma_table_info('fnord_revisions') WHERE name = 'content_full'")?
+        .prepare(
+            "SELECT COUNT(*) FROM pragma_table_info('fnord_revisions') WHERE name = 'content_full'",
+        )?
         .query_row([], |row| row.get(0))?;
 
     if !has_revision_content_full {
-        conn.execute_batch(
-            "ALTER TABLE fnord_revisions ADD COLUMN content_full TEXT;"
-        )?;
+        conn.execute_batch("ALTER TABLE fnord_revisions ADD COLUMN content_full TEXT;")?;
     }
 
     // Migration for immanentize_daily table (trend data)
@@ -162,7 +164,9 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     // Backfill immanentize_daily from existing data (only if table is empty)
     let daily_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM immanentize_daily", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM immanentize_daily", [], |row| {
+            row.get(0)
+        })
         .unwrap_or(0);
 
     if daily_count == 0 {
@@ -179,6 +183,44 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
             [],
         )?;
     }
+
+    // Migration: Add quality_score and embedding columns to immanentize
+    let has_quality_score: bool = conn
+        .prepare(
+            "SELECT COUNT(*) FROM pragma_table_info('immanentize') WHERE name = 'quality_score'",
+        )?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_quality_score {
+        conn.execute_batch(
+            r#"
+            ALTER TABLE immanentize ADD COLUMN quality_score REAL DEFAULT NULL;
+            ALTER TABLE immanentize ADD COLUMN embedding BLOB DEFAULT NULL;
+            ALTER TABLE immanentize ADD COLUMN quality_calculated_at DATETIME DEFAULT NULL;
+            "#,
+        )?;
+    }
+
+    // Create index for quality_score (after migration ensures column exists)
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_immanentize_quality ON immanentize(quality_score DESC);
+        "#,
+    )?;
+
+    // Table for dismissed synonym pairs
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS dismissed_synonyms (
+            keyword_a_id INTEGER NOT NULL,
+            keyword_b_id INTEGER NOT NULL,
+            dismissed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (keyword_a_id, keyword_b_id),
+            FOREIGN KEY (keyword_a_id) REFERENCES immanentize(id) ON DELETE CASCADE,
+            FOREIGN KEY (keyword_b_id) REFERENCES immanentize(id) ON DELETE CASCADE
+        );
+        "#,
+    )?;
 
     Ok(())
 }
@@ -327,7 +369,10 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             count INTEGER DEFAULT 1,
             article_count INTEGER DEFAULT 0,
 
-            -- Embedding-Status
+            -- Quality & Embeddings
+            quality_score REAL DEFAULT NULL,
+            quality_calculated_at DATETIME DEFAULT NULL,
+            embedding BLOB DEFAULT NULL,
             embedding_at DATETIME,
 
             -- Clustering

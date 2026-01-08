@@ -4,6 +4,13 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FnordCategoryInfo {
+    pub color: Option<String>,
+    pub icon: Option<String>,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Fnord {
     pub id: i64,
     pub pentacle_id: i64,
@@ -26,6 +33,7 @@ pub struct Fnord {
     pub has_changes: bool,
     pub changed_at: Option<String>,
     pub revision_count: i32,
+    pub categories: Vec<FnordCategoryInfo>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -71,7 +79,54 @@ fn fnord_from_row(row: &Row) -> Result<Fnord, rusqlite::Error> {
         has_changes: row.get(18)?,
         changed_at: row.get(19)?,
         revision_count: row.get(20)?,
+        categories: vec![],
     })
+}
+
+fn load_categories_for_fnords(
+    conn: &rusqlite::Connection,
+    fnord_ids: &[i64],
+) -> std::collections::HashMap<i64, Vec<FnordCategoryInfo>> {
+    if fnord_ids.is_empty() {
+        return std::collections::HashMap::new();
+    }
+
+    let placeholders: String = fnord_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let sql = format!(
+        r#"SELECT fs.fnord_id, s.name, s.color, s.icon
+           FROM fnord_sephiroth fs
+           JOIN sephiroth s ON s.id = fs.sephiroth_id
+           WHERE fs.fnord_id IN ({})
+           ORDER BY fs.confidence DESC"#,
+        placeholders
+    );
+
+    let mut result: std::collections::HashMap<i64, Vec<FnordCategoryInfo>> =
+        std::collections::HashMap::new();
+
+    if let Ok(mut stmt) = conn.prepare(&sql) {
+        let params: Vec<&dyn rusqlite::ToSql> = fnord_ids
+            .iter()
+            .map(|id| id as &dyn rusqlite::ToSql)
+            .collect();
+
+        if let Ok(rows) = stmt.query_map(params.as_slice(), |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                FnordCategoryInfo {
+                    name: row.get(1)?,
+                    color: row.get(2)?,
+                    icon: row.get(3)?,
+                },
+            ))
+        }) {
+            for row in rows.flatten() {
+                result.entry(row.0).or_default().push(row.1);
+            }
+        }
+    }
+
+    result
 }
 
 const FNORD_SELECT_COLUMNS: &str = r#"
@@ -138,11 +193,20 @@ pub fn get_fnords(
 
     let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
 
-    let fnords = stmt
+    let mut fnords: Vec<Fnord> = stmt
         .query_map(param_refs.as_slice(), fnord_from_row)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
+
+    let fnord_ids: Vec<i64> = fnords.iter().map(|f| f.id).collect();
+    let categories_map = load_categories_for_fnords(db.conn(), &fnord_ids);
+
+    for fnord in &mut fnords {
+        if let Some(cats) = categories_map.get(&fnord.id) {
+            fnord.categories = cats.clone();
+        }
+    }
 
     Ok(fnords)
 }
@@ -156,10 +220,15 @@ pub fn get_fnord(state: State<AppState>, id: i64) -> Result<Fnord, String> {
         FNORD_SELECT_COLUMNS
     );
 
-    let fnord = db
+    let mut fnord = db
         .conn()
         .query_row(&sql, [id], fnord_from_row)
         .map_err(|e| e.to_string())?;
+
+    let categories_map = load_categories_for_fnords(db.conn(), &[id]);
+    if let Some(cats) = categories_map.get(&id) {
+        fnord.categories = cats.clone();
+    }
 
     Ok(fnord)
 }
@@ -189,7 +258,6 @@ pub fn update_fnord_status(state: State<AppState>, id: i64, status: String) -> R
     Ok(())
 }
 
-/// Get all articles with pending changes (for Fnord view)
 #[tauri::command]
 pub fn get_changed_fnords(state: State<AppState>) -> Result<Vec<Fnord>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -201,11 +269,20 @@ pub fn get_changed_fnords(state: State<AppState>) -> Result<Vec<Fnord>, String> 
 
     let mut stmt = db.conn().prepare(&sql).map_err(|e| e.to_string())?;
 
-    let fnords = stmt
+    let mut fnords: Vec<Fnord> = stmt
         .query_map([], fnord_from_row)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
+
+    let fnord_ids: Vec<i64> = fnords.iter().map(|f| f.id).collect();
+    let categories_map = load_categories_for_fnords(db.conn(), &fnord_ids);
+
+    for fnord in &mut fnords {
+        if let Some(cats) = categories_map.get(&fnord.id) {
+            fnord.categories = cats.clone();
+        }
+    }
 
     Ok(fnords)
 }

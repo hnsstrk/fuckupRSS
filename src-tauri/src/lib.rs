@@ -71,6 +71,7 @@ pub fn run() {
             commands::ollama::load_model,
             commands::ollama::unload_model,
             commands::ollama::ensure_models_loaded,
+            commands::ollama::reset_articles_for_reprocessing,
             commands::categories::get_all_categories,
             commands::categories::get_article_categories,
             commands::categories::set_article_categories,
@@ -101,6 +102,16 @@ pub fn run() {
             commands::immanentize::get_keyword_health,
             commands::immanentize::merge_synonym_keywords,
             commands::immanentize::cleanup_garbage_keywords,
+            // Quality Score System
+            commands::immanentize::calculate_keyword_quality_scores,
+            commands::immanentize::get_low_quality_keywords,
+            commands::immanentize::auto_prune_low_quality,
+            // Embedding-based Synonym Detection
+            commands::immanentize::generate_keyword_embeddings,
+            commands::immanentize::find_similar_keywords,
+            commands::immanentize::find_synonym_candidates,
+            commands::immanentize::merge_keyword_pair,
+            commands::immanentize::dismiss_synonym_pair,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

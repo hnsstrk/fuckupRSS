@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
-  import { listen, emit } from '@tauri-apps/api/event';
+  import { emit } from '@tauri-apps/api/event';
   import { settings, type Theme } from '../stores/settings.svelte';
   import { setLocale, locale } from '../i18n';
   import { appState } from '../stores/state.svelte';
@@ -56,7 +56,20 @@
   let embeddingModelDropdownOpen = $state(false);
 
   // Tab state
-  let activeTab = $state<'general' | 'ollama' | 'prompts'>('general');
+  let activeTab = $state<'general' | 'ollama' | 'prompts' | 'maintenance'>('general');
+
+  // Maintenance state
+  let maintenanceRunning = $state<string | null>(null);
+  let maintenanceResult = $state<string | null>(null);
+  
+  // Confirmation dialog state
+  let confirmAction = $state<'prune' | 'reset' | null>(null);
+  
+  // Synonym candidates state
+  let synonymCandidates = $state<{ keyword_a_id: number; keyword_a_name: string; keyword_b_id: number; keyword_b_name: string; similarity: number }[]>([]);
+  
+  // Keyword statistics state
+  let keywordStats = $state<{ total: number; with_embeddings: number; avg_quality: number; low_quality: number } | null>(null);
 
   const localeOptions = [
     { value: 'de', labelKey: 'settings.languageGerman' },
@@ -306,6 +319,143 @@
                        analysisPrompt !== defaultPrompts.analysis_prompt;
     }
   }
+
+  async function handleCalculateScores() {
+    maintenanceRunning = 'scores';
+    maintenanceResult = null;
+    try {
+      const result = await invoke<{ updated_count: number; avg_score: number; low_quality_count: number }>('calculate_keyword_quality_scores', { limit: 1000 });
+      maintenanceResult = `${result.updated_count} ${$_('settings.maintenance.updated')} (Ø ${result.avg_score.toFixed(2)})`;
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    } finally {
+      maintenanceRunning = null;
+    }
+  }
+
+  async function handleGenerateEmbeddings() {
+    maintenanceRunning = 'embeddings';
+    maintenanceResult = null;
+    try {
+      const result = await invoke<{ generated_count: number; failed_count: number }>('generate_keyword_embeddings', { limit: 50 });
+      maintenanceResult = `${result.generated_count} ${$_('settings.maintenance.generated')}`;
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    } finally {
+      maintenanceRunning = null;
+    }
+  }
+
+  function showPruneConfirmation() {
+    confirmAction = 'prune';
+  }
+
+  function showResetConfirmation() {
+    confirmAction = 'reset';
+  }
+
+  function cancelConfirmation() {
+    confirmAction = null;
+  }
+
+  async function handlePruneLowQuality() {
+    confirmAction = null;
+    maintenanceRunning = 'prune';
+    maintenanceResult = null;
+    try {
+      const result = await invoke<{ pruned_count: number; pruned_keywords: string[] }>('auto_prune_low_quality', { 
+        quality_threshold: 0.2, 
+        min_age_days: 7, 
+        dry_run: false 
+      });
+      maintenanceResult = `${result.pruned_count} ${$_('settings.maintenance.pruned')}`;
+      // Refresh stats after pruning
+      await loadKeywordStats();
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    } finally {
+      maintenanceRunning = null;
+    }
+  }
+
+  async function handleResetForReprocessing() {
+    confirmAction = null;
+    maintenanceRunning = 'reset';
+    maintenanceResult = null;
+    try {
+      const result = await invoke<{ reset_count: number }>('reset_articles_for_reprocessing', { 
+        only_with_content: true 
+      });
+      maintenanceResult = `${result.reset_count} ${$_('settings.maintenance.articles')} ${$_('settings.maintenance.reset')}`;
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    } finally {
+      maintenanceRunning = null;
+    }
+  }
+
+  async function loadKeywordStats() {
+    try {
+      const [lowQuality, allKeywords] = await Promise.all([
+        invoke<{ id: number; name: string; quality_score: number; article_count: number }[]>('get_low_quality_keywords', { threshold: 0.3, limit: 100 }),
+        invoke<{ keywords: { id: number; name: string; article_count: number; quality_score: number | null; has_embedding: boolean }[]; total_count: number }>('get_keywords', { limit: 1000, offset: 0 })
+      ]);
+      
+      const withEmbeddings = allKeywords.keywords.filter(k => k.has_embedding).length;
+      const qualityScores = allKeywords.keywords.filter(k => k.quality_score !== null).map(k => k.quality_score!);
+      const avgQuality = qualityScores.length > 0 ? qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length : 0;
+      
+      keywordStats = {
+        total: allKeywords.total_count,
+        with_embeddings: withEmbeddings,
+        avg_quality: avgQuality,
+        low_quality: lowQuality.length
+      };
+    } catch (e) {
+      console.error('Failed to load keyword stats:', e);
+    }
+  }
+
+  async function handleFindSynonyms() {
+    maintenanceRunning = 'synonyms';
+    maintenanceResult = null;
+    try {
+      const result = await invoke<{ keyword_a_id: number; keyword_a_name: string; keyword_b_id: number; keyword_b_name: string; similarity: number }[]>('find_synonym_candidates', { threshold: 0.85, limit: 20 });
+      synonymCandidates = result;
+      maintenanceResult = `${result.length} ${$_('settings.maintenance.candidates')} ${$_('settings.maintenance.found')}`;
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    } finally {
+      maintenanceRunning = null;
+    }
+  }
+
+  async function handleMergeSynonym(keepId: number, mergeId: number, keepName: string, mergeName: string) {
+    try {
+      await invoke('merge_keyword_pair', { keepId, mergeId });
+      synonymCandidates = synonymCandidates.filter(c => 
+        !(c.keyword_a_id === keepId && c.keyword_b_id === mergeId) && 
+        !(c.keyword_a_id === mergeId && c.keyword_b_id === keepId)
+      );
+      maintenanceResult = `"${mergeName}" → "${keepName}" ${$_('settings.maintenance.merged')}`;
+      await loadKeywordStats();
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    }
+  }
+
+  async function handleDismissSynonym(keywordAId: number, keywordBId: number, nameA: string, nameB: string) {
+    try {
+      await invoke('dismiss_synonym_pair', { keywordAId, keywordBId });
+      synonymCandidates = synonymCandidates.filter(c => 
+        !(c.keyword_a_id === keywordAId && c.keyword_b_id === keywordBId) && 
+        !(c.keyword_a_id === keywordBId && c.keyword_b_id === keywordAId)
+      );
+      maintenanceResult = `"${nameA}" ↔ "${nameB}" ${$_('settings.maintenance.dismissed')}`;
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    }
+  }
 </script>
 
 {#if open}
@@ -340,6 +490,13 @@
           onclick={() => activeTab = 'prompts'}
         >
           Prompts
+        </button>
+        <button
+          type="button"
+          class="tab {activeTab === 'maintenance' ? 'active' : ''}"
+          onclick={() => { activeTab = 'maintenance'; maintenanceResult = null; loadKeywordStats(); }}
+        >
+          {$_('settings.maintenance.title')}
         </button>
       </div>
 
@@ -615,6 +772,190 @@
               </button>
             {/if}
           {/if}
+
+        {:else if activeTab === 'maintenance'}
+          <!-- Confirmation Dialog -->
+          {#if confirmAction}
+            <div class="confirm-overlay">
+              <div class="confirm-dialog">
+                <p class="confirm-message">
+                  {#if confirmAction === 'prune'}
+                    {$_('settings.maintenance.confirmPrune')}
+                  {:else if confirmAction === 'reset'}
+                    {$_('settings.maintenance.confirmReset')}
+                  {/if}
+                </p>
+                <div class="confirm-actions">
+                  <button type="button" class="btn-secondary" onclick={cancelConfirmation}>
+                    {$_('confirm.no')}
+                  </button>
+                  <button 
+                    type="button" 
+                    class="btn-danger-solid"
+                    onclick={confirmAction === 'prune' ? handlePruneLowQuality : handleResetForReprocessing}
+                  >
+                    {$_('confirm.yes')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          <!-- Keyword Statistics -->
+          {#if keywordStats}
+            <div class="keyword-stats">
+              <h3>{$_('settings.maintenance.stats')}</h3>
+              <div class="stats-grid">
+                <div class="stat-item">
+                  <span class="stat-value">{keywordStats.total}</span>
+                  <span class="stat-label">{$_('settings.maintenance.totalKeywords')}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value">{keywordStats.with_embeddings}</span>
+                  <span class="stat-label">{$_('settings.maintenance.withEmbeddings')}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value">{keywordStats.avg_quality.toFixed(2)}</span>
+                  <span class="stat-label">{$_('settings.maintenance.avgQuality')}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value {keywordStats.low_quality > 0 ? 'warning' : ''}">{keywordStats.low_quality}</span>
+                  <span class="stat-label">{$_('settings.maintenance.lowQuality')}</span>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          <h3>{$_('settings.maintenance.keywordQuality')}</h3>
+
+          {#if maintenanceResult}
+            <div class="maintenance-result">
+              {$_('settings.maintenance.result')}: {maintenanceResult}
+            </div>
+          {/if}
+
+          <div class="maintenance-actions">
+            <div class="maintenance-action">
+              <div class="action-info">
+                <span class="action-title">{$_('settings.maintenance.calculateScores')}</span>
+                <p class="action-desc">{$_('settings.maintenance.calculateScoresDesc')}</p>
+              </div>
+              <button 
+                type="button" 
+                class="btn-action"
+                onclick={handleCalculateScores}
+                disabled={maintenanceRunning !== null}
+              >
+                {maintenanceRunning === 'scores' ? $_('settings.maintenance.running') : $_('settings.maintenance.calculateScores')}
+              </button>
+            </div>
+
+            <div class="maintenance-action">
+              <div class="action-info">
+                <span class="action-title">{$_('settings.maintenance.generateEmbeddings')}</span>
+                <p class="action-desc">{$_('settings.maintenance.generateEmbeddingsDesc')}</p>
+              </div>
+              <button 
+                type="button" 
+                class="btn-action"
+                onclick={handleGenerateEmbeddings}
+                disabled={maintenanceRunning !== null || !ollamaStatus?.available}
+              >
+                {maintenanceRunning === 'embeddings' ? $_('settings.maintenance.running') : $_('settings.maintenance.generateEmbeddings')}
+              </button>
+            </div>
+
+            <div class="maintenance-action">
+              <div class="action-info">
+                <span class="action-title">{$_('settings.maintenance.findSynonyms')}</span>
+                <p class="action-desc">{$_('settings.maintenance.findSynonymsDesc')}</p>
+              </div>
+              <button 
+                type="button" 
+                class="btn-action"
+                onclick={handleFindSynonyms}
+                disabled={maintenanceRunning !== null}
+              >
+                {maintenanceRunning === 'synonyms' ? $_('settings.maintenance.running') : $_('settings.maintenance.findSynonyms')}
+              </button>
+            </div>
+
+            <div class="maintenance-action">
+              <div class="action-info">
+                <span class="action-title">{$_('settings.maintenance.pruneLowQuality')}</span>
+                <p class="action-desc">{$_('settings.maintenance.pruneLowQualityDesc')}</p>
+              </div>
+              <button 
+                type="button" 
+                class="btn-action btn-danger"
+                onclick={showPruneConfirmation}
+                disabled={maintenanceRunning !== null}
+              >
+                {maintenanceRunning === 'prune' ? $_('settings.maintenance.running') : $_('settings.maintenance.pruneLowQuality')}
+              </button>
+            </div>
+          </div>
+
+          <!-- Synonym Candidates -->
+          {#if synonymCandidates.length > 0}
+            <h3 style="margin-top: 1.5rem;">{$_('settings.maintenance.synonymCandidates')}</h3>
+            <div class="synonym-list">
+              {#each synonymCandidates as candidate}
+                <div class="synonym-item">
+                  <div class="synonym-pair">
+                    <span class="synonym-name">{candidate.keyword_a_name}</span>
+                    <span class="synonym-similarity">≈ {(candidate.similarity * 100).toFixed(0)}%</span>
+                    <span class="synonym-name">{candidate.keyword_b_name}</span>
+                  </div>
+                  <div class="synonym-actions">
+                    <button 
+                      type="button" 
+                      class="btn-merge"
+                      onclick={() => handleMergeSynonym(candidate.keyword_a_id, candidate.keyword_b_id, candidate.keyword_a_name, candidate.keyword_b_name)}
+                      title="{$_('settings.maintenance.keep')} '{candidate.keyword_a_name}'"
+                    >
+                      ← {$_('settings.maintenance.merge')}
+                    </button>
+                    <button 
+                      type="button" 
+                      class="btn-merge"
+                      onclick={() => handleMergeSynonym(candidate.keyword_b_id, candidate.keyword_a_id, candidate.keyword_b_name, candidate.keyword_a_name)}
+                      title="{$_('settings.maintenance.keep')} '{candidate.keyword_b_name}'"
+                    >
+                      {$_('settings.maintenance.merge')} →
+                    </button>
+                    <button 
+                      type="button" 
+                      class="btn-dismiss"
+                      onclick={() => handleDismissSynonym(candidate.keyword_a_id, candidate.keyword_b_id, candidate.keyword_a_name, candidate.keyword_b_name)}
+                      title={$_('settings.maintenance.dismiss')}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          <h3 style="margin-top: 1.5rem;">{$_('settings.maintenance.reprocessArticles')}</h3>
+
+          <div class="maintenance-actions">
+            <div class="maintenance-action">
+              <div class="action-info">
+                <span class="action-title">{$_('settings.maintenance.resetForReprocessing')}</span>
+                <p class="action-desc">{$_('settings.maintenance.resetForReprocessingDesc')}</p>
+              </div>
+              <button 
+                type="button" 
+                class="btn-action btn-danger"
+                onclick={showResetConfirmation}
+                disabled={maintenanceRunning !== null}
+              >
+                {maintenanceRunning === 'reset' ? $_('settings.maintenance.running') : $_('settings.maintenance.resetForReprocessing')}
+              </button>
+            </div>
+          </div>
         {/if}
       </div>
 
@@ -1014,6 +1355,79 @@
     color: var(--accent-primary);
   }
 
+  .maintenance-result {
+    padding: 0.75rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-default);
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .maintenance-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .maintenance-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-default);
+  }
+
+  .action-info {
+    flex: 1;
+  }
+
+  .action-title {
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .action-desc {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .btn-action {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--accent-primary);
+    border-radius: 0.375rem;
+    background: none;
+    color: var(--accent-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+
+  .btn-action:hover:not(:disabled) {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+  }
+
+  .btn-action:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .btn-action.btn-danger {
+    border-color: var(--status-error);
+    color: var(--status-error);
+  }
+
+  .btn-action.btn-danger:hover:not(:disabled) {
+    background-color: var(--status-error);
+    color: var(--text-on-accent);
+  }
+
   /* Dialog Actions */
   .dialog-actions {
     display: flex;
@@ -1051,5 +1465,170 @@
 
   .btn-secondary:hover {
     background-color: var(--bg-muted);
+  }
+
+  .confirm-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    border-radius: 0.75rem;
+  }
+
+  .confirm-dialog {
+    background: var(--bg-surface);
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-default);
+    max-width: 400px;
+    text-align: center;
+  }
+
+  .confirm-message {
+    margin: 0 0 1.5rem 0;
+    color: var(--text-primary);
+    font-size: 1rem;
+  }
+
+  .confirm-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+  }
+
+  .btn-danger-solid {
+    padding: 0.5rem 1.5rem;
+    border: none;
+    border-radius: 0.375rem;
+    background-color: var(--status-error);
+    color: var(--text-on-accent);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-danger-solid:hover {
+    filter: brightness(1.1);
+  }
+
+  .keyword-stats {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-default);
+  }
+
+  .keyword-stats h3 {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.875rem;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+
+  .stat-item {
+    text-align: center;
+  }
+
+  .stat-value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--accent-primary);
+  }
+
+  .stat-value.warning {
+    color: var(--status-warning);
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .synonym-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .synonym-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-default);
+  }
+
+  .synonym-pair {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+  }
+
+  .synonym-name {
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .synonym-similarity {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    padding: 0.125rem 0.375rem;
+    background-color: var(--bg-muted);
+    border-radius: 0.25rem;
+  }
+
+  .synonym-actions {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .btn-merge {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--accent-secondary);
+    border-radius: 0.25rem;
+    background: none;
+    color: var(--accent-secondary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-merge:hover {
+    background-color: var(--accent-secondary);
+    color: var(--text-on-accent);
+  }
+
+  .btn-dismiss {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--text-muted);
+    border-radius: 0.25rem;
+    background: none;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-dismiss:hover {
+    border-color: var(--status-error);
+    color: var(--status-error);
   }
 </style>

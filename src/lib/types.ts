@@ -16,6 +16,12 @@ export interface Pentacle {
   unread_count: number;
 }
 
+export interface FnordCategoryInfo {
+  color: string | null;
+  icon: string | null;
+  name: string;
+}
+
 export interface Fnord {
   id: number;
   pentacle_id: number;
@@ -38,6 +44,7 @@ export interface Fnord {
   has_changes: boolean;
   changed_at: string | null;
   revision_count: number;
+  categories: FnordCategoryInfo[];
 }
 
 export interface FnordRevision {
