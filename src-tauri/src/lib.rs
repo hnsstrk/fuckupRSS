@@ -100,6 +100,7 @@ pub fn run() {
             commands::immanentize::prune_keywords,
             commands::immanentize::get_keyword_health,
             commands::immanentize::merge_synonym_keywords,
+            commands::immanentize::cleanup_garbage_keywords,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

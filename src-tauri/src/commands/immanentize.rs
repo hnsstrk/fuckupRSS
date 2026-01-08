@@ -1,5 +1,4 @@
-use crate::find_canonical_keyword;
-use crate::AppState;
+use crate::{find_canonical_keyword, normalize_keyword, AppState};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -946,5 +945,69 @@ pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, Str
     Ok(MergeResult {
         merged_count,
         affected_articles,
+    })
+}
+
+#[derive(Debug, Serialize)]
+pub struct CleanupResult {
+    pub removed_garbage: i64,
+    pub removed_relations: i64,
+}
+
+#[tauri::command]
+pub fn cleanup_garbage_keywords(state: State<AppState>) -> Result<CleanupResult, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    let keywords: Vec<(i64, String)> = conn
+        .prepare("SELECT id, name FROM immanentize")
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut garbage_ids: Vec<i64> = Vec::new();
+
+    for (id, name) in keywords {
+        if normalize_keyword(&name).is_none() {
+            garbage_ids.push(id);
+        }
+    }
+
+    let removed_garbage = garbage_ids.len() as i64;
+
+    for id in &garbage_ids {
+        conn.execute(
+            "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
+            [id],
+        )
+        .ok();
+        conn.execute(
+            "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
+            rusqlite::params![id, id],
+        )
+        .ok();
+        conn.execute(
+            "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
+            [id],
+        )
+        .ok();
+        conn.execute(
+            "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
+            [id],
+        )
+        .ok();
+        conn.execute("DELETE FROM immanentize WHERE id = ?", [id])
+            .ok();
+    }
+
+    let removed_relations = conn
+        .query_row("SELECT changes()", [], |row| row.get::<_, i64>(0))
+        .unwrap_or(0);
+
+    Ok(CleanupResult {
+        removed_garbage,
+        removed_relations,
     })
 }

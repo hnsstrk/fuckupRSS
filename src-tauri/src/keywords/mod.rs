@@ -406,28 +406,301 @@ pub fn extract_keywords(title: &str, content: &str, max_keywords: usize) -> Vec<
         .collect()
 }
 
+static GARBAGE_PATTERNS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    [
+        "doctype",
+        "html",
+        "http",
+        "https",
+        "www",
+        "com",
+        "org",
+        "de",
+        "net",
+        "the",
+        "and",
+        "for",
+        "with",
+        "from",
+        "that",
+        "this",
+        "have",
+        "has",
+        "been",
+        "were",
+        "was",
+        "are",
+        "will",
+        "would",
+        "could",
+        "should",
+        "their",
+        "they",
+        "them",
+        "there",
+        "then",
+        "than",
+        "when",
+        "what",
+        "which",
+        "where",
+        "who",
+        "how",
+        "why",
+        "all",
+        "also",
+        "only",
+        "just",
+        "more",
+        "most",
+        "some",
+        "many",
+        "much",
+        "very",
+        "well",
+        "even",
+        "still",
+        "back",
+        "over",
+        "such",
+        "into",
+        "year",
+        "years",
+        "time",
+        "first",
+        "last",
+        "new",
+        "now",
+        "way",
+        "may",
+        "day",
+        "get",
+        "make",
+        "like",
+        "know",
+        "take",
+        "come",
+        "could",
+        "good",
+        "see",
+        "after",
+        "other",
+        "being",
+        "made",
+        "can",
+        "been",
+        "about",
+        "out",
+        "up",
+        "down",
+        "off",
+        "says",
+        "said",
+        "according",
+        "reuters",
+        "dpa",
+        "afp",
+        "der",
+        "die",
+        "das",
+        "ein",
+        "eine",
+        "einer",
+        "eines",
+        "einem",
+        "einen",
+        "und",
+        "oder",
+        "aber",
+        "doch",
+        "noch",
+        "schon",
+        "auch",
+        "nur",
+        "sehr",
+        "mehr",
+        "viel",
+        "viele",
+        "alle",
+        "jede",
+        "jeder",
+        "jedes",
+        "keine",
+        "nicht",
+        "kein",
+        "wird",
+        "werden",
+        "wurde",
+        "wurden",
+        "ist",
+        "sind",
+        "war",
+        "waren",
+        "hat",
+        "haben",
+        "hatte",
+        "hatten",
+        "kann",
+        "können",
+        "soll",
+        "sollen",
+        "muss",
+        "müssen",
+        "will",
+        "wollen",
+        "nach",
+        "vor",
+        "bei",
+        "mit",
+        "von",
+        "aus",
+        "für",
+        "über",
+        "unter",
+        "zwischen",
+        "durch",
+        "gegen",
+        "ohne",
+        "bis",
+        "seit",
+        "während",
+        "wegen",
+        "sowie",
+        "dabei",
+        "dazu",
+        "daher",
+        "deshalb",
+        "jedoch",
+        "dennoch",
+        "bereits",
+        "immer",
+        "wieder",
+        "weiter",
+        "weitere",
+        "anderen",
+        "andere",
+        "ersten",
+        "erste",
+        "neuen",
+        "neue",
+        "neuer",
+        "großen",
+        "große",
+        "eigenen",
+        "eigene",
+        "letzten",
+        "letzte",
+        "deutschen",
+        "deutsche",
+        "rund",
+        "etwa",
+        "fast",
+        "knapp",
+        "insgesamt",
+        "zurück",
+        "vorfall",
+        "vertrag",
+        "festnahme",
+        "verleihung",
+        "angriffe",
+        "ermittlungen",
+        "nachfolgerin",
+        "gefangene",
+        "nationen",
+        "viertel",
+        "behörden",
+        "bericht",
+        "heute",
+        "gestern",
+        "morgen",
+        "uhr",
+        "jahr",
+        "jahre",
+    ]
+    .iter()
+    .copied()
+    .collect()
+});
+
+static VALID_SINGLE_WORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    [
+        "nato",
+        "eu",
+        "un",
+        "usa",
+        "cdu",
+        "csu",
+        "spd",
+        "fdp",
+        "afd",
+        "dax",
+        "iran",
+        "irak",
+        "gaza",
+        "israel",
+        "china",
+        "japan",
+        "trump",
+        "biden",
+        "putin",
+        "scholz",
+        "merz",
+        "habeck",
+        "lindner",
+        "tesla",
+        "apple",
+        "google",
+        "amazon",
+        "microsoft",
+        "meta",
+        "bitcoin",
+        "corona",
+        "covid",
+        "klima",
+        "ukraine",
+        "russland",
+    ]
+    .iter()
+    .copied()
+    .collect()
+});
+
 pub fn normalize_keyword(keyword: &str) -> Option<String> {
     let trimmed = keyword.trim();
+    let lower = trimmed.to_lowercase();
 
-    if trimmed.len() < 2 || trimmed.len() > 50 {
+    if trimmed.len() < 3 || trimmed.len() > 50 {
+        return None;
+    }
+
+    if GARBAGE_PATTERNS.contains(lower.as_str()) {
         return None;
     }
 
     if trimmed
         .chars()
-        .all(|c| c.is_numeric() || c.is_whitespace() || c == '.' || c == ',')
+        .any(|c| c == '<' || c == '>' || c == '{' || c == '}')
     {
         return None;
     }
 
-    let dominated_by_special = {
-        let special_count = trimmed
-            .chars()
-            .filter(|c| !c.is_alphanumeric() && !c.is_whitespace())
-            .count();
-        special_count > trimmed.len() / 3
-    };
-    if dominated_by_special {
+    if trimmed
+        .chars()
+        .all(|c| c.is_numeric() || c.is_whitespace() || ".,-/:".contains(c))
+    {
+        return None;
+    }
+
+    let special_count = trimmed
+        .chars()
+        .filter(|c| !c.is_alphanumeric() && !c.is_whitespace() && *c != '-')
+        .count();
+    if special_count > trimmed.len() / 4 {
+        return None;
+    }
+
+    let alpha_count = trimmed.chars().filter(|c| c.is_alphabetic()).count();
+    if alpha_count < trimmed.len() / 2 {
         return None;
     }
 
@@ -436,7 +709,29 @@ pub fn normalize_keyword(keyword: &str) -> Option<String> {
     }
 
     let words: Vec<&str> = trimmed.split_whitespace().collect();
-    let is_proper_noun = words.len() <= 3
+
+    if words.len() == 1 {
+        if lower.len() < 4 && !VALID_SINGLE_WORDS.contains(lower.as_str()) {
+            return None;
+        }
+
+        if !VALID_SINGLE_WORDS.contains(lower.as_str())
+            && !trimmed
+                .chars()
+                .next()
+                .map(|c| c.is_uppercase())
+                .unwrap_or(false)
+        {
+            return None;
+        }
+    }
+
+    if words.len() > 4 {
+        return None;
+    }
+
+    let is_proper_noun = words.len() >= 1
+        && words.len() <= 3
         && words
             .iter()
             .all(|w| w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) && w.len() >= 2);
@@ -445,7 +740,19 @@ pub fn normalize_keyword(keyword: &str) -> Option<String> {
         return Some(trimmed.to_string());
     }
 
-    Some(trimmed.to_lowercase())
+    if words.len() == 1 && VALID_SINGLE_WORDS.contains(lower.as_str()) {
+        return Some(trimmed.to_string());
+    }
+
+    let has_proper_noun = words
+        .iter()
+        .any(|w| w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) && w.len() >= 3);
+
+    if has_proper_noun {
+        return Some(trimmed.to_string());
+    }
+
+    None
 }
 
 pub fn normalize_and_dedupe_keywords(keywords: &[String]) -> Vec<String> {
