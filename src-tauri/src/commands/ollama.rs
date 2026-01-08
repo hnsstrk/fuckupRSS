@@ -2,6 +2,7 @@ use crate::ollama::{
     BiasAnalysis, DiscordianAnalysis, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
     RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale,
 };
+use crate::{extract_keywords, classify_by_keywords, SEPHIROTH_CATEGORIES};
 use crate::AppState;
 use std::sync::atomic::Ordering;
 use tauri::{Emitter, State, Window};
@@ -280,7 +281,46 @@ fn recalculate_keyword_weights(conn: &rusqlite::Connection, tag_ids: &[i64]) {
     .ok();
 }
 
-/// Check if Ollama is available and list models
+fn merge_keywords(llm_keywords: &[String], local_keywords: Vec<String>, max_count: usize) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut merged = Vec::new();
+
+    for kw in llm_keywords.iter().chain(local_keywords.iter()) {
+        let normalized = kw.to_lowercase();
+        if !normalized.is_empty() && normalized.len() >= 2 && seen.insert(normalized) {
+            merged.push(kw.clone());
+            if merged.len() >= max_count {
+                break;
+            }
+        }
+    }
+
+    merged
+}
+
+fn validate_and_merge_categories(
+    llm_categories: &[String],
+    local_categories: Vec<String>,
+) -> Vec<String> {
+    let valid_llm: Vec<String> = llm_categories
+        .iter()
+        .filter(|c| SEPHIROTH_CATEGORIES.iter().any(|s| s.to_lowercase() == c.to_lowercase()))
+        .cloned()
+        .collect();
+
+    if valid_llm.is_empty() {
+        local_categories
+    } else {
+        let mut seen = std::collections::HashSet::new();
+        valid_llm
+            .into_iter()
+            .chain(local_categories)
+            .filter(|c| seen.insert(c.to_lowercase()))
+            .take(5)
+            .collect()
+    }
+}
+
 #[tauri::command]
 pub async fn check_ollama() -> Result<OllamaStatus, String> {
     let client = OllamaClient::new(None);
@@ -789,6 +829,9 @@ pub async fn process_article_discordian(
         });
     }
 
+    let local_keywords = extract_keywords(&title, &content, 10);
+    let local_categories = classify_by_keywords(&local_keywords);
+
     match client.discordian_analysis(&model, &title, &content, &locale).await {
         Ok(analysis) => {
             let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -812,12 +855,14 @@ pub async fn process_article_discordian(
                 )
                 .map_err(|e| e.to_string())?;
 
-            let categories_saved = save_article_categories(db.conn(), fnord_id, &analysis.categories);
+            let merged_categories = validate_and_merge_categories(&analysis.categories, local_categories);
+            let categories_saved = save_article_categories(db.conn(), fnord_id, &merged_categories);
 
+            let merged_keywords = merge_keywords(&analysis.keywords, local_keywords, 15);
             let (tags_saved, tag_ids) = save_article_keywords_and_network(
                 db.conn(),
                 fnord_id,
-                &analysis.keywords,
+                &merged_keywords,
                 &categories_saved,
                 article_date.as_deref(),
             );
@@ -833,14 +878,28 @@ pub async fn process_article_discordian(
                 error: None,
             })
         }
-        Err(e) => Ok(DiscordianResponse {
-            fnord_id,
-            success: false,
-            analysis: None,
-            categories_saved: vec![],
-            tags_saved: vec![],
-            error: Some(e.to_string()),
-        }),
+        Err(e) => {
+            let db = state.db.lock().map_err(|e| e.to_string())?;
+
+            let categories_saved = save_article_categories(db.conn(), fnord_id, &local_categories);
+            let (tags_saved, tag_ids) = save_article_keywords_and_network(
+                db.conn(),
+                fnord_id,
+                &local_keywords,
+                &categories_saved,
+                article_date.as_deref(),
+            );
+            recalculate_keyword_weights(db.conn(), &tag_ids);
+
+            Ok(DiscordianResponse {
+                fnord_id,
+                success: false,
+                analysis: None,
+                categories_saved,
+                tags_saved,
+                error: Some(format!("LLM failed, used local extraction: {}", e)),
+            })
+        }
     }
 }
 
@@ -1005,7 +1064,9 @@ pub async fn process_batch(
             continue;
         }
 
-        // Use Discordian Analysis for full processing (summary + bias + categories + keywords)
+        let local_keywords = extract_keywords(&title, &content, 10);
+        let local_categories = classify_by_keywords(&local_keywords);
+
         let analysis_result = client.discordian_analysis(&model, &title, &content, &locale).await;
 
         let (success, error) = match analysis_result {
@@ -1033,12 +1094,14 @@ pub async fn process_batch(
                     failed += 1;
                     (false, Some("DB update failed".to_string()))
                 } else {
-                    let categories_saved = save_article_categories(db.conn(), fnord_id, &analysis.categories);
+                    let merged_categories = validate_and_merge_categories(&analysis.categories, local_categories.clone());
+                    let categories_saved = save_article_categories(db.conn(), fnord_id, &merged_categories);
 
+                    let merged_keywords = merge_keywords(&analysis.keywords, local_keywords.clone(), 15);
                     let (_tags_saved, _tag_ids) = save_article_keywords_and_network(
                         db.conn(),
                         fnord_id,
-                        &analysis.keywords,
+                        &merged_keywords,
                         &categories_saved,
                         article_date.as_deref(),
                     );
@@ -1048,8 +1111,21 @@ pub async fn process_batch(
                 }
             }
             Err(e) => {
+                let db = state.db.lock().map_err(|e| e.to_string())?;
+
+                if !local_categories.is_empty() || !local_keywords.is_empty() {
+                    let categories_saved = save_article_categories(db.conn(), fnord_id, &local_categories);
+                    let (_tags_saved, _tag_ids) = save_article_keywords_and_network(
+                        db.conn(),
+                        fnord_id,
+                        &local_keywords,
+                        &categories_saved,
+                        article_date.as_deref(),
+                    );
+                }
+
                 failed += 1;
-                (false, Some(e.to_string()))
+                (false, Some(format!("LLM failed, used local extraction: {}", e)))
             }
         };
 
