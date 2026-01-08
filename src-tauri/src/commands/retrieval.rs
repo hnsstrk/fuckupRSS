@@ -56,7 +56,6 @@ pub async fn fetch_full_content(
     }
 }
 
-/// Batch fetch full content for all truncated articles in a pentacle
 #[tauri::command]
 pub async fn fetch_truncated_articles(
     state: State<'_, AppState>,
@@ -64,57 +63,31 @@ pub async fn fetch_truncated_articles(
 ) -> Result<Vec<RetrievalResponse>, String> {
     let retrieval = HagbardRetrieval::new();
 
-    // Get articles that need fetching (sync)
     let articles: Vec<(i64, String, Option<String>)> = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
 
-        let mut articles = Vec::new();
+        let base_sql = "SELECT id, url, content_raw FROM fnords WHERE full_text_fetched = FALSE";
+        let sql = match pentacle_id {
+            Some(_) => format!("{} AND pentacle_id = ?1 ORDER BY published_at DESC LIMIT 50", base_sql),
+            None => format!("{} ORDER BY published_at DESC LIMIT 50", base_sql),
+        };
 
-        if let Some(pid) = pentacle_id {
-            let mut stmt = db
-                .conn()
-                .prepare(
-                    "SELECT id, url, content_raw FROM fnords
-                     WHERE pentacle_id = ?1 AND full_text_fetched = FALSE
-                     ORDER BY published_at DESC LIMIT 50",
-                )
-                .map_err(|e| e.to_string())?;
+        let mut stmt = db.conn().prepare(&sql).map_err(|e| e.to_string())?;
 
-            let rows = stmt
-                .query_map([pid], |row| {
-                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?))
-                })
-                .map_err(|e| e.to_string())?;
+        let row_mapper = |row: &rusqlite::Row| -> Result<(i64, String, Option<String>), rusqlite::Error> {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        };
 
-            for row in rows.flatten() {
-                if row.2.as_ref().map(|c| HagbardRetrieval::is_truncated(c)).unwrap_or(true) {
-                    articles.push(row);
-                }
-            }
-        } else {
-            let mut stmt = db
-                .conn()
-                .prepare(
-                    "SELECT id, url, content_raw FROM fnords
-                     WHERE full_text_fetched = FALSE
-                     ORDER BY published_at DESC LIMIT 50",
-                )
-                .map_err(|e| e.to_string())?;
-
-            let rows = stmt
-                .query_map([], |row| {
-                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?))
-                })
-                .map_err(|e| e.to_string())?;
-
-            for row in rows.flatten() {
-                if row.2.as_ref().map(|c| HagbardRetrieval::is_truncated(c)).unwrap_or(true) {
-                    articles.push(row);
-                }
-            }
+        let rows: Vec<(i64, String, Option<String>)> = match pentacle_id {
+            Some(pid) => stmt.query_map([pid], row_mapper),
+            None => stmt.query_map([], row_mapper),
         }
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .filter(|(_, _, content)| content.as_ref().map(|c| HagbardRetrieval::is_truncated(c)).unwrap_or(true))
+        .collect();
 
-        articles
+        rows
     };
 
     let mut results = Vec::new();

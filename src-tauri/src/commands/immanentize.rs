@@ -58,8 +58,8 @@ pub struct TrendingKeyword {
     pub id: i64,
     pub name: String,
     pub total_count: i64,
-    pub recent_count: i64,  // Last 7 days
-    pub growth_rate: f64,   // recent / (total - recent)
+    pub recent_count: i64, // Last 7 days
+    pub growth_rate: f64,  // recent / (total - recent)
 }
 
 /// Network statistics
@@ -70,6 +70,29 @@ pub struct NetworkStats {
     pub total_clusters: i64,
     pub avg_neighbors_per_keyword: f64,
 }
+
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
+
+/// Map a database row to a Keyword struct
+fn keyword_from_row(row: &rusqlite::Row) -> Result<Keyword, rusqlite::Error> {
+    Ok(Keyword {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        count: row.get(2)?,
+        article_count: row.get::<_, Option<i64>>(3)?.unwrap_or(0),
+        cluster_id: row.get(4)?,
+        is_canonical: row.get::<_, Option<bool>>(5)?.unwrap_or(true),
+        canonical_id: row.get(6)?,
+        first_seen: row.get(7)?,
+        last_used: row.get(8)?,
+    })
+}
+
+/// SQL columns for Keyword queries (must match keyword_from_row order)
+const KEYWORD_SELECT_COLUMNS: &str =
+    "id, name, count, article_count, cluster_id, is_canonical, canonical_id, first_seen, last_used";
 
 // ============================================================
 // QUERIES
@@ -86,34 +109,15 @@ pub fn get_keywords(
     let limit = limit.unwrap_or(100);
     let offset = offset.unwrap_or(0);
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
-            SELECT id, name, count, article_count, cluster_id,
-                   is_canonical, canonical_id, first_seen, last_used
-            FROM immanentize
-            WHERE is_canonical = TRUE OR is_canonical IS NULL
-            ORDER BY article_count DESC, count DESC
-            LIMIT ? OFFSET ?
-            "#,
-        )
-        .map_err(|e| e.to_string())?;
+    let sql = format!(
+        "SELECT {} FROM immanentize WHERE is_canonical = TRUE OR is_canonical IS NULL ORDER BY article_count DESC, count DESC LIMIT ? OFFSET ?",
+        KEYWORD_SELECT_COLUMNS
+    );
+
+    let mut stmt = db.conn().prepare(&sql).map_err(|e| e.to_string())?;
 
     let keywords = stmt
-        .query_map(rusqlite::params![limit, offset], |row| {
-            Ok(Keyword {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                count: row.get(2)?,
-                article_count: row.get::<_, Option<i64>>(3)?.unwrap_or(0),
-                cluster_id: row.get(4)?,
-                is_canonical: row.get::<_, Option<bool>>(5)?.unwrap_or(true),
-                canonical_id: row.get(6)?,
-                first_seen: row.get(7)?,
-                last_used: row.get(8)?,
-            })
-        })
+        .query_map(rusqlite::params![limit, offset], keyword_from_row)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
@@ -121,36 +125,16 @@ pub fn get_keywords(
     Ok(keywords)
 }
 
-/// Get a single keyword by ID
 #[tauri::command]
 pub fn get_keyword(state: State<AppState>, id: i64) -> Result<Option<Keyword>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
-    let keyword = db
-        .conn()
-        .query_row(
-            r#"
-            SELECT id, name, count, article_count, cluster_id,
-                   is_canonical, canonical_id, first_seen, last_used
-            FROM immanentize
-            WHERE id = ?
-            "#,
-            [id],
-            |row| {
-                Ok(Keyword {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    count: row.get(2)?,
-                    article_count: row.get::<_, Option<i64>>(3)?.unwrap_or(0),
-                    cluster_id: row.get(4)?,
-                    is_canonical: row.get::<_, Option<bool>>(5)?.unwrap_or(true),
-                    canonical_id: row.get(6)?,
-                    first_seen: row.get(7)?,
-                    last_used: row.get(8)?,
-                })
-            },
-        )
-        .ok();
+    let sql = format!(
+        "SELECT {} FROM immanentize WHERE id = ?",
+        KEYWORD_SELECT_COLUMNS
+    );
+
+    let keyword = db.conn().query_row(&sql, [id], keyword_from_row).ok();
 
     Ok(keyword)
 }
@@ -243,7 +227,6 @@ pub fn get_keyword_categories(
     Ok(categories)
 }
 
-/// Get top keywords for a category
 #[tauri::command]
 pub fn get_category_keywords(
     state: State<AppState>,
@@ -256,32 +239,17 @@ pub fn get_category_keywords(
     let mut stmt = db
         .conn()
         .prepare(
-            r#"
-            SELECT i.id, i.name, i.count, i.article_count, i.cluster_id,
-                   i.is_canonical, i.canonical_id, i.first_seen, i.last_used
-            FROM immanentize_sephiroth ims
-            JOIN immanentize i ON i.id = ims.immanentize_id
-            WHERE ims.sephiroth_id = ?
-            ORDER BY ims.weight DESC, ims.article_count DESC
-            LIMIT ?
-            "#,
+            "SELECT i.id, i.name, i.count, i.article_count, i.cluster_id, i.is_canonical, i.canonical_id, i.first_seen, i.last_used \
+             FROM immanentize_sephiroth ims \
+             JOIN immanentize i ON i.id = ims.immanentize_id \
+             WHERE ims.sephiroth_id = ? \
+             ORDER BY ims.weight DESC, ims.article_count DESC \
+             LIMIT ?",
         )
         .map_err(|e| e.to_string())?;
 
     let keywords = stmt
-        .query_map(rusqlite::params![sephiroth_id, limit], |row| {
-            Ok(Keyword {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                count: row.get(2)?,
-                article_count: row.get::<_, Option<i64>>(3)?.unwrap_or(0),
-                cluster_id: row.get(4)?,
-                is_canonical: row.get::<_, Option<bool>>(5)?.unwrap_or(true),
-                canonical_id: row.get(6)?,
-                first_seen: row.get(7)?,
-                last_used: row.get(8)?,
-            })
-        })
+        .query_map(rusqlite::params![sephiroth_id, limit], keyword_from_row)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
@@ -387,7 +355,6 @@ pub fn get_network_stats(state: State<AppState>) -> Result<NetworkStats, String>
     })
 }
 
-/// Search keywords by name (case-insensitive)
 #[tauri::command]
 pub fn search_keywords(
     state: State<AppState>,
@@ -398,34 +365,15 @@ pub fn search_keywords(
     let limit = limit.unwrap_or(20);
     let search_pattern = format!("%{}%", query.to_lowercase());
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
-            SELECT id, name, count, article_count, cluster_id,
-                   is_canonical, canonical_id, first_seen, last_used
-            FROM immanentize
-            WHERE LOWER(name) LIKE ?1
-            ORDER BY article_count DESC, count DESC
-            LIMIT ?2
-            "#,
-        )
-        .map_err(|e| e.to_string())?;
+    let sql = format!(
+        "SELECT {} FROM immanentize WHERE LOWER(name) LIKE ?1 ORDER BY article_count DESC, count DESC LIMIT ?2",
+        KEYWORD_SELECT_COLUMNS
+    );
+
+    let mut stmt = db.conn().prepare(&sql).map_err(|e| e.to_string())?;
 
     let keywords = stmt
-        .query_map(rusqlite::params![search_pattern, limit], |row| {
-            Ok(Keyword {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                count: row.get(2)?,
-                article_count: row.get::<_, Option<i64>>(3)?.unwrap_or(0),
-                cluster_id: row.get(4)?,
-                is_canonical: row.get::<_, Option<bool>>(5)?.unwrap_or(true),
-                canonical_id: row.get(6)?,
-                first_seen: row.get(7)?,
-                last_used: row.get(8)?,
-            })
-        })
+        .query_map(rusqlite::params![search_pattern, limit], keyword_from_row)
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
@@ -440,7 +388,7 @@ pub fn search_keywords(
 /// Daily count for trend visualization
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DailyCount {
-    pub date: String,      // "2024-01-15"
+    pub date: String, // "2024-01-15"
     pub count: i64,
 }
 
@@ -482,7 +430,7 @@ pub struct TrendComparison {
 pub struct KeywordTrendData {
     pub id: i64,
     pub name: String,
-    pub counts: Vec<i64>,  // Counts aligned with dates
+    pub counts: Vec<i64>, // Counts aligned with dates
 }
 
 /// Get daily trend data for a keyword
