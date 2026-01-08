@@ -1,3 +1,4 @@
+use crate::find_canonical_keyword;
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -862,5 +863,88 @@ pub fn get_keyword_health(state: State<AppState>) -> Result<KeywordHealthStats, 
         orphan_keywords,
         duplicate_candidates,
         oldest_unused_days,
+    })
+}
+
+#[derive(Debug, Serialize)]
+pub struct MergeResult {
+    pub merged_count: i64,
+    pub affected_articles: i64,
+}
+
+#[tauri::command]
+pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    let keywords: Vec<(i64, String)> = conn
+        .prepare("SELECT id, name FROM immanentize")
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut merged_count = 0i64;
+    let mut affected_articles = 0i64;
+
+    for (id, name) in &keywords {
+        if let Some(canonical) = find_canonical_keyword(name) {
+            if canonical.to_lowercase() != name.to_lowercase() {
+                let canonical_id: Option<i64> = conn
+                    .query_row(
+                        "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?)",
+                        [canonical],
+                        |row| row.get(0),
+                    )
+                    .ok();
+
+                if let Some(can_id) = canonical_id {
+                    if can_id != *id {
+                        let moved: i64 = conn
+                            .query_row(
+                                "SELECT COUNT(*) FROM fnord_immanentize WHERE immanentize_id = ?",
+                                [id],
+                                |row| row.get(0),
+                            )
+                            .unwrap_or(0);
+
+                        conn.execute(
+                            r#"UPDATE OR IGNORE fnord_immanentize 
+                               SET immanentize_id = ?1 
+                               WHERE immanentize_id = ?2"#,
+                            rusqlite::params![can_id, id],
+                        )
+                        .ok();
+
+                        conn.execute(
+                            "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
+                            [id],
+                        )
+                        .ok();
+
+                        conn.execute(
+                            r#"UPDATE immanentize SET 
+                               count = count + (SELECT COALESCE(count, 0) FROM immanentize WHERE id = ?2),
+                               article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?1)
+                               WHERE id = ?1"#,
+                            rusqlite::params![can_id, id],
+                        )
+                        .ok();
+
+                        conn.execute("DELETE FROM immanentize WHERE id = ?", [id])
+                            .ok();
+
+                        merged_count += 1;
+                        affected_articles += moved;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(MergeResult {
+        merged_count,
+        affected_articles,
     })
 }

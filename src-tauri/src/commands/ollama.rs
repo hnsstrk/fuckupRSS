@@ -2,7 +2,7 @@ use crate::ollama::{
     BiasAnalysis, DiscordianAnalysis, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
     RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale,
 };
-use crate::{extract_keywords, classify_by_keywords, normalize_keyword, SEPHIROTH_CATEGORIES};
+use crate::{extract_keywords, classify_by_keywords, normalize_keyword, find_canonical_keyword, SEPHIROTH_CATEGORIES};
 use crate::AppState;
 use std::sync::atomic::Ordering;
 use tauri::{Emitter, State, Window};
@@ -150,10 +150,13 @@ fn save_article_keywords_and_network(
             None => continue,
         };
 
+        let canonical = find_canonical_keyword(&keyword);
+        let store_keyword = canonical.unwrap_or(&keyword);
+
         let existing_id: Option<i64> = conn
             .query_row(
                 "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?)",
-                [&keyword],
+                [store_keyword],
                 |row| row.get(0),
             )
             .ok();
@@ -170,14 +173,14 @@ fn save_article_keywords_and_network(
                            article_count = article_count + 1,
                            last_used = CURRENT_TIMESTAMP
                        WHERE LOWER(name) = LOWER(?1)"#,
-                    [&keyword],
+                    [store_keyword],
                 )
                 .ok();
             } else {
                 conn.execute(
-                    r#"INSERT INTO immanentize (name, count, article_count, first_seen, last_used)
-                       VALUES (?1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"#,
-                    [&keyword],
+                    r#"INSERT INTO immanentize (name, count, article_count, first_seen, last_used, is_canonical)
+                       VALUES (?1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, TRUE)"#,
+                    [store_keyword],
                 )
                 .ok();
             }
@@ -187,14 +190,14 @@ fn save_article_keywords_and_network(
                        count = count + 1,
                        last_used = CURRENT_TIMESTAMP
                    WHERE LOWER(name) = LOWER(?1)"#,
-                [&keyword],
+                [store_keyword],
             )
             .ok();
         }
 
         if let Ok(tag_id) = conn.query_row::<i64, _, _>(
             "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?)",
-            [&keyword],
+            [store_keyword],
             |row| row.get(0),
         ) {
             conn.execute(

@@ -463,3 +463,78 @@ pub fn normalize_and_dedupe_keywords(keywords: &[String]) -> Vec<String> {
 
     result
 }
+
+static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(|| {
+    vec![
+        (
+            "Künstliche Intelligenz",
+            vec![
+                "ki",
+                "ai",
+                "artificial intelligence",
+                "maschinelles lernen",
+                "machine learning",
+                "ml",
+            ],
+        ),
+        ("Europäische Union", vec!["eu", "european union", "europa"]),
+        (
+            "Vereinigte Staaten",
+            vec!["usa", "us", "united states", "amerika", "america"],
+        ),
+        (
+            "Bundesrepublik Deutschland",
+            vec!["deutschland", "germany", "brd"],
+        ),
+        (
+            "Klimawandel",
+            vec![
+                "klimakrise",
+                "climate change",
+                "global warming",
+                "erderwärmung",
+            ],
+        ),
+        (
+            "COVID-19",
+            vec!["corona", "coronavirus", "covid", "pandemie", "pandemic"],
+        ),
+        (
+            "Russland",
+            vec!["russia", "moskau", "moscow", "kreml", "kremlin"],
+        ),
+        ("Ukraine", vec!["kiew", "kyiv", "kiev"]),
+        ("China", vec!["peking", "beijing", "volksrepublik"]),
+    ]
+});
+
+pub fn find_canonical_keyword(keyword: &str) -> Option<&'static str> {
+    let lower = keyword.to_lowercase();
+
+    for (canonical, synonyms) in SYNONYM_GROUPS.iter() {
+        if canonical.to_lowercase() == lower {
+            return Some(canonical);
+        }
+        for syn in synonyms {
+            if *syn == lower {
+                return Some(canonical);
+            }
+        }
+    }
+
+    None
+}
+
+pub fn get_all_synonyms(keyword: &str) -> Vec<&'static str> {
+    let lower = keyword.to_lowercase();
+
+    for (canonical, synonyms) in SYNONYM_GROUPS.iter() {
+        if canonical.to_lowercase() == lower || synonyms.iter().any(|s| *s == lower) {
+            let mut result: Vec<&str> = synonyms.iter().copied().collect();
+            result.push(canonical);
+            return result;
+        }
+    }
+
+    vec![]
+}
