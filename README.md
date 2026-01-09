@@ -137,7 +137,7 @@ brew install ollama
 
 ```bash
 ollama pull ministral-3:latest
-ollama pull nomic-embed-text
+ollama pull snowflake-arctic-embed2
 ```
 
 ### 3. Ollama konfigurieren (Linux)
@@ -242,7 +242,7 @@ Die Einstellungen können direkt in der App unter "Einstellungen" geändert werd
 | Datenbank | SQLite + sqlite-vec |
 | i18n | [svelte-i18n](https://github.com/kaisermann/svelte-i18n) |
 | KI | [Ollama](https://ollama.com/) (lokal) |
-| Modelle | ministral-3:latest, nomic-embed-text |
+| Modelle | ministral-3:latest, snowflake-arctic-embed2 |
 
 ### Mehrsprachigkeit
 

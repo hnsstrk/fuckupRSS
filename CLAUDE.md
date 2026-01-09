@@ -31,7 +31,7 @@ fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U
 
 - **Framework:** Tauri 2.x (Rust backend + Svelte 5 frontend)
 - **Database:** SQLite + sqlite-vec (vector search, pure Rust)
-- **AI Backend:** Ollama (local) with ministral-3:latest and nomic-embed-text models
+- **AI Backend:** Ollama (local) with ministral-3:latest and snowflake-arctic-embed2 models
 - **Styling:** TailwindCSS
 - **i18n:** svelte-i18n (DE/EN)
 - **Target Platforms:** Linux (primary), macOS (secondary)
@@ -355,7 +355,7 @@ The codebase uses terms from the Illuminatus! trilogy:
 - `dismissed_synonyms` - Ignorierte Synonym-Vorschläge
 
 ### Embeddings (Aktueller Stand)
-- Keywords: Embeddings als BLOB in `immanentize.embedding` (768-dim, nomic-embed-text)
+- Keywords: Embeddings als BLOB in `immanentize.embedding` (1024-dim, snowflake-arctic-embed2)
 - Artikel: ⏳ Phase 3 - `fnords.embedding` geplant
 
 Schema-Definition: `src-tauri/src/db/schema.rs`
@@ -441,7 +441,7 @@ Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
 ```bash
 # Install models (can also be done via Settings UI)
 ollama pull ministral-3:latest
-ollama pull nomic-embed-text
+ollama pull snowflake-arctic-embed2
 
 # Configure for dual model loading (Linux)
 sudo systemctl edit ollama.service
@@ -450,6 +450,8 @@ sudo systemctl edit ollama.service
 # Environment="OLLAMA_MAX_LOADED_MODELS=2"
 # Environment="OLLAMA_FLASH_ATTENTION=1"
 ```
+
+**Hinweis:** Bei Modellwechsel müssen alle Keywords neu eingebettet werden (Settings → Wartung → Embeddings generieren).
 
 ## Data Paths
 

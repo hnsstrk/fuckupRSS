@@ -2199,9 +2199,8 @@ test('user flow', async ({ page }) => {
 
 ```
 NAME                       SIZE
-ministral-3:latest         6.0 GB    ← Hauptmodell (empfohlen)
-nomic-embed-text:latest    274 MB    ← Embeddings (aktuell)
-snowflake-arctic-embed2    1.2 GB    ← Embeddings (empfohlen für Deutsch)
+ministral-3:latest         6.0 GB    ← Hauptmodell
+snowflake-arctic-embed2    1.2 GB    ← Embeddings (DE/EN, 1024-dim)
 qwen3-vl:8b                6.1 GB    ← Alternative mit Vision
 phi4:latest                9.1 GB
 qwen3:8b                   5.2 GB
@@ -2232,28 +2231,28 @@ INSERT INTO settings (key, value) VALUES
 -- ('embeddingModel', 'nomic-embed-text')
 ```
 
-### C. Bekannte Issues und Verbesserungen
+### C. Embedding-Modell
 
-#### C.1 Embedding-Modell Empfehlung
+#### C.1 Aktuelles Modell
 
-**Aktuell:** `nomic-embed-text` (768-dim)
+**Standard:** `snowflake-arctic-embed2` (1024-dim, multilingual)
 
-**Problem:** nomic-embed-text hat Schwächen bei deutschen Keywords und kurzen Texten.
+| Eigenschaft | Wert |
+|-------------|------|
+| Modell | snowflake-arctic-embed2 |
+| Dimensionen | 1024 |
+| Sprachen | 74 (inkl. Deutsch, Englisch) |
+| Größe | 1.2 GB |
+| VRAM | ~2-3 GB |
+| Kontext | 8192 Tokens |
 
-**Empfohlene Alternative:** `snowflake-arctic-embed2`
+**Vorteile:**
+- Explizite deutsche Sprachunterstützung (CLEF-Benchmarks)
+- Bessere Performance bei kurzen Texten/Keywords
+- Matryoshka Representation Learning (MRL) für Kompression
+- Apache 2.0 Lizenz
 
-| Eigenschaft | nomic-embed-text | snowflake-arctic-embed2 |
-|-------------|------------------|-------------------------|
-| Dimensionen | 768 | 1024 (komprimierbar) |
-| Größe | 274 MB | 1.2 GB |
-| Deutsch | Limitiert | Explizit unterstützt |
-| Kontext | 8192 | 8192 |
-| VRAM | ~1 GB | ~2-3 GB |
-
-**Migration erforderlich:**
-1. Schema-Änderung auf 1024 Dimensionen
-2. Alle Keywords neu embedden
-3. `RECOMMENDED_EMBEDDING_MODEL` in `ollama/mod.rs` ändern
+**Bei Modellwechsel:** Alle Keywords müssen neu eingebettet werden (Settings → Wartung → Embeddings generieren), da unterschiedliche Dimensionen nicht kompatibel sind.
 
 **Alternative:** `bge-m3` (100+ Sprachen, ebenfalls 1024-dim)
 

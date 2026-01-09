@@ -87,7 +87,8 @@ struct EmbeddingResponse {
 /// Note: qwen3-vl is a Vision-Language model (slow for text-only tasks)
 /// ministral-3 is faster for pure text analysis
 pub const RECOMMENDED_MAIN_MODEL: &str = "ministral-3:latest";
-pub const RECOMMENDED_EMBEDDING_MODEL: &str = "nomic-embed-text";
+/// snowflake-arctic-embed2: Multilingual (74 languages incl. German/English), 1024-dim
+pub const RECOMMENDED_EMBEDDING_MODEL: &str = "snowflake-arctic-embed2";
 
 /// Default prompts (English prompts with {language} placeholder for output language)
 pub const DEFAULT_SUMMARY_PROMPT: &str = r#"/no_think

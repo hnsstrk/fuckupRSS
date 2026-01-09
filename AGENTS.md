@@ -16,7 +16,7 @@ AI Agent Guidelines for fuckupRSS Development
 | Backend | Rust | SQLite, async with tokio |
 | Frontend | Svelte 5 | Runes-based reactivity |
 | Database | SQLite + sqlite-vec | WAL mode, vector search |
-| AI | Ollama | Local models: ministral-3:latest, nomic-embed-text |
+| AI | Ollama | Local models: ministral-3:latest, snowflake-arctic-embed2 |
 | Styling | TailwindCSS | Catppuccin color scheme |
 | i18n | svelte-i18n | DE/EN support |
 
