@@ -60,24 +60,8 @@ async fn fetch_full_content_for_articles(
     }; // db lock released here
 
     // Fetch full content for each article
-    for (id, url, content_raw) in articles {
-        // Check if content is truncated or missing
-        let needs_fetch = content_raw
-            .as_ref()
-            .map(|c| HagbardRetrieval::is_truncated(c))
-            .unwrap_or(true);
-
-        if !needs_fetch {
-            // Content is not truncated, mark as fetched
-            if let Ok(db) = state.db.lock() {
-                let _ = db.conn().execute(
-                    "UPDATE fnords SET full_text_fetched = TRUE WHERE id = ?1",
-                    [id],
-                );
-            }
-            continue;
-        }
-
+    // Always fetch full text to ensure complete content in DB
+    for (id, url, _content_raw) in articles {
         // Fetch full content
         match retrieval.retrieve(&url).await {
             Ok(extracted) => {

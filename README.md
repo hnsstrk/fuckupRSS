@@ -45,8 +45,9 @@ Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
 - **Artikeltyp** – Nachricht, Meinung, Analyse, Satire
 
 ### 📰 Volltext-Abruf (Hagbard's Retrieval)
-- Automatisches Nachladen bei gekürzten Feeds
-- Readability-Extraktion
+- Automatisches Nachladen für alle neuen Artikel
+- Readability-Extraktion (entfernt Werbung, Navigation etc.)
+- KI-Analysen verwenden ausschließlich den Volltext
 - Keine Paywall-Umgehung – nur öffentlich zugängliche Inhalte
 
 ### 🎯 Personalisierung (Operation Mindfuck) *– Coming Soon*

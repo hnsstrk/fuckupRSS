@@ -1,7 +1,8 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
-  import { emit } from '@tauri-apps/api/event';
+  import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import type { BatchProgress, BatchResult } from '../types';
   import { settings, type Theme } from '../stores/settings.svelte';
   import { setLocale, locale } from '../i18n';
   import { appState } from '../stores/state.svelte';
@@ -70,6 +71,12 @@
   
   // Keyword statistics state
   let keywordStats = $state<{ total: number; with_embeddings: number; avg_quality: number; low_quality: number } | null>(null);
+
+  // Reanalyze progress state
+  let reanalyzeProgress = $state<BatchProgress | null>(null);
+  let reanalyzeRunning = $state(false);
+  let reanalyzeResult = $state<BatchResult | null>(null);
+  let progressUnlisten: UnlistenFn | null = null;
 
   const localeOptions = [
     { value: 'de', labelKey: 'settings.languageGerman' },
@@ -382,17 +389,83 @@
     confirmAction = null;
     maintenanceRunning = 'reset';
     maintenanceResult = null;
+    reanalyzeProgress = null;
+    reanalyzeResult = null;
+
     try {
-      const result = await invoke<{ reset_count: number }>('reset_articles_for_reprocessing', {
+      // Step 1: Reset articles for reprocessing
+      const resetResult = await invoke<{ reset_count: number }>('reset_articles_for_reprocessing', {
         only_with_content: true
       });
-      maintenanceResult = `${result.reset_count} ${$_('settings.maintenance.articles')} ${$_('settings.maintenance.reset')}`;
+
+      if (resetResult.reset_count === 0) {
+        maintenanceResult = $_('settings.maintenance.noArticlesToReset');
+        maintenanceRunning = null;
+        return;
+      }
+
       // Notify Sidebar to refresh unprocessed count
       await emit('articles-reset');
+      await appState.loadUnprocessedCount();
+
+      // Step 2: Get model for analysis
+      const model = appState.selectedModel || appState.ollamaStatus.models[0];
+      if (!model || !appState.ollamaStatus.available) {
+        maintenanceResult = `${resetResult.reset_count} ${$_('settings.maintenance.articles')} ${$_('settings.maintenance.reset')}. ${$_('settings.maintenance.ollamaUnavailable')}`;
+        maintenanceRunning = null;
+        return;
+      }
+
+      // Step 3: Setup progress listener
+      reanalyzeRunning = true;
+      maintenanceRunning = 'reanalyze';
+      reanalyzeProgress = {
+        current: 0,
+        total: resetResult.reset_count,
+        fnord_id: 0,
+        title: $_('batch.starting'),
+        success: true,
+        error: null
+      };
+
+      progressUnlisten = await listen<BatchProgress>('batch-progress', (event) => {
+        reanalyzeProgress = { ...event.payload };
+      });
+
+      // Step 4: Start batch processing
+      const batchResult = await invoke<BatchResult>('process_batch', {
+        model,
+        limit: null
+      });
+
+      reanalyzeResult = batchResult;
+      maintenanceResult = $_('settings.maintenance.reanalyzeComplete', {
+        values: { succeeded: batchResult.succeeded, failed: batchResult.failed }
+      });
+
+      // Refresh data
+      await appState.loadFnords();
+      await appState.loadPentacles();
+      await appState.loadUnprocessedCount();
+
     } catch (e) {
       maintenanceResult = `Error: ${e}`;
     } finally {
       maintenanceRunning = null;
+      reanalyzeRunning = false;
+      if (progressUnlisten) {
+        progressUnlisten();
+        progressUnlisten = null;
+      }
+    }
+  }
+
+  async function handleCancelReanalyze() {
+    try {
+      await invoke('cancel_batch');
+      maintenanceResult = $_('settings.maintenance.reanalyzeCancelled');
+    } catch (e) {
+      console.error('Failed to cancel reanalyze:', e);
     }
   }
 
@@ -948,15 +1021,51 @@
                 <span class="action-title">{$_('settings.maintenance.resetForReprocessing')}</span>
                 <p class="action-desc">{$_('settings.maintenance.resetForReprocessingDesc')}</p>
               </div>
-              <button 
-                type="button" 
-                class="btn-action btn-danger"
-                onclick={showResetConfirmation}
-                disabled={maintenanceRunning !== null}
-              >
-                {maintenanceRunning === 'reset' ? $_('settings.maintenance.running') : $_('settings.maintenance.resetForReprocessing')}
-              </button>
+              {#if !reanalyzeRunning}
+                <button
+                  type="button"
+                  class="btn-action btn-danger"
+                  onclick={showResetConfirmation}
+                  disabled={maintenanceRunning !== null}
+                >
+                  {maintenanceRunning === 'reset' ? $_('settings.maintenance.running') : $_('settings.maintenance.resetForReprocessing')}
+                </button>
+              {/if}
             </div>
+
+            {#if reanalyzeRunning && reanalyzeProgress}
+              <div class="reanalyze-progress">
+                <div class="progress-header">
+                  <span class="progress-label">{$_('settings.maintenance.reanalyzing')}</span>
+                  <button
+                    type="button"
+                    class="btn-cancel-small"
+                    onclick={handleCancelReanalyze}
+                  >
+                    {$_('batch.cancel')}
+                  </button>
+                </div>
+                <div class="progress-bar">
+                  <div
+                    class="progress-fill"
+                    style="width: {reanalyzeProgress.total > 0 ? (reanalyzeProgress.current / reanalyzeProgress.total) * 100 : 0}%"
+                  ></div>
+                </div>
+                <div class="progress-details">
+                  <span class="progress-count">
+                    {reanalyzeProgress.current} / {reanalyzeProgress.total}
+                  </span>
+                  <span class="progress-title" title={reanalyzeProgress.title}>
+                    {reanalyzeProgress.title.length > 40
+                      ? reanalyzeProgress.title.slice(0, 40) + "..."
+                      : reanalyzeProgress.title}
+                  </span>
+                </div>
+                {#if !reanalyzeProgress.success && reanalyzeProgress.error}
+                  <div class="progress-error">{reanalyzeProgress.error}</div>
+                {/if}
+              </div>
+            {/if}
           </div>
         {/if}
       </div>
@@ -1428,6 +1537,88 @@
   .btn-action.btn-danger:hover:not(:disabled) {
     background-color: var(--status-error);
     color: var(--text-on-accent);
+  }
+
+  /* Reanalyze Progress */
+  .reanalyze-progress {
+    padding: 1rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-default);
+  }
+
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+
+  .progress-label {
+    font-weight: 500;
+    color: var(--accent-primary);
+  }
+
+  .btn-cancel-small {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--status-error);
+    border-radius: 0.25rem;
+    background: none;
+    color: var(--status-error);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-cancel-small:hover {
+    background-color: var(--status-error);
+    color: var(--text-on-accent);
+  }
+
+  .progress-bar {
+    height: 8px;
+    background-color: var(--bg-surface);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background-color: var(--accent-primary);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+  }
+
+  .progress-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .progress-count {
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .progress-title {
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60%;
+    text-align: right;
+  }
+
+  .progress-error {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background-color: rgba(243, 139, 168, 0.1);
+    border-radius: 0.25rem;
+    color: var(--status-error);
+    font-size: 0.75rem;
   }
 
   /* Dialog Actions */

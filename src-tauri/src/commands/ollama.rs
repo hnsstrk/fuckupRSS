@@ -584,7 +584,7 @@ pub async fn generate_summary(
         let db = state.db.lock().map_err(|e| e.to_string())?;
         db.conn()
             .query_row(
-                "SELECT COALESCE(content_full, content_raw, '') FROM fnords WHERE id = ?1",
+                "SELECT COALESCE(content_full, '') FROM fnords WHERE id = ?1",
                 [fnord_id],
                 |row| row.get(0),
             )
@@ -644,7 +644,7 @@ pub async fn analyze_article(
         let db = state.db.lock().map_err(|e| e.to_string())?;
         db.conn()
             .query_row(
-                "SELECT title, COALESCE(content_full, content_raw, '') FROM fnords WHERE id = ?1",
+                "SELECT title, COALESCE(content_full, '') FROM fnords WHERE id = ?1",
                 [fnord_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -715,7 +715,7 @@ pub async fn process_article(
         let db = state.db.lock().map_err(|e| e.to_string())?;
         db.conn()
             .query_row(
-                "SELECT title, COALESCE(content_full, content_raw, '') FROM fnords WHERE id = ?1",
+                "SELECT title, COALESCE(content_full, '') FROM fnords WHERE id = ?1",
                 [fnord_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -822,7 +822,7 @@ pub async fn process_article_discordian(
         let db = state.db.lock().map_err(|e| e.to_string())?;
         db.conn()
             .query_row(
-                "SELECT title, COALESCE(content_full, content_raw, ''), DATE(COALESCE(published_at, fetched_at)) FROM fnords WHERE id = ?1",
+                "SELECT title, COALESCE(content_full, ''), DATE(COALESCE(published_at, fetched_at)) FROM fnords WHERE id = ?1",
                 [fnord_id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
@@ -960,7 +960,7 @@ pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount,
         .query_row(
             r#"SELECT COUNT(*) FROM fnords
                WHERE processed_at IS NULL
-               AND (content_full IS NOT NULL OR content_raw IS NOT NULL)"#,
+               AND content_full IS NOT NULL AND content_full != ''"#,
             [],
             |row| row.get(0),
         )
@@ -988,22 +988,23 @@ pub async fn process_batch(
         let db = state.db.lock().map_err(|e| e.to_string())?;
 
         // Use limit if provided, otherwise process all
+        // Only process articles with full text (content_full), not truncated RSS content
         let query = match limit {
             Some(n) => format!(
-                r#"SELECT id, title, COALESCE(content_full, content_raw, '') as content,
+                r#"SELECT id, title, content_full,
                           DATE(COALESCE(published_at, fetched_at)) as article_date
                    FROM fnords
                    WHERE processed_at IS NULL
-                   AND (content_full IS NOT NULL OR content_raw IS NOT NULL)
+                   AND content_full IS NOT NULL AND content_full != ''
                    ORDER BY published_at DESC
                    LIMIT {}"#,
                 n
             ),
-            None => r#"SELECT id, title, COALESCE(content_full, content_raw, '') as content,
+            None => r#"SELECT id, title, content_full,
                           DATE(COALESCE(published_at, fetched_at)) as article_date
                    FROM fnords
                    WHERE processed_at IS NULL
-                   AND (content_full IS NOT NULL OR content_raw IS NOT NULL)
+                   AND content_full IS NOT NULL AND content_full != ''
                    ORDER BY published_at DESC"#.to_string(),
         };
 
@@ -1303,9 +1304,9 @@ pub fn reset_articles_for_reprocessing(
     let only_with_content = only_with_content.unwrap_or(true);
 
     let sql = if only_with_content {
-        r#"UPDATE fnords SET processed_at = NULL 
-           WHERE (content_raw IS NOT NULL AND content_raw != '') 
-           OR (content_full IS NOT NULL AND content_full != '')"#
+        // Only reset articles with full text content (not truncated RSS content)
+        r#"UPDATE fnords SET processed_at = NULL
+           WHERE content_full IS NOT NULL AND content_full != ''"#
     } else {
         "UPDATE fnords SET processed_at = NULL"
     };

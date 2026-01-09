@@ -427,14 +427,30 @@ Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
 
 ## AI Processing Pipeline
 
-1. **Hagbard's Retrieval** - Fetch full text for truncated feeds
-2. **Discordian Analysis** - Summarize, categorize, extract keywords via ministral/qwen
+1. **Hagbard's Retrieval** - Fetch full text for ALL new articles (automatic after sync)
+   - Alle Artikel werden vollständig abgerufen, nicht nur truncated Feeds
+   - Volltext wird in `content_full` gespeichert
+   - `content_raw` bleibt für Änderungserkennung und Fallback-Anzeige
+2. **Discordian Analysis** - Summarize, categorize, extract keywords via ministral
+   - **Verwendet NUR `content_full`** - kein Fallback auf `content_raw`
+   - Artikel ohne Volltext werden nicht zur Analyse vorgeschlagen
+   - Einzelartikel können jederzeit neu analysiert werden (Button in ArticleView)
+   - "Alle neu analysieren" (Settings → Wartung) mit Fortschrittsanzeige
 3. **Greyface Alert** - Bias detection (political_bias: -2 to +2, sachlichkeit: 0-4)
 4. **Immanentize Network** - Schlagwort-Verarbeitung:
-   - Neue Schlagworte: Embedding via nomic-embed-text
+   - Neue Schlagworte: Embedding via snowflake-arctic-embed2
    - Kategorie-Assoziation: immanentize_sephiroth aktualisieren
    - Nachbar-Update: Kookkurrenz + Embedding-Similarity
    - Synonym-Erkennung: Bei embedding_similarity > 0.92
+
+### Content-Felder in fnords
+
+| Feld | Zweck | Quelle |
+|------|-------|--------|
+| `content_raw` | RSS-Feed Inhalt (Auszug) | Sync |
+| `content_full` | Volltext der Webseite | Hagbard's Retrieval |
+
+**Wichtig:** Alle KI-Analysen verwenden ausschließlich `content_full`. Artikel ohne Volltext werden nicht analysiert.
 
 ## Ollama Setup
 
@@ -459,3 +475,66 @@ Datenbank wird im Projektordner gespeichert:
 - **Pfad:** `./data/fuckup.db` (relativ zum Arbeitsverzeichnis)
 - **Format:** SQLite mit WAL-Modus
 - **Hinweis:** `data/` ist in `.gitignore` eingetragen
+
+## MCP-Server (Claude Code Integration)
+
+Für die Entwicklung mit Claude Code sind folgende MCP-Server konfiguriert:
+
+### Konfigurierte Server
+
+| Server | Zweck | Tools |
+|--------|-------|-------|
+| **ollama-mcp** | Lokale KI-Interaktion | `ollama_chat`, `ollama_generate`, `ollama_embed`, `ollama_list_models`, `ollama_pull` |
+| **sqlite-mcp** | Direkte DB-Abfragen | `read_query`, `write_query`, `list_tables`, `describe_table` |
+| **fetch-mcp** | Web-Requests | `fetch` (ohne Einschränkungen) |
+| **memory-mcp** | Persistenter Kontext | `store`, `retrieve`, `search` |
+
+### Konfiguration
+
+Die MCP-Server sind in `~/.claude.json` unter `projects["/home/hnsstrk/Repositories/fuckupRSS"].mcpServers` konfiguriert:
+
+```json
+{
+  "ollama-mcp": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "ollama-mcp@latest"]
+  },
+  "sqlite-mcp": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@anthropic/sqlite-mcp@latest", "/home/hnsstrk/Repositories/fuckupRSS/data/fuckup.db"]
+  },
+  "fetch-mcp": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@anthropic/fetch-mcp@latest"]
+  },
+  "memory-mcp": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@anthropic/memory-mcp@latest"]
+  }
+}
+```
+
+### Anwendungsfälle
+
+**ollama-mcp:**
+- Direkt mit ministral-3:latest oder anderen Modellen chatten
+- Embeddings generieren ohne Rust-Code
+- Modelle herunterladen und verwalten
+
+**sqlite-mcp:**
+- Datenbank-Debugging: `SELECT * FROM fnords WHERE summary IS NULL LIMIT 5`
+- Schema-Analyse: `PRAGMA table_info(immanentize)`
+- Datenintegrität prüfen: Orphaned Records, fehlende Embeddings
+
+**fetch-mcp:**
+- RSS-Feeds testen ohne App zu starten
+- Webseiten-Struktur für Readability analysieren
+- API-Endpoints testen
+
+**memory-mcp:**
+- Wichtige Projektinfos zwischen Sessions speichern
+- Kontext über längere Entwicklungszyklen behalten

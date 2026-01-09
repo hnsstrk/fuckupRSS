@@ -29,6 +29,7 @@
     "fullText": "Volltext",
     "aiAnalysis": "KI-Analyse",
     "analyze": "Analysieren",
+    "reanalyze": "Neu analysieren",
     "articleType": "Artikeltyp",
     "categories": "Kategorien",
     "keywords": "Stichworte",
@@ -154,7 +155,12 @@
       "totalKeywords": "Keywords gesamt",
       "withEmbeddings": "Mit Embeddings",
       "avgQuality": "Durchschn. Qualitaet",
-      "lowQuality": "Niedrige Qualitaet"
+      "lowQuality": "Niedrige Qualitaet",
+      "reanalyzing": "Analysiere Artikel...",
+      "noArticlesToReset": "Keine Artikel zum Zuruecksetzen vorhanden",
+      "ollamaUnavailable": "Ollama nicht verfuegbar - Analyse kann nicht gestartet werden",
+      "reanalyzeComplete": "Analyse abgeschlossen: {succeeded} erfolgreich, {failed} fehlgeschlagen",
+      "reanalyzeCancelled": "Analyse abgebrochen"
     }
   },
   "terminology": {

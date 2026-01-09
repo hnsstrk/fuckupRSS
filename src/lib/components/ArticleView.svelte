@@ -224,7 +224,7 @@
               </Tooltip>
             </button>
           {/if}
-          {#if appState.ollamaStatus.available && (!fnord.summary || (fnord.political_bias === null && fnord.sachlichkeit === null))}
+          {#if appState.ollamaStatus.available}
             <button
               onclick={analyzeWithAI}
               class="btn btn-default {appState.analyzing ? 'retrieving' : ''}"
@@ -235,7 +235,7 @@
                 <span class="spinner">⟳</span>
               {/if}
               <Tooltip termKey="discordian">
-                <span>{$_('articleView.analyze')}</span>
+                <span>{fnord.summary ? $_('articleView.reanalyze') : $_('articleView.analyze')}</span>
               </Tooltip>
             </button>
           {/if}
