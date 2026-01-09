@@ -238,7 +238,9 @@
   },
   "statusBar": {
     "hopeless": "Hoffnungslos",
-    "hopelessTooltip": "Artikel, deren KI-Analyse nach mehreren Versuchen fehlgeschlagen ist. Diese werden nicht mehr automatisch analysiert."
+    "hopelessTooltip": "Artikel, deren KI-Analyse nach mehreren Versuchen fehlgeschlagen ist. Diese werden nicht mehr automatisch analysiert.",
+    "failed": "Fehlgeschlagen",
+    "failedTooltip": "Artikel, bei denen die KI-Analyse fehlgeschlagen ist, aber noch weitere Versuche ausstehen."
   },
   "batch": {
     "title": "Discordian Analysis",

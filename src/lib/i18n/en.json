@@ -238,7 +238,9 @@
   },
   "statusBar": {
     "hopeless": "Hopeless",
-    "hopelessTooltip": "Articles whose AI analysis failed after multiple retries. These will no longer be analyzed automatically."
+    "hopelessTooltip": "Articles whose AI analysis failed after multiple retries. These will no longer be analyzed automatically.",
+    "failed": "Failed",
+    "failedTooltip": "Articles where AI analysis failed, but more retries are pending."
   },
   "batch": {
     "title": "Discordian Analysis",

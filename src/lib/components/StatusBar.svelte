@@ -20,6 +20,7 @@
   let loadedModels = $state<LoadedModel[]>([]);
   let keywordStats = $state<KeywordStats>({ total: 0, with_embeddings: 0, queue_size: 0 });
   let hopelessCount = $state(0);
+  let failedCount = $state(0);
   let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
   function formatVram(bytes: number): string {
@@ -62,6 +63,14 @@
       hopelessCount = hopeless.count;
     } catch (e) {
       hopelessCount = 0;
+    }
+
+    try {
+      // Load failed article count (articles with errors but not yet hopeless)
+      const failed = await invoke<{ count: number }>('get_failed_count');
+      failedCount = failed.count;
+    } catch (e) {
+      failedCount = 0;
     }
   }
 
@@ -121,6 +130,15 @@
       <span class="status-value done">done</span>
     {/if}
   </div>
+
+  <!-- Failed Articles Counter (only show if > 0) -->
+  {#if failedCount > 0}
+    <div class="status-section" title={$_('statusBar.failedTooltip')}>
+      <span class="status-icon failed">⚠</span>
+      <span class="status-label">{$_('statusBar.failed')}</span>
+      <span class="status-value failed">{failedCount}</span>
+    </div>
+  {/if}
 
   <!-- Hopeless Articles Counter (only show if > 0) -->
   {#if hopelessCount > 0}
@@ -240,6 +258,15 @@
   .status-icon.hopeless {
     opacity: 0.7;
     color: var(--accent-error);
+  }
+
+  .status-value.failed {
+    color: var(--accent-warning);
+  }
+
+  .status-icon.failed {
+    opacity: 0.7;
+    color: var(--accent-warning);
   }
 
   .status-value.idle {

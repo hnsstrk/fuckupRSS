@@ -101,6 +101,7 @@ pub fn run() {
             commands::ollama::process_article_discordian,
             commands::ollama::get_unprocessed_count,
             commands::ollama::get_hopeless_count,
+            commands::ollama::get_failed_count,
             commands::ollama::process_batch,
             commands::ollama::cancel_batch,
             commands::ollama::pull_model,

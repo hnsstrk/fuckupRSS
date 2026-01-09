@@ -965,6 +965,11 @@ pub struct HopelessCount {
     pub count: i64,
 }
 
+#[derive(serde::Serialize)]
+pub struct FailedCount {
+    pub count: i64,
+}
+
 /// Get count of hopeless articles (analysis failed after multiple retries)
 #[tauri::command]
 pub fn get_hopeless_count(state: State<AppState>) -> Result<HopelessCount, String> {
@@ -980,6 +985,25 @@ pub fn get_hopeless_count(state: State<AppState>) -> Result<HopelessCount, Strin
         .map_err(|e| e.to_string())?;
 
     Ok(HopelessCount { count })
+}
+
+/// Get count of failed articles (have errors but not yet hopeless)
+#[tauri::command]
+pub fn get_failed_count(state: State<AppState>) -> Result<FailedCount, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let count: i64 = db
+        .conn()
+        .query_row(
+            r#"SELECT COUNT(*) FROM fnords
+               WHERE analysis_attempts > 0
+               AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)"#,
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(FailedCount { count })
 }
 
 /// Get count of unprocessed articles (excludes hopeless articles)
