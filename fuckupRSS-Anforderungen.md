@@ -15,6 +15,7 @@
 5. [Bias-Erkennung (Greyface Alert)](#5-bias-erkennung-greyface-alert)
 6. [Embeddings und Vektorsuche](#6-embeddings-und-vektorsuche)
 6b. [Schlagwort-Netzwerk (Immanentize Network)](#6b-schlagwort-netzwerk-immanentize-network)
+6c. [Operation Mindfuck (Bias-Spiegel)](#6c-operation-mindfuck-bias-spiegel)
 7. [Batch-Verarbeitung (Fnord Processing)](#7-batch-verarbeitung-fnord-processing)
 8. [Volltext-Abruf (Hagbard's Retrieval)](#8-volltext-abruf-hagbards-retrieval)
 8b. [Revisionsverwaltung (Fnord History)](#8b-revisionsverwaltung-fnord-history)
@@ -73,7 +74,7 @@ Die Software verwendet durchgängig Begriffe aus der Illuminatus!-Trilogie:
 | Favoriten/Wichtig | **Golden Apple** 🍎 | Markierte Artikel |
 | KI-Zusammenfassung | **Discordian Analysis** | Automatische Analyse |
 | Bias-Warnung | **Greyface Alert** | Hinweis auf einseitige Berichterstattung |
-| Interessenprofil | **Operation Mindfuck (OM)** | User-Präferenzen |
+| Bias-Spiegel | **Operation Mindfuck (OM)** | Filterblase aufzeigen, nicht verstärken |
 | Kategorien | **Sephiroth** | Thematische Einordnung |
 | Stichworte/Tags | **Immanentize** | Extrahierte Keywords |
 | Feed-Quellen | **Pentacles** | Abonnierte RSS/Atom-Feeds |
@@ -767,6 +768,262 @@ ORDER BY c.keyword_count DESC;
 | `MIN_COOCCURRENCE` | 2 | Mindest-Kookkurrenz für Nachbar-Speicherung |
 | `CLUSTER_MIN_SIZE` | 5 | Mindestgröße für Cluster |
 | `TRENDING_DAYS` | 7 | Zeitraum für Trend-Berechnung |
+
+---
+
+## 6c. Operation Mindfuck (Bias-Spiegel)
+
+### 6c.1 Konzept
+
+**Operation Mindfuck** ist im Illuminatus!-Kontext die discordianische Praxis, Menschen aus ihren gewohnten Denkmustern herauszureißen. In fuckupRSS wird dieses Konzept umgekehrt: Das System zeigt dem User seinen eigenen Bias und seine Filterblase – um ihn darauf aufmerksam zu machen.
+
+**Kernidee**: Nicht personalisierte Empfehlungen, die den Bias verstärken, sondern ein **Bias-Spiegel**, der dem User seine eigene Filterblase vorführt.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  ⚠️ OPERATION MINDFUCK – Dein Bias-Spiegel                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  📊 Dein Leseprofil der letzten 30 Tage:                        │
+│                                                                 │
+│  Politische Tendenz deiner Quellen:                             │
+│  Links ████████████░░░░░░░░ Rechts     (68% links)              │
+│                                                                 │
+│  Themen-Verteilung:                                             │
+│  ▓▓▓▓▓▓▓▓▓▓ Politik (45%)                                       │
+│  ▓▓▓▓▓▓░░░░ Technik (28%)                                       │
+│  ▓▓▓░░░░░░░ Wirtschaft (12%)                                    │
+│  ▓▓░░░░░░░░ Sonstiges (15%)                                     │
+│                                                                 │
+│  ⚠️ Blinde Flecken: Sport, Kultur, Gesundheit                   │
+│                                                                 │
+│  🎯 5 Artikel die dein Weltbild herausfordern könnten:          │
+│  → [Artikel aus konservativer Quelle zu deinem Thema]           │
+│  → [Artikel aus Bereich den du ignorierst]                      │
+│  → ...                                                          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 6c.2 Anti-Bubble-Philosophie
+
+**Warum keine klassische Personalisierung?**
+
+| Klassische Personalisierung | Operation Mindfuck |
+|-----------------------------|-------------------|
+| "Du magst X, hier ist mehr X" | "Du liest nur X, hier ist Y" |
+| Verstärkt Filterblase | Zeigt Filterblase auf |
+| User fühlt sich bestätigt | User wird herausgefordert |
+| Algorithmus versteckt sich | Algorithmus ist transparent |
+
+**Ziel**: Der User soll **bewusst entscheiden** können, ob er in seiner Blase bleiben will – nicht unbewusst hineinrutschen.
+
+### 6c.3 Datenerfassung
+
+#### Lesehistorie (reading_history)
+
+```sql
+CREATE TABLE reading_history (
+    id INTEGER PRIMARY KEY,
+    fnord_id INTEGER NOT NULL,
+    read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    reading_time INTEGER,       -- Sekunden (wie lange gelesen)
+    scroll_depth REAL,          -- 0.0-1.0 (wie weit gescrollt)
+    source TEXT DEFAULT 'view', -- 'view', 'click', 'favorite'
+
+    FOREIGN KEY (fnord_id) REFERENCES fnords(id) ON DELETE CASCADE
+);
+```
+
+#### Erfasste Signale
+
+| Signal | Gewicht | Bedeutung |
+|--------|---------|-----------|
+| Artikel geöffnet | 1.0 | Grundinteresse |
+| > 30 Sekunden gelesen | 1.5 | Echtes Interesse |
+| > 2 Minuten gelesen | 2.0 | Tiefes Interesse |
+| Favorisiert (Golden Apple) | 3.0 | Starkes Interesse |
+| Ignoriert (in Liste übersprungen) | -0.5 | Desinteresse |
+
+### 6c.4 Bias-Analyse
+
+#### Aggregierte Metriken
+
+```sql
+-- Politische Tendenz der gelesenen Artikel
+SELECT
+    AVG(f.political_bias) as avg_bias,
+    COUNT(*) as article_count,
+    SUM(CASE WHEN f.political_bias < 0 THEN 1 ELSE 0 END) as left_count,
+    SUM(CASE WHEN f.political_bias > 0 THEN 1 ELSE 0 END) as right_count
+FROM reading_history rh
+JOIN fnords f ON f.id = rh.fnord_id
+WHERE rh.read_at > datetime('now', '-30 days');
+
+-- Themen-Verteilung
+SELECT
+    s.name as category,
+    COUNT(*) as read_count,
+    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) as percentage
+FROM reading_history rh
+JOIN fnord_sephiroth fs ON fs.fnord_id = rh.fnord_id
+JOIN sephiroth s ON s.id = fs.sephiroth_id
+WHERE rh.read_at > datetime('now', '-30 days')
+GROUP BY s.id
+ORDER BY read_count DESC;
+
+-- Quellen-Verteilung
+SELECT
+    p.title as source,
+    COUNT(*) as read_count,
+    AVG(f.political_bias) as source_bias
+FROM reading_history rh
+JOIN fnords f ON f.id = rh.fnord_id
+JOIN pentacles p ON p.id = f.pentacle_id
+WHERE rh.read_at > datetime('now', '-30 days')
+GROUP BY p.id
+ORDER BY read_count DESC;
+```
+
+#### Blinde Flecken erkennen
+
+```sql
+-- Kategorien die der User ignoriert (< 5% der Lesezeit)
+SELECT s.name as blind_spot
+FROM sephiroth s
+LEFT JOIN (
+    SELECT fs.sephiroth_id, COUNT(*) as read_count
+    FROM reading_history rh
+    JOIN fnord_sephiroth fs ON fs.fnord_id = rh.fnord_id
+    WHERE rh.read_at > datetime('now', '-30 days')
+    GROUP BY fs.sephiroth_id
+) rc ON rc.sephiroth_id = s.id
+WHERE COALESCE(rc.read_count, 0) < (
+    SELECT COUNT(*) * 0.05 FROM reading_history
+    WHERE read_at > datetime('now', '-30 days')
+);
+```
+
+### 6c.5 Gegenpol-Empfehlungen
+
+**Nicht "mehr vom Gleichen", sondern "das Gegenteil":**
+
+```sql
+-- Artikel die den User herausfordern könnten
+SELECT f.id, f.title, f.political_bias, p.title as source
+FROM fnords f
+JOIN pentacles p ON p.id = f.pentacle_id
+WHERE
+    -- Artikel mit gegensätzlichem politischen Bias
+    (f.political_bias * (SELECT AVG(political_bias) FROM reading_history rh
+                         JOIN fnords f2 ON f2.id = rh.fnord_id
+                         WHERE rh.read_at > datetime('now', '-30 days'))) < 0
+    -- Oder aus Kategorien die der User ignoriert
+    OR EXISTS (
+        SELECT 1 FROM fnord_sephiroth fs
+        JOIN sephiroth s ON s.id = fs.sephiroth_id
+        WHERE fs.fnord_id = f.id
+        AND s.name IN (/* blind_spots von oben */)
+    )
+    -- Aber trotzdem qualitativ gut
+    AND f.sachlichkeit >= 3
+    -- Und nicht schon gelesen
+    AND f.id NOT IN (SELECT fnord_id FROM reading_history)
+ORDER BY f.published_at DESC
+LIMIT 5;
+```
+
+### 6c.6 User-Interessen (operation_mindfuck Tabelle)
+
+Zusätzlich zur automatischen Analyse kann der User explizite Interessen angeben:
+
+```sql
+CREATE TABLE operation_mindfuck (
+    id INTEGER PRIMARY KEY,
+
+    -- Typ des Interesses
+    type TEXT NOT NULL CHECK(type IN ('sephiroth', 'immanentize', 'pentacle', 'custom')),
+
+    -- Referenz (je nach Typ)
+    reference_id INTEGER,       -- ID der Kategorie/Stichwort/Feed
+    custom_term TEXT,           -- Für freie Begriffe
+
+    -- Gewichtung
+    weight REAL DEFAULT 1.0 CHECK(weight BETWEEN -1.0 AND 2.0),
+    -- -1.0 = aktiv NICHT interessiert (ausblenden)
+    --  0.0 = neutral
+    --  1.0 = interessiert (Standard)
+    --  2.0 = sehr interessiert
+
+    -- Quelle der Einstellung
+    source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'learned')),
+
+    -- Metadaten
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**Wichtig**: `weight = -1.0` bedeutet **nicht** "verstecken", sondern "mir ist bewusst, dass ich das meide" – die Artikel werden trotzdem angezeigt, aber der Bias-Spiegel berücksichtigt diese Selbsteinschätzung.
+
+### 6c.7 UI-Komponenten
+
+#### Bias-Dashboard (Hauptansicht)
+
+| Element | Beschreibung |
+|---------|--------------|
+| **Bias-Meter** | Horizontaler Balken: Links ↔ Rechts |
+| **Themen-Radar** | Kreisdiagramm der Kategorie-Verteilung |
+| **Blinde-Flecken-Liste** | Kategorien die der User < 5% liest |
+| **Quellen-Diversität** | Score 0-100% (wie viele verschiedene Quellen) |
+| **Zeitlicher Verlauf** | Wie hat sich der Bias über Zeit entwickelt? |
+
+#### Challenge-Vorschläge
+
+```
+┌─────────────────────────────────────────────┐
+│ 🎯 Dein Weltbild herausfordern?             │
+├─────────────────────────────────────────────┤
+│ Du liest 73% linke Quellen.                 │
+│                                             │
+│ Hier sind 3 sachliche Artikel von der       │
+│ anderen Seite zu deinen Lieblingsthemen:    │
+│                                             │
+│ • [FAZ: Wirtschaftspolitik-Analyse]         │
+│ • [NZZ: Tech-Regulierung]                   │
+│ • [Welt: Klimapolitik-Kommentar]            │
+│                                             │
+│ [Später] [Zeig mir mehr]                    │
+└─────────────────────────────────────────────┘
+```
+
+### 6c.8 Datenschutz-Hinweise
+
+- **Alle Daten bleiben lokal** – keine Cloud-Synchronisation der Lesehistorie
+- **Opt-in**: Tracking muss in Settings aktiviert werden
+- **Löschbar**: User kann Lesehistorie jederzeit löschen
+- **Transparent**: User sieht genau welche Daten erfasst werden
+
+### 6c.9 Abgrenzung zu klassischen Empfehlungssystemen
+
+| Feature | Netflix/YouTube/etc. | fuckupRSS |
+|---------|---------------------|-----------|
+| **Ziel** | Engagement maximieren | Bewusstsein schaffen |
+| **Methode** | Mehr vom Gleichen | Das Gegenteil zeigen |
+| **Transparenz** | Black Box | Vollständig offen |
+| **Datenspeicherung** | Cloud | Nur lokal |
+| **Manipulation** | Ja (Dopamin-Loops) | Nein (Anti-Bubble) |
+
+### 6c.10 Implementierungs-Phasen
+
+| Phase | Feature | Priorität |
+|-------|---------|-----------|
+| **1** | Lesehistorie erfassen | Hoch |
+| **2** | Bias-Berechnung (politisch + thematisch) | Hoch |
+| **3** | Blinde-Flecken-Erkennung | Mittel |
+| **4** | Bias-Dashboard UI | Mittel |
+| **5** | Gegenpol-Empfehlungen | Niedrig |
+| **6** | Zeitlicher Verlauf | Niedrig |
 
 ---
 
@@ -2072,8 +2329,12 @@ launchctl setenv OLLAMA_FLASH_ATTENTION 1
 - [ ] Semantische Suche
 
 ### Phase 4: Polish
-- [ ] Operation Mindfuck (Interessen-Profil)
-- [ ] Relevanz-Scoring
+- [ ] Operation Mindfuck (Bias-Spiegel) – siehe [Abschnitt 6c](#6c-operation-mindfuck-bias-spiegel)
+  - [ ] Lesehistorie erfassen
+  - [ ] Bias-Berechnung (politisch + thematisch)
+  - [ ] Blinde-Flecken-Erkennung
+  - [ ] Bias-Dashboard UI
+  - [ ] Gegenpol-Empfehlungen
 - [ ] OPML Import/Export
 - [ ] Erweiterte Keyboard-Shortcuts (Vim-Style)
 - [ ] Desktop-Notifications
@@ -2279,7 +2540,7 @@ INSERT INTO settings (key, value) VALUES
 | Sephiroth | Kategorie |
 | Immanentize | Stichwort/Tag |
 | Greyface Alert | Bias-Warnung |
-| Operation Mindfuck | User-Interessen |
+| Operation Mindfuck | Bias-Spiegel (Filterblase aufzeigen) |
 | Hagbard's Retrieval | Volltext-Abruf |
 | Discordian Analysis | KI-Zusammenfassung |
 | Fnord Processing | Batch-Verarbeitung |
