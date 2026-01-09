@@ -93,6 +93,11 @@ class AppState {
   // Embedding processing state
   embeddingProgress = $state<EmbeddingProgress | null>(null);
 
+  // Lazy loading state
+  totalFnordsCount = $state(0);
+  loadingMore = $state(false);
+  private currentFilter = $state<FnordFilter | undefined>(undefined);
+
   get selectedPentacle(): Pentacle | undefined {
     return this.pentacles.find((p) => p.id === this.selectedPentacleId);
   }
@@ -107,6 +112,10 @@ class AppState {
 
   get changedCount(): number {
     return this.changedFnords.length;
+  }
+
+  get hasMoreFnords(): boolean {
+    return this.fnords.length < this.totalFnordsCount;
   }
 
   async loadPentacles(): Promise<void> {
@@ -126,12 +135,45 @@ class AppState {
     try {
       this.loading = true;
       this.error = null;
-      this.fnords = await invoke<Fnord[]>("get_fnords", { filter });
+      this.currentFilter = filter;
+
+      // Load count and first batch in parallel
+      const [fnords, count] = await Promise.all([
+        invoke<Fnord[]>("get_fnords", { filter: { ...filter, limit: 50, offset: 0 } }),
+        invoke<number>("get_fnords_count", { filter })
+      ]);
+
+      this.fnords = fnords;
+      this.totalFnordsCount = count;
     } catch (e) {
       this.error = String(e);
       console.error("Failed to load fnords:", e);
     } finally {
       this.loading = false;
+    }
+  }
+
+  async loadMoreFnords(): Promise<void> {
+    if (this.loadingMore || !this.hasMoreFnords) return;
+
+    try {
+      this.loadingMore = true;
+      this.error = null;
+
+      const moreFnords = await invoke<Fnord[]>("get_fnords", {
+        filter: {
+          ...this.currentFilter,
+          limit: 50,
+          offset: this.fnords.length
+        }
+      });
+
+      this.fnords = [...this.fnords, ...moreFnords];
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to load more fnords:", e);
+    } finally {
+      this.loadingMore = false;
     }
   }
 

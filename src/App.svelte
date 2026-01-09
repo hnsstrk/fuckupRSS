@@ -8,6 +8,7 @@
   import FnordView from "./lib/components/FnordView.svelte";
   import SettingsDialog from "./lib/components/SettingsDialog.svelte";
   import Toast from "./lib/components/Toast.svelte";
+  import StatusBar from "./lib/components/StatusBar.svelte";
   import { settings } from "./lib/stores/settings.svelte";
   import { initLocaleFromDb } from "./lib/i18n";
   import { networkStore, appState } from "./lib/stores/state.svelte";
@@ -48,32 +49,38 @@
 {#if $isLoading}
   <div class="loading">Loading...</div>
 {:else}
-  <div class="app-container flex h-full">
-    <!-- Sidebar: Feed list (Pentacles) -->
-    <Sidebar
-      onsettings={() => showSettings = true}
-      onnetwork={() => mainView = mainView === 'network' ? 'articles' : 'network'}
-      onfnord={() => mainView = mainView === 'fnord' ? 'articles' : 'fnord'}
-      networkActive={mainView === 'network'}
-      fnordActive={mainView === 'fnord'}
-    />
+  <div class="app-container">
+    <!-- Main content row -->
+    <div class="main-content">
+      <!-- Sidebar: Feed list (Pentacles) -->
+      <Sidebar
+        onsettings={() => showSettings = true}
+        onnetwork={() => mainView = mainView === 'network' ? 'articles' : 'network'}
+        onfnord={() => mainView = mainView === 'fnord' ? 'articles' : 'fnord'}
+        networkActive={mainView === 'network'}
+        fnordActive={mainView === 'fnord'}
+      />
 
-    <!-- Main content area -->
-    <div class="flex flex-1 min-w-0">
-      {#if mainView === 'network'}
-        <!-- Keyword Network View -->
-        <KeywordNetwork />
-      {:else if mainView === 'fnord'}
-        <!-- Fnord Statistics View -->
-        <FnordView />
-      {:else}
-        <!-- Article list (Fnords) -->
-        <ArticleList />
+      <!-- Main content area -->
+      <div class="content-area">
+        {#if mainView === 'network'}
+          <!-- Keyword Network View -->
+          <KeywordNetwork />
+        {:else if mainView === 'fnord'}
+          <!-- Fnord Statistics View -->
+          <FnordView />
+        {:else}
+          <!-- Article list (Fnords) -->
+          <ArticleList />
 
-        <!-- Article view -->
-        <ArticleView />
-      {/if}
+          <!-- Article view -->
+          <ArticleView />
+        {/if}
+      </div>
     </div>
+
+    <!-- Status bar at bottom -->
+    <StatusBar />
   </div>
 
   <SettingsDialog open={showSettings} onclose={() => showSettings = false} />
@@ -87,5 +94,24 @@
     justify-content: center;
     height: 100%;
     color: var(--text-muted);
+  }
+
+  .app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .main-content {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .content-area {
+    display: flex;
+    flex: 1;
+    min-width: 0;
   }
 </style>

@@ -24,6 +24,7 @@
     "useKeys": "Use",
     "and": "and",
     "toNavigate": "to navigate.",
+    "favoriteHint": "to favorite",
     "noContent": "No content available. Click \"Open in browser\" to read the full article.",
     "fetchFullText": "Fetch full text",
     "fullText": "Full Text",
@@ -233,6 +234,10 @@
     "feedAdded": "Feed added",
     "feedDeleted": "Feed deleted",
     "feedError": "Failed to add feed: {error}"
+  },
+  "statusBar": {
+    "hopeless": "Hopeless",
+    "hopelessTooltip": "Articles whose AI analysis failed after multiple retries. These will no longer be analyzed automatically."
   },
   "batch": {
     "title": "Discordian Analysis",

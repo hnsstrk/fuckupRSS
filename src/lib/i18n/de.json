@@ -5,7 +5,7 @@
   },
   "sidebar": {
     "title": "Pentacles",
-    "addFeed": "Feed hinzufuegen",
+    "addFeed": "Feed hinzufügen",
     "addFeedPlaceholder": "Feed-URL eingeben...",
     "allFeeds": "Alle Feeds",
     "unreadCount": "{count} ungelesen"
@@ -13,18 +13,19 @@
   "articleList": {
     "title": "Fnords",
     "noArticles": "Keine Artikel vorhanden",
-    "selectFeed": "Waehle einen Feed aus der Seitenleiste",
+    "selectFeed": "Wähle einen Feed aus der Seitenleiste",
     "loading": "Lade Artikel..."
   },
   "articleView": {
-    "noSelection": "Kein Artikel ausgewaehlt",
-    "selectArticle": "Waehle einen Artikel aus der Liste",
+    "noSelection": "Kein Artikel ausgewählt",
+    "selectArticle": "Wähle einen Artikel aus der Liste",
+    "favoriteHint": "zum Favorisieren",
     "by": "von",
     "source": "Quelle",
     "useKeys": "Benutze",
     "and": "und",
     "toNavigate": "zum Navigieren.",
-    "noContent": "Kein Inhalt verfuegbar. Klicke auf \"Im Browser oeffnen\" um den vollstaendigen Artikel zu lesen.",
+    "noContent": "Kein Inhalt verfügbar. Klicke auf \"Im Browser öffnen\" um den vollständigen Artikel zu lesen.",
     "fetchFullText": "Volltext abrufen",
     "fullText": "Volltext",
     "aiAnalysis": "KI-Analyse",
@@ -42,12 +43,12 @@
     "sachHighlyEmotional": "Stark emotional",
     "sachEmotional": "Emotional",
     "sachMixed": "Gemischt",
-    "sachMostlyObjective": "Ueberwiegend sachlich",
+    "sachMostlyObjective": "Überwiegend sachlich",
     "sachObjective": "Sachlich",
     "changes": {
-      "hasChanges": "Dieser Artikel wurde geaendert",
+      "hasChanges": "Dieser Artikel wurde geändert",
       "revisions": "Revisionen",
-      "acknowledge": "Bestaetigen",
+      "acknowledge": "Bestätigen",
       "noRevisions": "Keine Revisionen vorhanden"
     },
     "greyface": {
@@ -57,7 +58,7 @@
       "biasCenter": "Neutral",
       "biasRight": "Rechts",
       "sachlichkeit": "Sachlichkeit",
-      "quality": "Quellenqualitaet"
+      "quality": "Quellenqualität"
     }
   },
   "status": {
@@ -77,8 +78,8 @@
     "language": "Sprache",
     "languageGerman": "Deutsch",
     "languageEnglish": "English",
-    "tooltips": "Begriffserklarungen anzeigen",
-    "tooltipsDescription": "Zeigt Erklarungen fuer Illuminatus!-Begriffe",
+    "tooltips": "Begriffserklärungen anzeigen",
+    "tooltipsDescription": "Zeigt Erklärungen für Illuminatus!-Begriffe",
     "sync": {
       "title": "Synchronisierung",
       "interval": "Sync-Intervall",
@@ -101,7 +102,7 @@
     "ollama": {
       "title": "KI-Einstellungen (Ollama)",
       "status": "Status",
-      "available": "Ollama ist verfuegbar",
+      "available": "Ollama ist verfügbar",
       "unavailable": "Ollama nicht installiert",
       "unavailableDescription": "KI-Features sind deaktiviert. Installiere Ollama von ollama.com",
       "mainModel": "Hauptmodell",
@@ -117,21 +118,21 @@
       "title": "KI-Prompts",
       "summaryPrompt": "Zusammenfassungs-Prompt",
       "analysisPrompt": "Analyse-Prompt",
-      "reset": "Auf Standard zuruecksetzen",
-      "resetSuccess": "Prompts zurueckgesetzt"
+      "reset": "Auf Standard zurücksetzen",
+      "resetSuccess": "Prompts zurückgesetzt"
     },
     "maintenance": {
       "title": "Wartung",
-      "keywordQuality": "Keyword-Qualitaet",
-      "calculateScores": "Qualitaets-Scores berechnen",
-      "calculateScoresDesc": "Berechnet Qualitaetswerte fuer alle Keywords basierend auf Nutzung und Vernetzung",
+      "keywordQuality": "Keyword-Qualität",
+      "calculateScores": "Qualitäts-Scores berechnen",
+      "calculateScoresDesc": "Berechnet Qualitätswerte für alle Keywords basierend auf Nutzung und Vernetzung",
       "generateEmbeddings": "Embeddings generieren",
-      "generateEmbeddingsDesc": "Erzeugt semantische Vektoren fuer Synonym-Erkennung (benoetigt Ollama)",
+      "generateEmbeddingsDesc": "Erzeugt semantische Vektoren für Synonym-Erkennung (benötigt Ollama)",
       "findSynonyms": "Synonyme finden",
-      "findSynonymsDesc": "Findet aehnliche Keywords basierend auf Embeddings",
+      "findSynonymsDesc": "Findet ähnliche Keywords basierend auf Embeddings",
       "pruneLowQuality": "Low-Quality bereinigen",
-      "pruneLowQualityDesc": "Entfernt Keywords mit niedrigem Score (aelter als 7 Tage)",
-      "running": "Laeuft...",
+      "pruneLowQualityDesc": "Entfernt Keywords mit niedrigem Score (älter als 7 Tage)",
+      "running": "Läuft...",
       "done": "Fertig",
       "result": "Ergebnis",
       "updated": "aktualisiert",
@@ -141,28 +142,28 @@
       "candidates": "Kandidaten",
       "reprocessArticles": "Artikel-Analyse",
       "resetForReprocessing": "Alle neu analysieren",
-      "resetForReprocessingDesc": "Setzt alle Artikel zurueck fuer erneute KI-Analyse (Discordian Analysis)",
-      "reset": "zurueckgesetzt",
+      "resetForReprocessingDesc": "Setzt alle Artikel zurück für erneute KI-Analyse (Discordian Analysis)",
+      "reset": "zurückgesetzt",
       "articles": "Artikel",
       "confirmPrune": "Wirklich alle Keywords mit niedrigem Score entfernen?",
-      "confirmReset": "Wirklich alle Artikel zur erneuten Analyse zuruecksetzen? Dies kann lange dauern.",
-      "confirmMerge": "Keywords zusammenfuehren?",
+      "confirmReset": "Wirklich alle Artikel zur erneuten Analyse zurücksetzen? Dies kann lange dauern.",
+      "confirmMerge": "Keywords zusammenführen?",
       "synonyms": "Synonyme",
       "synonymCandidates": "Synonym-Kandidaten",
       "noSynonyms": "Keine Synonym-Kandidaten gefunden",
-      "merge": "Zusammenfuehren",
-      "merged": "zusammengefuehrt",
+      "merge": "Zusammenführen",
+      "merged": "zusammengeführt",
       "keep": "Behalten",
       "dismiss": "Ignorieren",
       "dismissed": "ignoriert",
       "stats": "Statistiken",
       "totalKeywords": "Keywords gesamt",
       "withEmbeddings": "Mit Embeddings",
-      "avgQuality": "Durchschn. Qualitaet",
-      "lowQuality": "Niedrige Qualitaet",
+      "avgQuality": "Durchschn. Qualität",
+      "lowQuality": "Niedrige Qualität",
       "reanalyzing": "Analysiere Artikel...",
-      "noArticlesToReset": "Keine Artikel zum Zuruecksetzen vorhanden",
-      "ollamaUnavailable": "Ollama nicht verfuegbar - Analyse kann nicht gestartet werden",
+      "noArticlesToReset": "Keine Artikel zum Zurücksetzen vorhanden",
+      "ollamaUnavailable": "Ollama nicht verfügbar - Analyse kann nicht gestartet werden",
       "reanalyzeComplete": "Analyse abgeschlossen: {succeeded} erfolgreich, {failed} fehlgeschlagen",
       "reanalyzeCancelled": "Analyse abgebrochen"
     }
@@ -170,7 +171,7 @@
   "terminology": {
     "fnord": {
       "term": "Fnord",
-      "description": "Ein geaenderter Artikel. In der Illuminatus!-Trilogie sind Fnords versteckte Woerter, die nur Eingeweihte sehen."
+      "description": "Ein geänderter Artikel. In der Illuminatus!-Trilogie sind Fnords versteckte Wörter, die nur Eingeweihte sehen."
     },
     "concealed": {
       "term": "Concealed",
@@ -186,7 +187,7 @@
     },
     "pentacle": {
       "term": "Pentacle",
-      "description": "Eine Feed-Quelle. Das Pentakel ist ein fuenfzackiger Stern - Symbol mystischer Kraft."
+      "description": "Eine Feed-Quelle. Das Pentakel ist ein fünfzackiger Stern - Symbol mystischer Kraft."
     },
     "sephiroth": {
       "term": "Sephiroth",
@@ -194,7 +195,7 @@
     },
     "immanentize": {
       "term": "Immanentize",
-      "description": "Ein Stichwort/Tag. 'Die Eschaton immanentisieren' bedeutet, das Ende herbeizufuehren."
+      "description": "Ein Stichwort/Tag. 'Die Eschaton immanentisieren' bedeutet, das Ende herbeizuführen."
     },
     "greyface": {
       "term": "Greyface Alert",
@@ -202,25 +203,25 @@
     },
     "discordian": {
       "term": "Discordian Analysis",
-      "description": "KI-Zusammenfassung. Discordianismus ist die 'Religion' der Goettin Eris/Discordia."
+      "description": "KI-Zusammenfassung. Discordianismus ist die 'Religion' der Göttin Eris/Discordia."
     },
     "hagbard": {
       "term": "Hagbard's Retrieval",
-      "description": "Volltext-Abruf. Hagbard Celine ist der Kapitaen des goldenen U-Boots in Illuminatus!"
+      "description": "Volltext-Abruf. Hagbard Celine ist der Kapitän des goldenen U-Boots in Illuminatus!"
     },
     "mindfuck": {
       "term": "Operation Mindfuck",
-      "description": "Bias-Spiegel. Zeigt dir deine Filterblase und schlaegt Artikel vor, die dein Weltbild herausfordern."
+      "description": "Bias-Spiegel. Zeigt dir deine Filterblase und schlägt Artikel vor, die dein Weltbild herausfordern."
     }
   },
   "actions": {
-    "delete": "Loeschen",
+    "delete": "Löschen",
     "refresh": "Aktualisieren",
     "markRead": "Als gelesen markieren",
     "markUnread": "Als ungelesen markieren",
     "favorite": "Favorisieren",
-    "openInBrowser": "Im Browser oeffnen",
-    "close": "Schliessen"
+    "openInBrowser": "Im Browser öffnen",
+    "close": "Schließen"
   },
   "toast": {
     "syncSuccess": "{newCount} neue Artikel, {updatedCount} aktualisiert",
@@ -230,9 +231,13 @@
     "fetchError": "Volltext konnte nicht geladen werden: {error}",
     "analyzeSuccess": "Analyse abgeschlossen",
     "analyzeError": "Analyse fehlgeschlagen: {error}",
-    "feedAdded": "Feed hinzugefuegt",
-    "feedDeleted": "Feed geloescht",
-    "feedError": "Feed konnte nicht hinzugefuegt werden: {error}"
+    "feedAdded": "Feed hinzugefügt",
+    "feedDeleted": "Feed gelöscht",
+    "feedError": "Feed konnte nicht hinzugefügt werden: {error}"
+  },
+  "statusBar": {
+    "hopeless": "Hoffnungslos",
+    "hopelessTooltip": "Artikel, deren KI-Analyse nach mehreren Versuchen fehlgeschlagen ist. Diese werden nicht mehr automatisch analysiert."
   },
   "batch": {
     "title": "Discordian Analysis",
@@ -244,19 +249,19 @@
     "unprocessed": "{count} unverarbeitet",
     "progress": "{current} von {total}",
     "complete": "Fertig: {succeeded} erfolgreich, {failed} fehlgeschlagen",
-    "noOllama": "Ollama nicht verfuegbar"
+    "noOllama": "Ollama nicht verfügbar"
   },
   "confirm": {
-    "deleteFeed": "Feed wirklich loeschen?",
+    "deleteFeed": "Feed wirklich löschen?",
     "yes": "Ja",
     "no": "Nein"
   },
   "fnordView": {
     "title": "Fnord-Statistiken",
     "totalRevisions": "Revisionen gesamt",
-    "articlesWithChanges": "Geaenderte Artikel",
+    "articlesWithChanges": "Geänderte Artikel",
     "statsTab": "Statistiken",
-    "articlesTab": "Geaenderte Artikel",
+    "articlesTab": "Geänderte Artikel",
     "byCategory": "Nach Kategorie",
     "bySource": "Nach Quelle",
     "category": "Kategorie",
@@ -265,14 +270,14 @@
     "articles": "Artikel",
     "loading": "Laden...",
     "noData": "Keine Daten",
-    "noChangedArticles": "Keine geaenderten Artikel",
-    "changedAt": "Geaendert"
+    "noChangedArticles": "Keine geänderten Artikel",
+    "changedAt": "Geändert"
   },
   "revisions": {
     "current": "Aktuell",
-    "showChanges": "Aenderungen anzeigen",
-    "noContent": "Kein Inhalt verfuegbar",
-    "titleChanged": "Titel geaendert"
+    "showChanges": "Änderungen anzeigen",
+    "noContent": "Kein Inhalt verfügbar",
+    "titleChanged": "Titel geändert"
   },
   "network": {
     "title": "Immanentize Network",
@@ -286,27 +291,27 @@
     "allKeywords": "Alle Stichworte",
     "loadMore": "Weitere laden",
     "loading": "Lade...",
-    "selectKeyword": "Waehle ein Stichwort aus der Liste",
+    "selectKeyword": "Wähle ein Stichwort aus der Liste",
     "articleCount": "Artikel",
     "firstSeen": "Erstmals",
     "lastUsed": "Zuletzt",
     "categories": "Kategorien",
     "neighbors": "Verwandte Stichworte",
     "cooccurrence": "Gemeinsames Auftreten",
-    "similarity": "Semantische Aehnlichkeit",
+    "similarity": "Semantische Ähnlichkeit",
     "noNeighbors": "Keine verwandten Stichworte gefunden",
     "listTab": "Keywords",
     "graphTab": "Graph",
     "trendsTab": "Trends",
     "graphLoading": "Graph wird geladen...",
-    "noData": "Keine Netzwerkdaten verfuegbar",
-    "zoomIn": "Vergroessern",
+    "noData": "Keine Netzwerkdaten verfügbar",
+    "zoomIn": "Vergrößern",
     "zoomOut": "Verkleinern",
-    "resetView": "Ansicht zuruecksetzen",
-    "trendFor": "Trend fuer",
+    "resetView": "Ansicht zurücksetzen",
+    "trendFor": "Trend für",
     "days7": "7 Tage",
     "days30": "30 Tage",
     "days90": "90 Tage",
-    "selectKeywordForTrend": "Waehle ein Keyword im Keywords-Tab um den Trend zu sehen"
+    "selectKeywordForTrend": "Wähle ein Keyword im Keywords-Tab um den Trend zu sehen"
   }
 }

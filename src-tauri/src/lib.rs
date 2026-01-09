@@ -23,6 +23,7 @@ use tauri_plugin_log::{Target, TargetKind};
 pub struct AppState {
     pub db: Arc<Mutex<Database>>,
     pub batch_cancel: AtomicBool,
+    pub batch_running: Arc<AtomicBool>,
     pub embedding_worker: Arc<EmbeddingWorker>,
 }
 
@@ -50,6 +51,7 @@ pub fn run() {
 
             let db = Arc::new(Mutex::new(db));
             let embedding_worker = Arc::new(EmbeddingWorker::new());
+            let batch_running = Arc::new(AtomicBool::new(false));
 
             // Queue existing keywords without embeddings for processing
             if let Ok(queued) = embedding_worker::queue_keywords_without_embeddings(&db) {
@@ -63,11 +65,13 @@ pub fn run() {
                 db.clone(),
                 embedding_worker.clone(),
                 app.handle().clone(),
+                batch_running.clone(),
             );
 
             app.manage(AppState {
                 db,
                 batch_cancel: AtomicBool::new(false),
+                batch_running,
                 embedding_worker,
             });
             Ok(())
@@ -78,6 +82,7 @@ pub fn run() {
             commands::pentacles::delete_pentacle,
             commands::fnords::get_fnords,
             commands::fnords::get_fnord,
+            commands::fnords::get_fnords_count,
             commands::fnords::update_fnord_status,
             commands::fnords::get_changed_fnords,
             commands::fnords::acknowledge_changes,
@@ -95,6 +100,7 @@ pub fn run() {
             commands::ollama::process_article,
             commands::ollama::process_article_discordian,
             commands::ollama::get_unprocessed_count,
+            commands::ollama::get_hopeless_count,
             commands::ollama::process_batch,
             commands::ollama::cancel_batch,
             commands::ollama::pull_model,
@@ -155,6 +161,7 @@ pub fn run() {
             commands::embedding::process_embedding_queue_now,
             commands::embedding::queue_missing_embeddings,
             commands::embedding::get_embedding_queue_details,
+            commands::embedding::calculate_neighbor_similarities,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

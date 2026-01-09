@@ -249,6 +249,30 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration for analysis retry fields
+    let has_analysis_attempts: bool = conn
+        .prepare(
+            "SELECT COUNT(*) FROM pragma_table_info('fnords') WHERE name = 'analysis_attempts'",
+        )?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_analysis_attempts {
+        conn.execute_batch(
+            r#"
+            ALTER TABLE fnords ADD COLUMN analysis_attempts INTEGER DEFAULT 0;
+            ALTER TABLE fnords ADD COLUMN analysis_error TEXT;
+            ALTER TABLE fnords ADD COLUMN analysis_hopeless BOOLEAN DEFAULT FALSE;
+            "#,
+        )?;
+    }
+
+    // Index for finding articles that need (re)analysis
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_fnords_analysis_status ON fnords(analysis_hopeless, analysis_attempts, processed_at);
+        "#,
+    )?;
+
     Ok(())
 }
 
@@ -327,6 +351,11 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             has_changes BOOLEAN DEFAULT FALSE,
             changed_at DATETIME,
             revision_count INTEGER DEFAULT 0,
+
+            -- Analyse-Retry
+            analysis_attempts INTEGER DEFAULT 0,
+            analysis_error TEXT,
+            analysis_hopeless BOOLEAN DEFAULT FALSE,
 
             -- Constraints
             FOREIGN KEY (pentacle_id) REFERENCES pentacles(id) ON DELETE CASCADE,

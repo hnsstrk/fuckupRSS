@@ -63,6 +63,7 @@ export interface FnordFilter {
   pentacle_id?: number;
   status?: string;
   limit?: number;
+  offset?: number;
 }
 
 export interface FnordStats {

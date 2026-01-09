@@ -54,6 +54,7 @@ pub struct FnordFilter {
     pub pentacle_id: Option<i64>,
     pub status: Option<String>,
     pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 fn fnord_from_row(row: &Row) -> Result<Fnord, rusqlite::Error> {
@@ -163,7 +164,8 @@ pub fn get_fnords(
     let filter = filter.unwrap_or(FnordFilter {
         pentacle_id: None,
         status: None,
-        limit: Some(100),
+        limit: Some(50),
+        offset: None,
     });
 
     let mut sql = format!(
@@ -187,6 +189,10 @@ pub fn get_fnords(
 
     if let Some(limit) = filter.limit {
         sql.push_str(&format!(" LIMIT {}", limit));
+    }
+
+    if let Some(offset) = filter.offset {
+        sql.push_str(&format!(" OFFSET {}", offset));
     }
 
     let mut stmt = db.conn().prepare(&sql).map_err(|e| e.to_string())?;
@@ -338,6 +344,39 @@ pub fn get_fnord_revisions(
         .map_err(|e| e.to_string())?;
 
     Ok(revisions)
+}
+
+/// Get total count of fnords matching a filter (for lazy loading)
+#[tauri::command]
+pub fn get_fnords_count(
+    state: State<AppState>,
+    filter: Option<FnordFilter>,
+) -> Result<i64, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut sql = String::from("SELECT COUNT(*) FROM fnords f WHERE 1=1");
+    let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+    if let Some(ref f) = filter {
+        if let Some(pentacle_id) = f.pentacle_id {
+            sql.push_str(" AND f.pentacle_id = ?");
+            params.push(Box::new(pentacle_id));
+        }
+
+        if let Some(ref status) = f.status {
+            sql.push_str(" AND f.status = ?");
+            params.push(Box::new(status.clone()));
+        }
+    }
+
+    let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+
+    let count: i64 = db
+        .conn()
+        .query_row(&sql, param_refs.as_slice(), |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    Ok(count)
 }
 
 /// Get count of changed articles

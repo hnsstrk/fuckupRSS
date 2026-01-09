@@ -1,6 +1,6 @@
 use crate::embedding_worker;
 use crate::ollama::{
-    BiasAnalysis, DiscordianAnalysis, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
+    BiasAnalysis, DiscordianAnalysis, OllamaClient, OllamaError, DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
     RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale,
 };
 use crate::{extract_keywords, classify_by_keywords, normalize_keyword, find_canonical_keyword, SEPHIROTH_CATEGORIES};
@@ -960,7 +960,29 @@ pub struct UnprocessedCount {
     pub with_content: i64,
 }
 
-/// Get count of unprocessed articles
+#[derive(serde::Serialize)]
+pub struct HopelessCount {
+    pub count: i64,
+}
+
+/// Get count of hopeless articles (analysis failed after multiple retries)
+#[tauri::command]
+pub fn get_hopeless_count(state: State<AppState>) -> Result<HopelessCount, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let count: i64 = db
+        .conn()
+        .query_row(
+            "SELECT COUNT(*) FROM fnords WHERE analysis_hopeless = TRUE",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(HopelessCount { count })
+}
+
+/// Get count of unprocessed articles (excludes hopeless articles)
 #[tauri::command]
 pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -968,7 +990,9 @@ pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount,
     let total: i64 = db
         .conn()
         .query_row(
-            "SELECT COUNT(*) FROM fnords WHERE processed_at IS NULL",
+            r#"SELECT COUNT(*) FROM fnords
+               WHERE processed_at IS NULL
+               AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)"#,
             [],
             |row| row.get(0),
         )
@@ -979,7 +1003,8 @@ pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount,
         .query_row(
             r#"SELECT COUNT(*) FROM fnords
                WHERE processed_at IS NULL
-               AND content_full IS NOT NULL AND content_full != ''"#,
+               AND content_full IS NOT NULL AND content_full != ''
+               AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)"#,
             [],
             |row| row.get(0),
         )
@@ -1003,27 +1028,35 @@ pub async fn process_batch(
     let locale = get_locale_from_db(&state);
 
     // Get unprocessed articles with content (including date for trend tracking)
-    let articles: Vec<(i64, String, String, Option<String>)> = {
+    // Include analysis_attempts and analysis_error for retry logic
+    let articles: Vec<(i64, String, String, Option<String>, i64, Option<String>)> = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
 
         // Use limit if provided, otherwise process all
         // Only process articles with full text (content_full), not truncated RSS content
+        // Exclude articles marked as hopeless (analysis_hopeless = TRUE)
         let query = match limit {
             Some(n) => format!(
                 r#"SELECT id, title, content_full,
-                          DATE(COALESCE(published_at, fetched_at)) as article_date
+                          DATE(COALESCE(published_at, fetched_at)) as article_date,
+                          COALESCE(analysis_attempts, 0) as attempts,
+                          analysis_error
                    FROM fnords
                    WHERE processed_at IS NULL
                    AND content_full IS NOT NULL AND content_full != ''
+                   AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)
                    ORDER BY published_at DESC
                    LIMIT {}"#,
                 n
             ),
             None => r#"SELECT id, title, content_full,
-                          DATE(COALESCE(published_at, fetched_at)) as article_date
+                          DATE(COALESCE(published_at, fetched_at)) as article_date,
+                          COALESCE(analysis_attempts, 0) as attempts,
+                          analysis_error
                    FROM fnords
                    WHERE processed_at IS NULL
                    AND content_full IS NOT NULL AND content_full != ''
+                   AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)
                    ORDER BY published_at DESC"#.to_string(),
         };
 
@@ -1031,7 +1064,7 @@ pub async fn process_batch(
 
         let rows = stmt
             .query_map([], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
             })
             .map_err(|e| e.to_string())?;
 
@@ -1042,8 +1075,9 @@ pub async fn process_batch(
     let mut succeeded: i64 = 0;
     let mut failed: i64 = 0;
 
-    // Reset cancel flag at start
+    // Reset cancel flag and set running flag at start
     state.batch_cancel.store(false, Ordering::SeqCst);
+    state.batch_running.store(true, Ordering::SeqCst);
 
     // Emit initial progress event so UI knows batch has started
     if total > 0 {
@@ -1060,7 +1094,7 @@ pub async fn process_batch(
         );
     }
 
-    for (idx, (fnord_id, title, content, article_date)) in articles.into_iter().enumerate() {
+    for (idx, (fnord_id, title, content, article_date, attempts, previous_error)) in articles.into_iter().enumerate() {
         // Check for cancellation
         if state.batch_cancel.load(Ordering::SeqCst) {
             let _ = window.emit(
@@ -1098,19 +1132,25 @@ pub async fn process_batch(
         let local_keywords = extract_keywords(&title, &content, 10);
         let local_categories = classify_by_keywords(&local_keywords);
 
-        let analysis_result = client.discordian_analysis(&model, &title, &content, &locale).await;
+        // Use retry logic: if there was a previous error, pass it to the LLM
+        let analysis_result = client
+            .discordian_analysis_with_retry(&model, &title, &content, &locale, previous_error.as_deref())
+            .await;
 
         let (success, error) = match analysis_result {
             Ok(analysis) => {
                 let db = state.db.lock().map_err(|e| e.to_string())?;
 
+                // Success: reset attempts and error, set processed_at
                 let update_result = db.conn().execute(
                     r#"UPDATE fnords SET
                         summary = ?1,
                         political_bias = ?2,
                         sachlichkeit = ?3,
                         article_type = ?4,
-                        processed_at = CURRENT_TIMESTAMP
+                        processed_at = CURRENT_TIMESTAMP,
+                        analysis_attempts = 0,
+                        analysis_error = NULL
                     WHERE id = ?5"#,
                     (
                         &analysis.summary,
@@ -1143,7 +1183,39 @@ pub async fn process_batch(
             }
             Err(e) => {
                 let db = state.db.lock().map_err(|e| e.to_string())?;
+                let new_attempts = attempts + 1;
 
+                // Check if this is a JSON parse error (retryable)
+                let (error_msg, is_hopeless) = match &e {
+                    OllamaError::JsonParseError { message, raw_response: _ } => {
+                        // If we've tried twice with error feedback, mark as hopeless
+                        if new_attempts >= 2 {
+                            (format!("JSON parse error after {} attempts: {}", new_attempts, message), true)
+                        } else {
+                            (message.clone(), false)
+                        }
+                    }
+                    other => {
+                        // Other errors (network, timeout, etc.) - also track attempts
+                        if new_attempts >= 2 {
+                            (format!("Analysis failed after {} attempts: {}", new_attempts, other), true)
+                        } else {
+                            (other.to_string(), false)
+                        }
+                    }
+                };
+
+                // Update the article with error info
+                db.conn().execute(
+                    r#"UPDATE fnords SET
+                        analysis_attempts = ?1,
+                        analysis_error = ?2,
+                        analysis_hopeless = ?3
+                    WHERE id = ?4"#,
+                    rusqlite::params![new_attempts, &error_msg, is_hopeless, fnord_id],
+                ).ok();
+
+                // Still save local keywords/categories even on failure
                 if !local_categories.is_empty() || !local_keywords.is_empty() {
                     let categories_saved = save_article_categories(db.conn(), fnord_id, &local_categories);
                     let (_tags_saved, _tag_ids) = save_article_keywords_and_network(
@@ -1156,7 +1228,12 @@ pub async fn process_batch(
                 }
 
                 failed += 1;
-                (false, Some(format!("LLM failed, used local extraction: {}", e)))
+                let status_msg = if is_hopeless {
+                    format!("Marked hopeless: {}", error_msg)
+                } else {
+                    format!("Attempt {}/2 failed, will retry: {}", new_attempts, error_msg)
+                };
+                (false, Some(status_msg))
             }
         };
 
@@ -1231,6 +1308,9 @@ pub async fn process_batch(
             }
         }
     }
+
+    // Reset running flag when done
+    state.batch_running.store(false, Ordering::SeqCst);
 
     Ok(BatchResult {
         processed: total,

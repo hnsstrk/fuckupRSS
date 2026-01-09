@@ -3,6 +3,18 @@
   import { appState } from "../stores/state.svelte";
   import Tooltip from "./Tooltip.svelte";
 
+  let listContainer: HTMLDivElement;
+
+  function handleScroll(event: Event) {
+    const target = event.target as HTMLDivElement;
+    const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+
+    // Load more when within 200px of bottom
+    if (scrollBottom < 200 && appState.hasMoreFnords && !appState.loadingMore) {
+      appState.loadMoreFnords();
+    }
+  }
+
   function getStatusIcon(status: string): string {
     switch (status) {
       case "concealed": return "●";
@@ -104,12 +116,12 @@
       {/if}
     </h2>
     <p class="list-count">
-      {appState.fnords.length} {$locale?.startsWith('de') ? 'Artikel' : 'articles'}
+      {appState.fnords.length}{#if appState.totalFnordsCount > appState.fnords.length}/{appState.totalFnordsCount}{/if} {$locale?.startsWith('de') ? 'Artikel' : 'articles'}
     </p>
   </div>
 
   <!-- Article List -->
-  <div class="list-content">
+  <div class="list-content" bind:this={listContainer} onscroll={handleScroll}>
     {#each appState.fnords as fnord (fnord.id)}
       <button
         class="article-item {appState.selectedFnordId === fnord.id ? 'active' : ''}"
@@ -158,6 +170,17 @@
       </button>
     {/each}
 
+    {#if appState.loadingMore}
+      <div class="loading-more">
+        <span class="loading-spinner">↻</span>
+        {$locale?.startsWith('de') ? 'Lade mehr...' : 'Loading more...'}
+      </div>
+    {:else if appState.hasMoreFnords && appState.fnords.length > 0}
+      <div class="load-more-hint">
+        {$locale?.startsWith('de') ? 'Scrolle für mehr' : 'Scroll for more'}
+      </div>
+    {/if}
+
     {#if appState.fnords.length === 0 && !appState.loading}
       <div class="empty-state">
         {$_('articleList.noArticles')}<br />
@@ -174,12 +197,6 @@
     {/if}
   </div>
 
-  <!-- Keyboard Hints -->
-  <div class="keyboard-hints">
-    <span><kbd>j</kbd> {$locale?.startsWith('de') ? 'weiter' : 'next'}</span>
-    <span><kbd>k</kbd> {$locale?.startsWith('de') ? 'zurück' : 'prev'}</span>
-    <span><kbd>s</kbd> {$locale?.startsWith('de') ? 'Favorit' : 'star'}</span>
-  </div>
 </div>
 
 <style>
@@ -344,24 +361,29 @@
     font-size: 0.875rem;
   }
 
-  .keyboard-hints {
-    border-top: 1px solid var(--border-default);
-    padding: 0.5rem;
+  .loading-more {
     display: flex;
+    align-items: center;
     justify-content: center;
-    gap: 1rem;
+    gap: 0.5rem;
+    padding: 1rem;
+    color: var(--text-muted);
     font-size: 0.75rem;
+  }
+
+  .loading-spinner {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .load-more-hint {
+    text-align: center;
+    padding: 0.5rem;
     color: var(--text-faint);
-  }
-
-  kbd {
-    background-color: var(--bg-overlay);
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    font-family: inherit;
-  }
-
-  .text-fnord {
-    color: var(--fnord-color);
+    font-size: 0.7rem;
   }
 </style>

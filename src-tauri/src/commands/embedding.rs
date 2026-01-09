@@ -142,3 +142,41 @@ pub struct QueueEntry {
     pub last_error: Option<String>,
     pub queued_at: String,
 }
+
+#[derive(Serialize)]
+pub struct SimilarityCalculationResult {
+    pub calculated: i64,
+    pub remaining: i64,
+}
+
+/// Calculate embedding similarities for neighbor pairs
+#[tauri::command]
+pub fn calculate_neighbor_similarities(
+    state: State<AppState>,
+    limit: Option<i64>,
+) -> Result<SimilarityCalculationResult, String> {
+    let limit = limit.unwrap_or(1000);
+    let calculated = embedding_worker::calculate_neighbor_similarities(&state.db, limit)?;
+
+    // Get remaining count
+    let remaining = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.conn()
+            .query_row(
+                r#"SELECT COUNT(*) FROM immanentize_neighbors n
+                   JOIN immanentize a ON a.id = n.immanentize_id_a
+                   JOIN immanentize b ON b.id = n.immanentize_id_b
+                   WHERE n.embedding_similarity IS NULL
+                   AND a.embedding IS NOT NULL
+                   AND b.embedding IS NOT NULL"#,
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0)
+    };
+
+    Ok(SimilarityCalculationResult {
+        calculated,
+        remaining,
+    })
+}

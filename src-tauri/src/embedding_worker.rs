@@ -5,6 +5,7 @@
 
 use crate::db::Database;
 use crate::ollama::{OllamaClient, RECOMMENDED_EMBEDDING_MODEL};
+use futures::future::join_all;
 use log::{debug, error, info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -136,7 +137,7 @@ fn cleanup_failed_entries(db: &Arc<Mutex<Database>>) -> Result<i64, String> {
     Ok(count as i64)
 }
 
-/// Process a batch of keywords from the queue
+/// Process a batch of keywords from the queue with parallel embedding generation
 pub async fn process_embedding_queue(
     db: Arc<Mutex<Database>>,
     app_handle: Option<&AppHandle>,
@@ -148,7 +149,7 @@ pub async fn process_embedding_queue(
         return Ok((0, 0));
     }
 
-    let client = OllamaClient::new(None);
+    let client = Arc::new(OllamaClient::new(None));
 
     // Check if Ollama is available
     if !client.is_available().await {
@@ -157,31 +158,54 @@ pub async fn process_embedding_queue(
     }
 
     let model = RECOMMENDED_EMBEDDING_MODEL;
+    let concurrency = 10; // Process 10 embeddings in parallel
+
     let mut processed = 0i64;
     let mut failed = 0i64;
 
-    for (queue_id, keyword_id, name) in keywords {
-        // Add unique suffix to work around Ollama embedding cache issue
-        let embedding_text = format!("{}_{}", name, keyword_id);
+    // Process in chunks for parallel execution
+    for chunk in keywords.chunks(concurrency) {
+        let futures: Vec<_> = chunk
+            .iter()
+            .map(|(queue_id, keyword_id, name)| {
+                let client = Arc::clone(&client);
+                let name = name.clone();
+                let queue_id = *queue_id;
+                let keyword_id = *keyword_id;
 
-        match client.generate_embedding(model, &embedding_text).await {
-            Ok(embedding) => {
-                if let Err(e) = save_embedding_and_dequeue(&db, queue_id, keyword_id, &embedding) {
-                    error!("Failed to save embedding for '{}': {}", name, e);
-                    failed += 1;
-                } else {
-                    debug!("Generated embedding for keyword: {}", name);
-                    processed += 1;
+                async move {
+                    // Add unique suffix to work around Ollama embedding cache issue
+                    let embedding_text = format!("{}_{}", name, keyword_id);
+                    let result = client.generate_embedding(model, &embedding_text).await;
+                    (queue_id, keyword_id, name, result)
                 }
-            }
-            Err(e) => {
-                warn!("Failed to generate embedding for '{}': {}", name, e);
-                let _ = record_failure(&db, queue_id, &e.to_string());
-                failed += 1;
+            })
+            .collect();
+
+        // Execute all embeddings in parallel
+        let results = join_all(futures).await;
+
+        // Process results
+        for (queue_id, keyword_id, name, result) in results {
+            match result {
+                Ok(embedding) => {
+                    if let Err(e) = save_embedding_and_dequeue(&db, queue_id, keyword_id, &embedding) {
+                        error!("Failed to save embedding for '{}': {}", name, e);
+                        failed += 1;
+                    } else {
+                        debug!("Generated embedding for keyword: {}", name);
+                        processed += 1;
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to generate embedding for '{}': {}", name, e);
+                    let _ = record_failure(&db, queue_id, &e.to_string());
+                    failed += 1;
+                }
             }
         }
 
-        // Emit progress event if we have an app handle
+        // Emit progress event after each chunk
         if let Some(handle) = app_handle {
             let queue_size = get_queue_size(&db).unwrap_or(0);
             let _ = handle.emit("embedding-progress", EmbeddingProgress {
@@ -275,6 +299,7 @@ pub fn start_background_worker(
     db: Arc<Mutex<Database>>,
     worker: Arc<EmbeddingWorker>,
     app_handle: AppHandle,
+    batch_running: Arc<AtomicBool>,
 ) {
     if worker.is_running.swap(true, Ordering::SeqCst) {
         info!("Embedding worker already running");
@@ -288,10 +313,18 @@ pub fn start_background_worker(
     let handle_clone = app_handle.clone();
 
     tauri::async_runtime::spawn(async move {
-        let check_interval = Duration::from_secs(30);
-        let batch_size = 10i64;
+        let idle_interval = Duration::from_secs(10);  // When queue is empty
+        let batch_pause = Duration::from_secs(5);     // When batch analysis is running
+        let batch_size = 50i64;  // Process more at once
 
         while worker_clone.is_running.load(Ordering::SeqCst) {
+            // Check if batch analysis is running - yield to it
+            if batch_running.load(Ordering::SeqCst) {
+                debug!("Batch analysis running, embedding worker pausing...");
+                tokio::time::sleep(batch_pause).await;
+                continue;
+            }
+
             // Check queue size
             let queue_size = get_queue_size(&db_clone).unwrap_or(0);
 
@@ -330,14 +363,149 @@ pub fn start_background_worker(
                     failed: 0,
                     is_processing: false,
                 });
-            }
 
-            // Wait before next check
-            tokio::time::sleep(check_interval).await;
+                // No pause between batches - keep going until queue is empty!
+                // (unless batch analysis starts, checked at loop start)
+            } else {
+                // Queue is empty - calculate neighbor similarities if needed
+                if let Ok(calculated) = calculate_neighbor_similarities(&db_clone, 500) {
+                    if calculated > 0 {
+                        info!("Calculated {} neighbor similarities", calculated);
+                        // Keep going without sleep if there's more to do
+                        continue;
+                    }
+                }
+
+                // Longer wait when truly idle
+                tokio::time::sleep(idle_interval).await;
+            }
         }
 
         info!("Embedding background worker stopped");
     });
+}
+
+/// Calculate embedding similarity for all neighbor pairs that don't have it yet
+pub fn calculate_neighbor_similarities(db: &Arc<Mutex<Database>>, limit: i64) -> Result<i64, String> {
+    let db_guard = db.lock().map_err(|e| e.to_string())?;
+    let conn = db_guard.conn();
+
+    // Get neighbor pairs without similarity that have embeddings
+    let pairs: Vec<(i64, i64)> = conn
+        .prepare(
+            r#"SELECT n.immanentize_id_a, n.immanentize_id_b
+               FROM immanentize_neighbors n
+               JOIN immanentize a ON a.id = n.immanentize_id_a
+               JOIN immanentize b ON b.id = n.immanentize_id_b
+               WHERE n.embedding_similarity IS NULL
+               AND a.embedding IS NOT NULL
+               AND b.embedding IS NOT NULL
+               LIMIT ?"#,
+        )
+        .map_err(|e| e.to_string())?
+        .query_map([limit], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if pairs.is_empty() {
+        return Ok(0);
+    }
+
+    let mut updated = 0i64;
+
+    for (id_a, id_b) in pairs {
+        // Get embeddings for both keywords
+        let embeddings: Result<(Vec<u8>, Vec<u8>), _> = conn.query_row(
+            r#"SELECT
+                (SELECT embedding FROM immanentize WHERE id = ?1),
+                (SELECT embedding FROM immanentize WHERE id = ?2)"#,
+            [id_a, id_b],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        );
+
+        if let Ok((blob_a, blob_b)) = embeddings {
+            if let (Some(sim), Some(combined)) = (
+                cosine_similarity_from_blobs(&blob_a, &blob_b),
+                calculate_combined_weight_for_pair(conn, id_a, id_b),
+            ) {
+                conn.execute(
+                    r#"UPDATE immanentize_neighbors
+                       SET embedding_similarity = ?1, combined_weight = ?2
+                       WHERE immanentize_id_a = ?3 AND immanentize_id_b = ?4"#,
+                    rusqlite::params![sim, combined, id_a, id_b],
+                )
+                .ok();
+                updated += 1;
+            }
+        }
+    }
+
+    Ok(updated)
+}
+
+/// Calculate cosine similarity from two embedding blobs
+fn cosine_similarity_from_blobs(blob_a: &[u8], blob_b: &[u8]) -> Option<f64> {
+    if blob_a.len() != blob_b.len() || blob_a.is_empty() {
+        return None;
+    }
+
+    let dim = blob_a.len() / 4; // f32 = 4 bytes
+    let mut dot = 0.0f64;
+    let mut norm_a = 0.0f64;
+    let mut norm_b = 0.0f64;
+
+    for i in 0..dim {
+        let offset = i * 4;
+        let a = f32::from_le_bytes([
+            blob_a[offset],
+            blob_a[offset + 1],
+            blob_a[offset + 2],
+            blob_a[offset + 3],
+        ]) as f64;
+        let b = f32::from_le_bytes([
+            blob_b[offset],
+            blob_b[offset + 1],
+            blob_b[offset + 2],
+            blob_b[offset + 3],
+        ]) as f64;
+
+        dot += a * b;
+        norm_a += a * a;
+        norm_b += b * b;
+    }
+
+    let denom = norm_a.sqrt() * norm_b.sqrt();
+    if denom > 0.0 {
+        Some(dot / denom)
+    } else {
+        None
+    }
+}
+
+/// Calculate combined weight for a neighbor pair
+fn calculate_combined_weight_for_pair(
+    conn: &rusqlite::Connection,
+    id_a: i64,
+    id_b: i64,
+) -> Option<f64> {
+    // Get cooccurrence and embedding similarity
+    let result: Result<(i64, Option<f64>), _> = conn.query_row(
+        r#"SELECT cooccurrence, embedding_similarity
+           FROM immanentize_neighbors
+           WHERE immanentize_id_a = ?1 AND immanentize_id_b = ?2"#,
+        [id_a, id_b],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    );
+
+    if let Ok((cooccurrence, sim)) = result {
+        // Combined weight: 70% cooccurrence (log scale), 30% similarity
+        let cooc_score = (cooccurrence as f64 + 1.0).ln() / 5.0;
+        let sim_score = sim.unwrap_or(0.0);
+        Some(cooc_score * 0.7 + sim_score * 0.3)
+    } else {
+        None
+    }
 }
 
 /// Queue all keywords without embeddings (for initial setup or recovery)

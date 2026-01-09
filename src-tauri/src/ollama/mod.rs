@@ -27,6 +27,11 @@ pub enum OllamaError {
     GenerationFailed(String),
     #[error("Model pull failed: {0}")]
     PullFailed(String),
+    #[error("JSON parse error: {message}")]
+    JsonParseError {
+        message: String,
+        raw_response: String,
+    },
 }
 
 #[derive(Serialize)]
@@ -522,14 +527,52 @@ impl OllamaClient {
         content: &str,
         locale: &str,
     ) -> Result<DiscordianAnalysis, OllamaError> {
+        self.discordian_analysis_with_retry(model, title, content, locale, None).await
+    }
+
+    /// Discordian Analysis with optional retry feedback
+    /// If previous_error is provided, sends a correction request to the LLM
+    pub async fn discordian_analysis_with_retry(
+        &self,
+        model: &str,
+        title: &str,
+        content: &str,
+        locale: &str,
+        previous_error: Option<&str>,
+    ) -> Result<DiscordianAnalysis, OllamaError> {
         debug!("Starting Discordian analysis for: {}", truncate_str(title, 60));
         let language = get_language_for_locale(locale);
         let truncated_content = content.chars().take(6000).collect::<String>();
 
-        let prompt = DEFAULT_DISCORDIAN_PROMPT
-            .replace("{language}", language)
-            .replace("{title}", title)
-            .replace("{content}", &truncated_content);
+        let prompt = if let Some(error) = previous_error {
+            // Retry prompt with error feedback
+            format!(
+                r#"Your previous response could not be parsed. Error: {}
+
+Please try again and make sure to return ONLY valid JSON with this exact structure:
+{{
+  "summary": "...",
+  "categories": ["..."],
+  "keywords": ["..."],
+  "political_bias": 0,
+  "sachlichkeit": 2,
+  "article_type": "news"
+}}
+
+Original article:
+Title: {}
+Content: {}
+
+Respond ONLY with the JSON object, no other text."#,
+                error, title, truncated_content
+            )
+        } else {
+            // Normal prompt
+            DEFAULT_DISCORDIAN_PROMPT
+                .replace("{language}", language)
+                .replace("{title}", title)
+                .replace("{content}", &truncated_content)
+        };
 
         let response = self.generate(model, &prompt).await?;
         let json_str = extract_json_from_response(&response);
@@ -537,10 +580,10 @@ impl OllamaClient {
         let raw: RawDiscordianAnalysis = serde_json::from_str(&json_str).map_err(|e| {
             // Only log on actual parse failure (after extraction was attempted)
             warn!("JSON parse error: {}. Extracted JSON: {}", e, truncate_str(&json_str, 300));
-            OllamaError::GenerationFailed(format!(
-                "Failed to parse Discordian analysis: {}",
-                e
-            ))
+            OllamaError::JsonParseError {
+                message: e.to_string(),
+                raw_response: json_str.chars().take(500).collect(),
+            }
         })?;
 
         debug!(

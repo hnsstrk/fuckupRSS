@@ -388,7 +388,8 @@
       <p class="empty-text">
         {$_('articleView.selectArticle')}<br />
         {$_('articleView.useKeys')} <kbd>j</kbd> {$_('articleView.and')}
-        <kbd>k</kbd> {$_('articleView.toNavigate')}
+        <kbd>k</kbd> {$_('articleView.toNavigate')}<br />
+        <kbd>s</kbd> {$_('articleView.favoriteHint')}
       </p>
     </div>
   {/if}
