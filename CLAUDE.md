@@ -219,6 +219,35 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 - Bei funktionierendem Zwischenstand
 - **Nicht:** Bei kaputtem Code auf `main`
 
+### Commit-Frequenz (Claude Code Richtlinie)
+
+**WICHTIG:** Claude Code muss regelmäßig committen, um Arbeit nicht zu verlieren und den Fortschritt nachvollziehbar zu machen.
+
+| Situation | Commit-Regel |
+|-----------|--------------|
+| Feature abgeschlossen | **Sofort committen** |
+| 2-3 zusammenhängende Änderungen | **Committen** (nicht sammeln) |
+| Bugfix erledigt | **Sofort committen** |
+| Refactoring-Schritt fertig | **Committen** |
+| Vor Themenwechsel | **Committen** (aktuelles Thema abschließen) |
+| Nach 15-20 Minuten Arbeit | **Prüfen** ob Commit sinnvoll |
+| Benutzer fragt nach anderem Thema | **Erst committen**, dann Thema wechseln |
+
+**Faustregel:** Lieber zu viele kleine Commits als zu wenige große.
+
+**Anti-Pattern vermeiden:**
+- ❌ Mehrere unabhängige Features in einem Commit
+- ❌ Stundenlang arbeiten ohne Commit
+- ❌ "Ich committe später" - NEIN, jetzt committen!
+- ❌ Auf Benutzer-Erinnerung warten
+
+**Selbst-Check nach jeder Aufgabe:**
+```
+✓ Kompiliert der Code? → git add && git commit
+✓ Feature/Fix fertig? → git add && git commit
+✓ Wechsle ich das Thema? → git add && git commit
+```
+
 ### Push-Strategie
 
 ```bash
