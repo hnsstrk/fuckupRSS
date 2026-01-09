@@ -1,6 +1,7 @@
 mod categories;
 mod commands;
 mod db;
+mod embedding_worker;
 mod keywords;
 mod logging;
 mod ollama;
@@ -8,19 +9,21 @@ mod retrieval;
 mod sync;
 
 pub use categories::{classify_by_keywords, CategoryClassifier, SEPHIROTH_CATEGORIES};
+pub use embedding_worker::EmbeddingWorker;
 pub use keywords::{extract_keywords, normalize_keyword, normalize_and_dedupe_keywords, find_canonical_keyword, KeywordExtractor, Language};
 pub use logging::LogLevel;
 
 use db::Database;
 use log::info;
 use std::sync::atomic::AtomicBool;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
 
 pub struct AppState {
-    pub db: Mutex<Database>,
+    pub db: Arc<Mutex<Database>>,
     pub batch_cancel: AtomicBool,
+    pub embedding_worker: Arc<EmbeddingWorker>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -45,9 +48,27 @@ pub fn run() {
             #[cfg(debug_assertions)]
             db.seed_dev_data()?;
 
+            let db = Arc::new(Mutex::new(db));
+            let embedding_worker = Arc::new(EmbeddingWorker::new());
+
+            // Queue existing keywords without embeddings for processing
+            if let Ok(queued) = embedding_worker::queue_keywords_without_embeddings(&db) {
+                if queued > 0 {
+                    info!("Queued {} keywords for embedding generation", queued);
+                }
+            }
+
+            // Start background embedding worker
+            embedding_worker::start_background_worker(
+                db.clone(),
+                embedding_worker.clone(),
+                app.handle().clone(),
+            );
+
             app.manage(AppState {
-                db: Mutex::new(db),
+                db,
                 batch_cancel: AtomicBool::new(false),
+                embedding_worker,
             });
             Ok(())
         })
@@ -129,6 +150,11 @@ pub fn run() {
             commands::immanentize::find_synonym_candidates,
             commands::immanentize::merge_keyword_pair,
             commands::immanentize::dismiss_synonym_pair,
+            // Embedding Queue
+            commands::embedding::get_embedding_queue_status,
+            commands::embedding::process_embedding_queue_now,
+            commands::embedding::queue_missing_embeddings,
+            commands::embedding::get_embedding_queue_details,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

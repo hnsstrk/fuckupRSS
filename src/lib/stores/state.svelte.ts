@@ -14,6 +14,8 @@ import type {
   UnprocessedCount,
   BatchProgress,
   BatchResult,
+  EmbeddingProgress,
+  EmbeddingQueueStatus,
   Sephiroth,
   ArticleCategory,
   Tag,
@@ -43,6 +45,8 @@ export type {
   UnprocessedCount,
   BatchProgress,
   BatchResult,
+  EmbeddingProgress,
+  EmbeddingQueueStatus,
   Sephiroth,
   ArticleCategory,
   Tag,
@@ -85,6 +89,9 @@ class AppState {
   batchProcessing = $state(false);
   batchProgress = $state<BatchProgress | null>(null);
   unprocessedCount = $state<UnprocessedCount>({ total: 0, with_content: 0 });
+
+  // Embedding processing state
+  embeddingProgress = $state<EmbeddingProgress | null>(null);
 
   get selectedPentacle(): Pentacle | undefined {
     return this.pentacles.find((p) => p.id === this.selectedPentacleId);
@@ -579,6 +586,16 @@ class AppState {
     console.log("updateBatchProgress called with:", progress);
     this.batchProgress = { ...progress };  // Create new object to ensure reactivity
     console.log("batchProgress is now:", this.batchProgress);
+  }
+
+  updateEmbeddingProgress(progress: EmbeddingProgress): void {
+    log.debug("Embedding progress update:", progress);
+    if (progress.is_processing || progress.queue_size > 0) {
+      this.embeddingProgress = { ...progress };
+    } else {
+      // Clear progress when done
+      this.embeddingProgress = null;
+    }
   }
 
   async cancelBatch(): Promise<void> {

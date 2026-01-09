@@ -1,11 +1,13 @@
+use crate::embedding_worker;
 use crate::ollama::{
     BiasAnalysis, DiscordianAnalysis, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
     RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale,
 };
 use crate::{extract_keywords, classify_by_keywords, normalize_keyword, find_canonical_keyword, SEPHIROTH_CATEGORIES};
 use crate::AppState;
+use log::info;
 use std::sync::atomic::Ordering;
-use tauri::{Emitter, State, Window};
+use tauri::{Emitter, Manager, State, Window};
 
 #[derive(serde::Serialize)]
 pub struct OllamaStatus {
@@ -130,6 +132,7 @@ fn save_article_keywords_and_network(
 ) -> (Vec<String>, Vec<i64>) {
     let mut tags_saved = Vec::new();
     let mut tag_ids: Vec<i64> = Vec::new();
+    let mut new_keyword_ids: Vec<i64> = Vec::new(); // Track newly created keywords
 
     let existing_tag_ids: Vec<i64> = {
         let mut stmt = conn
@@ -161,6 +164,7 @@ fn save_article_keywords_and_network(
             )
             .ok();
 
+        let is_new_keyword = existing_id.is_none();
         let is_new_for_article = existing_id
             .map(|id| !existing_tag_ids.contains(&id))
             .unwrap_or(true);
@@ -216,9 +220,24 @@ fn save_article_keywords_and_network(
                 .ok();
             }
 
+            // Track newly created keywords for embedding queue
+            if is_new_keyword {
+                new_keyword_ids.push(tag_id);
+            }
+
             tags_saved.push(keyword.to_string());
             tag_ids.push(tag_id);
         }
+    }
+
+    // Queue new keywords for embedding generation
+    for keyword_id in &new_keyword_ids {
+        conn.execute(
+            r#"INSERT OR IGNORE INTO embedding_queue (immanentize_id, priority, queued_at)
+               VALUES (?1, 0, CURRENT_TIMESTAMP)"#,
+            [keyword_id],
+        )
+        .ok();
     }
 
     for tag_id in &tag_ids {
@@ -1153,6 +1172,64 @@ pub async fn process_batch(
                 error,
             },
         );
+    }
+
+    // Option B: After batch analysis, immediately process embedding queue
+    if succeeded > 0 {
+        // Get queue size
+        let queue_size = {
+            let db = state.db.lock().map_err(|e| e.to_string())?;
+            db.conn()
+                .query_row("SELECT COUNT(*) FROM embedding_queue", [], |row| row.get::<_, i64>(0))
+                .unwrap_or(0)
+        };
+
+        if queue_size > 0 {
+            info!("Batch complete, processing {} queued keywords for embeddings", queue_size);
+
+            // Emit embedding start event
+            let _ = window.emit("embedding-progress", embedding_worker::EmbeddingProgress {
+                queue_size,
+                processed: 0,
+                failed: 0,
+                is_processing: true,
+            });
+
+            // Process all queued embeddings
+            match embedding_worker::process_embedding_queue(
+                state.db.clone(),
+                Some(&window.app_handle()),
+                queue_size,
+            ).await {
+                Ok((emb_processed, emb_failed)) => {
+                    info!("Embedding generation: {} processed, {} failed", emb_processed, emb_failed);
+
+                    // Calculate quality scores for newly embedded keywords
+                    if emb_processed > 0 {
+                        if let Ok(scored) = embedding_worker::calculate_pending_quality_scores(&state.db, emb_processed) {
+                            info!("Calculated quality scores for {} keywords", scored);
+                        }
+                    }
+
+                    // Emit completion
+                    let remaining = {
+                        let db = state.db.lock().map_err(|e| e.to_string())?;
+                        db.conn()
+                            .query_row("SELECT COUNT(*) FROM embedding_queue", [], |row| row.get::<_, i64>(0))
+                            .unwrap_or(0)
+                    };
+                    let _ = window.emit("embedding-progress", embedding_worker::EmbeddingProgress {
+                        queue_size: remaining,
+                        processed: emb_processed,
+                        failed: emb_failed,
+                        is_processing: false,
+                    });
+                }
+                Err(e) => {
+                    info!("Embedding generation failed: {}", e);
+                }
+            }
+        }
     }
 
     Ok(BatchResult {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { appState, toasts, type BatchProgress } from "../stores/state.svelte";
+  import { appState, toasts, type BatchProgress, type EmbeddingProgress } from "../stores/state.svelte";
   import { onMount, onDestroy } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { invoke } from "@tauri-apps/api/core";
@@ -28,6 +28,7 @@
   let unlisten: UnlistenFn | null = null;
   let unlistenModels: UnlistenFn | null = null;
   let unlistenArticlesReset: UnlistenFn | null = null;
+  let unlistenEmbedding: UnlistenFn | null = null;
   let loadedModels = $state<LoadedModel[]>([]);
   let maintenanceInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -83,6 +84,11 @@
       await appState.loadUnprocessedCount();
     });
 
+    // Listen for embedding progress events
+    unlistenEmbedding = await listen<EmbeddingProgress>("embedding-progress", (event) => {
+      appState.updateEmbeddingProgress(event.payload);
+    });
+
     // Schedule periodic maintenance (every 60 minutes)
     maintenanceInterval = setInterval(() => {
       runBackgroundMaintenance();
@@ -93,6 +99,7 @@
     if (unlisten) unlisten();
     if (unlistenModels) unlistenModels();
     if (unlistenArticlesReset) unlistenArticlesReset();
+    if (unlistenEmbedding) unlistenEmbedding();
     if (maintenanceInterval) clearInterval(maintenanceInterval);
   });
 
@@ -354,6 +361,31 @@
       <div class="batch-unavailable">{$_('batch.noOllama')}</div>
     {/if}
   </div>
+
+  <!-- Embedding Progress (shown when generating embeddings) -->
+  {#if appState.embeddingProgress}
+    <div class="embedding-progress">
+      <div class="embedding-header">
+        <span class="embedding-icon">⚡</span>
+        <span class="embedding-label">Embeddings</span>
+      </div>
+      {#if appState.embeddingProgress.is_processing}
+        <div class="progress-bar">
+          <div class="progress-fill indeterminate"></div>
+        </div>
+        <div class="embedding-text">
+          {appState.embeddingProgress.queue_size} in queue
+        </div>
+      {:else if appState.embeddingProgress.processed > 0 || appState.embeddingProgress.failed > 0}
+        <div class="embedding-text success">
+          ✓ {appState.embeddingProgress.processed} generated
+          {#if appState.embeddingProgress.failed > 0}
+            , {appState.embeddingProgress.failed} failed
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   <!-- Loaded Models -->
   {#if loadedModels.length > 0}
@@ -772,6 +804,40 @@
     color: var(--text-muted);
     text-align: center;
     padding: 0.5rem;
+  }
+
+  /* Embedding progress styles */
+  .embedding-progress {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    border-top: 1px solid var(--border-primary);
+    background-color: var(--bg-secondary);
+  }
+
+  .embedding-header {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-bottom: 0.375rem;
+  }
+
+  .embedding-icon {
+    font-size: 0.875rem;
+    color: var(--accent-warning);
+  }
+
+  .embedding-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .embedding-text {
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .embedding-text.success {
+    color: var(--accent-success);
   }
 
   .btn-cancel {

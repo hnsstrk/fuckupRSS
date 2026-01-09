@@ -232,6 +232,23 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Table for embedding queue (automatic embedding generation)
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS embedding_queue (
+            id INTEGER PRIMARY KEY,
+            immanentize_id INTEGER NOT NULL UNIQUE,
+            priority INTEGER DEFAULT 0,
+            queued_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            attempts INTEGER DEFAULT 0,
+            last_error TEXT,
+            FOREIGN KEY (immanentize_id) REFERENCES immanentize(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_embedding_queue_priority ON embedding_queue(priority DESC, queued_at ASC);
+        "#,
+    )?;
+
     Ok(())
 }
 
@@ -471,6 +488,21 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
 
         CREATE INDEX IF NOT EXISTS idx_immanentize_daily_date ON immanentize_daily(date DESC);
         CREATE INDEX IF NOT EXISTS idx_immanentize_daily_id ON immanentize_daily(immanentize_id);
+
+        -- ============================================================
+        -- EMBEDDING_QUEUE (Warteschlange für Embedding-Generierung)
+        -- ============================================================
+        CREATE TABLE IF NOT EXISTS embedding_queue (
+            id INTEGER PRIMARY KEY,
+            immanentize_id INTEGER NOT NULL UNIQUE,
+            priority INTEGER DEFAULT 0,  -- Höher = wichtiger
+            queued_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            attempts INTEGER DEFAULT 0,
+            last_error TEXT,
+            FOREIGN KEY (immanentize_id) REFERENCES immanentize(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_embedding_queue_priority ON embedding_queue(priority DESC, queued_at ASC);
 
         -- ============================================================
         -- SETTINGS (Benutzereinstellungen)

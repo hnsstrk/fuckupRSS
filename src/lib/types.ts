@@ -159,6 +159,19 @@ export interface BatchResult {
   failed: number;
 }
 
+export interface EmbeddingProgress {
+  queue_size: number;
+  processed: number;
+  failed: number;
+  is_processing: boolean;
+}
+
+export interface EmbeddingQueueStatus {
+  queue_size: number;
+  worker_running: boolean;
+  worker_processing: boolean;
+}
+
 export interface Sephiroth {
   id: number;
   name: string;

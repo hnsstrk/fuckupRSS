@@ -1,4 +1,5 @@
 pub mod categories;
+pub mod embedding;
 pub mod fnords;
 pub mod immanentize;
 pub mod ollama;
