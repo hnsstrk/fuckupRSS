@@ -7,15 +7,7 @@
   import { type LogLevel } from '../logger';
   import { setLocale, locale } from '../i18n';
   import { appState } from '../stores/state.svelte';
-
-  interface Props {
-    open: boolean;
-    onclose: () => void;
-  }
-
-  let { open, onclose }: Props = $props();
-
-  let dialogEl: HTMLDialogElement | null = $state(null);
+  import { onMount, onDestroy } from 'svelte';
 
   // Local state for form
   let selectedLocale = $state('de');
@@ -65,13 +57,13 @@
   // Maintenance state
   let maintenanceRunning = $state<string | null>(null);
   let maintenanceResult = $state<string | null>(null);
-  
+
   // Confirmation dialog state
   let confirmAction = $state<'prune' | 'reset' | null>(null);
-  
+
   // Synonym candidates state
   let synonymCandidates = $state<{ keyword_a_id: number; keyword_a_name: string; keyword_b_id: number; keyword_b_name: string; similarity: number }[]>([]);
-  
+
   // Keyword statistics state
   let keywordStats = $state<{ total: number; with_embeddings: number; avg_quality: number; low_quality: number } | null>(null);
 
@@ -86,14 +78,12 @@
     { value: 'en', labelKey: 'settings.languageEnglish' },
   ];
 
-  // Only dark themes - Latte is automatically used when system prefers light mode
   const darkThemeOptions: { value: DarkTheme; labelKey: string }[] = [
     { value: 'mocha', labelKey: 'settings.themeMocha' },
     { value: 'macchiato', labelKey: 'settings.themeMacchiato' },
     { value: 'frappe', labelKey: 'settings.themeFrappe' },
   ];
 
-  // Log level options (only shown in dev mode)
   const logLevelOptions: { value: LogLevel; label: string }[] = [
     { value: 'error', label: 'Error' },
     { value: 'warn', label: 'Warn' },
@@ -102,42 +92,37 @@
     { value: 'trace', label: 'Trace' },
   ];
 
-  // Sync local state when dialog opens
-  $effect(() => {
-    if (open && dialogEl) {
-      dialogEl.showModal();
-      // Initialize from current settings
-      selectedLocale = $locale || 'de';
-      showTooltips = settings.showTerminologyTooltips;
-      selectedDarkTheme = settings.darkTheme;
-      syncInterval = settings.syncInterval;
-      syncOnStart = settings.syncOnStart;
-      selectedLogLevel = settings.logLevel;
-      // Close dropdowns
-      closeAllDropdowns();
-      // Reset tab
-      activeTab = 'general';
-      // Load Ollama status and prompts
-      loadOllamaStatus();
-      loadPrompts();
+  onMount(async () => {
+    // Initialize from current settings
+    selectedLocale = $locale || 'de';
+    showTooltips = settings.showTerminologyTooltips;
+    selectedDarkTheme = settings.darkTheme;
+    syncInterval = settings.syncInterval;
+    syncOnStart = settings.syncOnStart;
+    selectedLogLevel = settings.logLevel;
+    // Load Ollama status and prompts
+    await loadOllamaStatus();
+    await loadPrompts();
+  });
+
+  onDestroy(() => {
+    if (progressUnlisten) {
+      progressUnlisten();
     }
   });
 
   async function loadOllamaStatus() {
     try {
       ollamaStatus = await invoke('check_ollama');
-      // Load saved model preferences from settings
       const savedMainModel = await invoke<string | null>('get_setting', { key: 'main_model' });
       const savedEmbeddingModel = await invoke<string | null>('get_setting', { key: 'embedding_model' });
 
       if (ollamaStatus) {
         selectedMainModel = savedMainModel || ollamaStatus.recommended_main;
         selectedEmbeddingModel = savedEmbeddingModel || ollamaStatus.recommended_embedding;
-        // Update appState
         appState.ollamaStatus = ollamaStatus;
       }
 
-      // Load currently loaded models
       await loadLoadedModels();
     } catch (e) {
       console.error('Failed to load Ollama status:', e);
@@ -172,7 +157,6 @@
 
       defaultPrompts = await invoke<{ summary_prompt: string; analysis_prompt: string }>('get_default_prompts');
 
-      // Check if prompts are modified from defaults
       if (defaultPrompts) {
         promptsModified = summaryPrompt !== defaultPrompts.summary_prompt ||
                          analysisPrompt !== defaultPrompts.analysis_prompt;
@@ -190,11 +174,6 @@
     embeddingModelDropdownOpen = false;
   }
 
-  function handleClose() {
-    dialogEl?.close();
-    onclose();
-  }
-
   async function handleSave() {
     // Save general settings
     await setLocale(selectedLocale);
@@ -207,7 +186,6 @@
     // Save model preferences
     if (selectedMainModel) {
       await invoke('set_setting', { key: 'main_model', value: selectedMainModel });
-      // Update appState so the model is used immediately
       appState.selectedModel = selectedMainModel;
     }
     if (selectedEmbeddingModel) {
@@ -222,7 +200,6 @@
           mainModel: selectedMainModel,
           embeddingModel: selectedEmbeddingModel
         });
-        // Notify Sidebar to refresh loaded models display
         await emit('models-changed');
       } catch (e) {
         console.error('Failed to ensure models loaded:', e);
@@ -235,8 +212,6 @@
       summaryPrompt: summaryPrompt,
       analysisPrompt: analysisPrompt
     });
-
-    handleClose();
   }
 
   async function handleResetPrompts() {
@@ -259,7 +234,6 @@
     try {
       const result = await invoke<{ success: boolean; error: string | null }>('pull_model', { model });
       if (result.success) {
-        // Reload status to show new model
         await loadOllamaStatus();
       } else {
         downloadError = result.error || 'Unknown error';
@@ -268,12 +242,6 @@
       downloadError = String(e);
     } finally {
       downloadingModel = null;
-    }
-  }
-
-  function handleBackdropClick(event: MouseEvent) {
-    if (event.target === dialogEl) {
-      handleClose();
     }
   }
 
@@ -397,13 +365,12 @@
     maintenanceRunning = 'prune';
     maintenanceResult = null;
     try {
-      const result = await invoke<{ pruned_count: number; pruned_keywords: string[] }>('auto_prune_low_quality', { 
-        quality_threshold: 0.2, 
-        min_age_days: 7, 
-        dry_run: false 
+      const result = await invoke<{ pruned_count: number; pruned_keywords: string[] }>('auto_prune_low_quality', {
+        quality_threshold: 0.2,
+        min_age_days: 7,
+        dry_run: false
       });
       maintenanceResult = `${result.pruned_count} ${$_('settings.maintenance.pruned')}`;
-      // Refresh stats after pruning
       await loadKeywordStats();
     } catch (e) {
       maintenanceResult = `Error: ${e}`;
@@ -420,7 +387,6 @@
     reanalyzeResult = null;
 
     try {
-      // Step 1: Reset articles for reprocessing
       const resetResult = await invoke<{ reset_count: number }>('reset_articles_for_reprocessing', {
         only_with_content: true
       });
@@ -431,11 +397,9 @@
         return;
       }
 
-      // Notify Sidebar to refresh unprocessed count
       await emit('articles-reset');
       await appState.loadUnprocessedCount();
 
-      // Step 2: Get model for analysis
       const model = appState.selectedModel || appState.ollamaStatus.models[0];
       if (!model || !appState.ollamaStatus.available) {
         maintenanceResult = `${resetResult.reset_count} ${$_('settings.maintenance.articles')} ${$_('settings.maintenance.reset')}. ${$_('settings.maintenance.ollamaUnavailable')}`;
@@ -443,7 +407,6 @@
         return;
       }
 
-      // Step 3: Setup progress listener
       reanalyzeRunning = true;
       maintenanceRunning = 'reanalyze';
       reanalyzeProgress = {
@@ -459,7 +422,6 @@
         reanalyzeProgress = { ...event.payload };
       });
 
-      // Step 4: Start batch processing
       const batchResult = await invoke<BatchResult>('process_batch', {
         model,
         limit: null
@@ -470,7 +432,6 @@
         values: { succeeded: batchResult.succeeded, failed: batchResult.failed }
       });
 
-      // Refresh data
       await appState.loadFnords();
       await appState.loadPentacles();
       await appState.loadUnprocessedCount();
@@ -502,11 +463,11 @@
         invoke<{ id: number; name: string; quality_score: number; article_count: number }[]>('get_low_quality_keywords', { threshold: 0.3, limit: 100 }),
         invoke<{ keywords: { id: number; name: string; article_count: number; quality_score: number | null; has_embedding: boolean }[]; total_count: number }>('get_keywords', { limit: 1000, offset: 0 })
       ]);
-      
+
       const withEmbeddings = allKeywords.keywords.filter(k => k.has_embedding).length;
       const qualityScores = allKeywords.keywords.filter(k => k.quality_score !== null).map(k => k.quality_score!);
       const avgQuality = qualityScores.length > 0 ? qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length : 0;
-      
+
       keywordStats = {
         total: allKeywords.total_count,
         with_embeddings: withEmbeddings,
@@ -535,8 +496,8 @@
   async function handleMergeSynonym(keepId: number, mergeId: number, keepName: string, mergeName: string) {
     try {
       await invoke('merge_keyword_pair', { keepId, mergeId });
-      synonymCandidates = synonymCandidates.filter(c => 
-        !(c.keyword_a_id === keepId && c.keyword_b_id === mergeId) && 
+      synonymCandidates = synonymCandidates.filter(c =>
+        !(c.keyword_a_id === keepId && c.keyword_b_id === mergeId) &&
         !(c.keyword_a_id === mergeId && c.keyword_b_id === keepId)
       );
       maintenanceResult = `"${mergeName}" → "${keepName}" ${$_('settings.maintenance.merged')}`;
@@ -549,8 +510,8 @@
   async function handleDismissSynonym(keywordAId: number, keywordBId: number, nameA: string, nameB: string) {
     try {
       await invoke('dismiss_synonym_pair', { keywordAId, keywordBId });
-      synonymCandidates = synonymCandidates.filter(c => 
-        !(c.keyword_a_id === keywordAId && c.keyword_b_id === keywordBId) && 
+      synonymCandidates = synonymCandidates.filter(c =>
+        !(c.keyword_a_id === keywordAId && c.keyword_b_id === keywordBId) &&
         !(c.keyword_a_id === keywordBId && c.keyword_b_id === keywordAId)
       );
       maintenanceResult = `"${nameA}" ↔ "${nameB}" ${$_('settings.maintenance.dismissed')}`;
@@ -560,617 +521,611 @@
   }
 </script>
 
-{#if open}
-  <dialog
-    bind:this={dialogEl}
-    class="settings-dialog"
-    onclick={handleBackdropClick}
-    onkeydown={handleKeyDown}
-  >
-    <div class="dialog-content">
-      <h2>{$_('settings.title')}</h2>
+<svelte:window onkeydown={handleKeyDown} />
 
-      <!-- Tabs -->
-      <div class="tabs">
-        <button
-          type="button"
-          class="tab {activeTab === 'general' ? 'active' : ''}"
-          onclick={() => activeTab = 'general'}
-        >
-          {$_('settings.title')}
-        </button>
-        <button
-          type="button"
-          class="tab {activeTab === 'ollama' ? 'active' : ''}"
-          onclick={() => activeTab = 'ollama'}
-        >
-          Ollama
-        </button>
-        <button
-          type="button"
-          class="tab {activeTab === 'prompts' ? 'active' : ''}"
-          onclick={() => activeTab = 'prompts'}
-        >
-          Prompts
-        </button>
-        <button
-          type="button"
-          class="tab {activeTab === 'maintenance' ? 'active' : ''}"
-          onclick={() => { activeTab = 'maintenance'; maintenanceResult = null; loadKeywordStats(); }}
-        >
-          {$_('settings.maintenance.title')}
-        </button>
-      </div>
+<div class="settings-view">
+  <div class="settings-header">
+    <h2>{$_('settings.title')}</h2>
+    <button type="button" class="btn-save" onclick={handleSave}>
+      {$_('settings.save')}
+    </button>
+  </div>
 
-      <div class="tab-content">
-        {#if activeTab === 'general'}
-          <!-- Language Dropdown -->
-          <div class="setting-group">
-            <span class="label">{$_('settings.language')}</span>
-            <div class="custom-select">
-              <button type="button" class="select-trigger" aria-label={$_('settings.language')} onclick={toggleLangDropdown}>
-                <span>{$_(getLocaleLabelKey(selectedLocale))}</span>
-                <span class="arrow">{langDropdownOpen ? '▲' : '▼'}</span>
-              </button>
-              {#if langDropdownOpen}
-                <div class="select-options">
-                  {#each localeOptions as option}
-                    <button
-                      type="button"
-                      class="select-option {selectedLocale === option.value ? 'selected' : ''}"
-                      onclick={() => selectLocale(option.value)}
-                    >
-                      {$_(option.labelKey)}
-                    </button>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-          </div>
+  <!-- Tabs -->
+  <div class="tabs">
+    <button
+      type="button"
+      class="tab {activeTab === 'general' ? 'active' : ''}"
+      onclick={() => activeTab = 'general'}
+    >
+      {$_('settings.title')}
+    </button>
+    <button
+      type="button"
+      class="tab {activeTab === 'ollama' ? 'active' : ''}"
+      onclick={() => activeTab = 'ollama'}
+    >
+      Ollama
+    </button>
+    <button
+      type="button"
+      class="tab {activeTab === 'prompts' ? 'active' : ''}"
+      onclick={() => activeTab = 'prompts'}
+    >
+      Prompts
+    </button>
+    <button
+      type="button"
+      class="tab {activeTab === 'maintenance' ? 'active' : ''}"
+      onclick={() => { activeTab = 'maintenance'; maintenanceResult = null; loadKeywordStats(); }}
+    >
+      {$_('settings.maintenance.title')}
+    </button>
+  </div>
 
-          <!-- Dark Theme Dropdown -->
-          <div class="setting-group">
-            <span class="label">{$_('settings.darkTheme')}</span>
-            <div class="custom-select">
-              <button type="button" class="select-trigger" aria-label={$_('settings.darkTheme')} onclick={toggleThemeDropdown}>
-                <span>{$_(getDarkThemeLabelKey(selectedDarkTheme))}</span>
-                <span class="arrow">{themeDropdownOpen ? '▲' : '▼'}</span>
-              </button>
-              {#if themeDropdownOpen}
-                <div class="select-options">
-                  {#each darkThemeOptions as option (option.value)}
-                    <button
-                      type="button"
-                      class="select-option {selectedDarkTheme === option.value ? 'selected' : ''}"
-                      onclick={() => selectDarkTheme(option.value)}
-                    >
-                      {$_(option.labelKey)}
-                    </button>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-            <p class="setting-description">{$_('settings.themeDescription')}</p>
-          </div>
-
-          <div class="setting-group checkbox-group">
-            <label>
-              <input type="checkbox" bind:checked={showTooltips} />
-              <span class="checkbox-label">{$_('settings.tooltips')}</span>
-            </label>
-            <p class="setting-description">{$_('settings.tooltipsDescription')}</p>
-          </div>
-
-          <!-- Sync Settings -->
-          <div class="setting-group">
-            <span class="label">{$_('settings.sync.title')}</span>
-          </div>
-
-          <div class="setting-group">
-            <label class="label" for="sync-interval">{$_('settings.sync.interval')}</label>
-            <div class="slider-row">
-              <input
-                id="sync-interval"
-                type="range"
-                min="5"
-                max="120"
-                step="5"
-                bind:value={syncInterval}
-                class="slider"
-              />
-              <span class="slider-value">{$_('settings.sync.minutes', { values: { count: syncInterval }})}</span>
-            </div>
-            <p class="setting-description">{$_('settings.sync.intervalDescription')}</p>
-          </div>
-
-          <div class="setting-group checkbox-group">
-            <label>
-              <input type="checkbox" bind:checked={syncOnStart} />
-              <span class="checkbox-label">{$_('settings.sync.onStart')}</span>
-            </label>
-            <p class="setting-description">{$_('settings.sync.onStartDescription')}</p>
-          </div>
-
-          <!-- Log Level (Dev Mode) -->
-          {#if import.meta.env.DEV}
-            <div class="setting-group">
-              <span class="label">{$_('settings.logLevel')}</span>
-              <div class="custom-select">
-                <button type="button" class="select-trigger" aria-label={$_('settings.logLevel')} onclick={toggleLogLevelDropdown}>
-                  <span class="log-level-display">
-                    <span class="log-level-badge {selectedLogLevel}">{selectedLogLevel.toUpperCase()}</span>
-                  </span>
-                  <span class="arrow">{logLevelDropdownOpen ? '▲' : '▼'}</span>
+  <div class="tab-content">
+    {#if activeTab === 'general'}
+      <!-- Language Dropdown -->
+      <div class="setting-group">
+        <span class="label">{$_('settings.language')}</span>
+        <div class="custom-select">
+          <button type="button" class="select-trigger" aria-label={$_('settings.language')} onclick={toggleLangDropdown}>
+            <span>{$_(getLocaleLabelKey(selectedLocale))}</span>
+            <span class="arrow">{langDropdownOpen ? '▲' : '▼'}</span>
+          </button>
+          {#if langDropdownOpen}
+            <div class="select-options">
+              {#each localeOptions as option}
+                <button
+                  type="button"
+                  class="select-option {selectedLocale === option.value ? 'selected' : ''}"
+                  onclick={() => selectLocale(option.value)}
+                >
+                  {$_(option.labelKey)}
                 </button>
-                {#if logLevelDropdownOpen}
-                  <div class="select-options">
-                    {#each logLevelOptions as option (option.value)}
-                      <button
-                        type="button"
-                        class="select-option {selectedLogLevel === option.value ? 'selected' : ''}"
-                        onclick={() => selectLogLevel(option.value)}
-                      >
-                        <span class="log-level-badge {option.value}">{option.label}</span>
-                      </button>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-              <p class="setting-description">{$_('settings.logLevelDescription')}</p>
-            </div>
-          {/if}
-
-        {:else if activeTab === 'ollama'}
-          <h3>{$_('settings.ollama.title')}</h3>
-
-          <!-- Ollama Status -->
-          <div class="setting-group">
-            <span class="label">{$_('settings.ollama.status')}</span>
-            {#if ollamaStatus === null}
-              <div class="status-loading">...</div>
-            {:else if ollamaStatus.available}
-              <div class="status-available">
-                <span class="status-icon">✓</span>
-                {$_('settings.ollama.available')}
-              </div>
-            {:else}
-              <div class="status-unavailable">
-                <span class="status-icon">✗</span>
-                {$_('settings.ollama.unavailable')}
-                <p class="setting-description">{$_('settings.ollama.unavailableDescription')}</p>
-              </div>
-            {/if}
-          </div>
-
-          {#if ollamaStatus?.available}
-            <!-- Loaded Models Display -->
-            <div class="setting-group">
-              <span class="label">{$_('settings.ollama.loadedModels') || 'Geladene Modelle (VRAM)'}</span>
-              <div class="loaded-models">
-                {#if loadedModels.length === 0}
-                  <div class="no-models">{$_('settings.ollama.noLoadedModels') || 'Keine Modelle geladen'}</div>
-                {:else}
-                  {#each loadedModels as model}
-                    <div class="loaded-model">
-                      <span class="model-name">{model.name}</span>
-                      <span class="model-info">{model.parameter_size} · {formatBytes(model.size_vram)}</span>
-                    </div>
-                  {/each}
-                {/if}
-              </div>
-            </div>
-
-            <!-- Main Model Selection -->
-            <div class="setting-group">
-              <span class="label">{$_('settings.ollama.mainModel')}</span>
-              <div class="model-row">
-                <div class="custom-select model-select">
-                  <button type="button" class="select-trigger" onclick={toggleMainModelDropdown}>
-                    <span>
-                      {selectedMainModel || $_('settings.ollama.noModels')}
-                      {#if isModelLoaded(selectedMainModel)}
-                        <span class="loaded-badge">●</span>
-                      {/if}
-                      {#if ollamaStatus && isRecommendedModel(selectedMainModel, ollamaStatus.recommended_main)}
-                        <span class="recommended">{$_('settings.ollama.recommended')}</span>
-                      {/if}
-                    </span>
-                    <span class="arrow">{mainModelDropdownOpen ? '▲' : '▼'}</span>
-                  </button>
-                  {#if mainModelDropdownOpen}
-                    <div class="select-options">
-                      {#each ollamaStatus.models as model}
-                        <button
-                          type="button"
-                          class="select-option {selectedMainModel === model ? 'selected' : ''}"
-                          onclick={() => selectMainModel(model)}
-                        >
-                          {model}
-                          {#if isModelLoaded(model)}
-                            <span class="loaded-badge">●</span>
-                          {/if}
-                          {#if isRecommendedModel(model, ollamaStatus.recommended_main)}
-                            <span class="recommended">{$_('settings.ollama.recommended')}</span>
-                          {/if}
-                        </button>
-                      {/each}
-                    </div>
-                  {/if}
-                </div>
-                {#if ollamaStatus && !ollamaStatus.has_recommended_main}
-                  <button
-                    type="button"
-                    class="btn-download"
-                    onclick={() => handleDownloadModel(ollamaStatus!.recommended_main)}
-                    disabled={downloadingModel !== null}
-                  >
-                    {#if downloadingModel === ollamaStatus.recommended_main}
-                      {$_('settings.ollama.downloading')}
-                    {:else}
-                      {$_('settings.ollama.downloadModel')} {ollamaStatus.recommended_main}
-                    {/if}
-                  </button>
-                {/if}
-              </div>
-            </div>
-
-            <!-- Embedding Model Selection -->
-            <div class="setting-group">
-              <span class="label">{$_('settings.ollama.embeddingModel')}</span>
-              <div class="model-row">
-                <div class="custom-select model-select">
-                  <button type="button" class="select-trigger" onclick={toggleEmbeddingModelDropdown}>
-                    <span>
-                      {selectedEmbeddingModel || $_('settings.ollama.noModels')}
-                      {#if ollamaStatus && isRecommendedModel(selectedEmbeddingModel, ollamaStatus.recommended_embedding)}
-                        <span class="recommended">{$_('settings.ollama.recommended')}</span>
-                      {/if}
-                    </span>
-                    <span class="arrow">{embeddingModelDropdownOpen ? '▲' : '▼'}</span>
-                  </button>
-                  {#if embeddingModelDropdownOpen}
-                    <div class="select-options">
-                      {#each ollamaStatus.models as model}
-                        <button
-                          type="button"
-                          class="select-option {selectedEmbeddingModel === model ? 'selected' : ''}"
-                          onclick={() => selectEmbeddingModel(model)}
-                        >
-                          {model}
-                          {#if isRecommendedModel(model, ollamaStatus.recommended_embedding)}
-                            <span class="recommended">{$_('settings.ollama.recommended')}</span>
-                          {/if}
-                        </button>
-                      {/each}
-                    </div>
-                  {/if}
-                </div>
-                {#if ollamaStatus && !ollamaStatus.has_recommended_embedding}
-                  <button
-                    type="button"
-                    class="btn-download"
-                    onclick={() => handleDownloadModel(ollamaStatus!.recommended_embedding)}
-                    disabled={downloadingModel !== null}
-                  >
-                    {#if downloadingModel === ollamaStatus.recommended_embedding}
-                      {$_('settings.ollama.downloading')}
-                    {:else}
-                      {$_('settings.ollama.downloadModel')} {ollamaStatus.recommended_embedding}
-                    {/if}
-                  </button>
-                {/if}
-              </div>
-            </div>
-
-            {#if downloadError}
-              <div class="error-message">{$_('settings.ollama.downloadError')}: {downloadError}</div>
-            {/if}
-          {/if}
-
-        {:else if activeTab === 'prompts'}
-          <h3>{$_('settings.prompts.title')}</h3>
-
-          {#if !ollamaStatus?.available}
-            <div class="status-unavailable">
-              <span class="status-icon">✗</span>
-              {$_('settings.ollama.unavailable')}
-            </div>
-          {:else}
-            <div class="setting-group">
-              <label class="label" for="summary-prompt">{$_('settings.prompts.summaryPrompt')}</label>
-              <textarea
-                id="summary-prompt"
-                class="prompt-textarea"
-                bind:value={summaryPrompt}
-                oninput={handlePromptChange}
-                rows="6"
-              ></textarea>
-            </div>
-
-            <div class="setting-group">
-              <label class="label" for="analysis-prompt">{$_('settings.prompts.analysisPrompt')}</label>
-              <textarea
-                id="analysis-prompt"
-                class="prompt-textarea"
-                bind:value={analysisPrompt}
-                oninput={handlePromptChange}
-                rows="8"
-              ></textarea>
-            </div>
-
-            {#if promptsModified}
-              <button type="button" class="btn-reset" onclick={handleResetPrompts}>
-                {$_('settings.prompts.reset')}
-              </button>
-            {/if}
-          {/if}
-
-        {:else if activeTab === 'maintenance'}
-          <!-- Confirmation Dialog -->
-          {#if confirmAction}
-            <div class="confirm-overlay">
-              <div class="confirm-dialog">
-                <p class="confirm-message">
-                  {#if confirmAction === 'prune'}
-                    {$_('settings.maintenance.confirmPrune')}
-                  {:else if confirmAction === 'reset'}
-                    {$_('settings.maintenance.confirmReset')}
-                  {/if}
-                </p>
-                <div class="confirm-actions">
-                  <button type="button" class="btn-secondary" onclick={cancelConfirmation}>
-                    {$_('confirm.no')}
-                  </button>
-                  <button 
-                    type="button" 
-                    class="btn-danger-solid"
-                    onclick={confirmAction === 'prune' ? handlePruneLowQuality : handleResetForReprocessing}
-                  >
-                    {$_('confirm.yes')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          {/if}
-
-          <!-- Keyword Statistics -->
-          {#if keywordStats}
-            <div class="keyword-stats">
-              <h3>{$_('settings.maintenance.stats')}</h3>
-              <div class="stats-grid">
-                <div class="stat-item">
-                  <span class="stat-value">{keywordStats.total}</span>
-                  <span class="stat-label">{$_('settings.maintenance.totalKeywords')}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-value">{keywordStats.with_embeddings}</span>
-                  <span class="stat-label">{$_('settings.maintenance.withEmbeddings')}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-value">{keywordStats.avg_quality.toFixed(2)}</span>
-                  <span class="stat-label">{$_('settings.maintenance.avgQuality')}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-value {keywordStats.low_quality > 0 ? 'warning' : ''}">{keywordStats.low_quality}</span>
-                  <span class="stat-label">{$_('settings.maintenance.lowQuality')}</span>
-                </div>
-              </div>
-            </div>
-          {/if}
-
-          <h3>{$_('settings.maintenance.keywordQuality')}</h3>
-
-          {#if maintenanceResult}
-            <div class="maintenance-result">
-              {$_('settings.maintenance.result')}: {maintenanceResult}
-            </div>
-          {/if}
-
-          <div class="maintenance-actions">
-            <div class="maintenance-action">
-              <div class="action-info">
-                <span class="action-title">{$_('settings.maintenance.calculateScores')}</span>
-                <p class="action-desc">{$_('settings.maintenance.calculateScoresDesc')}</p>
-              </div>
-              <button 
-                type="button" 
-                class="btn-action"
-                onclick={handleCalculateScores}
-                disabled={maintenanceRunning !== null}
-              >
-                {maintenanceRunning === 'scores' ? $_('settings.maintenance.running') : $_('settings.maintenance.calculateScores')}
-              </button>
-            </div>
-
-            <div class="maintenance-action">
-              <div class="action-info">
-                <span class="action-title">{$_('settings.maintenance.generateEmbeddings')}</span>
-                <p class="action-desc">{$_('settings.maintenance.generateEmbeddingsDesc')}</p>
-              </div>
-              <button 
-                type="button" 
-                class="btn-action"
-                onclick={handleGenerateEmbeddings}
-                disabled={maintenanceRunning !== null || !ollamaStatus?.available}
-              >
-                {maintenanceRunning === 'embeddings' ? $_('settings.maintenance.running') : $_('settings.maintenance.generateEmbeddings')}
-              </button>
-            </div>
-
-            <div class="maintenance-action">
-              <div class="action-info">
-                <span class="action-title">{$_('settings.maintenance.findSynonyms')}</span>
-                <p class="action-desc">{$_('settings.maintenance.findSynonymsDesc')}</p>
-              </div>
-              <button 
-                type="button" 
-                class="btn-action"
-                onclick={handleFindSynonyms}
-                disabled={maintenanceRunning !== null}
-              >
-                {maintenanceRunning === 'synonyms' ? $_('settings.maintenance.running') : $_('settings.maintenance.findSynonyms')}
-              </button>
-            </div>
-
-            <div class="maintenance-action">
-              <div class="action-info">
-                <span class="action-title">{$_('settings.maintenance.pruneLowQuality')}</span>
-                <p class="action-desc">{$_('settings.maintenance.pruneLowQualityDesc')}</p>
-              </div>
-              <button 
-                type="button" 
-                class="btn-action btn-danger"
-                onclick={showPruneConfirmation}
-                disabled={maintenanceRunning !== null}
-              >
-                {maintenanceRunning === 'prune' ? $_('settings.maintenance.running') : $_('settings.maintenance.pruneLowQuality')}
-              </button>
-            </div>
-          </div>
-
-          <!-- Synonym Candidates -->
-          {#if synonymCandidates.length > 0}
-            <h3 style="margin-top: 1.5rem;">{$_('settings.maintenance.synonymCandidates')}</h3>
-            <div class="synonym-list">
-              {#each synonymCandidates as candidate}
-                <div class="synonym-item">
-                  <div class="synonym-pair">
-                    <span class="synonym-name">{candidate.keyword_a_name}</span>
-                    <span class="synonym-similarity">≈ {(candidate.similarity * 100).toFixed(0)}%</span>
-                    <span class="synonym-name">{candidate.keyword_b_name}</span>
-                  </div>
-                  <div class="synonym-actions">
-                    <button 
-                      type="button" 
-                      class="btn-merge"
-                      onclick={() => handleMergeSynonym(candidate.keyword_a_id, candidate.keyword_b_id, candidate.keyword_a_name, candidate.keyword_b_name)}
-                      title="{$_('settings.maintenance.keep')} '{candidate.keyword_a_name}'"
-                    >
-                      ← {$_('settings.maintenance.merge')}
-                    </button>
-                    <button 
-                      type="button" 
-                      class="btn-merge"
-                      onclick={() => handleMergeSynonym(candidate.keyword_b_id, candidate.keyword_a_id, candidate.keyword_b_name, candidate.keyword_a_name)}
-                      title="{$_('settings.maintenance.keep')} '{candidate.keyword_b_name}'"
-                    >
-                      {$_('settings.maintenance.merge')} →
-                    </button>
-                    <button 
-                      type="button" 
-                      class="btn-dismiss"
-                      onclick={() => handleDismissSynonym(candidate.keyword_a_id, candidate.keyword_b_id, candidate.keyword_a_name, candidate.keyword_b_name)}
-                      title={$_('settings.maintenance.dismiss')}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
               {/each}
             </div>
           {/if}
+        </div>
+      </div>
 
-          <h3 style="margin-top: 1.5rem;">{$_('settings.maintenance.reprocessArticles')}</h3>
-
-          <div class="maintenance-actions">
-            <div class="maintenance-action">
-              <div class="action-info">
-                <span class="action-title">{$_('settings.maintenance.resetForReprocessing')}</span>
-                <p class="action-desc">{$_('settings.maintenance.resetForReprocessingDesc')}</p>
-              </div>
-              {#if !reanalyzeRunning}
+      <!-- Dark Theme Dropdown -->
+      <div class="setting-group">
+        <span class="label">{$_('settings.darkTheme')}</span>
+        <div class="custom-select">
+          <button type="button" class="select-trigger" aria-label={$_('settings.darkTheme')} onclick={toggleThemeDropdown}>
+            <span>{$_(getDarkThemeLabelKey(selectedDarkTheme))}</span>
+            <span class="arrow">{themeDropdownOpen ? '▲' : '▼'}</span>
+          </button>
+          {#if themeDropdownOpen}
+            <div class="select-options">
+              {#each darkThemeOptions as option (option.value)}
                 <button
                   type="button"
-                  class="btn-action btn-danger"
-                  onclick={showResetConfirmation}
-                  disabled={maintenanceRunning !== null}
+                  class="select-option {selectedDarkTheme === option.value ? 'selected' : ''}"
+                  onclick={() => selectDarkTheme(option.value)}
                 >
-                  {maintenanceRunning === 'reset' ? $_('settings.maintenance.running') : $_('settings.maintenance.resetForReprocessing')}
+                  {$_(option.labelKey)}
                 </button>
-              {/if}
+              {/each}
             </div>
+          {/if}
+        </div>
+        <p class="setting-description">{$_('settings.themeDescription')}</p>
+      </div>
 
-            {#if reanalyzeRunning && reanalyzeProgress}
-              <div class="reanalyze-progress">
-                <div class="progress-header">
-                  <span class="progress-label">{$_('settings.maintenance.reanalyzing')}</span>
+      <div class="setting-group checkbox-group">
+        <label>
+          <input type="checkbox" bind:checked={showTooltips} />
+          <span class="checkbox-label">{$_('settings.tooltips')}</span>
+        </label>
+        <p class="setting-description">{$_('settings.tooltipsDescription')}</p>
+      </div>
+
+      <!-- Sync Settings -->
+      <div class="setting-group">
+        <span class="label">{$_('settings.sync.title')}</span>
+      </div>
+
+      <div class="setting-group">
+        <label class="label" for="sync-interval">{$_('settings.sync.interval')}</label>
+        <div class="slider-row">
+          <input
+            id="sync-interval"
+            type="range"
+            min="5"
+            max="120"
+            step="5"
+            bind:value={syncInterval}
+            class="slider"
+          />
+          <span class="slider-value">{$_('settings.sync.minutes', { values: { count: syncInterval }})}</span>
+        </div>
+        <p class="setting-description">{$_('settings.sync.intervalDescription')}</p>
+      </div>
+
+      <div class="setting-group checkbox-group">
+        <label>
+          <input type="checkbox" bind:checked={syncOnStart} />
+          <span class="checkbox-label">{$_('settings.sync.onStart')}</span>
+        </label>
+        <p class="setting-description">{$_('settings.sync.onStartDescription')}</p>
+      </div>
+
+      <!-- Log Level (Dev Mode) -->
+      {#if import.meta.env.DEV}
+        <div class="setting-group">
+          <span class="label">{$_('settings.logLevel')}</span>
+          <div class="custom-select">
+            <button type="button" class="select-trigger" aria-label={$_('settings.logLevel')} onclick={toggleLogLevelDropdown}>
+              <span class="log-level-display">
+                <span class="log-level-badge {selectedLogLevel}">{selectedLogLevel.toUpperCase()}</span>
+              </span>
+              <span class="arrow">{logLevelDropdownOpen ? '▲' : '▼'}</span>
+            </button>
+            {#if logLevelDropdownOpen}
+              <div class="select-options">
+                {#each logLevelOptions as option (option.value)}
                   <button
                     type="button"
-                    class="btn-cancel-small"
-                    onclick={handleCancelReanalyze}
+                    class="select-option {selectedLogLevel === option.value ? 'selected' : ''}"
+                    onclick={() => selectLogLevel(option.value)}
                   >
-                    {$_('batch.cancel')}
+                    <span class="log-level-badge {option.value}">{option.label}</span>
                   </button>
-                </div>
-                <div class="progress-bar">
-                  <div
-                    class="progress-fill"
-                    style="width: {reanalyzeProgress.total > 0 ? (reanalyzeProgress.current / reanalyzeProgress.total) * 100 : 0}%"
-                  ></div>
-                </div>
-                <div class="progress-details">
-                  <span class="progress-count">
-                    {reanalyzeProgress.current} / {reanalyzeProgress.total}
-                  </span>
-                  <span class="progress-title" title={reanalyzeProgress.title}>
-                    {reanalyzeProgress.title.length > 40
-                      ? reanalyzeProgress.title.slice(0, 40) + "..."
-                      : reanalyzeProgress.title}
-                  </span>
-                </div>
-                {#if !reanalyzeProgress.success && reanalyzeProgress.error}
-                  <div class="progress-error">{reanalyzeProgress.error}</div>
-                {/if}
+                {/each}
               </div>
             {/if}
+          </div>
+          <p class="setting-description">{$_('settings.logLevelDescription')}</p>
+        </div>
+      {/if}
+
+    {:else if activeTab === 'ollama'}
+      <h3>{$_('settings.ollama.title')}</h3>
+
+      <!-- Ollama Status -->
+      <div class="setting-group">
+        <span class="label">{$_('settings.ollama.status')}</span>
+        {#if ollamaStatus === null}
+          <div class="status-loading">...</div>
+        {:else if ollamaStatus.available}
+          <div class="status-available">
+            <span class="status-icon">✓</span>
+            {$_('settings.ollama.available')}
+          </div>
+        {:else}
+          <div class="status-unavailable">
+            <span class="status-icon">✗</span>
+            {$_('settings.ollama.unavailable')}
+            <p class="setting-description">{$_('settings.ollama.unavailableDescription')}</p>
           </div>
         {/if}
       </div>
 
-      <div class="dialog-actions">
-        <button type="button" class="btn-secondary" onclick={handleClose}>
-          {$_('settings.cancel')}
-        </button>
-        <button type="button" class="btn-primary" onclick={handleSave}>
-          {$_('settings.save')}
-        </button>
+      {#if ollamaStatus?.available}
+        <!-- Loaded Models Display -->
+        <div class="setting-group">
+          <span class="label">{$_('settings.ollama.loadedModels') || 'Geladene Modelle (VRAM)'}</span>
+          <div class="loaded-models">
+            {#if loadedModels.length === 0}
+              <div class="no-models">{$_('settings.ollama.noLoadedModels') || 'Keine Modelle geladen'}</div>
+            {:else}
+              {#each loadedModels as model}
+                <div class="loaded-model">
+                  <span class="model-name">{model.name}</span>
+                  <span class="model-info">{model.parameter_size} · {formatBytes(model.size_vram)}</span>
+                </div>
+              {/each}
+            {/if}
+          </div>
+        </div>
+
+        <!-- Main Model Selection -->
+        <div class="setting-group">
+          <span class="label">{$_('settings.ollama.mainModel')}</span>
+          <div class="model-row">
+            <div class="custom-select model-select">
+              <button type="button" class="select-trigger" onclick={toggleMainModelDropdown}>
+                <span>
+                  {selectedMainModel || $_('settings.ollama.noModels')}
+                  {#if isModelLoaded(selectedMainModel)}
+                    <span class="loaded-badge">●</span>
+                  {/if}
+                  {#if ollamaStatus && isRecommendedModel(selectedMainModel, ollamaStatus.recommended_main)}
+                    <span class="recommended">{$_('settings.ollama.recommended')}</span>
+                  {/if}
+                </span>
+                <span class="arrow">{mainModelDropdownOpen ? '▲' : '▼'}</span>
+              </button>
+              {#if mainModelDropdownOpen}
+                <div class="select-options">
+                  {#each ollamaStatus.models as model}
+                    <button
+                      type="button"
+                      class="select-option {selectedMainModel === model ? 'selected' : ''}"
+                      onclick={() => selectMainModel(model)}
+                    >
+                      {model}
+                      {#if isModelLoaded(model)}
+                        <span class="loaded-badge">●</span>
+                      {/if}
+                      {#if isRecommendedModel(model, ollamaStatus.recommended_main)}
+                        <span class="recommended">{$_('settings.ollama.recommended')}</span>
+                      {/if}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+            {#if ollamaStatus && !ollamaStatus.has_recommended_main}
+              <button
+                type="button"
+                class="btn-download"
+                onclick={() => handleDownloadModel(ollamaStatus!.recommended_main)}
+                disabled={downloadingModel !== null}
+              >
+                {#if downloadingModel === ollamaStatus.recommended_main}
+                  {$_('settings.ollama.downloading')}
+                {:else}
+                  {$_('settings.ollama.downloadModel')} {ollamaStatus.recommended_main}
+                {/if}
+              </button>
+            {/if}
+          </div>
+        </div>
+
+        <!-- Embedding Model Selection -->
+        <div class="setting-group">
+          <span class="label">{$_('settings.ollama.embeddingModel')}</span>
+          <div class="model-row">
+            <div class="custom-select model-select">
+              <button type="button" class="select-trigger" onclick={toggleEmbeddingModelDropdown}>
+                <span>
+                  {selectedEmbeddingModel || $_('settings.ollama.noModels')}
+                  {#if ollamaStatus && isRecommendedModel(selectedEmbeddingModel, ollamaStatus.recommended_embedding)}
+                    <span class="recommended">{$_('settings.ollama.recommended')}</span>
+                  {/if}
+                </span>
+                <span class="arrow">{embeddingModelDropdownOpen ? '▲' : '▼'}</span>
+              </button>
+              {#if embeddingModelDropdownOpen}
+                <div class="select-options">
+                  {#each ollamaStatus.models as model}
+                    <button
+                      type="button"
+                      class="select-option {selectedEmbeddingModel === model ? 'selected' : ''}"
+                      onclick={() => selectEmbeddingModel(model)}
+                    >
+                      {model}
+                      {#if isRecommendedModel(model, ollamaStatus.recommended_embedding)}
+                        <span class="recommended">{$_('settings.ollama.recommended')}</span>
+                      {/if}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+            {#if ollamaStatus && !ollamaStatus.has_recommended_embedding}
+              <button
+                type="button"
+                class="btn-download"
+                onclick={() => handleDownloadModel(ollamaStatus!.recommended_embedding)}
+                disabled={downloadingModel !== null}
+              >
+                {#if downloadingModel === ollamaStatus.recommended_embedding}
+                  {$_('settings.ollama.downloading')}
+                {:else}
+                  {$_('settings.ollama.downloadModel')} {ollamaStatus.recommended_embedding}
+                {/if}
+              </button>
+            {/if}
+          </div>
+        </div>
+
+        {#if downloadError}
+          <div class="error-message">{$_('settings.ollama.downloadError')}: {downloadError}</div>
+        {/if}
+      {/if}
+
+    {:else if activeTab === 'prompts'}
+      <h3>{$_('settings.prompts.title')}</h3>
+
+      {#if !ollamaStatus?.available}
+        <div class="status-unavailable">
+          <span class="status-icon">✗</span>
+          {$_('settings.ollama.unavailable')}
+        </div>
+      {:else}
+        <div class="setting-group">
+          <label class="label" for="summary-prompt">{$_('settings.prompts.summaryPrompt')}</label>
+          <textarea
+            id="summary-prompt"
+            class="prompt-textarea"
+            bind:value={summaryPrompt}
+            oninput={handlePromptChange}
+            rows="6"
+          ></textarea>
+        </div>
+
+        <div class="setting-group">
+          <label class="label" for="analysis-prompt">{$_('settings.prompts.analysisPrompt')}</label>
+          <textarea
+            id="analysis-prompt"
+            class="prompt-textarea"
+            bind:value={analysisPrompt}
+            oninput={handlePromptChange}
+            rows="8"
+          ></textarea>
+        </div>
+
+        {#if promptsModified}
+          <button type="button" class="btn-reset" onclick={handleResetPrompts}>
+            {$_('settings.prompts.reset')}
+          </button>
+        {/if}
+      {/if}
+
+    {:else if activeTab === 'maintenance'}
+      <!-- Confirmation Dialog -->
+      {#if confirmAction}
+        <div class="confirm-overlay">
+          <div class="confirm-dialog">
+            <p class="confirm-message">
+              {#if confirmAction === 'prune'}
+                {$_('settings.maintenance.confirmPrune')}
+              {:else if confirmAction === 'reset'}
+                {$_('settings.maintenance.confirmReset')}
+              {/if}
+            </p>
+            <div class="confirm-actions">
+              <button type="button" class="btn-secondary" onclick={cancelConfirmation}>
+                {$_('confirm.no')}
+              </button>
+              <button
+                type="button"
+                class="btn-danger-solid"
+                onclick={confirmAction === 'prune' ? handlePruneLowQuality : handleResetForReprocessing}
+              >
+                {$_('confirm.yes')}
+              </button>
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      <!-- Keyword Statistics -->
+      {#if keywordStats}
+        <div class="keyword-stats">
+          <h3>{$_('settings.maintenance.stats')}</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="stat-value">{keywordStats.total}</span>
+              <span class="stat-label">{$_('settings.maintenance.totalKeywords')}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{keywordStats.with_embeddings}</span>
+              <span class="stat-label">{$_('settings.maintenance.withEmbeddings')}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{keywordStats.avg_quality.toFixed(2)}</span>
+              <span class="stat-label">{$_('settings.maintenance.avgQuality')}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value {keywordStats.low_quality > 0 ? 'warning' : ''}">{keywordStats.low_quality}</span>
+              <span class="stat-label">{$_('settings.maintenance.lowQuality')}</span>
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      <h3>{$_('settings.maintenance.keywordQuality')}</h3>
+
+      {#if maintenanceResult}
+        <div class="maintenance-result">
+          {$_('settings.maintenance.result')}: {maintenanceResult}
+        </div>
+      {/if}
+
+      <div class="maintenance-actions">
+        <div class="maintenance-action">
+          <div class="action-info">
+            <span class="action-title">{$_('settings.maintenance.calculateScores')}</span>
+            <p class="action-desc">{$_('settings.maintenance.calculateScoresDesc')}</p>
+          </div>
+          <button
+            type="button"
+            class="btn-action"
+            onclick={handleCalculateScores}
+            disabled={maintenanceRunning !== null}
+          >
+            {maintenanceRunning === 'scores' ? $_('settings.maintenance.running') : $_('settings.maintenance.calculateScores')}
+          </button>
+        </div>
+
+        <div class="maintenance-action">
+          <div class="action-info">
+            <span class="action-title">{$_('settings.maintenance.generateEmbeddings')}</span>
+            <p class="action-desc">{$_('settings.maintenance.generateEmbeddingsDesc')}</p>
+          </div>
+          <button
+            type="button"
+            class="btn-action"
+            onclick={handleGenerateEmbeddings}
+            disabled={maintenanceRunning !== null || !ollamaStatus?.available}
+          >
+            {maintenanceRunning === 'embeddings' ? $_('settings.maintenance.running') : $_('settings.maintenance.generateEmbeddings')}
+          </button>
+        </div>
+
+        <div class="maintenance-action">
+          <div class="action-info">
+            <span class="action-title">{$_('settings.maintenance.findSynonyms')}</span>
+            <p class="action-desc">{$_('settings.maintenance.findSynonymsDesc')}</p>
+          </div>
+          <button
+            type="button"
+            class="btn-action"
+            onclick={handleFindSynonyms}
+            disabled={maintenanceRunning !== null}
+          >
+            {maintenanceRunning === 'synonyms' ? $_('settings.maintenance.running') : $_('settings.maintenance.findSynonyms')}
+          </button>
+        </div>
+
+        <div class="maintenance-action">
+          <div class="action-info">
+            <span class="action-title">{$_('settings.maintenance.pruneLowQuality')}</span>
+            <p class="action-desc">{$_('settings.maintenance.pruneLowQualityDesc')}</p>
+          </div>
+          <button
+            type="button"
+            class="btn-action btn-danger"
+            onclick={showPruneConfirmation}
+            disabled={maintenanceRunning !== null}
+          >
+            {maintenanceRunning === 'prune' ? $_('settings.maintenance.running') : $_('settings.maintenance.pruneLowQuality')}
+          </button>
+        </div>
       </div>
-    </div>
-  </dialog>
-{/if}
+
+      <!-- Synonym Candidates -->
+      {#if synonymCandidates.length > 0}
+        <h3 style="margin-top: 1.5rem;">{$_('settings.maintenance.synonymCandidates')}</h3>
+        <div class="synonym-list">
+          {#each synonymCandidates as candidate}
+            <div class="synonym-item">
+              <div class="synonym-pair">
+                <span class="synonym-name">{candidate.keyword_a_name}</span>
+                <span class="synonym-similarity">≈ {(candidate.similarity * 100).toFixed(0)}%</span>
+                <span class="synonym-name">{candidate.keyword_b_name}</span>
+              </div>
+              <div class="synonym-actions">
+                <button
+                  type="button"
+                  class="btn-merge"
+                  onclick={() => handleMergeSynonym(candidate.keyword_a_id, candidate.keyword_b_id, candidate.keyword_a_name, candidate.keyword_b_name)}
+                  title="{$_('settings.maintenance.keep')} '{candidate.keyword_a_name}'"
+                >
+                  ← {$_('settings.maintenance.merge')}
+                </button>
+                <button
+                  type="button"
+                  class="btn-merge"
+                  onclick={() => handleMergeSynonym(candidate.keyword_b_id, candidate.keyword_a_id, candidate.keyword_b_name, candidate.keyword_a_name)}
+                  title="{$_('settings.maintenance.keep')} '{candidate.keyword_b_name}'"
+                >
+                  {$_('settings.maintenance.merge')} →
+                </button>
+                <button
+                  type="button"
+                  class="btn-dismiss"
+                  onclick={() => handleDismissSynonym(candidate.keyword_a_id, candidate.keyword_b_id, candidate.keyword_a_name, candidate.keyword_b_name)}
+                  title={$_('settings.maintenance.dismiss')}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+
+      <h3 style="margin-top: 1.5rem;">{$_('settings.maintenance.reprocessArticles')}</h3>
+
+      <div class="maintenance-actions">
+        <div class="maintenance-action">
+          <div class="action-info">
+            <span class="action-title">{$_('settings.maintenance.resetForReprocessing')}</span>
+            <p class="action-desc">{$_('settings.maintenance.resetForReprocessingDesc')}</p>
+          </div>
+          {#if !reanalyzeRunning}
+            <button
+              type="button"
+              class="btn-action btn-danger"
+              onclick={showResetConfirmation}
+              disabled={maintenanceRunning !== null}
+            >
+              {maintenanceRunning === 'reset' ? $_('settings.maintenance.running') : $_('settings.maintenance.resetForReprocessing')}
+            </button>
+          {/if}
+        </div>
+
+        {#if reanalyzeRunning && reanalyzeProgress}
+          <div class="reanalyze-progress">
+            <div class="progress-header">
+              <span class="progress-label">{$_('settings.maintenance.reanalyzing')}</span>
+              <button
+                type="button"
+                class="btn-cancel-small"
+                onclick={handleCancelReanalyze}
+              >
+                {$_('batch.cancel')}
+              </button>
+            </div>
+            <div class="progress-bar">
+              <div
+                class="progress-fill"
+                style="width: {reanalyzeProgress.total > 0 ? (reanalyzeProgress.current / reanalyzeProgress.total) * 100 : 0}%"
+              ></div>
+            </div>
+            <div class="progress-details">
+              <span class="progress-count">
+                {reanalyzeProgress.current} / {reanalyzeProgress.total}
+              </span>
+              <span class="progress-title" title={reanalyzeProgress.title}>
+                {reanalyzeProgress.title.length > 40
+                  ? reanalyzeProgress.title.slice(0, 40) + "..."
+                  : reanalyzeProgress.title}
+              </span>
+            </div>
+            {#if !reanalyzeProgress.success && reanalyzeProgress.error}
+              <div class="progress-error">{reanalyzeProgress.error}</div>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </div>
+</div>
 
 <style>
-  .settings-dialog {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    border: none;
-    border-radius: 0.75rem;
-    padding: 0;
-    max-width: 600px;
-    width: 90%;
-    max-height: 80vh;
-    background-color: var(--bg-surface);
-    color: var(--text-primary);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  }
-
-  .settings-dialog::backdrop {
-    background: rgba(0, 0, 0, 0.6);
-  }
-
-  .dialog-content {
-    padding: 1.5rem;
+  .settings-view {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    max-height: 80vh;
+    background-color: var(--bg-surface);
+    overflow: hidden;
   }
 
-  h2 {
-    margin: 0 0 1rem 0;
+  .settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .settings-header h2 {
+    margin: 0;
     font-size: 1.25rem;
     color: var(--accent-primary);
+  }
+
+  .btn-save {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.375rem;
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-save:hover {
+    filter: brightness(1.1);
   }
 
   h3 {
@@ -1183,12 +1138,12 @@
   .tabs {
     display: flex;
     gap: 0.25rem;
-    margin-bottom: 1rem;
+    padding: 0 1.5rem;
     border-bottom: 1px solid var(--border-default);
   }
 
   .tab {
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1rem;
     border: none;
     background: none;
     color: var(--text-muted);
@@ -1211,11 +1166,12 @@
   .tab-content {
     flex: 1;
     overflow-y: auto;
-    min-height: 200px;
+    padding: 1.5rem;
   }
 
   .setting-group {
     margin-bottom: 1.25rem;
+    max-width: 600px;
   }
 
   .setting-group > label,
@@ -1678,39 +1634,16 @@
     font-size: 0.75rem;
   }
 
-  /* Dialog Actions */
-  .dialog-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    margin-top: 1.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border-default);
-  }
-
-  .btn-primary,
   .btn-secondary {
     padding: 0.5rem 1rem;
     border: none;
     border-radius: 0.375rem;
+    background-color: var(--bg-overlay);
+    color: var(--text-secondary);
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
-  }
-
-  .btn-primary {
-    background-color: var(--accent-primary);
-    color: var(--text-on-accent);
-  }
-
-  .btn-primary:hover {
-    filter: brightness(1.1);
-  }
-
-  .btn-secondary {
-    background-color: var(--bg-overlay);
-    color: var(--text-secondary);
   }
 
   .btn-secondary:hover {
@@ -1718,7 +1651,7 @@
   }
 
   .confirm-overlay {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     right: 0;
@@ -1728,7 +1661,6 @@
     align-items: center;
     justify-content: center;
     z-index: 200;
-    border-radius: 0.75rem;
   }
 
   .confirm-dialog {

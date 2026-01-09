@@ -6,15 +6,14 @@
   import ArticleView from "./lib/components/ArticleView.svelte";
   import KeywordNetwork from "./lib/components/KeywordNetwork.svelte";
   import FnordView from "./lib/components/FnordView.svelte";
-  import SettingsDialog from "./lib/components/SettingsDialog.svelte";
+  import SettingsView from "./lib/components/SettingsView.svelte";
   import Toast from "./lib/components/Toast.svelte";
   import StatusBar from "./lib/components/StatusBar.svelte";
   import { settings } from "./lib/stores/settings.svelte";
   import { initLocaleFromDb } from "./lib/i18n";
   import { networkStore, appState } from "./lib/stores/state.svelte";
 
-  let showSettings = $state(false);
-  let mainView = $state<'articles' | 'network' | 'fnord'>('articles');
+  let mainView = $state<'articles' | 'network' | 'fnord' | 'settings'>('articles');
 
   // Listen for navigation events from other components
   function handleNavigateToNetwork(event: CustomEvent<{ keywordId?: number }>) {
@@ -54,12 +53,14 @@
     <div class="main-content">
       <!-- Sidebar: Feed list (Pentacles) -->
       <Sidebar
-        onsettings={() => showSettings = true}
-        onnetwork={() => mainView = mainView === 'network' ? 'articles' : 'network'}
-        onfnord={() => mainView = mainView === 'fnord' ? 'articles' : 'fnord'}
-        onhome={() => mainView = 'articles'}
-        networkActive={mainView === 'network'}
+        onarticles={() => mainView = 'articles'}
+        onfnord={() => mainView = 'fnord'}
+        onnetwork={() => mainView = 'network'}
+        onsettings={() => mainView = 'settings'}
+        articlesActive={mainView === 'articles'}
         fnordActive={mainView === 'fnord'}
+        networkActive={mainView === 'network'}
+        settingsActive={mainView === 'settings'}
       />
 
       <!-- Main content area -->
@@ -70,6 +71,9 @@
         {:else if mainView === 'fnord'}
           <!-- Fnord Statistics View -->
           <FnordView />
+        {:else if mainView === 'settings'}
+          <!-- Settings View -->
+          <SettingsView />
         {:else}
           <!-- Article list (Fnords) -->
           <ArticleList />
@@ -84,7 +88,6 @@
     <StatusBar />
   </div>
 
-  <SettingsDialog open={showSettings} onclose={() => showSettings = false} />
   <Toast />
 {/if}
 
