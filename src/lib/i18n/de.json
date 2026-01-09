@@ -217,6 +217,7 @@
   "actions": {
     "delete": "Löschen",
     "refresh": "Aktualisieren",
+    "home": "Zurück zu Feeds",
     "markRead": "Als gelesen markieren",
     "markUnread": "Als ungelesen markieren",
     "favorite": "Favorisieren",

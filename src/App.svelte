@@ -57,6 +57,7 @@
         onsettings={() => showSettings = true}
         onnetwork={() => mainView = mainView === 'network' ? 'articles' : 'network'}
         onfnord={() => mainView = mainView === 'fnord' ? 'articles' : 'fnord'}
+        onhome={() => mainView = 'articles'}
         networkActive={mainView === 'network'}
         fnordActive={mainView === 'fnord'}
       />
