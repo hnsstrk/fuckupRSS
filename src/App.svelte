@@ -63,6 +63,9 @@
         settingsActive={mainView === 'settings'}
       />
 
+      <!-- Article list (always visible) -->
+      <ArticleList />
+
       <!-- Main content area -->
       <div class="content-area">
         {#if mainView === 'network'}
@@ -75,9 +78,6 @@
           <!-- Settings View -->
           <SettingsView />
         {:else}
-          <!-- Article list (Fnords) -->
-          <ArticleList />
-
           <!-- Article view -->
           <ArticleView />
         {/if}
