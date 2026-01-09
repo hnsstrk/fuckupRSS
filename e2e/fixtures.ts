@@ -63,6 +63,10 @@ export const mockOllamaStatus = {
 
 // Script to inject Tauri mocks into the page
 export const tauriMockScript = `
+  // Track event listeners for cleanup
+  const eventListeners = new Map();
+  let listenerId = 0;
+
   window.__TAURI_INTERNALS__ = {
     invoke: async (cmd, args) => {
       console.log('Mocked invoke:', cmd, args);
@@ -71,9 +75,9 @@ export const tauriMockScript = `
         'get_fnords': ${JSON.stringify(mockFnords)},
         'get_fnord': ${JSON.stringify(mockFnords[0])},
         'get_settings': ${JSON.stringify(mockSettings)},
-        'get_setting': 'de',
+        'get_setting': null,
         'check_ollama': ${JSON.stringify(mockOllamaStatus)},
-        'get_unprocessed_count': { without_summary: 0, without_analysis: 0 },
+        'get_unprocessed_count': { without_summary: 0, without_analysis: 0, with_content: 0 },
         'get_changed_fnords': [],
         'reset_all_changes': undefined,
         'sync_all_feeds': { success: true, total_new: 0, total_updated: 0, results: [] },
@@ -81,15 +85,53 @@ export const tauriMockScript = `
         'delete_pentacle': undefined,
         'update_fnord_status': undefined,
         'set_setting': undefined,
+        'get_prompts': { summary_prompt: 'Test prompt', analysis_prompt: 'Test analysis' },
+        'get_default_prompts': { summary_prompt: 'Test prompt', analysis_prompt: 'Test analysis' },
+        'get_loaded_models': { models: [] },
+        'set_prompts': undefined,
+        'calculate_keyword_quality_scores': { updated_count: 0, avg_score: 0, low_quality_count: 0 },
+        'ensure_models_loaded': undefined,
       };
       return mocks[cmd] ?? undefined;
     },
-    transformCallback: () => {},
+    transformCallback: (callback, once) => {
+      const id = listenerId++;
+      return id;
+    },
+    metadata: {
+      currentWebview: { windowLabel: 'main', label: 'main' },
+      currentWindow: { label: 'main' }
+    },
   };
 
-  // Mock the event system
-  window.__TAURI_INTERNALS__.invoke.transformCallback = (callback) => {
-    return callback;
+  // Mock Tauri event plugin
+  window.__TAURI_PLUGIN_EVENT__ = {
+    listen: async (event, handler) => {
+      const id = listenerId++;
+      eventListeners.set(id, { event, handler });
+      console.log('Mocked listen:', event, 'id:', id);
+      return () => {
+        eventListeners.delete(id);
+        console.log('Unlistened:', event, 'id:', id);
+      };
+    },
+    emit: async (event, payload) => {
+      console.log('Mocked emit:', event, payload);
+      for (const [id, listener] of eventListeners) {
+        if (listener.event === event) {
+          listener.handler({ payload, event, id });
+        }
+      }
+    },
+    once: async (event, handler) => {
+      const id = listenerId++;
+      const wrappedHandler = (e) => {
+        handler(e);
+        eventListeners.delete(id);
+      };
+      eventListeners.set(id, { event, handler: wrappedHandler });
+      return () => eventListeners.delete(id);
+    },
   };
 `;
 

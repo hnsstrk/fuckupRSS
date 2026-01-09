@@ -24,11 +24,21 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "CREATE INDEX IF NOT EXISTS idx_fnords_has_changes ON fnords(has_changes);",
     )?;
 
-    // Rename "Tech" to "Technik" if exists
-    conn.execute(
-        "UPDATE sephiroth SET name = 'Technik' WHERE name = 'Tech'",
-        [],
-    )?;
+    // Rename "Tech" to "Technik" if exists AND "Technik" doesn't exist yet
+    // This prevents UNIQUE constraint violation if both exist
+    let technik_exists: bool = conn
+        .prepare("SELECT COUNT(*) FROM sephiroth WHERE name = 'Technik'")?
+        .query_row([], |row| row.get::<_, i64>(0).map(|c| c > 0))?;
+
+    if !technik_exists {
+        conn.execute(
+            "UPDATE sephiroth SET name = 'Technik' WHERE name = 'Tech'",
+            [],
+        )?;
+    } else {
+        // If "Technik" already exists, just delete the old "Tech" entry (if any)
+        conn.execute("DELETE FROM sephiroth WHERE name = 'Tech'", [])?;
+    }
 
     // Add source and assigned_at columns to fnord_sephiroth if missing
     let has_source: bool = conn

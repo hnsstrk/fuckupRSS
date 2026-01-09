@@ -832,6 +832,7 @@ pub fn find_canonical_keyword(keyword: &str) -> Option<&'static str> {
     None
 }
 
+#[allow(dead_code)] // Reserved for Phase 3 Immanentize Network features
 pub fn get_all_synonyms(keyword: &str) -> Vec<&'static str> {
     let lower = keyword.to_lowercase();
 

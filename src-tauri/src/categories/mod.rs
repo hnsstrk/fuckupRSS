@@ -260,6 +260,7 @@ impl CategoryClassifier {
     }
 }
 
+#[allow(dead_code)] // Reserved for Phase 3 KI-Features
 pub async fn classify_article(
     title: &str,
     content: &str,
