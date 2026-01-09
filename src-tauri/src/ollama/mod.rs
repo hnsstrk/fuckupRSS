@@ -1,3 +1,4 @@
+use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use thiserror::Error;
@@ -506,7 +507,7 @@ impl OllamaClient {
 
         // Parse as RawBiasAnalysis (accepts floats) then convert to BiasAnalysis (integers)
         let raw: RawBiasAnalysis = serde_json::from_str(&json_str).map_err(|e| {
-            eprintln!("JSON parse error: {}. Extracted JSON: {}", e, truncate_str(&json_str, 300));
+            warn!("JSON parse error: {}. Extracted JSON: {}", e, truncate_str(&json_str, 300));
             OllamaError::GenerationFailed(format!("Failed to parse bias analysis: {}", e))
         })?;
 
@@ -521,6 +522,7 @@ impl OllamaClient {
         content: &str,
         locale: &str,
     ) -> Result<DiscordianAnalysis, OllamaError> {
+        debug!("Starting Discordian analysis for: {}", truncate_str(title, 60));
         let language = get_language_for_locale(locale);
         let truncated_content = content.chars().take(6000).collect::<String>();
 
@@ -534,12 +536,18 @@ impl OllamaClient {
 
         let raw: RawDiscordianAnalysis = serde_json::from_str(&json_str).map_err(|e| {
             // Only log on actual parse failure (after extraction was attempted)
-            eprintln!("JSON parse error: {}. Extracted JSON: {}", e, truncate_str(&json_str, 300));
+            warn!("JSON parse error: {}. Extracted JSON: {}", e, truncate_str(&json_str, 300));
             OllamaError::GenerationFailed(format!(
                 "Failed to parse Discordian analysis: {}",
                 e
             ))
         })?;
+
+        debug!(
+            "Analysis complete: {} categories, {} keywords",
+            raw.categories.len(),
+            raw.keywords.len()
+        );
 
         Ok(raw.into())
     }

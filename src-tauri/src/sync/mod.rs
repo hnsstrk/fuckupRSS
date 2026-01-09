@@ -1,4 +1,5 @@
 use feed_rs::parser;
+use log::{debug, info};
 use rusqlite::{Connection, OptionalExtension};
 use sha2::{Sha256, Digest};
 use std::time::Duration;
@@ -57,9 +58,12 @@ impl FeedSyncer {
 
     /// Fetch and parse a feed (async, no DB access)
     pub async fn fetch_feed(&self, pentacle_id: i64, url: &str) -> Result<FetchedFeed, SyncError> {
+        debug!("Fetching feed: {} (pentacle_id: {})", url, pentacle_id);
+
         // Fetch feed content
         let response: reqwest_new::Response = self.client.get(url).send().await?;
         let bytes: bytes::Bytes = response.bytes().await?;
+        debug!("Received {} bytes from {}", bytes.len(), url);
 
         // Parse feed
         let feed = parser::parse(&bytes[..])?;
@@ -118,6 +122,12 @@ impl FeedSyncer {
             })
             .collect();
 
+        info!(
+            "Parsed feed '{}' with {} entries",
+            title.as_deref().unwrap_or("Unknown"),
+            entries.len()
+        );
+
         Ok(FetchedFeed {
             pentacle_id,
             title,
@@ -131,6 +141,9 @@ impl FeedSyncer {
     /// Store fetched feed data in database (sync, called after async fetch)
     pub fn store_feed(conn: &Connection, feed: FetchedFeed) -> Result<SyncResult, SyncError> {
         let pentacle_id = feed.pentacle_id;
+        let entry_count = feed.entries.len();
+        debug!("Storing {} entries for pentacle {}", entry_count, pentacle_id);
+
         let mut new_articles = 0;
         let mut updated_articles = 0;
 
@@ -258,6 +271,15 @@ impl FeedSyncer {
             WHERE id = ?1"#,
             [pentacle_id],
         )?;
+
+        if new_articles > 0 || updated_articles > 0 {
+            info!(
+                "Sync complete for pentacle {}: {} new, {} updated",
+                pentacle_id, new_articles, updated_articles
+            );
+        } else {
+            debug!("Sync complete for pentacle {}: no changes", pentacle_id);
+        }
 
         Ok(SyncResult {
             pentacle_id,

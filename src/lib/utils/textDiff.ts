@@ -10,13 +10,12 @@ export interface DiffSegment {
 
 /**
  * Strip HTML tags and decode entities for clean text comparison
+ * Uses DOMParser instead of innerHTML to prevent XSS attacks
  */
 function stripHtml(html: string): string {
-  // Create a temporary element to decode HTML entities
-  const tmp = document.createElement('div');
-  tmp.innerHTML = html;
-  // Get text content which strips tags and decodes entities
-  return tmp.textContent || tmp.innerText || '';
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  return doc.body.textContent || '';
 }
 
 /**

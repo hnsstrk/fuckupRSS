@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { createLogger } from "../logger";
 import type {
   Pentacle,
   Fnord,
@@ -54,6 +55,8 @@ export type {
   NetworkGraph,
   MainView,
 };
+
+const log = createLogger("state");
 
 class AppState {
   pentacles = $state<Pentacle[]>([]);
@@ -233,8 +236,10 @@ class AppState {
     try {
       this.syncing = true;
       this.error = null;
+      log.info("Starting sync of all feeds...");
       const result = await invoke<SyncResponse>("sync_all_feeds");
       this.lastSyncResult = result;
+      log.info(`Sync complete: ${result.total_new} new, ${result.total_updated} updated`);
 
       // Reload data after sync
       await this.loadPentacles();
@@ -245,7 +250,7 @@ class AppState {
       return result;
     } catch (e) {
       this.error = String(e);
-      console.error("Failed to sync feeds:", e);
+      log.error("Failed to sync feeds:", e);
       return null;
     } finally {
       this.syncing = false;
@@ -256,7 +261,9 @@ class AppState {
     try {
       this.syncing = true;
       this.error = null;
+      log.debug(`Syncing feed ${pentacleId}...`);
       await invoke("sync_feed", { pentacleId });
+      log.debug(`Feed ${pentacleId} synced`);
 
       // Reload data after sync
       await this.loadPentacles();
@@ -267,7 +274,7 @@ class AppState {
       }
     } catch (e) {
       this.error = String(e);
-      console.error("Failed to sync feed:", e);
+      log.error("Failed to sync feed:", e);
     } finally {
       this.syncing = false;
     }

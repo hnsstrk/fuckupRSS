@@ -128,7 +128,7 @@
               <div class="article-indicators">
                 {#if fnord.categories.length > 0}
                   <span class="category-dots" title={fnord.categories.map(c => c.name).join(', ')}>
-                    {#each fnord.categories.slice(0, 3) as cat}
+                    {#each fnord.categories.slice(0, 3) as cat (cat.name)}
                       <span class="category-dot" style="background-color: {cat.color || 'var(--text-muted)'}"></span>
                     {/each}
                   </span>

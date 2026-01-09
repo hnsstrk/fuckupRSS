@@ -3,7 +3,8 @@
   import { invoke } from '@tauri-apps/api/core';
   import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
   import type { BatchProgress, BatchResult } from '../types';
-  import { settings, type Theme } from '../stores/settings.svelte';
+  import { settings, type DarkTheme } from '../stores/settings.svelte';
+  import { type LogLevel } from '../logger';
   import { setLocale, locale } from '../i18n';
   import { appState } from '../stores/state.svelte';
 
@@ -19,9 +20,10 @@
   // Local state for form
   let selectedLocale = $state('de');
   let showTooltips = $state(true);
-  let selectedTheme = $state<Theme>('mocha');
+  let selectedDarkTheme = $state<DarkTheme>('mocha');
   let syncInterval = $state(30);
   let syncOnStart = $state(true);
+  let selectedLogLevel = $state<LogLevel>('info');
 
   // Ollama state
   let ollamaStatus = $state<{
@@ -53,6 +55,7 @@
   // Dropdown open states
   let langDropdownOpen = $state(false);
   let themeDropdownOpen = $state(false);
+  let logLevelDropdownOpen = $state(false);
   let mainModelDropdownOpen = $state(false);
   let embeddingModelDropdownOpen = $state(false);
 
@@ -83,11 +86,20 @@
     { value: 'en', labelKey: 'settings.languageEnglish' },
   ];
 
-  const themeOptions: { value: Theme; labelKey: string }[] = [
+  // Only dark themes - Latte is automatically used when system prefers light mode
+  const darkThemeOptions: { value: DarkTheme; labelKey: string }[] = [
     { value: 'mocha', labelKey: 'settings.themeMocha' },
     { value: 'macchiato', labelKey: 'settings.themeMacchiato' },
     { value: 'frappe', labelKey: 'settings.themeFrappe' },
-    { value: 'latte', labelKey: 'settings.themeLatte' },
+  ];
+
+  // Log level options (only shown in dev mode)
+  const logLevelOptions: { value: LogLevel; label: string }[] = [
+    { value: 'error', label: 'Error' },
+    { value: 'warn', label: 'Warn' },
+    { value: 'info', label: 'Info' },
+    { value: 'debug', label: 'Debug' },
+    { value: 'trace', label: 'Trace' },
   ];
 
   // Sync local state when dialog opens
@@ -97,9 +109,10 @@
       // Initialize from current settings
       selectedLocale = $locale || 'de';
       showTooltips = settings.showTerminologyTooltips;
-      selectedTheme = settings.theme;
+      selectedDarkTheme = settings.darkTheme;
       syncInterval = settings.syncInterval;
       syncOnStart = settings.syncOnStart;
+      selectedLogLevel = settings.logLevel;
       // Close dropdowns
       closeAllDropdowns();
       // Reset tab
@@ -172,6 +185,7 @@
   function closeAllDropdowns() {
     langDropdownOpen = false;
     themeDropdownOpen = false;
+    logLevelDropdownOpen = false;
     mainModelDropdownOpen = false;
     embeddingModelDropdownOpen = false;
   }
@@ -185,9 +199,10 @@
     // Save general settings
     await setLocale(selectedLocale);
     settings.showTerminologyTooltips = showTooltips;
-    settings.theme = selectedTheme;
+    settings.darkTheme = selectedDarkTheme;
     settings.syncInterval = syncInterval;
     settings.syncOnStart = syncOnStart;
+    settings.logLevel = selectedLogLevel;
 
     // Save model preferences
     if (selectedMainModel) {
@@ -273,9 +288,14 @@
     langDropdownOpen = false;
   }
 
-  function selectTheme(value: Theme) {
-    selectedTheme = value;
+  function selectDarkTheme(value: DarkTheme) {
+    selectedDarkTheme = value;
     themeDropdownOpen = false;
+  }
+
+  function selectLogLevel(value: LogLevel) {
+    selectedLogLevel = value;
+    logLevelDropdownOpen = false;
   }
 
   function selectMainModel(value: string) {
@@ -296,6 +316,13 @@
   function toggleThemeDropdown() {
     themeDropdownOpen = !themeDropdownOpen;
     langDropdownOpen = false;
+    logLevelDropdownOpen = false;
+  }
+
+  function toggleLogLevelDropdown() {
+    logLevelDropdownOpen = !logLevelDropdownOpen;
+    langDropdownOpen = false;
+    themeDropdownOpen = false;
   }
 
   function toggleMainModelDropdown() {
@@ -312,8 +339,8 @@
     return localeOptions.find(o => o.value === value)?.labelKey || '';
   }
 
-  function getThemeLabelKey(value: Theme): string {
-    return themeOptions.find(o => o.value === value)?.labelKey || '';
+  function getDarkThemeLabelKey(value: DarkTheme): string {
+    return darkThemeOptions.find(o => o.value === value)?.labelKey || '';
   }
 
   function isRecommendedModel(model: string, recommended: string): boolean {
@@ -601,21 +628,21 @@
             </div>
           </div>
 
-          <!-- Theme Dropdown -->
+          <!-- Dark Theme Dropdown -->
           <div class="setting-group">
-            <span class="label">{$_('settings.theme')}</span>
+            <span class="label">{$_('settings.darkTheme')}</span>
             <div class="custom-select">
-              <button type="button" class="select-trigger" aria-label={$_('settings.theme')} onclick={toggleThemeDropdown}>
-                <span>{$_(getThemeLabelKey(selectedTheme))}</span>
+              <button type="button" class="select-trigger" aria-label={$_('settings.darkTheme')} onclick={toggleThemeDropdown}>
+                <span>{$_(getDarkThemeLabelKey(selectedDarkTheme))}</span>
                 <span class="arrow">{themeDropdownOpen ? '▲' : '▼'}</span>
               </button>
               {#if themeDropdownOpen}
                 <div class="select-options">
-                  {#each themeOptions as option}
+                  {#each darkThemeOptions as option (option.value)}
                     <button
                       type="button"
-                      class="select-option {selectedTheme === option.value ? 'selected' : ''}"
-                      onclick={() => selectTheme(option.value)}
+                      class="select-option {selectedDarkTheme === option.value ? 'selected' : ''}"
+                      onclick={() => selectDarkTheme(option.value)}
                     >
                       {$_(option.labelKey)}
                     </button>
@@ -623,6 +650,7 @@
                 </div>
               {/if}
             </div>
+            <p class="setting-description">{$_('settings.themeDescription')}</p>
           </div>
 
           <div class="setting-group checkbox-group">
@@ -662,6 +690,35 @@
             </label>
             <p class="setting-description">{$_('settings.sync.onStartDescription')}</p>
           </div>
+
+          <!-- Log Level (Dev Mode) -->
+          {#if import.meta.env.DEV}
+            <div class="setting-group">
+              <span class="label">{$_('settings.logLevel')}</span>
+              <div class="custom-select">
+                <button type="button" class="select-trigger" aria-label={$_('settings.logLevel')} onclick={toggleLogLevelDropdown}>
+                  <span class="log-level-display">
+                    <span class="log-level-badge {selectedLogLevel}">{selectedLogLevel.toUpperCase()}</span>
+                  </span>
+                  <span class="arrow">{logLevelDropdownOpen ? '▲' : '▼'}</span>
+                </button>
+                {#if logLevelDropdownOpen}
+                  <div class="select-options">
+                    {#each logLevelOptions as option (option.value)}
+                      <button
+                        type="button"
+                        class="select-option {selectedLogLevel === option.value ? 'selected' : ''}"
+                        onclick={() => selectLogLevel(option.value)}
+                      >
+                        <span class="log-level-badge {option.value}">{option.label}</span>
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+              <p class="setting-description">{$_('settings.logLevelDescription')}</p>
+            </div>
+          {/if}
 
         {:else if activeTab === 'ollama'}
           <h3>{$_('settings.ollama.title')}</h3>
@@ -1823,5 +1880,44 @@
   .btn-dismiss:hover {
     border-color: var(--status-error);
     color: var(--status-error);
+  }
+
+  /* Log Level Badges */
+  .log-level-display {
+    display: flex;
+    align-items: center;
+  }
+
+  .log-level-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: monospace;
+  }
+
+  .log-level-badge.error {
+    background-color: rgba(243, 139, 168, 0.2);
+    color: var(--status-error);
+  }
+
+  .log-level-badge.warn {
+    background-color: rgba(249, 226, 175, 0.2);
+    color: var(--status-warning);
+  }
+
+  .log-level-badge.info {
+    background-color: rgba(137, 220, 235, 0.2);
+    color: #89dceb;
+  }
+
+  .log-level-badge.debug {
+    background-color: rgba(203, 166, 247, 0.2);
+    color: #cba6f7;
+  }
+
+  .log-level-badge.trace {
+    background-color: rgba(108, 112, 134, 0.2);
+    color: var(--text-muted);
   }
 </style>

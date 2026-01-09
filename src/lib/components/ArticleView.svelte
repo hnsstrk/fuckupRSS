@@ -11,71 +11,69 @@
   // Categories and Tags
   let categories = $state<ArticleCategory[]>([]);
   let tags = $state<Tag[]>([]);
-  let loadingMeta = $state(false);
 
-  async function loadRevisions() {
-    if (!appState.selectedFnord || loadingRevisions) return;
-    loadingRevisions = true;
-    revisions = await appState.getRevisions(appState.selectedFnord.id);
-    loadingRevisions = false;
+  // Track the last loaded article to prevent redundant fetches
+  let lastLoadedFnordId = $state<number | null>(null);
+
+  async function loadArticleData(fnordId: number, revisionCount: number) {
+    // Load revisions if available
+    if (revisionCount > 0) {
+      loadingRevisions = true;
+      try {
+        revisions = await appState.getRevisions(fnordId);
+      } catch {
+        revisions = [];
+      } finally {
+        loadingRevisions = false;
+      }
+    } else {
+      revisions = [];
+    }
+
+    // Load categories and tags
+    try {
+      const [cats, tgs] = await Promise.all([
+        appState.getArticleCategories(fnordId),
+        appState.getArticleTags(fnordId)
+      ]);
+      categories = cats;
+      tags = tgs;
+    } catch {
+      categories = [];
+      tags = [];
+    }
   }
 
   function toggleRevisions() {
     showRevisions = !showRevisions;
-    if (showRevisions && revisions.length === 0) {
-      loadRevisions();
-    }
   }
 
-  // Auto-acknowledge when viewing a changed article
-  $effect(() => {
-    if (appState.selectedFnord?.has_changes) {
-      appState.acknowledgeChanges(appState.selectedFnord.id);
-    }
-  });
-
-  // Auto-load revisions when article has revisions
+  // Combined effect for article changes - handles all side effects
   $effect(() => {
     const fnord = appState.selectedFnord;
-    if (fnord && fnord.revision_count > 0) {
-      loadingRevisions = true;
-      appState.getRevisions(fnord.id).then(revs => {
-        revisions = revs;
-        loadingRevisions = false;
-      });
-    } else {
-      revisions = [];
-    }
-  });
 
-  // Load categories and tags when article changes
-  $effect(() => {
-    const fnordId = appState.selectedFnord?.id;
-    if (fnordId) {
-      loadingMeta = true;
-      Promise.all([
-        appState.getArticleCategories(fnordId),
-        appState.getArticleTags(fnordId)
-      ]).then(([cats, tgs]) => {
-        categories = cats;
-        tags = tgs;
-        loadingMeta = false;
-      }).catch(() => {
+    if (!fnord) {
+      // Reset state when no article selected
+      if (lastLoadedFnordId !== null) {
+        revisions = [];
         categories = [];
         tags = [];
-        loadingMeta = false;
-      });
-    } else {
-      categories = [];
-      tags = [];
+        lastLoadedFnordId = null;
+      }
+      return;
+    }
+
+    // Auto-acknowledge changed articles
+    if (fnord.has_changes) {
+      appState.acknowledgeChanges(fnord.id);
+    }
+
+    // Load data only if article changed
+    if (fnord.id !== lastLoadedFnordId) {
+      lastLoadedFnordId = fnord.id;
+      loadArticleData(fnord.id, fnord.revision_count);
     }
   });
-
-  function decodeHtmlEntities(text: string): string {
-    const textarea = document.createElement('textarea');
-    textarea.innerHTML = text;
-    return textarea.value;
-  }
 
   function stripHtml(html: string): string {
     const div = document.createElement('div');

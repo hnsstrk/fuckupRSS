@@ -149,18 +149,18 @@
     });
 
     // Node click handler (only for non-center nodes)
-    cy.on('tap', 'node[!isCenter]', (evt) => {
+    cy.on('tap', 'node[!isCenter]', (evt: cytoscape.EventObject) => {
       const nodeId = parseInt(evt.target.id(), 10);
       onNodeClick?.(nodeId);
     });
 
     // Hover effects
-    cy.on('mouseover', 'node[!isCenter]', (evt) => {
+    cy.on('mouseover', 'node[!isCenter]', (evt: cytoscape.EventObject) => {
       evt.target.style('background-color', '#f5c2e7');
       container.style.cursor = 'pointer';
     });
 
-    cy.on('mouseout', 'node[!isCenter]', (evt) => {
+    cy.on('mouseout', 'node[!isCenter]', (evt: cytoscape.EventObject) => {
       if (!evt.target.selected()) {
         evt.target.style('background-color', '#cba6f7');
       }

@@ -7,11 +7,6 @@
   // Register all Chart.js components
   Chart.register(...registerables);
 
-  interface DailyCount {
-    date: string;
-    count: number;
-  }
-
   interface Props {
     keywordId: number | null;
     keywordName?: string;

@@ -88,10 +88,14 @@
       "onStartDescription": "Automatically update feeds when the app starts"
     },
     "theme": "Theme",
+    "darkTheme": "Dark Theme",
+    "themeDescription": "Catppuccin Latte is automatically used when system prefers light mode",
     "themeMocha": "Mocha (darkest)",
     "themeMacchiato": "Macchiato (dark)",
-    "themeFrappe": "Frappé (medium)",
+    "themeFrappe": "Frappe (medium)",
     "themeLatte": "Latte (light)",
+    "logLevel": "Log Level",
+    "logLevelDescription": "Only visible in development mode. Controls the detail level of logs.",
     "save": "Save",
     "cancel": "Cancel",
     "ollama": {

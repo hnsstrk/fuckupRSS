@@ -139,10 +139,6 @@
     appState.selectView("all");
   }
 
-  function handleSelectChanged() {
-    appState.selectView("changed");
-  }
-
   function handleSelectPentacle(id: number) {
     appState.selectedView = "pentacle";
     appState.selectPentacle(id);

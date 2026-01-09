@@ -2,17 +2,21 @@ mod categories;
 mod commands;
 mod db;
 mod keywords;
+mod logging;
 mod ollama;
 mod retrieval;
 mod sync;
 
 pub use categories::{classify_by_keywords, CategoryClassifier, SEPHIROTH_CATEGORIES};
 pub use keywords::{extract_keywords, normalize_keyword, normalize_and_dedupe_keywords, find_canonical_keyword, KeywordExtractor, Language};
+pub use logging::LogLevel;
 
 use db::Database;
+use log::info;
 use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 use tauri::Manager;
+use tauri_plugin_log::{Target, TargetKind};
 
 pub struct AppState {
     pub db: Mutex<Database>,
@@ -22,8 +26,18 @@ pub struct AppState {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    Target::new(TargetKind::Stdout),
+                    Target::new(TargetKind::Webview),
+                ])
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
+            info!("fuckupRSS starting up...");
             // Initialize database
             let db = Database::new(app.handle())?;
 
@@ -83,6 +97,9 @@ pub fn run() {
             commands::settings::get_settings,
             commands::settings::set_setting,
             commands::settings::get_setting,
+            commands::settings::get_system_theme,
+            commands::settings::get_log_levels,
+            commands::settings::set_log_level,
             // Immanentize Network
             commands::immanentize::get_keywords,
             commands::immanentize::get_keyword,
