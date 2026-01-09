@@ -383,10 +383,12 @@
     maintenanceRunning = 'reset';
     maintenanceResult = null;
     try {
-      const result = await invoke<{ reset_count: number }>('reset_articles_for_reprocessing', { 
-        only_with_content: true 
+      const result = await invoke<{ reset_count: number }>('reset_articles_for_reprocessing', {
+        only_with_content: true
       });
       maintenanceResult = `${result.reset_count} ${$_('settings.maintenance.articles')} ${$_('settings.maintenance.reset')}`;
+      // Notify Sidebar to refresh unprocessed count
+      await emit('articles-reset');
     } catch (e) {
       maintenanceResult = `Error: ${e}`;
     } finally {

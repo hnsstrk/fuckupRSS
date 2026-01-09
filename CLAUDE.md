@@ -23,22 +23,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U.C.K.U.P. from the Illuminatus! trilogy. It uses Ollama for local AI processing with no cloud dependencies.
 
-**Status:** Phase 2 abgeschlossen (Core Features)
+**Status:** Phase 2 abgeschlossen, Phase 3 in Entwicklung
 
-### Implementierte Phasen
-
-- [x] **Phase 1:** Grundgerüst (Tauri + Svelte, SQLite, Basis-UI)
-- [x] **Phase 1.5:** i18n & UX (Mehrsprachigkeit, Tooltips, Einstellungen)
-- [x] **Phase 2:** Core Features (Feed-Parsing, Volltext, Ollama-Integration, Batch-Verarbeitung)
-- [ ] **Phase 3:** KI-Features (Discordian Analysis, Greyface Alert, Embeddings)
-- [ ] **Phase 4:** Polish (Operation Mindfuck, OPML, Shortcuts)
-- [ ] **Phase 5:** Release
+**Planung:** Alle Phasen und Tasks sind in [`fuckupRSS-Anforderungen.md`](fuckupRSS-Anforderungen.md#20-nächste-schritte) dokumentiert.
 
 ## Technology Stack
 
 - **Framework:** Tauri 2.x (Rust backend + Svelte 5 frontend)
 - **Database:** SQLite + sqlite-vec (vector search, pure Rust)
-- **AI Backend:** Ollama (local) with qwen3-vl:8b and nomic-embed-text models
+- **AI Backend:** Ollama (local) with ministral-3:latest and nomic-embed-text models
 - **Styling:** TailwindCSS
 - **i18n:** svelte-i18n (DE/EN)
 - **Target Platforms:** Linux (primary), macOS (secondary)
@@ -310,15 +303,15 @@ Alle Illuminatus!-Begriffe (Fnord, Pentacle, etc.) haben erklärende Tooltips:
 
 | Purpose | Crate | Status |
 |---------|-------|--------|
-| Tauri Framework | `tauri` | ✅ Implementiert |
-| SQLite | `rusqlite` | ✅ Implementiert |
-| Serialization | `serde`, `serde_json` | ✅ Implementiert |
-| DateTime | `chrono` | ✅ Implementiert |
-| Error Handling | `thiserror` | ✅ Implementiert |
-| RSS/Atom Parsing | `feed-rs` | ⏳ Phase 2 |
-| HTTP Client | `reqwest` | ⏳ Phase 2 |
-| Readability | `readability` | ⏳ Phase 2 |
-| Ollama API | `ollama-rs` | ⏳ Phase 2 |
+| Tauri Framework | `tauri` | ✅ |
+| SQLite | `rusqlite` | ✅ |
+| Serialization | `serde`, `serde_json` | ✅ |
+| DateTime | `chrono` | ✅ |
+| Error Handling | `thiserror` | ✅ |
+| RSS/Atom Parsing | `feed-rs` | ✅ |
+| HTTP Client | `reqwest` | ✅ |
+| Readability | `readability` | ✅ |
+| Ollama API | `ollama-rs` | ✅ |
 | Vector Search | `sqlite-vec` | ⏳ Phase 3 |
 | OPML Parsing | `opml` | ⏳ Phase 4 |
 
@@ -353,18 +346,17 @@ The codebase uses terms from the Illuminatus! trilogy:
 - `fnord_sephiroth` - Article ↔ Category mapping (source: 'ai'|'manual', assigned_at)
 
 ### Immanentize Network (Schlagwort-Wissensnetz)
-- `immanentize` - Keywords/tags (with quality_score, embedding, embedding_at, cluster_id, canonical_id)
-- `immanentize_vss` - Schlagwort-Embeddings (sqlite-vec, 768 dim)
+- `immanentize` - Keywords mit embedding BLOB, quality_score, canonical_id
 - `immanentize_sephiroth` - Schlagwort ↔ Kategorie Assoziation
 - `immanentize_neighbors` - Kookkurrenz-Netzwerk (cooccurrence + embedding_similarity)
 - `immanentize_clusters` - Themen-Cluster
-- `immanentize_clusters_vss` - Cluster-Zentroide
 - `immanentize_daily` - Tägliche Keyword-Zählungen für Trends
 - `fnord_immanentize` - Article ↔ Tag mapping
 - `dismissed_synonyms` - Ignorierte Synonym-Vorschläge
 
-### Embeddings
-- `fnords_vss` - Article embeddings (sqlite-vec)
+### Embeddings (Aktueller Stand)
+- Keywords: Embeddings als BLOB in `immanentize.embedding` (768-dim, nomic-embed-text)
+- Artikel: ⏳ Phase 3 - `fnords.embedding` geplant
 
 Schema-Definition: `src-tauri/src/db/schema.rs`
 Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
@@ -448,7 +440,7 @@ Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
 
 ```bash
 # Install models (can also be done via Settings UI)
-ollama pull qwen3-vl:8b
+ollama pull ministral-3:latest
 ollama pull nomic-embed-text
 
 # Configure for dual model loading (Linux)

@@ -73,6 +73,11 @@ html.mocha {
   --accent-success: var(--ctp-green);
   --accent-info: var(--ctp-sapphire);
 
+  /* Status colors (aliases for consistency) */
+  --status-error: var(--ctp-red);
+  --status-success: var(--ctp-green);
+  --status-warning: var(--ctp-peach);
+
   --fnord-color: var(--ctp-red);
   --illuminated-color: var(--ctp-overlay1);
   --golden-apple-color: var(--ctp-yellow);

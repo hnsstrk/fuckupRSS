@@ -2049,37 +2049,40 @@ launchctl setenv OLLAMA_FLASH_ATTENTION 1
 - [x] SQLite-Schema implementieren
 - [x] Basis-UI (Feed-Liste, Artikel-Ansicht)
 
-### Phase 1.5: Internationalisierung & UX-Grundlagen
-- [ ] i18n-System (svelte-i18n) mit Deutsch und Englisch
-- [ ] Tooltips für Illuminatus!-Terminologie
-- [ ] Einstellungen-Dialog (Sprache, Tooltips ein/aus)
-- [ ] Persistente Benutzereinstellungen
+### Phase 1.5: Internationalisierung & UX-Grundlagen ✅
+- [x] i18n-System (svelte-i18n) mit Deutsch und Englisch
+- [x] Tooltips für Illuminatus!-Terminologie
+- [x] Einstellungen-Dialog (Sprache, Tooltips ein/aus)
+- [x] Persistente Benutzereinstellungen
 
-### Phase 2: Core-Features
-- [ ] Feed-Parsing (feed-rs)
-- [ ] Automatische Feed-Synchronisation
-- [ ] Hagbard's Retrieval (Volltext)
-- [ ] Ollama-Integration (ollama-rs)
-- [ ] Basis-KI-Pipeline
+### Phase 2: Core-Features ✅
+- [x] Feed-Parsing (feed-rs)
+- [x] Automatische Feed-Synchronisation
+- [x] Hagbard's Retrieval (Volltext)
+- [x] Ollama-Integration (ollama-rs)
+- [x] Basis-KI-Pipeline (Batch-Verarbeitung)
+- [x] Discordian Analysis (Zusammenfassung, Kategorien, Stichworte)
+- [x] Greyface Alert (Bias-Erkennung)
+- [x] Immanentize Network (Keyword-Qualität, Synonyme, Embeddings)
 
-### Phase 3: KI-Features
-- [ ] Discordian Analysis (Zusammenfassung, Kategorien, Stichworte)
-- [ ] Greyface Alert (Bias-Erkennung)
-- [ ] Embeddings + sqlite-vec
-- [ ] Ähnliche Artikel
+### Phase 3: KI-Features (Aktuell)
+- [x] Keyword-Embeddings via nomic-embed-text
+- [ ] Artikel-Embeddings + sqlite-vec VSS
+- [ ] Ähnliche Artikel (Vektor-Ähnlichkeit)
+- [ ] Semantische Suche
 
 ### Phase 4: Polish
 - [ ] Operation Mindfuck (Interessen-Profil)
 - [ ] Relevanz-Scoring
 - [ ] OPML Import/Export
-- [ ] Erweiterte Keyboard-Shortcuts
+- [ ] Erweiterte Keyboard-Shortcuts (Vim-Style)
 - [ ] Desktop-Notifications
 
 ### Phase 5: Release
 - [ ] Linux-Paketierung (.deb, .rpm, AppImage)
 - [ ] macOS-Build + Signierung
-- [ ] Dokumentation
-- [ ] Release v0.1
+- [ ] Dokumentation finalisieren
+- [ ] Release v1.0
 
 ---
 
@@ -2093,10 +2096,10 @@ launchctl setenv OLLAMA_FLASH_ATTENTION 1
 
 | Bereich | Anzahl Tests | Tool | Befehl |
 |---------|-------------|------|--------|
-| Rust Backend | 134 | `cargo test` | `cargo test --manifest-path src-tauri/Cargo.toml` |
-| Frontend Unit | 37 | Vitest | `npm run test` |
+| Rust Backend | 160 | `cargo test` | `cargo test --manifest-path src-tauri/Cargo.toml` |
+| Frontend Unit | 89 | Vitest | `npm run test` |
 | E2E | 11 | Playwright | `npm run test:e2e` |
-| **Gesamt** | **182** | | |
+| **Gesamt** | **260** | | |
 
 ### Rust Tests
 
@@ -2196,20 +2199,12 @@ test('user flow', async ({ page }) => {
 
 ```
 NAME                       SIZE
-qwen3-vl:8b                6.1 GB    ← Hauptmodell
-nomic-embed-text:latest    274 MB    ← Embeddings
-minicpm-v:8b               5.5 GB
+ministral-3:latest         6.0 GB    ← Hauptmodell (empfohlen)
+nomic-embed-text:latest    274 MB    ← Embeddings (aktuell)
+snowflake-arctic-embed2    1.2 GB    ← Embeddings (empfohlen für Deutsch)
+qwen3-vl:8b                6.1 GB    ← Alternative mit Vision
 phi4:latest                9.1 GB
 qwen3:8b                   5.2 GB
-ministral-3:latest         6.0 GB
-deepseek-r1:14b            9.0 GB
-deepseek-r1:latest         5.2 GB
-gemma3:4b                  3.3 GB
-ministral-3:14b            9.1 GB
-qwen2.5-coder:1.5b         986 MB
-qwen2.5-coder:14b          9.0 GB
-gemma3:12b                 8.1 GB
-qwen3:latest               5.2 GB
 ```
 
 ### B. Datenbankschema für Settings
@@ -2237,7 +2232,43 @@ INSERT INTO settings (key, value) VALUES
 -- ('embeddingModel', 'nomic-embed-text')
 ```
 
-### C. Glossar
+### C. Bekannte Issues und Verbesserungen
+
+#### C.1 Embedding-Modell Empfehlung
+
+**Aktuell:** `nomic-embed-text` (768-dim)
+
+**Problem:** nomic-embed-text hat Schwächen bei deutschen Keywords und kurzen Texten.
+
+**Empfohlene Alternative:** `snowflake-arctic-embed2`
+
+| Eigenschaft | nomic-embed-text | snowflake-arctic-embed2 |
+|-------------|------------------|-------------------------|
+| Dimensionen | 768 | 1024 (komprimierbar) |
+| Größe | 274 MB | 1.2 GB |
+| Deutsch | Limitiert | Explizit unterstützt |
+| Kontext | 8192 | 8192 |
+| VRAM | ~1 GB | ~2-3 GB |
+
+**Migration erforderlich:**
+1. Schema-Änderung auf 1024 Dimensionen
+2. Alle Keywords neu embedden
+3. `RECOMMENDED_EMBEDDING_MODEL` in `ollama/mod.rs` ändern
+
+**Alternative:** `bge-m3` (100+ Sprachen, ebenfalls 1024-dim)
+
+#### C.2 Offene Verbesserungen für Phase 3
+
+| Priorität | Issue | Beschreibung |
+|-----------|-------|--------------|
+| Hoch | Artikel-Embeddings | `fnords.embedding` Spalte implementieren |
+| Hoch | Ähnliche Artikel | `find_similar_articles` Command |
+| Mittel | Semantische Suche | Volltext-Suche via Embeddings |
+| Niedrig | VSS-Integration | sqlite-vec für performante Suche |
+
+---
+
+### D. Glossar
 
 | Begriff | Bedeutung |
 |---------|-----------|

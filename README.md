@@ -36,7 +36,7 @@ Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
 - **Automatische Zusammenfassungen** – 2-3 Sätze pro Artikel
 - **Kategorisierung** – Artikel werden Themen zugeordnet
 - **Stichwort-Extraktion** – Wichtige Begriffe, Personen, Orte
-- **Semantische Suche** – Finde Artikel nach Bedeutung, nicht nur Keywords
+- **Semantische Suche** – Finde Artikel nach Bedeutung, nicht nur Keywords *– Coming Soon*
 
 ### ⚠️ Bias-Erkennung (Greyface Alert)
 - **Politische Tendenz** – Links ↔ Rechts Spektrum
@@ -49,12 +49,12 @@ Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
 - Readability-Extraktion
 - Keine Paywall-Umgehung – nur öffentlich zugängliche Inhalte
 
-### 🎯 Personalisierung (Operation Mindfuck)
+### 🎯 Personalisierung (Operation Mindfuck) *– Coming Soon*
 - Definiere deine Interessen
 - Relevanz-Scoring basierend auf Leseverhalten
 - Priorisierte Übersichten
 
-### 🔗 Ähnliche Artikel
+### 🔗 Ähnliche Artikel *– Coming Soon*
 - Vektorbasierte Ähnlichkeitssuche
 - Thematisch verwandte Artikel entdecken
 - Auch ohne gemeinsame Keywords
@@ -136,7 +136,7 @@ brew install ollama
 ### 2. KI-Modelle herunterladen
 
 ```bash
-ollama pull qwen3-vl:8b
+ollama pull ministral-3:latest
 ollama pull nomic-embed-text
 ```
 
@@ -242,7 +242,7 @@ Die Einstellungen können direkt in der App unter "Einstellungen" geändert werd
 | Datenbank | SQLite + sqlite-vec |
 | i18n | [svelte-i18n](https://github.com/kaisermann/svelte-i18n) |
 | KI | [Ollama](https://ollama.com/) (lokal) |
-| Modelle | qwen3-vl:8b, nomic-embed-text |
+| Modelle | ministral-3:latest, nomic-embed-text |
 
 ### Mehrsprachigkeit
 
@@ -266,13 +266,9 @@ Die Sprache kann in den Einstellungen gewechselt werden.
 
 ## Roadmap
 
-- [x] Anforderungsdokument
-- [x] **Phase 1** – Grundgerüst (Tauri + Svelte, SQLite, Basis-UI)
-- [x] **Phase 1.5** – i18n & UX (Mehrsprachigkeit, Tooltips, Einstellungen)
-- [x] **Phase 2** – Core Features (Feed-Sync, Volltext, Ollama-Integration, Batch-Analyse)
-- [ ] **Phase 3** – KI-Features (Embeddings, Semantische Suche)
-- [ ] **Phase 4** – Polish (OPML, Shortcuts, Operation Mindfuck)
-- [ ] **v1.0** – Stabiler Release
+**Aktueller Status:** Phase 2 abgeschlossen, Phase 3 in Entwicklung
+
+Detaillierte Planung und Phasen-Übersicht: siehe [`fuckupRSS-Anforderungen.md`](fuckupRSS-Anforderungen.md#20-nächste-schritte)
 
 ---
 

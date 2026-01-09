@@ -16,7 +16,7 @@ AI Agent Guidelines for fuckupRSS Development
 | Backend | Rust | SQLite, async with tokio |
 | Frontend | Svelte 5 | Runes-based reactivity |
 | Database | SQLite + sqlite-vec | WAL mode, vector search |
-| AI | Ollama | Local models: qwen3-vl:8b, nomic-embed-text |
+| AI | Ollama | Local models: ministral-3:latest, nomic-embed-text |
 | Styling | TailwindCSS | Catppuccin color scheme |
 | i18n | svelte-i18n | DE/EN support |
 
@@ -258,7 +258,9 @@ onDestroy(() => unlisten());
 | `README.md` | Public project description | New features, installation changes |
 | `CLAUDE.md` | Developer context for Claude Code | Build changes, patterns, structure |
 | `AGENTS.md` | AI agent guidelines (this file) | Architecture changes, conventions |
-| `fuckupRSS-Anforderungen.md` | Technical specification | Architecture decisions, schema changes |
+| `fuckupRSS-Anforderungen.md` | **Master-Dokument:** Technische Spezifikation, Planung, Roadmap | Architecture decisions, schema changes, Phasen-Updates |
+
+**Planung:** Alle Phasen und Tasks sind zentral in `fuckupRSS-Anforderungen.md` Kapitel 20 dokumentiert.
 
 ---
 

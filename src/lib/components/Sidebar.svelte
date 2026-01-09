@@ -27,6 +27,7 @@
   let newFeedUrl = $state("");
   let unlisten: UnlistenFn | null = null;
   let unlistenModels: UnlistenFn | null = null;
+  let unlistenArticlesReset: UnlistenFn | null = null;
   let loadedModels = $state<LoadedModel[]>([]);
   let maintenanceInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -76,6 +77,12 @@
       await loadLoadedModels();
     });
 
+    // Listen for articles reset from Settings
+    unlistenArticlesReset = await listen("articles-reset", async () => {
+      console.log("Articles reset event received, refreshing unprocessed count...");
+      await appState.loadUnprocessedCount();
+    });
+
     // Schedule periodic maintenance (every 60 minutes)
     maintenanceInterval = setInterval(() => {
       runBackgroundMaintenance();
@@ -85,6 +92,7 @@
   onDestroy(() => {
     if (unlisten) unlisten();
     if (unlistenModels) unlistenModels();
+    if (unlistenArticlesReset) unlistenArticlesReset();
     if (maintenanceInterval) clearInterval(maintenanceInterval);
   });
 
