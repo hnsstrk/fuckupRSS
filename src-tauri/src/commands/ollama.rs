@@ -1123,16 +1123,17 @@ async fn process_single_article(
             
             let new_attempts = article.attempts + 1;
 
+            // Mark as hopeless after 3 failed attempts (allows 1x, 1.5x, 2x context retries)
             let (error_msg, is_hopeless) = match &e {
                 OllamaError::JsonParseError { message, .. } => {
-                    if new_attempts >= 2 {
+                    if new_attempts >= 3 {
                         (format!("JSON parse error after {} attempts: {}", new_attempts, message), true)
                     } else {
                         (message.clone(), false)
                     }
                 }
                 other => {
-                    if new_attempts >= 2 {
+                    if new_attempts >= 3 {
                         (format!("Analysis failed after {} attempts: {}", new_attempts, other), true)
                     } else {
                         (other.to_string(), false)
@@ -1163,7 +1164,7 @@ async fn process_single_article(
             let status_msg = if is_hopeless {
                 format!("Marked hopeless: {}", error_msg)
             } else {
-                format!("Attempt {}/2 failed, will retry: {}", new_attempts, error_msg)
+                format!("Attempt {}/3 failed, will retry: {}", new_attempts, error_msg)
             };
             (false, Some(status_msg))
         }
@@ -1273,7 +1274,7 @@ pub async fn process_batch(
 
             if article.attempts > 0 {
                 info!(
-                    "Retry attempt {} for article {}: using {}x context (num_ctx={})",
+                    "Retry {}/3 for article {}: using {}x context (num_ctx={})",
                     article.attempts + 1, fnord_id, ctx_multiplier, adjusted_num_ctx
                 );
             }
