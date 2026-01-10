@@ -537,6 +537,8 @@
 
       reanalyzeRunning = true;
       maintenanceRunning = "reanalyze";
+      // Also update appState so Sidebar shows progress
+      appState.batchProcessing = true;
       reanalyzeProgress = {
         current: 0,
         total: resetResult.reset_count,
@@ -574,6 +576,7 @@
     } finally {
       maintenanceRunning = null;
       reanalyzeRunning = false;
+      appState.batchProcessing = false;
       if (progressUnlisten) {
         progressUnlisten();
         progressUnlisten = null;
