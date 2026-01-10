@@ -1700,6 +1700,109 @@ pub fn find_similar_articles(
 }
 
 // ============================================================
+// SEMANTIC SEARCH (Phase 3)
+// ============================================================
+
+#[derive(serde::Serialize, Clone)]
+pub struct SearchResult {
+    pub fnord_id: i64,
+    pub title: String,
+    pub pentacle_title: Option<String>,
+    pub published_at: Option<String>,
+    pub summary: Option<String>,
+    pub similarity: f64,
+}
+
+#[derive(serde::Serialize)]
+pub struct SemanticSearchResponse {
+    pub query: String,
+    pub results: Vec<SearchResult>,
+}
+
+/// Perform semantic search by embedding the query and finding similar articles
+#[tauri::command]
+pub async fn semantic_search(
+    state: State<'_, AppState>,
+    query: String,
+    limit: Option<i64>,
+) -> Result<SemanticSearchResponse, String> {
+    let limit = limit.unwrap_or(20);
+
+    if query.trim().is_empty() {
+        return Ok(SemanticSearchResponse {
+            query,
+            results: vec![],
+        });
+    }
+
+    // Get embedding model from settings and generate embedding for query
+    let (embedding_model, client) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let model = get_embedding_model_from_db(db.conn());
+        (model, OllamaClient::new(None))
+    };
+
+    let query_embedding = client
+        .generate_embedding(&embedding_model, &query)
+        .await
+        .map_err(|e| format!("Failed to generate query embedding: {}", e))?;
+
+    let query_blob = embedding_to_blob(&query_embedding);
+
+    // Search using sqlite-vec
+    let results: Vec<SearchResult> = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+
+        let mut stmt = db
+            .conn()
+            .prepare(
+                r#"SELECT
+                    v.fnord_id,
+                    v.distance,
+                    f.title,
+                    p.title as pentacle_title,
+                    f.published_at,
+                    f.summary
+                FROM vec_fnords v
+                JOIN fnords f ON f.id = v.fnord_id
+                LEFT JOIN pentacles p ON p.id = f.pentacle_id
+                WHERE v.embedding MATCH ?1
+                AND k = ?2
+                ORDER BY v.distance ASC"#,
+            )
+            .map_err(|e| e.to_string())?;
+
+        let result: Vec<SearchResult> = stmt
+            .query_map(
+                rusqlite::params![query_blob, limit],
+                |row| {
+                    let distance: f64 = row.get(1)?;
+                    // Convert cosine distance to similarity score
+                    let similarity = 1.0 - (distance / 2.0);
+                    Ok(SearchResult {
+                        fnord_id: row.get(0)?,
+                        title: row.get(2)?,
+                        pentacle_title: row.get(3)?,
+                        published_at: row.get(4)?,
+                        summary: row.get(5)?,
+                        similarity,
+                    })
+                },
+            )
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            // Filter out low similarity results (< 0.3 for search, lower threshold than similar articles)
+            .filter(|r| r.similarity >= 0.3)
+            .collect();
+        result
+    };
+
+    info!("Semantic search for '{}' found {} results", query, results.len());
+
+    Ok(SemanticSearchResponse { query, results })
+}
+
+// ============================================================
 // ARTICLE EMBEDDING BATCH GENERATION (Phase 3)
 // ============================================================
 

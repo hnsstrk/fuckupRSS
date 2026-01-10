@@ -483,12 +483,13 @@ struct HardwareProfile {
 | Moderat | 4 | Guter Kompromiss |
 | Hohe Leistung | 8 | Für High-End Hardware |
 
-### Similar Articles (Phase 3)
+### Similar Articles & Semantic Search (Phase 3)
 | Command | Parameter | Return | Beschreibung |
 |---------|-----------|--------|--------------|
 | `find_similar_articles` | `fnord_id`, `limit?` | `SimilarArticlesResponse` | Ähnliche Artikel finden |
 | `get_article_embedding_stats` | - | `ArticleEmbeddingCount` | Embedding-Statistiken |
 | `generate_article_embeddings_batch` | `limit?` | `ArticleEmbeddingBatchResult` | Batch-Embedding-Generierung |
+| `semantic_search` | `query`, `limit?` | `SemanticSearchResponse` | Semantische Suche (threshold ≥ 0.3) |
 
 **SimilarArticle Struktur:**
 ```rust

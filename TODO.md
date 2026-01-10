@@ -56,9 +56,9 @@ Das ministral-3:latest Modell hat `num_ctx=32768` als Default. Das erklärt den 
 
 ---
 
-## Phase 3: KI-Features (Aktuell)
+## Phase 3: KI-Features ✅
 
-Status: In Entwicklung
+Status: Abgeschlossen
 
 ### 1. Artikel-Embeddings ✅
 
@@ -95,17 +95,19 @@ Quelle: `fuckupRSS-Anforderungen.md` C.2
 
 Quelle: `fuckupRSS-Anforderungen.md` C.2
 
-### 3. Semantische Suche (HÖCHSTE PRIORITÄT)
+### 3. Semantische Suche ✅
 
 **Abhängigkeit:** Artikel-Embeddings müssen implementiert sein.
 
-- [ ] **Backend**
+- [x] **Backend**
   - `semantic_search(query, limit)` Command
   - Query-Text → Embedding → Nearest Neighbors
+  - Similarity-Threshold ≥ 0.3
 
-- [ ] **Frontend**
-  - Such-UI erweitern
-  - Umschalten zwischen Volltext/Semantisch
+- [x] **Frontend**
+  - Suchfeld in Sidebar (mit Debounce 300ms)
+  - Suchergebnisse mit Similarity-Score
+  - ESC zum Löschen, Enter für sofortige Suche
 
 Quelle: `fuckupRSS-Anforderungen.md` C.2, `README.md`
 
@@ -241,7 +243,7 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 - [x] Greyface Alert (Bias-Erkennung)
 - [x] Immanentize Network (Keyword-Qualität, Synonyme, Embeddings)
 
-### Phase 3: KI-Features (Teilweise) ✅
+### Phase 3: KI-Features ✅
 - [x] Keyword-Embeddings via snowflake-arctic-embed2
 - [x] `find_similar_keywords` Command
 - [x] sqlite-vec Extension Loading implementiert
@@ -250,12 +252,14 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 - [x] `find_similar_articles` Command
 - [x] "Ähnliche Artikel" UI in ArticleView
 - [x] Batch-Regenerierung für Artikel-Embeddings
+- [x] `semantic_search` Command
+- [x] Semantische Suche UI in Sidebar
 
 ---
 
 ## Quick Reference: Nächste Schritte
 
-**Empfohlene Reihenfolge für Phase 3:**
+**Phase 3 abgeschlossen!**
 
 ```
 1. fnords.embedding Spalte     ───── ✅
@@ -264,9 +268,9 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 
 3. find_similar_articles       ───── ✅
 
-4. Semantische Suche           <──── NÄCHSTER SCHRITT
+4. Semantische Suche           ───── ✅
 
-5. VSS-Optimierung             <──── Nach Semantischer Suche
+5. VSS-Optimierung             <──── Bei Bedarf (>10.000 Artikel)
 ```
 
 ---

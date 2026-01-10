@@ -289,6 +289,15 @@
     "noContent": "No content available",
     "titleChanged": "Title changed"
   },
+  "search": {
+    "placeholder": "Semantic search...",
+    "searching": "Searching...",
+    "results": "Search Results",
+    "resultsCount": "{count} results",
+    "noResults": "No results found",
+    "clearSearch": "Clear search",
+    "similarity": "Similarity"
+  },
   "network": {
     "title": "Immanentize Network",
     "keywords": "Keywords",

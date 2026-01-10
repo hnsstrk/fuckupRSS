@@ -29,6 +29,8 @@
   let showAddForm = $state(false);
   let newFeedUrl = $state("");
   let sidebarMode = $state<'pentacles' | 'sephiroth'>('pentacles');
+  let searchInput = $state("");
+  let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   let unlisten: UnlistenFn | null = null;
   let unlistenModels: UnlistenFn | null = null;
   let unlistenArticlesReset: UnlistenFn | null = null;
@@ -189,6 +191,44 @@
   function handleCancelBatch() {
     appState.cancelBatch();
   }
+
+  function handleSearchInput(e: Event) {
+    const value = (e.target as HTMLInputElement).value;
+    searchInput = value;
+
+    // Clear previous timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+
+    // Debounce search - wait 300ms after user stops typing
+    if (value.trim()) {
+      searchTimeout = setTimeout(async () => {
+        await appState.semanticSearch(value.trim());
+      }, 300);
+    } else {
+      appState.clearSearch();
+    }
+  }
+
+  function handleClearSearch() {
+    searchInput = "";
+    appState.clearSearch();
+  }
+
+  function handleSearchKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      handleClearSearch();
+    } else if (e.key === 'Enter') {
+      // Immediate search on Enter
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+      if (searchInput.trim()) {
+        appState.semanticSearch(searchInput.trim());
+      }
+    }
+  }
 </script>
 
 <aside class="sidebar">
@@ -253,6 +293,34 @@
     >
       <Tooltip termKey="sephiroth">{$_('sidebar.sephiroth')}</Tooltip>
     </button>
+  </div>
+
+  <!-- Semantic Search -->
+  <div class="search-box">
+    <div class="search-input-wrapper">
+      <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+      </svg>
+      <input
+        type="text"
+        bind:value={searchInput}
+        oninput={handleSearchInput}
+        onkeydown={handleSearchKeydown}
+        placeholder={$_('search.placeholder')}
+        class="search-input"
+        disabled={!appState.ollamaStatus.available}
+      />
+      {#if appState.searching}
+        <span class="search-spinner">↻</span>
+      {:else if searchInput}
+        <button class="search-clear" onclick={handleClearSearch} title={$_('search.clearSearch')}>×</button>
+      {/if}
+    </div>
+    {#if appState.searchResults.length > 0}
+      <div class="search-result-count">
+        {$_('search.resultsCount', { values: { count: appState.searchResults.length } })}
+      </div>
+    {/if}
   </div>
 
   <!-- Feed List -->
@@ -1013,5 +1081,83 @@
 
   .model-sep {
     color: var(--text-muted);
+  }
+
+  /* Semantic Search */
+  .search-box {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 0.5rem;
+    width: 1rem;
+    height: 1rem;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+
+  .search-input {
+    width: 100%;
+    background-color: var(--bg-overlay);
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    padding: 0.375rem 2rem 0.375rem 2rem;
+    font-size: 0.75rem;
+    color: var(--text-primary);
+    transition: border-color 0.2s;
+  }
+
+  .search-input::placeholder {
+    color: var(--text-faint);
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+  }
+
+  .search-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .search-spinner {
+    position: absolute;
+    right: 0.5rem;
+    color: var(--accent-primary);
+    animation: spin 1s linear infinite;
+    font-size: 0.875rem;
+  }
+
+  .search-clear {
+    position: absolute;
+    right: 0.375rem;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.125rem 0.25rem;
+    line-height: 1;
+    transition: color 0.2s;
+  }
+
+  .search-clear:hover {
+    color: var(--text-primary);
+  }
+
+  .search-result-count {
+    margin-top: 0.375rem;
+    font-size: 0.6875rem;
+    color: var(--accent-primary);
+    text-align: center;
   }
 </style>

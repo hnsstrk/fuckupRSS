@@ -302,3 +302,18 @@ export interface ArticleEmbeddingStats {
   without_embedding: number;
   processable: number;
 }
+
+// Semantic Search (Phase 3)
+export interface SearchResult {
+  fnord_id: number;
+  title: string;
+  pentacle_title: string | null;
+  published_at: string | null;
+  summary: string | null;
+  similarity: number;
+}
+
+export interface SemanticSearchResponse {
+  query: string;
+  results: SearchResult[];
+}

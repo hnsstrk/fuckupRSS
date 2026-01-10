@@ -289,6 +289,15 @@
     "noContent": "Kein Inhalt verfügbar",
     "titleChanged": "Titel geändert"
   },
+  "search": {
+    "placeholder": "Semantisch suchen...",
+    "searching": "Suche...",
+    "results": "Suchergebnisse",
+    "resultsCount": "{count} Ergebnisse",
+    "noResults": "Keine Ergebnisse gefunden",
+    "clearSearch": "Suche löschen",
+    "similarity": "Ähnlichkeit"
+  },
   "network": {
     "title": "Immanentize Network",
     "keywords": "Stichworte",

@@ -2,8 +2,12 @@
   import { _, locale } from 'svelte-i18n';
   import { appState } from "../stores/state.svelte";
   import Tooltip from "./Tooltip.svelte";
+  import type { SearchResult } from "../types";
 
   let listContainer: HTMLDivElement;
+
+  // Check if we're in search mode
+  const isSearchMode = $derived(appState.searchQuery.length > 0 || appState.searchResults.length > 0);
 
   function handleScroll(event: Event) {
     const target = event.target as HTMLDivElement;
@@ -79,6 +83,15 @@
     appState.selectFnord(id);
   }
 
+  function handleSelectSearchResult(result: SearchResult) {
+    // Select the article from search result
+    appState.selectFnord(result.fnord_id);
+  }
+
+  function formatSimilarity(similarity: number): string {
+    return `${Math.round(similarity * 100)}%`;
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "j") {
       e.preventDefault();
@@ -98,21 +111,71 @@
 <div class="article-list">
   <!-- Header -->
   <div class="list-header">
-    <h2 class="list-title">
-      {#if appState.selectedPentacle}
-        {appState.selectedPentacle.title || "Feed"}
-      {:else}
-        {$_('sidebar.allFeeds')}
-      {/if}
-    </h2>
-    <p class="list-count">
-      {appState.fnords.length}{#if appState.totalFnordsCount > appState.fnords.length}/{appState.totalFnordsCount}{/if} {$locale?.startsWith('de') ? 'Artikel' : 'articles'}
-    </p>
+    {#if isSearchMode}
+      <h2 class="list-title">{$_('search.results')}</h2>
+      <p class="list-count">
+        {appState.searchResults.length} {$locale?.startsWith('de') ? 'Ergebnisse' : 'results'}
+        {#if appState.searchQuery}
+          <span class="search-query">"{appState.searchQuery}"</span>
+        {/if}
+      </p>
+    {:else}
+      <h2 class="list-title">
+        {#if appState.selectedPentacle}
+          {appState.selectedPentacle.title || "Feed"}
+        {:else}
+          {$_('sidebar.allFeeds')}
+        {/if}
+      </h2>
+      <p class="list-count">
+        {appState.fnords.length}{#if appState.totalFnordsCount > appState.fnords.length}/{appState.totalFnordsCount}{/if} {$locale?.startsWith('de') ? 'Artikel' : 'articles'}
+      </p>
+    {/if}
   </div>
 
-  <!-- Article List -->
+  <!-- Article List / Search Results -->
   <div class="list-content" bind:this={listContainer} onscroll={handleScroll}>
-    {#each appState.fnords as fnord (fnord.id)}
+    {#if isSearchMode}
+      <!-- Search Results -->
+      {#each appState.searchResults as result (result.fnord_id)}
+        <button
+          class="article-item search-result {appState.selectedFnordId === result.fnord_id ? 'active' : ''}"
+          onclick={() => handleSelectSearchResult(result)}
+        >
+          <div class="article-row">
+            <div class="search-similarity" title={$_('search.similarity')}>
+              {formatSimilarity(result.similarity)}
+            </div>
+            <div class="article-content">
+              <h3 class="article-title">{result.title}</h3>
+              <div class="article-meta">
+                <span class="source">{result.pentacle_title || "Unknown"}</span>
+                <span class="separator">·</span>
+                <span>{formatDate(result.published_at)}</span>
+              </div>
+              {#if result.summary}
+                <p class="search-summary">{result.summary.slice(0, 120)}{result.summary.length > 120 ? '...' : ''}</p>
+              {/if}
+            </div>
+          </div>
+        </button>
+      {/each}
+
+      {#if appState.searchResults.length === 0 && !appState.searching && appState.searchQuery}
+        <div class="empty-state">
+          {$_('search.noResults')}
+        </div>
+      {/if}
+
+      {#if appState.searching}
+        <div class="empty-state">
+          <span class="loading-spinner">↻</span>
+          {$_('search.searching')}
+        </div>
+      {/if}
+    {:else}
+      <!-- Normal Article List -->
+      {#each appState.fnords as fnord (fnord.id)}
       <button
         class="article-item {appState.selectedFnordId === fnord.id ? 'active' : ''}"
         onclick={() => handleSelectFnord(fnord.id)}
@@ -181,6 +244,7 @@
 
     {#if appState.loading}
       <div class="empty-state">{$_('articleList.loading')}</div>
+    {/if}
     {/if}
   </div>
 
@@ -372,5 +436,40 @@
     padding: 0.5rem;
     color: var(--text-faint);
     font-size: 0.7rem;
+  }
+
+  /* Search Results */
+  .search-query {
+    color: var(--accent-primary);
+    font-style: italic;
+  }
+
+  .search-result {
+    border-left: 3px solid var(--accent-primary);
+  }
+
+  .search-similarity {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.5rem;
+    padding: 0.25rem 0.375rem;
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    border-radius: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    margin-top: 0.125rem;
+  }
+
+  .search-summary {
+    margin: 0.375rem 0 0 0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 </style>

@@ -30,6 +30,8 @@ import type {
   SimilarArticle,
   SimilarArticlesResponse,
   ArticleEmbeddingStats,
+  SearchResult,
+  SemanticSearchResponse,
 } from "../types";
 
 export { toasts, removeToast } from "./toast.svelte";
@@ -64,6 +66,8 @@ export type {
   SimilarArticle,
   SimilarArticlesResponse,
   ArticleEmbeddingStats,
+  SearchResult,
+  SemanticSearchResponse,
 };
 
 const log = createLogger("state");
@@ -102,6 +106,11 @@ class AppState {
 
   // Embedding processing state
   embeddingProgress = $state<EmbeddingProgress | null>(null);
+
+  // Semantic search state
+  searchQuery = $state<string>("");
+  searchResults = $state<SearchResult[]>([]);
+  searching = $state(false);
 
   // Lazy loading state
   totalFnordsCount = $state(0);
@@ -759,6 +768,37 @@ class AppState {
       log.error("Failed to get article embedding stats:", e);
       return null;
     }
+  }
+
+  async semanticSearch(query: string, limit?: number): Promise<SearchResult[]> {
+    if (!query.trim()) {
+      this.searchResults = [];
+      this.searchQuery = "";
+      return [];
+    }
+
+    this.searching = true;
+    this.searchQuery = query;
+
+    try {
+      const response = await invoke<SemanticSearchResponse>("semantic_search", {
+        query,
+        limit: limit ?? 20,
+      });
+      this.searchResults = response.results;
+      return response.results;
+    } catch (e) {
+      log.error("Semantic search failed:", e);
+      this.searchResults = [];
+      return [];
+    } finally {
+      this.searching = false;
+    }
+  }
+
+  clearSearch() {
+    this.searchQuery = "";
+    this.searchResults = [];
   }
 
   async getAllCategories(): Promise<Sephiroth[]> {
