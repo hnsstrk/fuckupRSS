@@ -77,7 +77,9 @@
   onMount(() => {
     loadStats();
     // Refresh every 10 seconds
-    refreshInterval = setInterval(loadStats, 10000);
+    refreshInterval = setInterval(() => {
+      loadStats();
+    }, 10000);
   });
 
   onDestroy(() => {
@@ -176,11 +178,11 @@
   <!-- Spacer -->
   <div class="spacer"></div>
 
-  <!-- LLM Status -->
-  <div class="status-section llm-section" title="Loaded Models (VRAM)">
-    <span class="status-icon" class:active={loadedModels.length > 0}>⬡</span>
-    <span class="status-label">LLM</span>
+  <!-- Ollama Status -->
+  <div class="status-section ollama-section" title={$_('statusBar.ollamaTooltip')}>
     {#if loadedModels.length > 0}
+      <span class="status-icon active">⬡</span>
+      <span class="status-label">Ollama</span>
       <span class="status-value models">
         {#each loadedModels as model, i}
           <span class="model-name" title="{model.name} ({model.parameter_size})">{model.name.split(':')[0]}</span>
@@ -189,9 +191,13 @@
         <span class="vram">({formatVram(totalVram)})</span>
       </span>
     {:else if appState.ollamaStatus.available}
-      <span class="status-value idle">idle</span>
+      <span class="status-icon active">⬡</span>
+      <span class="status-label">Ollama</span>
+      <span class="status-value done">{$_('statusBar.ollamaReady')}</span>
     {:else}
-      <span class="status-value offline">offline</span>
+      <span class="status-icon">⬡</span>
+      <span class="status-label">Ollama</span>
+      <span class="status-value offline">{$_('statusBar.ollamaStopped')}</span>
     {/if}
   </div>
 
@@ -290,7 +296,7 @@
     flex: 1;
   }
 
-  .llm-section .status-value.models {
+  .ollama-section .status-value.models {
     display: flex;
     align-items: center;
     gap: 0.25rem;

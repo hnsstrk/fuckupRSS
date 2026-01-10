@@ -466,6 +466,23 @@ Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
 | `delete_hardware_profile` | `id` | - | Profil löschen |
 | `apply_hardware_profile` | `profile_id` | - | Profil aktivieren |
 
+**HardwareProfile Struktur:**
+```rust
+struct HardwareProfile {
+    id: String,
+    name: String,
+    description: String,
+    ai_parallelism: usize,  // Parallele Artikel bei Batch-Verarbeitung
+}
+```
+
+**Vordefinierte Profile:**
+| Profil | ai_parallelism | Beschreibung |
+|--------|----------------|--------------|
+| Standard | 1 | Sicher für alle Systeme |
+| Moderat | 4 | Guter Kompromiss |
+| Hohe Leistung | 8 | Für High-End Hardware |
+
 ## AI Processing Pipeline
 
 1. **Hagbard's Retrieval** - Fetch full text for ALL new articles (automatic after sync)
@@ -495,19 +512,28 @@ Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
 
 ## Ollama Setup
 
+Ollama muss separat installiert und gestartet werden. fuckupRSS verbindet sich mit dem laufenden Ollama-Server.
+
 ```bash
-# Install models (can also be done via Settings UI)
+# Modelle installieren (oder via Settings UI):
 ollama pull ministral-3:latest
 ollama pull snowflake-arctic-embed2
+```
 
-# Configure for dual model loading and parallel processing (Linux)
+**Ollama-Konfiguration (optional für Performance):**
+
+```bash
+# Linux: systemd
 sudo systemctl edit ollama.service
-
-# Add/Edit in [Service] section:
 # [Service]
 # Environment="OLLAMA_MAX_LOADED_MODELS=2"
 # Environment="OLLAMA_FLASH_ATTENTION=1"
-# Environment="OLLAMA_NUM_PARALLEL=4"  # Match this with your Hardware Profile (e.g. 4 for RTX 3080 Ti)
+# Environment="OLLAMA_NUM_PARALLEL=4"
+
+# macOS: Terminal (vor dem Start)
+export OLLAMA_NUM_PARALLEL=4
+export OLLAMA_FLASH_ATTENTION=1
+ollama serve
 ```
 
 **Hinweis:** Bei Modellwechsel müssen alle Keywords neu eingebettet werden (Settings → Wartung → Embeddings generieren).

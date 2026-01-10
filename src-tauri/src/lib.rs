@@ -170,6 +170,9 @@ pub fn run() {
             commands::embedding::get_embedding_queue_details,
             commands::embedding::calculate_neighbor_similarities,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, _event| {
+            // App lifecycle events handled by Tauri defaults
+        });
 }

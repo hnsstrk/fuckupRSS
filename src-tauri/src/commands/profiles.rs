@@ -18,15 +18,15 @@ const DEFAULT_PROFILES_JSON: &str = r#"[
         "ai_parallelism": 1
     },
     {
-        "id": "rtx3080ti",
-        "name": "Desktop (RTX 3080 Ti)",
-        "description": "Optimiert für 12GB VRAM. Verarbeitet 4 Artikel gleichzeitig.",
+        "id": "moderate",
+        "name": "Moderat (4x Parallel)",
+        "description": "Guter Kompromiss zwischen Geschwindigkeit und Stabilität.",
         "ai_parallelism": 4
     },
     {
-        "id": "m4pro",
-        "name": "MacBook Pro M4",
-        "description": "Maximale Leistung dank Unified Memory. Verarbeitet 8 Artikel gleichzeitig.",
+        "id": "high",
+        "name": "Hohe Leistung (8x Parallel)",
+        "description": "Für leistungsstarke Hardware (RTX 3080+, Apple Silicon).",
         "ai_parallelism": 8
     }
 ]"#;
@@ -38,9 +38,8 @@ pub fn get_default_profiles() -> Vec<HardwareProfile> {
 #[tauri::command]
 pub fn get_hardware_profiles(state: State<AppState>) -> Result<Vec<HardwareProfile>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    
+
     // Read from settings "hardware_profiles"
-    // If not set, return defaults (and maybe save them? No, keep it clean)
     let json: Option<String> = db.conn()
         .query_row("SELECT value FROM settings WHERE key = 'hardware_profiles'", [], |row| row.get(0))
         .ok();
@@ -50,23 +49,23 @@ pub fn get_hardware_profiles(state: State<AppState>) -> Result<Vec<HardwareProfi
     } else {
         get_default_profiles()
     };
-    
+
     Ok(profiles)
 }
 
 #[tauri::command]
 pub fn save_hardware_profile(state: State<AppState>, profile: HardwareProfile) -> Result<Vec<HardwareProfile>, String> {
     let mut profiles = get_hardware_profiles(state.clone())?;
-    
+
     // Update or add
     if let Some(idx) = profiles.iter().position(|p| p.id == profile.id) {
         profiles[idx] = profile;
     } else {
         profiles.push(profile);
     }
-    
+
     let json = serde_json::to_string(&profiles).map_err(|e| e.to_string())?;
-    
+
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.conn()
         .execute(
@@ -74,21 +73,18 @@ pub fn save_hardware_profile(state: State<AppState>, profile: HardwareProfile) -
             [&json],
         )
         .map_err(|e| e.to_string())?;
-        
+
     Ok(profiles)
 }
 
 #[tauri::command]
 pub fn delete_hardware_profile(state: State<AppState>, profile_id: String) -> Result<Vec<HardwareProfile>, String> {
     let mut profiles = get_hardware_profiles(state.clone())?;
-    
-    // Prevent deleting built-in defaults if we want enforce them? 
-    // Let's allow deletion but maybe user wants them back.
-    
+
     profiles.retain(|p| p.id != profile_id);
-    
+
     let json = serde_json::to_string(&profiles).map_err(|e| e.to_string())?;
-    
+
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.conn()
         .execute(
@@ -96,17 +92,17 @@ pub fn delete_hardware_profile(state: State<AppState>, profile_id: String) -> Re
             [&json],
         )
         .map_err(|e| e.to_string())?;
-        
+
     Ok(profiles)
 }
 
 #[tauri::command]
 pub fn apply_hardware_profile(state: State<AppState>, profile_id: String) -> Result<(), String> {
     let profiles = get_hardware_profiles(state.clone())?;
-    
+
     if let Some(profile) = profiles.into_iter().find(|p| p.id == profile_id) {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        
+
         // Save parallelism setting
         db.conn()
             .execute(
@@ -114,7 +110,7 @@ pub fn apply_hardware_profile(state: State<AppState>, profile_id: String) -> Res
                 [profile.ai_parallelism.to_string()],
             )
             .map_err(|e| e.to_string())?;
-            
+
         // Save current profile ID for UI
          db.conn()
             .execute(
@@ -125,6 +121,6 @@ pub fn apply_hardware_profile(state: State<AppState>, profile_id: String) -> Res
     } else {
         return Err("Profile not found".to_string());
     }
-    
+
     Ok(())
 }

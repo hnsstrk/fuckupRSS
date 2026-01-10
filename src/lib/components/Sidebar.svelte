@@ -58,10 +58,10 @@
     // Reset false positive changes from migration bug (one-time fix)
     await appState.resetAllChanges();
     await appState.loadChangedFnords();
+    // Check Ollama availability and auto-set models if not configured
+    await appState.checkOllama();
     // Auto-sync feeds on startup
     appState.syncAllFeeds();
-    // Check Ollama availability
-    appState.checkOllama();
     // Load unprocessed count
     appState.loadUnprocessedCount();
     // Load currently loaded models

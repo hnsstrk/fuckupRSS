@@ -240,7 +240,12 @@
     "failed": "Fehlgeschlagen",
     "failedTooltip": "Artikel, bei denen die KI-Analyse fehlgeschlagen ist, aber noch weitere Versuche ausstehen.",
     "articles": "Artikel",
-    "articlesTooltip": "Gesamtzahl aller Artikel in der Datenbank"
+    "articlesTooltip": "Gesamtzahl aller Artikel in der Datenbank",
+    "ollamaTooltip": "Ollama Lifecycle Status",
+    "ollamaStarting": "startet...",
+    "ollamaReady": "bereit",
+    "ollamaError": "Fehler",
+    "ollamaStopped": "gestoppt"
   },
   "batch": {
     "title": "Discordian Analysis",

@@ -46,6 +46,7 @@
     description: string;
     ai_parallelism: number;
   }
+
   let hardwareProfiles = $state<HardwareProfile[]>([]);
   let selectedProfileId = $state("default");
   let profileDropdownOpen = $state(false);

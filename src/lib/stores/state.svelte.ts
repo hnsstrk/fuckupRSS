@@ -433,12 +433,33 @@ class AppState {
             this.selectedModel = status.has_recommended_main
               ? status.recommended_main
               : status.models[0];
+            // Save fallback model to DB so other components can use it
+            if (this.selectedModel) {
+              await this.saveModelSettings(this.selectedModel, null);
+              log.info(`Auto-selected main model: ${this.selectedModel}`);
+            }
           }
         } catch {
           // Fall back to recommended model if available, otherwise first model
           this.selectedModel = status.has_recommended_main
             ? status.recommended_main
             : status.models[0];
+          // Save fallback model to DB
+          if (this.selectedModel) {
+            await this.saveModelSettings(this.selectedModel, null);
+            log.info(`Auto-selected main model (fallback): ${this.selectedModel}`);
+          }
+        }
+
+        // Also ensure embedding model is saved if not set
+        try {
+          const savedEmbedding = await invoke<string | null>("get_setting", { key: "embedding_model" });
+          if (!savedEmbedding && status.has_recommended_embedding) {
+            await this.saveModelSettings(null, status.recommended_embedding);
+            log.info(`Auto-selected embedding model: ${status.recommended_embedding}`);
+          }
+        } catch {
+          // Ignore embedding errors
         }
       }
       return status;
@@ -453,6 +474,20 @@ class AppState {
         has_recommended_embedding: false
       };
       return this.ollamaStatus;
+    }
+  }
+
+  // Save model settings to DB
+  private async saveModelSettings(mainModel: string | null, embeddingModel: string | null): Promise<void> {
+    try {
+      if (mainModel) {
+        await invoke("set_setting", { key: "main_model", value: mainModel });
+      }
+      if (embeddingModel) {
+        await invoke("set_setting", { key: "embedding_model", value: embeddingModel });
+      }
+    } catch (e) {
+      log.error("Failed to save model settings:", e);
     }
   }
 

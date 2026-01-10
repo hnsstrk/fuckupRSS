@@ -240,7 +240,12 @@
     "failed": "Failed",
     "failedTooltip": "Articles where AI analysis failed, but more retries are pending.",
     "articles": "Articles",
-    "articlesTooltip": "Total number of articles in the database"
+    "articlesTooltip": "Total number of articles in the database",
+    "ollamaTooltip": "Ollama Lifecycle Status",
+    "ollamaStarting": "starting...",
+    "ollamaReady": "ready",
+    "ollamaError": "error",
+    "ollamaStopped": "stopped"
   },
   "batch": {
     "title": "Discordian Analysis",
