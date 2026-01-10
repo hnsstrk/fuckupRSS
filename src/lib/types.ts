@@ -163,6 +163,7 @@ export interface BatchResult {
 
 export interface EmbeddingProgress {
   queue_size: number;
+  total: number;
   processed: number;
   failed: number;
   is_processing: boolean;

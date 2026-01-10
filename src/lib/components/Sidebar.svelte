@@ -396,23 +396,32 @@
 
   <!-- Embedding Progress (shown when generating embeddings) -->
   {#if appState.embeddingProgress}
+    {@const progress = appState.embeddingProgress}
+    {@const progressPercent = progress.total > 0 ? Math.round(((progress.total - progress.queue_size) / progress.total) * 100) : 0}
     <div class="embedding-progress">
       <div class="embedding-header">
         <span class="embedding-icon">⚡</span>
         <span class="embedding-label">Embeddings</span>
+        {#if progress.is_processing && progress.total > 0}
+          <span class="embedding-percent">{progressPercent}%</span>
+        {/if}
       </div>
-      {#if appState.embeddingProgress.is_processing}
+      {#if progress.is_processing}
         <div class="progress-bar">
-          <div class="progress-fill indeterminate"></div>
+          {#if progress.total > 0}
+            <div class="progress-fill" style="width: {progressPercent}%"></div>
+          {:else}
+            <div class="progress-fill indeterminate"></div>
+          {/if}
         </div>
         <div class="embedding-text">
-          {appState.embeddingProgress.queue_size} in queue
+          {progress.total - progress.queue_size} / {progress.total}
         </div>
-      {:else if appState.embeddingProgress.processed > 0 || appState.embeddingProgress.failed > 0}
+      {:else if progress.processed > 0 || progress.failed > 0}
         <div class="embedding-text success">
-          ✓ {appState.embeddingProgress.processed} generated
-          {#if appState.embeddingProgress.failed > 0}
-            , {appState.embeddingProgress.failed} failed
+          ✓ {progress.processed} generated
+          {#if progress.failed > 0}
+            , {progress.failed} failed
           {/if}
         </div>
       {/if}
@@ -931,6 +940,13 @@
   .embedding-label {
     color: var(--text-secondary);
     font-weight: 500;
+  }
+
+  .embedding-percent {
+    margin-left: auto;
+    color: var(--accent-warning);
+    font-weight: 600;
+    font-size: 0.875rem;
   }
 
   .embedding-text {

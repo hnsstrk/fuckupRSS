@@ -50,6 +50,7 @@ impl Default for EmbeddingWorker {
 #[derive(Clone, serde::Serialize)]
 pub struct EmbeddingProgress {
     pub queue_size: i64,
+    pub total: i64,
     pub processed: i64,
     pub failed: i64,
     pub is_processing: bool,
@@ -138,6 +139,7 @@ pub async fn process_embedding_queue(
     db: Arc<Mutex<Database>>,
     app_handle: Option<&AppHandle>,
     batch_size: i64,
+    initial_total: Option<i64>,
 ) -> Result<(i64, i64), String> {
     let keywords = get_queued_keywords(&db, batch_size)?;
 
@@ -204,8 +206,10 @@ pub async fn process_embedding_queue(
         // Emit progress event after each chunk
         if let Some(handle) = app_handle {
             let queue_size = get_queue_size(&db).unwrap_or(0);
+            let total = initial_total.unwrap_or(queue_size + processed + failed);
             let _ = handle.emit("embedding-progress", EmbeddingProgress {
                 queue_size,
+                total,
                 processed,
                 failed,
                 is_processing: true,
@@ -312,6 +316,7 @@ pub fn start_background_worker(
         let idle_interval = Duration::from_secs(10);  // When queue is empty
         let batch_pause = Duration::from_secs(5);     // When batch analysis is running
         let batch_size = 50i64;  // Process more at once
+        let mut initial_total: Option<i64> = None;  // Track total for progress bar
 
         while worker_clone.is_running.load(Ordering::SeqCst) {
             // Check if batch analysis is running - yield to it
@@ -326,10 +331,16 @@ pub fn start_background_worker(
 
             if queue_size > 0 {
                 worker_clone.is_processing.store(true, Ordering::SeqCst);
-                debug!("Embedding queue has {} items, processing...", queue_size);
+
+                // Capture initial total when starting a new processing session
+                if initial_total.is_none() {
+                    initial_total = Some(queue_size);
+                    debug!("Embedding queue started with {} items total", queue_size);
+                }
+                debug!("Embedding queue has {} items remaining, processing...", queue_size);
 
                 // Process batch
-                match process_embedding_queue(db_clone.clone(), Some(&handle_clone), batch_size).await {
+                match process_embedding_queue(db_clone.clone(), Some(&handle_clone), batch_size, initial_total).await {
                     Ok((processed, failed)) => {
                         if processed > 0 || failed > 0 {
                             info!("Embedding worker: processed={}, failed={}", processed, failed);
@@ -343,18 +354,22 @@ pub fn start_background_worker(
 
                 worker_clone.is_processing.store(false, Ordering::SeqCst);
 
-                // Emit final progress
+                // Emit progress update
                 let remaining = get_queue_size(&db_clone).unwrap_or(0);
+                let total = initial_total.unwrap_or(0);
                 let _ = handle_clone.emit("embedding-progress", EmbeddingProgress {
                     queue_size: remaining,
+                    total,
                     processed: 0,
                     failed: 0,
-                    is_processing: false,
+                    is_processing: remaining > 0,
                 });
 
                 // No pause between batches - keep going until queue is empty!
                 // (unless batch analysis starts, checked at loop start)
             } else {
+                // Reset total when queue is empty (for next session)
+                initial_total = None;
                 // Queue is empty - calculate quality scores for all pending keywords
                 if let Ok(scored) = calculate_pending_quality_scores(&db_clone, 1000) {
                     if scored > 0 {

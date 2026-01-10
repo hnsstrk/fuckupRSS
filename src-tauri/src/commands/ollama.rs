@@ -1301,17 +1301,18 @@ pub async fn process_batch(
 
         if queue_size > 0 {
              let _ = window.emit("embedding-progress", embedding_worker::EmbeddingProgress {
-                queue_size, processed: 0, failed: 0, is_processing: true
+                queue_size, total: queue_size, processed: 0, failed: 0, is_processing: true
             });
-            
+
             let _ = embedding_worker::process_embedding_queue(
                 state.db.clone(),
                 Some(&window.app_handle()),
                 queue_size,
+                Some(queue_size),
             ).await;
-             
+
              let _ = window.emit("embedding-progress", embedding_worker::EmbeddingProgress {
-                queue_size: 0, processed: queue_size, failed: 0, is_processing: false
+                queue_size: 0, total: queue_size, processed: queue_size, failed: 0, is_processing: false
             });
         }
     }

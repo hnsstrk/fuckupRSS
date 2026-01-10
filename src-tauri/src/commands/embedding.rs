@@ -45,9 +45,18 @@ pub async fn process_embedding_queue_now(
     let limit = limit.unwrap_or(100);
     let db = state.db.clone();
 
+    // Get initial queue size for progress tracking
+    let initial_total = {
+        let db = db.lock().map_err(|e| e.to_string())?;
+        db.conn()
+            .query_row("SELECT COUNT(*) FROM embedding_queue", [], |row| row.get(0))
+            .unwrap_or(0i64)
+    };
+
     // Emit start event
     let _ = app_handle.emit("embedding-progress", EmbeddingProgress {
-        queue_size: 0,
+        queue_size: initial_total,
+        total: initial_total,
         processed: 0,
         failed: 0,
         is_processing: true,
@@ -58,6 +67,7 @@ pub async fn process_embedding_queue_now(
         db.clone(),
         Some(&app_handle),
         limit,
+        Some(initial_total),
     ).await?;
 
     // Calculate quality scores for processed keywords
@@ -76,6 +86,7 @@ pub async fn process_embedding_queue_now(
     // Emit completion event
     let _ = app_handle.emit("embedding-progress", EmbeddingProgress {
         queue_size: remaining,
+        total: initial_total,
         processed,
         failed,
         is_processing: false,
