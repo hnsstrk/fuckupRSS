@@ -11,6 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `README.md` | Öffentliche Projektbeschreibung, Features, Installation | Neue Features, API-Änderungen, Installationsänderungen |
 | `fuckupRSS-Anforderungen.md` | Technische Spezifikation, Architektur, Entscheidungen | Architekturänderungen, neue Komponenten, Abweichungen vom Plan |
 | `CLAUDE.md` | Entwickler-Kontext für Claude Code | Build-Änderungen, neue Patterns, Strukturänderungen |
+| `TODO.md` | Zentrale Aufgabenliste, Entscheidungen | Neue Tasks, abgeschlossene Tasks, technische Entscheidungen |
 
 ### Dokumentations-Workflow
 
@@ -297,7 +298,8 @@ fuckupRSS/
 │   └── Cargo.toml
 ├── fuckupRSS-Anforderungen.md    # Technische Spezifikation
 ├── README.md                     # Projekt-Dokumentation
-└── CLAUDE.md                     # Diese Datei
+├── CLAUDE.md                     # Diese Datei
+└── TODO.md                       # Zentrale Aufgabenliste
 ```
 
 ## i18n (Internationalisierung)

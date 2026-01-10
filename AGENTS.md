@@ -259,6 +259,7 @@ onDestroy(() => unlisten());
 | `CLAUDE.md` | Developer context for Claude Code | Build changes, patterns, structure |
 | `AGENTS.md` | AI agent guidelines (this file) | Architecture changes, conventions |
 | `fuckupRSS-Anforderungen.md` | **Master-Dokument:** Technische Spezifikation, Planung, Roadmap | Architecture decisions, schema changes, Phasen-Updates |
+| `TODO.md` | Zentrale Aufgabenliste, technische Entscheidungen | Neue Tasks, erledigte Tasks, Analysen |
 
 **Planung:** Alle Phasen und Tasks sind zentral in `fuckupRSS-Anforderungen.md` Kapitel 20 dokumentiert.
 
