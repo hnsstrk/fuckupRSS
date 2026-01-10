@@ -31,7 +31,7 @@ fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U
 ## Technology Stack
 
 - **Framework:** Tauri 2.x (Rust backend + Svelte 5 frontend)
-- **Database:** SQLite + sqlite-vec/vector0 (vector search extension, dynamically loaded in Rust)
+- **Database:** SQLite + sqlite-vec (bundled vector search extension, O(log n) KNN)
 - **AI Backend:** Ollama (local) with native JSON mode for stability
 - **Models:** ministral-3:latest (text) and snowflake-arctic-embed2 (embeddings)
 - **Styling:** TailwindCSS
@@ -344,7 +344,7 @@ Alle Illuminatus!-Begriffe (Fnord, Pentacle, etc.) haben erklärende Tooltips:
 | HTTP Client | `reqwest` | ✅ |
 | Readability | `readability` | ✅ |
 | Ollama API | `ollama-rs` | ✅ |
-| Vector Search | `sqlite-vec` | ⏳ Phase 3 (Loading implemented) |
+| Vector Search | `sqlite-vec` | ✅ (bundled, O(log n) KNN) |
 | OPML Parsing | `opml` | ⏳ Phase 4 |
 
 ## Illuminatus! Terminology
@@ -386,8 +386,9 @@ The codebase uses terms from the Illuminatus! trilogy:
 - `fnord_immanentize` - Article ↔ Tag mapping
 - `dismissed_synonyms` - Ignorierte Synonym-Vorschläge
 
-### Embeddings (Aktueller Stand)
+### Embeddings & Vector Search
 - Keywords: Embeddings als BLOB in `immanentize.embedding` (1024-dim, snowflake-arctic-embed2)
+- Vector Index: `vec_immanentize` (sqlite-vec virtual table, cosine distance, O(log n) KNN)
 - Artikel: ⏳ Phase 3 - `fnords.embedding` geplant
 
 Schema-Definition: `src-tauri/src/db/schema.rs`
@@ -452,7 +453,7 @@ Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
 | `calculate_keyword_quality_scores` | `limit?` | `QualityScoreResult` | Quality-Scores berechnen |
 | `get_low_quality_keywords` | `threshold`, `limit` | `Vec<LowQualityKeyword>` | Low-Quality Keywords |
 | `auto_prune_low_quality` | `quality_threshold`, `min_age_days`, `dry_run` | `PruneResult` | Low-Quality bereinigen |
-| `generate_keyword_embeddings` | `limit?`, `model?` | `EmbeddingResult` | Embeddings generieren |
+| `queue_missing_embeddings` | - | `i64` | Fehlende Embeddings in Queue einreihen |
 | `find_synonym_candidates` | `threshold?`, `limit?` | `Vec<SynonymCandidate>` | Synonym-Kandidaten finden |
 | `merge_keyword_pair` | `keep_id`, `remove_id` | `MergeSynonymsResult` | Keywords zusammenführen |
 | `dismiss_synonym_pair` | `keyword_a_id`, `keyword_b_id` | - | Synonym-Vorschlag ignorieren |
