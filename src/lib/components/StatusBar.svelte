@@ -279,10 +279,6 @@
     color: var(--accent-warning);
   }
 
-  .status-value.idle {
-    opacity: 0.5;
-  }
-
   .status-value.spinning {
     animation: pulse 1s ease-in-out infinite;
   }

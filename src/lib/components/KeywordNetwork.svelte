@@ -6,6 +6,7 @@
   import Tooltip from './Tooltip.svelte';
   import NetworkGraph from './NetworkGraph.svelte';
   import KeywordTrendChart from './KeywordTrendChart.svelte';
+  import Tabs, { type Tab } from './Tabs.svelte';
 
   // Type for keyword articles
   interface KeywordArticle {
@@ -23,8 +24,13 @@
     cooccurrence_count: number;
   }
 
-  type TabType = 'list' | 'graph';
-  let activeTab = $state<TabType>('list');
+  let activeTab = $state<string>('list');
+
+  // Tabs definition
+  let tabs = $derived<Tab[]>([
+    { id: 'list', label: $_('network.listTab') || 'Keywords' },
+    { id: 'graph', label: $_('network.graphTab') || 'Graph' },
+  ]);
   let searchInput = $state('');
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -204,9 +210,8 @@
     ]);
   });
 
-  function handleTabChange(tab: TabType) {
-    activeTab = tab;
-    if (tab === 'graph') {
+  function handleTabChange(tabId: string) {
+    if (tabId === 'graph') {
       // Always refresh graph when switching to tab
       loadGraphDataAsync(true);
     }
@@ -280,20 +285,7 @@
     </div>
 
     <!-- Tabs -->
-    <div class="network-tabs">
-      <button
-        class="tab-btn {activeTab === 'list' ? 'active' : ''}"
-        onclick={() => handleTabChange('list')}
-      >
-        {$_('network.listTab') || 'Keywords'}
-      </button>
-      <button
-        class="tab-btn {activeTab === 'graph' ? 'active' : ''}"
-        onclick={() => handleTabChange('graph')}
-      >
-        {$_('network.graphTab') || 'Graph'}
-      </button>
-    </div>
+    <Tabs {tabs} bind:activeTab onchange={handleTabChange} />
   </div>
 
   <!-- Tab Content -->
@@ -558,35 +550,6 @@
 
   .network-stats .stat strong {
     color: var(--text-secondary);
-  }
-
-  /* Tabs */
-  .network-tabs {
-    display: flex;
-    gap: 0.25rem;
-  }
-
-  .tab-btn {
-    padding: 0.5rem 1rem;
-    background: none;
-    border: 1px solid transparent;
-    border-bottom: 2px solid transparent;
-    color: var(--text-muted);
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    border-radius: 0.25rem 0.25rem 0 0;
-  }
-
-  .tab-btn:hover {
-    color: var(--text-primary);
-    background-color: var(--bg-overlay);
-  }
-
-  .tab-btn.active {
-    color: var(--accent-primary);
-    border-bottom-color: var(--accent-primary);
-    background-color: var(--bg-overlay);
   }
 
   /* Graph View */

@@ -11,6 +11,7 @@
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
   import type { OpmlFeedPreview, OpmlImportResult } from "../types";
+  import Tabs, { type Tab } from "./Tabs.svelte";
 
   // Local state for form
   let selectedLocale = $state("de");
@@ -84,9 +85,22 @@
   let numCtxDropdownOpen = $state(false);
 
   // Tab state
-  let activeTab = $state<"general" | "ollama" | "prompts" | "maintenance">(
-    "general",
-  );
+  let activeTab = $state<string>("general");
+
+  // Tabs definition
+  let tabs = $derived<Tab[]>([
+    { id: "general", label: $_("settings.title") },
+    { id: "ollama", label: "Ollama" },
+    { id: "prompts", label: "Prompts" },
+    { id: "maintenance", label: $_("settings.maintenance.title") },
+  ]);
+
+  function handleTabChange(tabId: string) {
+    if (tabId === "maintenance") {
+      maintenanceResult = null;
+      loadKeywordStats();
+    }
+  }
 
   // Maintenance state
   let maintenanceRunning = $state<string | null>(null);
@@ -844,39 +858,8 @@
   </div>
 
   <!-- Tabs -->
-  <div class="tabs">
-    <button
-      type="button"
-      class="tab {activeTab === 'general' ? 'active' : ''}"
-      onclick={() => (activeTab = "general")}
-    >
-      {$_("settings.title")}
-    </button>
-    <button
-      type="button"
-      class="tab {activeTab === 'ollama' ? 'active' : ''}"
-      onclick={() => (activeTab = "ollama")}
-    >
-      Ollama
-    </button>
-    <button
-      type="button"
-      class="tab {activeTab === 'prompts' ? 'active' : ''}"
-      onclick={() => (activeTab = "prompts")}
-    >
-      Prompts
-    </button>
-    <button
-      type="button"
-      class="tab {activeTab === 'maintenance' ? 'active' : ''}"
-      onclick={() => {
-        activeTab = "maintenance";
-        maintenanceResult = null;
-        loadKeywordStats();
-      }}
-    >
-      {$_("settings.maintenance.title")}
-    </button>
+  <div class="tabs-wrapper">
+    <Tabs {tabs} bind:activeTab onchange={handleTabChange} />
   </div>
 
   <div class="tab-content">
@@ -1861,32 +1844,8 @@
   }
 
   /* Tabs */
-  .tabs {
-    display: flex;
-    gap: 0.25rem;
+  .tabs-wrapper {
     padding: 0 1.5rem;
-    border-bottom: 1px solid var(--border-default);
-  }
-
-  .tab {
-    padding: 0.75rem 1rem;
-    border: none;
-    background: none;
-    color: var(--text-muted);
-    font-size: 0.875rem;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    transition: all 0.2s;
-  }
-
-  .tab:hover {
-    color: var(--text-primary);
-  }
-
-  .tab.active {
-    color: var(--accent-primary);
-    border-bottom-color: var(--accent-primary);
   }
 
   .tab-content {

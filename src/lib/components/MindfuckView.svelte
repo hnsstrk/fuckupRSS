@@ -9,9 +9,18 @@
     ReadingTrend,
   } from "../types";
   import { appState } from "../stores/state.svelte";
+  import Tabs, { type Tab } from "./Tabs.svelte";
 
   // Tab state
-  let activeTab = $state<"overview" | "blindSpots" | "recommendations" | "trends">("overview");
+  let activeTab = $state<string>("overview");
+
+  // Tabs definition
+  let tabs = $derived<Tab[]>([
+    { id: "overview", label: $_("mindfuck.tabs.overview") },
+    { id: "blindSpots", label: $_("mindfuck.tabs.blindSpots") },
+    { id: "recommendations", label: $_("mindfuck.tabs.recommendations") },
+    { id: "trends", label: $_("mindfuck.tabs.trends") },
+  ]);
 
   // Data state
   let readingProfile = $state<ReadingProfile | null>(null);
@@ -82,15 +91,13 @@
     }
   }
 
-  function handleTabChange(tab: typeof activeTab) {
-    activeTab = tab;
-
+  function handleTabChange(tabId: string) {
     // Load data for the tab if not already loaded
-    if (tab === "blindSpots" && blindSpots.length === 0) {
+    if (tabId === "blindSpots" && blindSpots.length === 0) {
       loadBlindSpots();
-    } else if (tab === "recommendations" && counterPerspectives.length === 0) {
+    } else if (tabId === "recommendations" && counterPerspectives.length === 0) {
       loadCounterPerspectives();
-    } else if (tab === "trends" && readingTrends.length === 0) {
+    } else if (tabId === "trends" && readingTrends.length === 0) {
       loadReadingTrends(trendPeriod);
     }
   }
@@ -168,35 +175,8 @@
   </div>
 
   <!-- Tabs -->
-  <div class="tabs">
-    <button
-      type="button"
-      class="tab {activeTab === 'overview' ? 'active' : ''}"
-      onclick={() => handleTabChange("overview")}
-    >
-      {$_("mindfuck.tabs.overview")}
-    </button>
-    <button
-      type="button"
-      class="tab {activeTab === 'blindSpots' ? 'active' : ''}"
-      onclick={() => handleTabChange("blindSpots")}
-    >
-      {$_("mindfuck.tabs.blindSpots")}
-    </button>
-    <button
-      type="button"
-      class="tab {activeTab === 'recommendations' ? 'active' : ''}"
-      onclick={() => handleTabChange("recommendations")}
-    >
-      {$_("mindfuck.tabs.recommendations")}
-    </button>
-    <button
-      type="button"
-      class="tab {activeTab === 'trends' ? 'active' : ''}"
-      onclick={() => handleTabChange("trends")}
-    >
-      {$_("mindfuck.tabs.trends")}
-    </button>
+  <div class="tabs-wrapper">
+    <Tabs {tabs} bind:activeTab onchange={handleTabChange} />
   </div>
 
   <div class="tab-content">
@@ -489,32 +469,8 @@
   }
 
   /* Tabs */
-  .tabs {
-    display: flex;
-    gap: 0.25rem;
+  .tabs-wrapper {
     padding: 0 1.5rem;
-    border-bottom: 1px solid var(--border-default);
-  }
-
-  .tab {
-    padding: 0.75rem 1rem;
-    border: none;
-    background: none;
-    color: var(--text-muted);
-    font-size: 0.875rem;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    transition: all 0.2s;
-  }
-
-  .tab:hover {
-    color: var(--text-primary);
-  }
-
-  .tab.active {
-    color: var(--accent-primary);
-    border-bottom-color: var(--accent-primary);
   }
 
   .tab-content {

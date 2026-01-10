@@ -3,14 +3,21 @@
   import { _ } from 'svelte-i18n';
   import { appState, type Fnord, type FnordStats, type CategoryRevisionStats, type SourceRevisionStats } from '../stores/state.svelte';
   import Tooltip from './Tooltip.svelte';
+  import Tabs, { type Tab } from './Tabs.svelte';
 
   let stats = $state<FnordStats | null>(null);
   let changedFnords = $state<Fnord[]>([]);
   let loading = $state(true);
   let selectedFnordId = $state<number | null>(null);
 
-  // Tab: 'stats' | 'articles'
-  let activeTab = $state<'stats' | 'articles'>('stats');
+  // Tab state
+  let activeTab = $state<string>('stats');
+
+  // Tabs definition - derived to include dynamic badge
+  let tabs = $derived<Tab[]>([
+    { id: 'stats', label: $_('fnordView.statsTab') || 'Statistiken' },
+    { id: 'articles', label: $_('fnordView.articlesTab') || 'Geänderte Artikel', badge: changedFnords.length || undefined }
+  ]);
 
   onMount(async () => {
     await loadData();
@@ -83,23 +90,7 @@
     </div>
 
     <!-- Tabs -->
-    <div class="fnord-tabs">
-      <button
-        class="tab-btn {activeTab === 'stats' ? 'active' : ''}"
-        onclick={() => (activeTab = 'stats')}
-      >
-        {$_('fnordView.statsTab') || 'Statistiken'}
-      </button>
-      <button
-        class="tab-btn {activeTab === 'articles' ? 'active' : ''}"
-        onclick={() => (activeTab = 'articles')}
-      >
-        {$_('fnordView.articlesTab') || 'Geänderte Artikel'}
-        {#if changedFnords.length > 0}
-          <span class="tab-badge">{changedFnords.length}</span>
-        {/if}
-      </button>
-    </div>
+    <Tabs {tabs} bind:activeTab />
   </div>
 
   <!-- Content -->
@@ -272,46 +263,6 @@
   .summary-label {
     font-size: 0.75rem;
     color: var(--text-muted);
-  }
-
-  .fnord-tabs {
-    display: flex;
-    gap: 0.25rem;
-  }
-
-  .tab-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: none;
-    border: 1px solid transparent;
-    border-bottom: 2px solid transparent;
-    color: var(--text-muted);
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    border-radius: 0.25rem 0.25rem 0 0;
-  }
-
-  .tab-btn:hover {
-    color: var(--text-primary);
-    background-color: var(--bg-overlay);
-  }
-
-  .tab-btn.active {
-    color: var(--accent-primary);
-    border-bottom-color: var(--accent-primary);
-    background-color: var(--bg-overlay);
-  }
-
-  .tab-badge {
-    padding: 0.125rem 0.375rem;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    background-color: var(--accent-error);
-    color: white;
-    border-radius: 0.75rem;
   }
 
   .fnord-content {

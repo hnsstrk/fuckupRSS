@@ -624,10 +624,6 @@
     color: var(--text-primary);
   }
 
-  .icon-btn.active {
-    color: var(--accent-primary);
-  }
-
   .icon-btn:disabled {
     cursor: not-allowed;
     opacity: 0.5;
@@ -688,21 +684,6 @@
     gap: 0.5rem;
   }
 
-  .unread-badge {
-    background-color: var(--fnord-color);
-    color: var(--text-on-accent);
-    font-size: 0.75rem;
-    padding: 0.125rem 0.5rem;
-    border-radius: 9999px;
-    font-weight: 500;
-  }
-
-  .unread-badge.small {
-    padding: 0.125rem 0.375rem;
-    min-width: 1.25rem;
-    text-align: center;
-  }
-
   .delete-btn {
     opacity: 0;
     color: var(--text-muted);
@@ -724,14 +705,6 @@
   .feed-list {
     flex: 1;
     overflow-y: auto;
-  }
-
-  .section-header {
-    padding: 0.5rem 1rem;
-    font-size: 0.75rem;
-    color: var(--text-faint);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
   }
 
   .mode-toggle {
