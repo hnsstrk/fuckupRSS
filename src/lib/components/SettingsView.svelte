@@ -8,8 +8,8 @@
   import { setLocale, locale } from "../i18n";
   import { appState } from "../stores/state.svelte";
   import { onMount, onDestroy } from "svelte";
-  import { open } from "@tauri-apps/plugin-dialog";
-  import { readTextFile } from "@tauri-apps/plugin-fs";
+  import { open, save } from "@tauri-apps/plugin-dialog";
+  import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
   import type { OpmlFeedPreview, OpmlImportResult } from "../types";
 
   // Local state for form
@@ -126,6 +126,11 @@
   let opmlImporting = $state(false);
   let opmlResult = $state<OpmlImportResult | null>(null);
   let opmlError = $state<string | null>(null);
+
+  // OPML Export state
+  let opmlExporting = $state(false);
+  let opmlExportResult = $state<string | null>(null);
+  let opmlExportError = $state<string | null>(null);
 
   const localeOptions = [
     { value: "de", labelKey: "settings.languageGerman" },
@@ -783,6 +788,52 @@
     opmlResult = null;
     opmlError = null;
   }
+
+  // OPML Export handler
+  async function handleExportOpml() {
+    opmlExporting = true;
+    opmlExportResult = null;
+    opmlExportError = null;
+
+    try {
+      // Check if there are feeds to export
+      if (appState.pentacles.length === 0) {
+        opmlExportError = $_("settings.opml.noFeedsToExport");
+        opmlExporting = false;
+        return;
+      }
+
+      // Get OPML content from backend
+      const opmlContent = await invoke<string>("export_opml");
+
+      // Open save dialog
+      const filePath = await save({
+        filters: [
+          {
+            name: "OPML",
+            extensions: ["opml"],
+          },
+        ],
+        defaultPath: "fuckupRSS-feeds.opml",
+      });
+
+      if (!filePath) {
+        opmlExporting = false;
+        return;
+      }
+
+      // Write to file
+      await writeTextFile(filePath, opmlContent);
+
+      opmlExportResult = $_("settings.opml.exportSuccess", {
+        values: { count: appState.pentacles.length },
+      });
+    } catch (e) {
+      opmlExportError = String(e);
+    } finally {
+      opmlExporting = false;
+    }
+  }
 </script>
 
 <svelte:window onkeydown={handleKeyDown} />
@@ -1049,6 +1100,36 @@
               </span>
             </div>
           </div>
+        {/if}
+      </div>
+
+      <!-- OPML Export -->
+      <div class="opml-section opml-export">
+        <div class="export-row">
+          <div class="export-info">
+            <span class="export-label">{$_("settings.opml.export")}</span>
+            <p class="export-desc">{$_("settings.opml.exportDescription")}</p>
+          </div>
+          <button
+            type="button"
+            class="btn-action"
+            onclick={handleExportOpml}
+            disabled={opmlExporting || appState.pentacles.length === 0}
+          >
+            {#if opmlExporting}
+              {$_("settings.opml.exporting")}
+            {:else}
+              {$_("settings.opml.exportButton")}
+            {/if}
+          </button>
+        </div>
+
+        {#if opmlExportError}
+          <div class="opml-error">{opmlExportError}</div>
+        {/if}
+
+        {#if opmlExportResult}
+          <div class="opml-result">{opmlExportResult}</div>
         {/if}
       </div>
 
@@ -2749,6 +2830,35 @@
   }
 
   .opml-preview-info {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  /* OPML Export */
+  .opml-export {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-default);
+  }
+
+  .export-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .export-info {
+    flex: 1;
+  }
+
+  .export-label {
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .export-desc {
+    margin: 0.25rem 0 0 0;
     font-size: 0.75rem;
     color: var(--text-muted);
   }

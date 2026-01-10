@@ -152,7 +152,7 @@ Status: Geplant (nach Phase 3)
 
 Quelle: `fuckupRSS-Anforderungen.md` Phase 4, `README.md`
 
-### Import/Export
+### Import/Export ✅
 
 - [x] **OPML Import** ✅
   - Feed-Listen aus anderen Readern importieren
@@ -160,7 +160,9 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 4, `README.md`
   - Duplikaterkennung
   - Tauri Dialog für Dateiauswahl
 
-- [ ] **OPML Export**
+- [x] **OPML Export** ✅
+  - Export aller Feeds als OPML-Datei
+  - Save-Dialog für Dateispeicherort
   - Kompatibilität mit Feedly, Inoreader, etc.
 
 Quelle: `fuckupRSS-Anforderungen.md` Phase 4
@@ -247,6 +249,7 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 
 ### Phase 4: Polish (In Arbeit)
 - [x] OPML Import mit Preview und Duplikaterkennung
+- [x] OPML Export mit Save-Dialog
 
 ---
 
@@ -257,9 +260,9 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 ```
 1. OPML Import                 ───── ✅
 
-2. OPML Export                 <──── Nächster Schritt
+2. OPML Export                 ───── ✅
 
-3. Operation Mindfuck          <──── Offen
+3. Operation Mindfuck          <──── Nächster Schritt
 
 4. VSS-Optimierung             <──── Bei Bedarf (>10.000 Artikel)
 ```

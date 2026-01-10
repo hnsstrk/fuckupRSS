@@ -1,5 +1,5 @@
 use crate::AppState;
-use opml::{Outline, OPML};
+use opml::{Head, Outline, OPML};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -116,6 +116,57 @@ pub fn import_opml(
         skipped,
         errors,
     })
+}
+
+/// Export all feeds to OPML format
+#[tauri::command]
+pub fn export_opml(state: State<AppState>) -> Result<String, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Get all feeds from database
+    let feeds: Vec<(String, Option<String>, Option<String>)> = {
+        let mut stmt = db
+            .conn()
+            .prepare("SELECT url, title, site_url FROM pentacles ORDER BY title")
+            .map_err(|e| e.to_string())?;
+
+        let result: Vec<(String, Option<String>, Option<String>)> = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+        result
+    };
+
+    // Build OPML structure
+    let mut opml = OPML::default();
+    opml.version = "2.0".to_string();
+    opml.head = Some(Head {
+        title: Some("fuckupRSS Feeds".to_string()),
+        ..Head::default()
+    });
+
+    // Create outline for each feed
+    for (url, title, site_url) in feeds {
+        let display_title = title.clone().unwrap_or_else(|| url.clone());
+        let mut outline = Outline::default();
+        outline.text = display_title.clone();
+        outline.title = title;
+        outline.r#type = Some("rss".to_string());
+        outline.xml_url = Some(url);
+        outline.html_url = site_url;
+
+        opml.body.outlines.push(outline);
+    }
+
+    // Serialize to XML string
+    opml.to_string().map_err(|e| format!("OPML serialization error: {}", e))
 }
 
 /// Recursively collect feeds from OPML outlines
@@ -282,5 +333,62 @@ mod tests {
         assert_eq!(feeds.len(), 1);
         // Innermost category wins
         assert_eq!(feeds[0].category, Some("German".to_string()));
+    }
+
+    #[test]
+    fn test_generate_opml() {
+        // Test that we can generate valid OPML
+        let mut opml = OPML::default();
+        opml.version = "2.0".to_string();
+        opml.head = Some(Head {
+            title: Some("Test Feeds".to_string()),
+            ..Head::default()
+        });
+
+        let mut outline = Outline::default();
+        outline.text = "Test Feed".to_string();
+        outline.title = Some("Test Feed".to_string());
+        outline.r#type = Some("rss".to_string());
+        outline.xml_url = Some("https://example.com/feed.xml".to_string());
+        outline.html_url = Some("https://example.com".to_string());
+        opml.body.outlines.push(outline);
+
+        let xml = opml.to_string().unwrap();
+        assert!(xml.contains("Test Feed"));
+        assert!(xml.contains("https://example.com/feed.xml"));
+        assert!(xml.contains("version=\"2.0\""));
+    }
+
+    #[test]
+    fn test_roundtrip_opml() {
+        // Generate OPML
+        let mut opml = OPML::default();
+        opml.version = "2.0".to_string();
+        opml.head = Some(Head {
+            title: Some("Roundtrip Test".to_string()),
+            ..Head::default()
+        });
+
+        let mut outline = Outline::default();
+        outline.text = "Ars Technica".to_string();
+        outline.title = Some("Ars Technica".to_string());
+        outline.r#type = Some("rss".to_string());
+        outline.xml_url = Some("https://feeds.arstechnica.com/arstechnica/index".to_string());
+        outline.html_url = Some("https://arstechnica.com".to_string());
+        opml.body.outlines.push(outline);
+
+        let xml = opml.to_string().unwrap();
+
+        // Parse it back
+        let parsed = OPML::from_str(&xml).unwrap();
+        assert_eq!(parsed.body.outlines.len(), 1);
+        assert_eq!(
+            parsed.body.outlines[0].xml_url,
+            Some("https://feeds.arstechnica.com/arstechnica/index".to_string())
+        );
+        assert_eq!(
+            parsed.body.outlines[0].title,
+            Some("Ars Technica".to_string())
+        );
     }
 }

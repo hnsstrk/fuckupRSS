@@ -179,6 +179,7 @@ pub fn run() {
             // OPML Import/Export
             commands::opml::parse_opml_preview,
             commands::opml::import_opml,
+            commands::opml::export_opml,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
