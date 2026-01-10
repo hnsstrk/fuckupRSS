@@ -12,35 +12,47 @@ Zentrale Aufgabenliste für fuckupRSS. Diese Datei konsolidiert alle offenen Tas
 
 **Problem:** Mit `ministral-3:latest` (8.9B Parameter) und `OLLAMA_NUM_PARALLEL=4` werden ~9.3 GB VRAM belegt. Das lässt keinen Platz für das zweite Modell `snowflake-arctic-embed2`.
 
-**Analyse:**
+#### Benchmark-Ergebnisse (2026-01-10)
 
-| Modell | Parameter | Disk | VRAM (NUM_PARALLEL=4) |
-|--------|-----------|------|----------------------|
-| ministral-3:latest | 8.9B | 6.0 GB | ~9-10 GB |
-| ministral-3:3b | 3B | 3.0 GB | ~4-5 GB |
-| snowflake-arctic-embed2 | - | 1.2 GB | ~0.7 GB |
+**Getestete Modelle:**
 
-**Beobachtung:** `ollama ps` zeigt:
-```
-ministral-3:latest  size_vram: 10017202816 (~9.3 GB)
-context_length: 8192
-```
+| Modell | Parameter | Disk | Quantization |
+|--------|-----------|------|--------------|
+| ministral-3:3b | 3.8B | 3.0 GB | Q4_K_M |
+| ministral-3:latest | 8.9B | 6.0 GB | Q4_K_M |
+| qwen3-vl:8b | 8.8B | 6.1 GB | Q4_K_M |
 
-Der hohe VRAM-Verbrauch kommt vom **KV-Cache** für parallele Anfragen.
+**Entscheidende Entdeckung: Context-Length-Optimierung**
 
-**Optionen:**
+Das ministral-3:latest Modell hat `num_ctx=32768` als Default. Das erklärt den hohen VRAM-Verbrauch.
 
-| Konfiguration | VRAM | Parallelisierung | Qualität |
-|---------------|------|------------------|----------|
-| 8.9B + NUM_PARALLEL=2 | ~8-9 GB | 2 gleichzeitig | Besser |
-| 3B + NUM_PARALLEL=4 | ~5-6 GB | 4 gleichzeitig | Ausreichend |
+| num_ctx | VRAM | GPU% | Zeit (warm) |
+|---------|------|------|-------------|
+| 32768 (Default) | 9.5 GB | 100% | ~22s |
+| 8192 | 11 GB | 84% | ~6.5s |
+| **4096** | **9.5 GB** | **100%** | **~1.5s** |
 
-**Empfehlung:**
-- **12 GB GPU (RTX 3080 Ti):** `OLLAMA_NUM_PARALLEL=2` mit 8.9B ODER `NUM_PARALLEL=4` mit 3B
-- **16+ GB GPU:** `OLLAMA_NUM_PARALLEL=4` mit 8.9B problemlos möglich
-- **8 GB GPU:** `ministral-3:3b` + `NUM_PARALLEL=2`
+**fuckupRSS-Code aktualisiert:** `num_ctx: 4096` in `src-tauri/src/ollama/mod.rs`
 
-**Status:** Benutzer wählt Modell in Settings, Hardware-Profile dokumentiert.
+→ 4K Context ist ausreichend (Content wird auf 6000 Zeichen gekürzt = ~1500 Tokens)
+
+#### Qualitätsvergleich
+
+| Modell | JSON-Zuverlässigkeit | Summary-Qualität | Gesamt |
+|--------|---------------------|------------------|--------|
+| ministral-3:3b | ⚠️ 2/3 | Gut | ⭐⭐⭐ |
+| ministral-3:latest | ✅ 3/3 | Sehr gut | ⭐⭐⭐⭐⭐ |
+| qwen3-vl:8b | ✅ 3/3 | Gut | ⭐⭐⭐⭐ |
+
+#### Empfehlung nach Hardware
+
+| GPU | Modell | num_ctx | NUM_PARALLEL | Erwartete Leistung |
+|-----|--------|---------|--------------|-------------------|
+| **12 GB** | ministral-3:latest | 4096 | 2-4 | ~1.5s/Artikel, Platz für Embedding-Modell |
+| 16+ GB | ministral-3:latest | 4096 | 4-8 | ~1.5s/Artikel, sehr hoher Durchsatz |
+| 8 GB | ministral-3:3b | 4096 | 2-4 | ~1s/Artikel, evtl. Qualitätseinbußen |
+
+**Status:** ✅ Optimierung implementiert (`num_ctx: 4096`)
 
 ---
 

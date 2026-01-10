@@ -442,7 +442,7 @@ Content: {}"#,
             stream: false,
             format,
             options: GenerateOptions {
-                num_ctx: 8192, // 8K context is enough for article analysis
+                num_ctx: 4096, // 4K context: 100% GPU, 15x faster than 32K default
             },
         };
 
