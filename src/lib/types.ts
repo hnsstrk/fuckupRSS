@@ -282,6 +282,21 @@ export interface NetworkGraph {
 
 export type MainView = 'articles' | 'network' | 'fnord';
 
+// OPML Import/Export
+export interface OpmlFeedPreview {
+  url: string;
+  title: string | null;
+  category: string | null;
+  already_exists: boolean;
+}
+
+export interface OpmlImportResult {
+  total_feeds: number;
+  imported: number;
+  skipped: number;
+  errors: string[];
+}
+
 // Similar Articles (Phase 3)
 export interface SimilarArticle {
   fnord_id: number;

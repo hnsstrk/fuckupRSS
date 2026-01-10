@@ -41,6 +41,8 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             info!("fuckupRSS starting up...");
             // Initialize database
@@ -174,6 +176,9 @@ pub fn run() {
             commands::embedding::queue_missing_embeddings,
             commands::embedding::get_embedding_queue_details,
             commands::embedding::calculate_neighbor_similarities,
+            // OPML Import/Export
+            commands::opml::parse_opml_preview,
+            commands::opml::import_opml,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

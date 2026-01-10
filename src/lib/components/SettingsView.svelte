@@ -8,6 +8,9 @@
   import { setLocale, locale } from "../i18n";
   import { appState } from "../stores/state.svelte";
   import { onMount, onDestroy } from "svelte";
+  import { open } from "@tauri-apps/plugin-dialog";
+  import { readTextFile } from "@tauri-apps/plugin-fs";
+  import type { OpmlFeedPreview, OpmlImportResult } from "../types";
 
   // Local state for form
   let selectedLocale = $state("de");
@@ -116,6 +119,13 @@
   let reanalyzeRunning = $state(false);
   let reanalyzeResult = $state<BatchResult | null>(null);
   let progressUnlisten: UnlistenFn | null = null;
+
+  // OPML Import state
+  let opmlPreview = $state<OpmlFeedPreview[]>([]);
+  let opmlContent = $state<string | null>(null);
+  let opmlImporting = $state(false);
+  let opmlResult = $state<OpmlImportResult | null>(null);
+  let opmlError = $state<string | null>(null);
 
   const localeOptions = [
     { value: "de", labelKey: "settings.languageGerman" },
@@ -710,6 +720,69 @@
       maintenanceResult = `Error: ${e}`;
     }
   }
+
+  // OPML Import handlers
+  async function handleSelectOpmlFile() {
+    opmlError = null;
+    opmlResult = null;
+    opmlPreview = [];
+    opmlContent = null;
+
+    try {
+      const filePath = await open({
+        multiple: false,
+        filters: [
+          {
+            name: "OPML",
+            extensions: ["opml", "xml"],
+          },
+        ],
+      });
+
+      if (!filePath) return;
+
+      const content = await readTextFile(filePath as string);
+      opmlContent = content;
+      const preview = await invoke<OpmlFeedPreview[]>("parse_opml_preview", {
+        content,
+      });
+      opmlPreview = preview;
+    } catch (e) {
+      opmlError = String(e);
+    }
+  }
+
+  async function handleImportOpml() {
+    if (opmlPreview.length === 0 || !opmlContent) return;
+
+    opmlImporting = true;
+    opmlError = null;
+
+    try {
+      const result = await invoke<OpmlImportResult>("import_opml", {
+        content: opmlContent,
+        skipExisting: true,
+      });
+
+      opmlResult = result;
+      opmlPreview = [];
+      opmlContent = null;
+
+      // Refresh pentacles list
+      await appState.loadPentacles();
+    } catch (e) {
+      opmlError = String(e);
+    } finally {
+      opmlImporting = false;
+    }
+  }
+
+  function handleClearOpmlPreview() {
+    opmlPreview = [];
+    opmlContent = null;
+    opmlResult = null;
+    opmlError = null;
+  }
 </script>
 
 <svelte:window onkeydown={handleKeyDown} />
@@ -875,6 +948,108 @@
         <p class="setting-description">
           {$_("settings.sync.onStartDescription")}
         </p>
+      </div>
+
+      <!-- OPML Import -->
+      <div class="setting-group">
+        <span class="label">{$_("settings.opml.title")}</span>
+        <p class="setting-description">{$_("settings.opml.description")}</p>
+      </div>
+
+      <div class="opml-section">
+        <button
+          type="button"
+          class="btn-action"
+          onclick={handleSelectOpmlFile}
+          disabled={opmlImporting}
+        >
+          {$_("settings.opml.selectFile")}
+        </button>
+
+        {#if opmlError}
+          <div class="opml-error">{opmlError}</div>
+        {/if}
+
+        {#if opmlResult}
+          <div class="opml-result">
+            <p>
+              {$_("settings.opml.importResult", {
+                values: {
+                  imported: opmlResult.imported,
+                  skipped: opmlResult.skipped,
+                  total: opmlResult.total_feeds,
+                },
+              })}
+            </p>
+            {#if opmlResult.errors.length > 0}
+              <div class="opml-errors">
+                {#each opmlResult.errors as error}
+                  <div class="opml-error-item">{error}</div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
+
+        {#if opmlPreview.length > 0}
+          <div class="opml-preview">
+            <div class="opml-preview-header">
+              <span>
+                {$_("settings.opml.feedsFound", {
+                  values: { count: opmlPreview.length },
+                })}
+              </span>
+              <button
+                type="button"
+                class="btn-small"
+                onclick={handleClearOpmlPreview}
+              >
+                {$_("settings.opml.clear")}
+              </button>
+            </div>
+            <div class="opml-feed-list">
+              {#each opmlPreview as feed}
+                <div class="opml-feed-item" class:exists={feed.already_exists}>
+                  <div class="opml-feed-info">
+                    <span class="opml-feed-title">
+                      {feed.title || feed.url}
+                    </span>
+                    {#if feed.category}
+                      <span class="opml-feed-category">{feed.category}</span>
+                    {/if}
+                  </div>
+                  {#if feed.already_exists}
+                    <span class="opml-feed-exists">
+                      {$_("settings.opml.alreadyExists")}
+                    </span>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+            <div class="opml-preview-actions">
+              <button
+                type="button"
+                class="btn-action"
+                onclick={handleImportOpml}
+                disabled={opmlImporting ||
+                  opmlPreview.every((f) => f.already_exists)}
+              >
+                {#if opmlImporting}
+                  {$_("settings.opml.importing")}
+                {:else}
+                  {$_("settings.opml.import")}
+                {/if}
+              </button>
+              <span class="opml-preview-info">
+                {$_("settings.opml.newFeeds", {
+                  values: {
+                    count: opmlPreview.filter((f) => !f.already_exists).length,
+                  },
+                })}
+              </span>
+            </div>
+          </div>
+        {/if}
       </div>
 
       <!-- Log Level (Dev Mode) -->
@@ -2439,6 +2614,142 @@
 
   .log-level-badge.trace {
     background-color: rgba(108, 112, 134, 0.2);
+    color: var(--text-muted);
+  }
+
+  /* OPML Import */
+  .opml-section {
+    max-width: 600px;
+    margin-bottom: 1.5rem;
+  }
+
+  .opml-error {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background-color: rgba(243, 139, 168, 0.1);
+    border-radius: 0.375rem;
+    color: var(--status-error);
+    font-size: 0.875rem;
+  }
+
+  .opml-result {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background-color: rgba(166, 227, 161, 0.1);
+    border-radius: 0.375rem;
+    color: var(--status-success);
+    font-size: 0.875rem;
+  }
+
+  .opml-result p {
+    margin: 0;
+  }
+
+  .opml-errors {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(243, 139, 168, 0.2);
+  }
+
+  .opml-error-item {
+    font-size: 0.75rem;
+    color: var(--status-error);
+    margin-top: 0.25rem;
+  }
+
+  .opml-preview {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-default);
+  }
+
+  .opml-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .btn-small {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--text-muted);
+    border-radius: 0.25rem;
+    background: none;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-small:hover {
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+  }
+
+  .opml-feed-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 0.75rem;
+  }
+
+  .opml-feed-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.375rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  .opml-feed-item:hover {
+    background-color: var(--bg-muted);
+  }
+
+  .opml-feed-item.exists {
+    opacity: 0.6;
+  }
+
+  .opml-feed-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .opml-feed-title {
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .opml-feed-category {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .opml-feed-exists {
+    font-size: 0.75rem;
+    color: var(--status-warning);
+    white-space: nowrap;
+    margin-left: 0.5rem;
+  }
+
+  .opml-preview-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-default);
+  }
+
+  .opml-preview-info {
+    font-size: 0.75rem;
     color: var(--text-muted);
   }
 </style>

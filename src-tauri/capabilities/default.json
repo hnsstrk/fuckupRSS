@@ -7,6 +7,9 @@
     "core:default",
     "core:event:default",
     "core:event:allow-listen",
-    "core:event:allow-emit"
+    "core:event:allow-emit",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-read-text-file"
   ]
 }

@@ -154,24 +154,14 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 4, `README.md`
 
 ### Import/Export
 
-- [ ] **OPML Import**
-  - Feed-Listen aus anderen Readern
-  - Kategorien-Mapping auf Sephiroth
+- [x] **OPML Import** ✅
+  - Feed-Listen aus anderen Readern importieren
+  - Preview der zu importierenden Feeds
+  - Duplikaterkennung
+  - Tauri Dialog für Dateiauswahl
 
 - [ ] **OPML Export**
   - Kompatibilität mit Feedly, Inoreader, etc.
-
-Quelle: `fuckupRSS-Anforderungen.md` Phase 4
-
-### UX-Verbesserungen
-
-- [ ] **Erweiterte Keyboard-Shortcuts (Vim-Style)**
-  - Navigation: j/k, gg/G, Ctrl+d/u
-  - Aktionen: m (mark read), s (star), o (open)
-
-- [ ] **Desktop-Notifications**
-  - Tauri Notification API
-  - Konfigurierbar: Global, pro Feed, pro Kategorie
 
 Quelle: `fuckupRSS-Anforderungen.md` Phase 4
 
@@ -255,22 +245,23 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 - [x] `semantic_search` Command
 - [x] Semantische Suche UI in Sidebar
 
+### Phase 4: Polish (In Arbeit)
+- [x] OPML Import mit Preview und Duplikaterkennung
+
 ---
 
 ## Quick Reference: Nächste Schritte
 
-**Phase 3 abgeschlossen!**
+**Phase 4 in Arbeit!**
 
 ```
-1. fnords.embedding Spalte     ───── ✅
+1. OPML Import                 ───── ✅
 
-2. Embedding bei Analyse       ───── ✅
+2. OPML Export                 <──── Nächster Schritt
 
-3. find_similar_articles       ───── ✅
+3. Operation Mindfuck          <──── Offen
 
-4. Semantische Suche           ───── ✅
-
-5. VSS-Optimierung             <──── Bei Bedarf (>10.000 Artikel)
+4. VSS-Optimierung             <──── Bei Bedarf (>10.000 Artikel)
 ```
 
 ---

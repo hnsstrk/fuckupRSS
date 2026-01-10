@@ -3,12 +3,13 @@ pub mod embedding;
 pub mod fnords;
 pub mod immanentize;
 pub mod ollama;
+pub mod opml;
 pub mod pentacles;
+pub mod profiles;
 pub mod retrieval;
 pub mod settings;
 pub mod sync;
 pub mod tags;
-pub mod profiles;
 
 #[cfg(test)]
 mod tests;

@@ -120,6 +120,23 @@
       "reset": "Auf Standard zurücksetzen",
       "resetSuccess": "Prompts zurückgesetzt"
     },
+    "opml": {
+      "title": "OPML Import/Export",
+      "import": "OPML importieren",
+      "importDescription": "Importiere Feeds aus einer OPML-Datei",
+      "selectFile": "Datei auswählen",
+      "importing": "Importiere...",
+      "preview": "Vorschau",
+      "feedsFound": "{count} Feeds gefunden",
+      "newFeeds": "{count} neue Feeds",
+      "existingFeeds": "{count} bereits vorhanden",
+      "skipExisting": "Vorhandene überspringen",
+      "importSelected": "Importieren",
+      "importSuccess": "{imported} Feeds importiert, {skipped} übersprungen",
+      "importError": "Import fehlgeschlagen: {error}",
+      "noFeeds": "Keine Feeds in der OPML-Datei gefunden",
+      "category": "Kategorie"
+    },
     "maintenance": {
       "title": "Wartung",
       "keywordQuality": "Keyword-Qualität",
