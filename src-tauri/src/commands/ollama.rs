@@ -1452,6 +1452,9 @@ pub struct ResetForReprocessingResult {
     pub reset_count: i64,
 }
 
+/// Reset articles for reprocessing.
+/// This clears processed_at, analysis_hopeless, analysis_attempts, and analysis_error
+/// so that ALL articles can be re-analyzed, including previously failed ones.
 #[tauri::command]
 pub fn reset_articles_for_reprocessing(
     state: State<AppState>,
@@ -1460,14 +1463,24 @@ pub fn reset_articles_for_reprocessing(
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let only_with_content = only_with_content.unwrap_or(true);
 
+    // Reset all analysis-related fields so articles can be fully re-analyzed
     let sql = if only_with_content {
-        r#"UPDATE fnords SET processed_at = NULL
+        r#"UPDATE fnords SET
+           processed_at = NULL,
+           analysis_hopeless = FALSE,
+           analysis_attempts = 0,
+           analysis_error = NULL
            WHERE content_full IS NOT NULL AND content_full != ''"#
     } else {
-        "UPDATE fnords SET processed_at = NULL"
+        r#"UPDATE fnords SET
+           processed_at = NULL,
+           analysis_hopeless = FALSE,
+           analysis_attempts = 0,
+           analysis_error = NULL"#
     };
 
     let reset_count = db.conn().execute(sql, []).map_err(|e| e.to_string())? as i64;
+    info!("Reset {} articles for reprocessing (hopeless flags cleared)", reset_count);
 
     Ok(ResetForReprocessingResult { reset_count })
 }

@@ -37,6 +37,9 @@ pub enum OllamaError {
 #[derive(Serialize)]
 struct GenerateOptions {
     num_ctx: u32,
+    /// Maximum number of tokens to generate (output)
+    /// -1 = infinite, 128 = default, we use 2048 for JSON analysis
+    num_predict: i32,
 }
 
 #[derive(Serialize)]
@@ -52,6 +55,9 @@ struct GenerateRequest {
 #[derive(Deserialize)]
 struct GenerateResponse {
     response: String,
+    /// Whether generation completed successfully
+    #[serde(default)]
+    done: bool,
 }
 
 #[derive(Deserialize)]
@@ -456,6 +462,9 @@ Content: {}"#,
             format,
             options: GenerateOptions {
                 num_ctx: self.num_ctx,
+                // Ensure enough output tokens for JSON analysis
+                // Default is 128 which is too small for structured output
+                num_predict: 2048,
             },
         };
 
@@ -485,6 +494,11 @@ Content: {}"#,
 
         let result: GenerateResponse = serde_json::from_slice(&bytes)
             .map_err(|e| OllamaError::GenerationFailed(e.to_string()))?;
+
+        // Warn if generation was incomplete (output truncated)
+        if !result.done {
+            warn!("Generation incomplete (done=false) - response may be truncated");
+        }
 
         Ok(result.response)
     }
