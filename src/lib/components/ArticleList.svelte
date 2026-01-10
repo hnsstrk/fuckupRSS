@@ -50,16 +50,6 @@
     }
   }
 
-  function getArticleTypeIcon(type: string | null): string {
-    switch (type) {
-      case "news": return "📰";
-      case "analysis": return "🔍";
-      case "opinion": return "💭";
-      case "satire": return "🎭";
-      case "ad": return "📢";
-      default: return "❓";
-    }
-  }
 
   function getBiasIndicator(bias: number): string {
     switch (bias) {
@@ -136,7 +126,7 @@
               <span class="separator">·</span>
               <span>{formatDate(fnord.published_at)}</span>
             </div>
-            {#if fnord.article_type || fnord.quality_score || fnord.categories.length > 0 || fnord.revision_count > 0}
+            {#if fnord.quality_score || fnord.categories.length > 0 || fnord.revision_count > 0}
               <div class="article-indicators">
                 {#if fnord.categories.length > 0}
                   <span class="category-dots" title={fnord.categories.map(c => c.name).join(', ')}>
@@ -149,9 +139,6 @@
                   <span class="revision-count" title="{$_('articleView.changes.revisions')}: {fnord.revision_count}">
                     ✎{fnord.revision_count}
                   </span>
-                {/if}
-                {#if fnord.article_type}
-                  <span title={$_(`articleType.${fnord.article_type}`)}>{getArticleTypeIcon(fnord.article_type)}</span>
                 {/if}
                 {#if fnord.quality_score}
                   <span class="quality" title={$_('articleView.greyface.quality')}>

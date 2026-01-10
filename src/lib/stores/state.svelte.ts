@@ -503,7 +503,6 @@ class AppState {
         if (fnord) {
           fnord.political_bias = result.analysis.political_bias;
           fnord.sachlichkeit = result.analysis.sachlichkeit;
-          fnord.article_type = result.analysis.article_type;
         }
       }
 
@@ -736,7 +735,6 @@ class AppState {
           fnord.summary = result.analysis.summary;
           fnord.political_bias = result.analysis.political_bias;
           fnord.sachlichkeit = result.analysis.sachlichkeit;
-          fnord.article_type = result.analysis.article_type;
           fnord.processed_at = new Date().toISOString();
         }
       }

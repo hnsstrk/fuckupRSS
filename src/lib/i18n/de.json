@@ -32,7 +32,6 @@
     "aiAnalysis": "KI-Analyse",
     "analyze": "Analysieren",
     "reanalyze": "Neu analysieren",
-    "articleType": "Artikeltyp",
     "categories": "Kategorien",
     "keywords": "Stichworte",
     "unknown": "Unbekannt",
@@ -66,13 +65,6 @@
     "concealed": "Ungelesen",
     "illuminated": "Gelesen",
     "golden_apple": "Favorit"
-  },
-  "articleType": {
-    "news": "Nachricht",
-    "opinion": "Meinung",
-    "analysis": "Analyse",
-    "satire": "Satire",
-    "other": "Sonstiges"
   },
   "settings": {
     "title": "Einstellungen",

@@ -32,7 +32,6 @@
     "aiAnalysis": "AI Analysis",
     "analyze": "Analyze",
     "reanalyze": "Re-analyze",
-    "articleType": "Article Type",
     "categories": "Categories",
     "keywords": "Keywords",
     "unknown": "Unknown",
@@ -66,13 +65,6 @@
     "concealed": "Unread",
     "illuminated": "Read",
     "golden_apple": "Favorite"
-  },
-  "articleType": {
-    "news": "News",
-    "opinion": "Opinion",
-    "analysis": "Analysis",
-    "satire": "Satire",
-    "other": "Other"
   },
   "settings": {
     "title": "Settings",

@@ -40,7 +40,6 @@ export interface Fnord {
   political_bias: number | null;
   sachlichkeit: number | null;
   quality_score: number | null;
-  article_type: string | null;
   has_changes: boolean;
   changed_at: string | null;
   revision_count: number;
@@ -131,7 +130,6 @@ export interface SummaryResponse {
 export interface BiasAnalysis {
   political_bias: number;
   sachlichkeit: number;
-  article_type: string;
 }
 
 export interface AnalysisResponse {
@@ -207,7 +205,6 @@ export interface DiscordianAnalysis {
   keywords: string[];
   political_bias: number;
   sachlichkeit: number;
-  article_type: string;
 }
 
 export interface DiscordianResponse {

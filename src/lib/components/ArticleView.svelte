@@ -95,11 +95,6 @@
     });
   }
 
-  function getArticleTypeName(type: string | null): string {
-    if (!type) return $_('articleView.unknown');
-    return $_(`articleType.${type}`);
-  }
-
   function getBiasLabel(bias: number | null): string {
     if (bias === null) return $_('articleView.notRated');
     switch (bias) {
@@ -269,19 +264,13 @@
     {/if}
 
     <!-- Greyface Alert -->
-    {#if fnord.political_bias !== null || fnord.sachlichkeit !== null || fnord.article_type}
+    {#if fnord.political_bias !== null || fnord.sachlichkeit !== null}
       <div class="greyface-section">
         <div class="section-content">
           <div class="section-header">
             <Tooltip termKey="greyface">{$_('articleView.greyface.title')}</Tooltip>
           </div>
           <div class="greyface-grid">
-            {#if fnord.article_type}
-              <div class="greyface-item">
-                <div class="item-label">{$_('articleView.articleType')}</div>
-                <div class="item-value">{getArticleTypeName(fnord.article_type)}</div>
-              </div>
-            {/if}
             {#if fnord.political_bias !== null}
               <div class="greyface-item">
                 <div class="item-label">{$_('articleView.greyface.bias')}</div>
