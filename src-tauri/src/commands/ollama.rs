@@ -1,4 +1,6 @@
+use crate::commands::settings::get_embedding_model_from_db;
 use crate::embedding_worker;
+use crate::embeddings::embedding_to_blob;
 use crate::ollama::{
     BiasAnalysis, DiscordianAnalysis, OllamaClient, OllamaError, DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
     RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale, DEFAULT_NUM_CTX,
@@ -6,7 +8,7 @@ use crate::ollama::{
 use crate::db::Database;
 use crate::{extract_keywords, classify_by_keywords, normalize_keyword, find_canonical_keyword, SEPHIROTH_CATEGORIES};
 use crate::AppState;
-use log::info;
+use log::{debug, info, warn};
 use std::sync::atomic::Ordering;
 use tauri::{Emitter, Manager, State, Window};
 use futures::{stream, StreamExt};
@@ -307,6 +309,76 @@ fn recalculate_keyword_weights(conn: &rusqlite::Connection, tag_ids: &[i64]) {
         [serde_json::to_string(&tag_ids).unwrap_or_default()],
     )
     .ok();
+}
+
+// ============================================================
+// ARTICLE EMBEDDING FUNCTIONS (Phase 3)
+// ============================================================
+
+/// Save an article embedding to the database (fnords.embedding + vec_fnords)
+fn save_article_embedding(
+    conn: &rusqlite::Connection,
+    fnord_id: i64,
+    embedding: &[f32],
+) -> Result<(), String> {
+    let blob = embedding_to_blob(embedding);
+
+    // Update the article with embedding
+    conn.execute(
+        "UPDATE fnords SET embedding = ?1, embedding_at = datetime('now') WHERE id = ?2",
+        rusqlite::params![blob, fnord_id],
+    )
+    .map_err(|e| format!("Failed to save article embedding: {}", e))?;
+
+    // Insert into vec0 virtual table for fast similarity search
+    // Use REPLACE to handle re-embeddings
+    conn.execute(
+        "INSERT OR REPLACE INTO vec_fnords (fnord_id, embedding) VALUES (?1, ?2)",
+        rusqlite::params![fnord_id, blob],
+    )
+    .map_err(|e| {
+        warn!("Failed to update vec_fnords: {}", e);
+        e.to_string()
+    })
+    .ok();
+
+    Ok(())
+}
+
+/// Generate and save embedding for an article
+/// Uses title + first ~500 chars of content for embedding
+async fn generate_and_save_article_embedding(
+    client: &OllamaClient,
+    db: &std::sync::Arc<std::sync::Mutex<Database>>,
+    fnord_id: i64,
+    title: &str,
+    content: &str,
+) -> Result<(), String> {
+    // Get embedding model from settings
+    let model = {
+        let db_guard = db.lock().map_err(|e| e.to_string())?;
+        get_embedding_model_from_db(db_guard.conn())
+    };
+
+    // Create embedding text: title + truncated content
+    // Use first ~500 chars of content for a compact but representative embedding
+    let content_preview: String = content.chars().take(500).collect();
+    let embedding_text = format!("{}\n\n{}", title, content_preview);
+
+    // Generate embedding
+    let embedding = client
+        .generate_embedding(&model, &embedding_text)
+        .await
+        .map_err(|e| format!("Embedding generation failed: {}", e))?;
+
+    // Save to database
+    {
+        let db_guard = db.lock().map_err(|e| e.to_string())?;
+        save_article_embedding(db_guard.conn(), fnord_id, &embedding)?;
+    }
+
+    debug!("Generated embedding for article {}", fnord_id);
+    Ok(())
 }
 
 fn merge_keywords(llm_keywords: &[String], local_keywords: Vec<String>, max_count: usize) -> Vec<String> {
@@ -852,38 +924,56 @@ pub async fn process_article_discordian(
 
     match client.discordian_analysis(&model, &title, &content, &locale).await {
         Ok(analysis) => {
-            let db = state.db.lock().map_err(|e| e.to_string())?;
+            {
+                let db = state.db.lock().map_err(|e| e.to_string())?;
 
-            db.conn()
-                .execute(
-                    r#"UPDATE fnords SET
-                        summary = ?1,
-                        political_bias = ?2,
-                        sachlichkeit = ?3,
-                        processed_at = CURRENT_TIMESTAMP
-                    WHERE id = ?4"#,
-                    (
-                        &analysis.summary,
-                        analysis.political_bias,
-                        analysis.sachlichkeit,
-                        fnord_id,
-                    ),
-                )
-                .map_err(|e| e.to_string())?;
+                db.conn()
+                    .execute(
+                        r#"UPDATE fnords SET
+                            summary = ?1,
+                            political_bias = ?2,
+                            sachlichkeit = ?3,
+                            processed_at = CURRENT_TIMESTAMP
+                        WHERE id = ?4"#,
+                        (
+                            &analysis.summary,
+                            analysis.political_bias,
+                            analysis.sachlichkeit,
+                            fnord_id,
+                        ),
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
 
-            let merged_categories = validate_and_merge_categories(&analysis.categories, local_categories);
-            let categories_saved = save_article_categories(db.conn(), fnord_id, &merged_categories);
+            let (categories_saved, tags_saved) = {
+                let db = state.db.lock().map_err(|e| e.to_string())?;
+                let merged_categories = validate_and_merge_categories(&analysis.categories, local_categories);
+                let categories_saved = save_article_categories(db.conn(), fnord_id, &merged_categories);
 
-            let merged_keywords = merge_keywords(&analysis.keywords, local_keywords, 15);
-            let (tags_saved, tag_ids) = save_article_keywords_and_network(
-                db.conn(),
+                let merged_keywords = merge_keywords(&analysis.keywords, local_keywords, 15);
+                let (tags_saved, tag_ids) = save_article_keywords_and_network(
+                    db.conn(),
+                    fnord_id,
+                    &merged_keywords,
+                    &categories_saved,
+                    article_date.as_deref(),
+                );
+
+                recalculate_keyword_weights(db.conn(), &tag_ids);
+                (categories_saved, tags_saved)
+            };
+
+            // Generate article embedding (async, after DB lock is released)
+            if let Err(e) = generate_and_save_article_embedding(
+                &client,
+                &state.db,
                 fnord_id,
-                &merged_keywords,
-                &categories_saved,
-                article_date.as_deref(),
-            );
-
-            recalculate_keyword_weights(db.conn(), &tag_ids);
+                &title,
+                &content,
+            ).await {
+                warn!("Failed to generate embedding for article {}: {}", fnord_id, e);
+                // Don't fail the whole operation - embedding is optional
+            }
 
             Ok(DiscordianResponse {
                 fnord_id,
@@ -1054,57 +1144,74 @@ async fn process_single_article(
     article: BatchArticle,
 ) -> (bool, Option<String>) {
     let fnord_id = article.fnord_id;
+    let title = article.title.clone();
+    let content = article.content.clone();
 
-    if article.content.is_empty() {
+    if content.is_empty() {
         return (false, Some("No content".to_string()));
     }
 
-    let local_keywords = extract_keywords(&article.title, &article.content, 10);
+    let local_keywords = extract_keywords(&title, &content, 10);
     let local_categories = classify_by_keywords(&local_keywords);
 
     let analysis_result = client
-        .discordian_analysis_with_retry(model, &article.title, &article.content, locale, article.previous_error.as_deref())
+        .discordian_analysis_with_retry(model, &title, &content, locale, article.previous_error.as_deref())
         .await;
 
     match analysis_result {
         Ok(analysis) => {
-            let db = match state.db.lock() {
-                Ok(db) => db,
-                Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
-            };
+            // Save analysis to DB (hold lock briefly)
+            {
+                let db = match state.db.lock() {
+                    Ok(db) => db,
+                    Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
+                };
 
-            let update_result = db.conn().execute(
-                r#"UPDATE fnords SET
-                    summary = ?1,
-                    political_bias = ?2,
-                    sachlichkeit = ?3,
-                    processed_at = CURRENT_TIMESTAMP,
-                    analysis_attempts = 0,
-                    analysis_error = NULL
-                WHERE id = ?4"#,
-                (
-                    &analysis.summary,
-                    analysis.political_bias,
-                    analysis.sachlichkeit,
+                let update_result = db.conn().execute(
+                    r#"UPDATE fnords SET
+                        summary = ?1,
+                        political_bias = ?2,
+                        sachlichkeit = ?3,
+                        processed_at = CURRENT_TIMESTAMP,
+                        analysis_attempts = 0,
+                        analysis_error = NULL
+                    WHERE id = ?4"#,
+                    (
+                        &analysis.summary,
+                        analysis.political_bias,
+                        analysis.sachlichkeit,
+                        fnord_id,
+                    ),
+                );
+
+                if let Err(e) = update_result {
+                    return (false, Some(format!("DB update failed: {}", e)));
+                }
+
+                let merged_categories = validate_and_merge_categories(&analysis.categories, local_categories);
+                let categories_saved = save_article_categories(db.conn(), fnord_id, &merged_categories);
+
+                let merged_keywords = merge_keywords(&analysis.keywords, local_keywords, 15);
+                let (_tags_saved, _tag_ids) = save_article_keywords_and_network(
+                    db.conn(),
                     fnord_id,
-                ),
-            );
-
-            if let Err(e) = update_result {
-                return (false, Some(format!("DB update failed: {}", e)));
+                    &merged_keywords,
+                    &categories_saved,
+                    article.article_date.as_deref(),
+                );
             }
 
-            let merged_categories = validate_and_merge_categories(&analysis.categories, local_categories);
-            let categories_saved = save_article_categories(db.conn(), fnord_id, &merged_categories);
-
-            let merged_keywords = merge_keywords(&analysis.keywords, local_keywords, 15);
-            let (_tags_saved, _tag_ids) = save_article_keywords_and_network(
-                db.conn(),
+            // Generate article embedding (async, after DB lock is released)
+            if let Err(e) = generate_and_save_article_embedding(
+                client,
+                &state.db,
                 fnord_id,
-                &merged_keywords,
-                &categories_saved,
-                article.article_date.as_deref(),
-            );
+                &title,
+                &content,
+            ).await {
+                // Log warning but don't fail - embedding is optional
+                debug!("Failed to generate embedding for article {}: {}", fnord_id, e);
+            }
 
             (true, None)
         }
@@ -1492,4 +1599,276 @@ pub fn reset_articles_for_reprocessing(
     info!("Reset {} articles for reprocessing (hopeless flags cleared)", reset_count);
 
     Ok(ResetForReprocessingResult { reset_count })
+}
+
+// ============================================================
+// SIMILAR ARTICLES (Phase 3)
+// ============================================================
+
+#[derive(serde::Serialize, Clone)]
+pub struct SimilarArticle {
+    pub fnord_id: i64,
+    pub title: String,
+    pub pentacle_title: Option<String>,
+    pub published_at: Option<String>,
+    pub similarity: f64,
+}
+
+#[derive(serde::Serialize)]
+pub struct SimilarArticlesResponse {
+    pub fnord_id: i64,
+    pub similar: Vec<SimilarArticle>,
+}
+
+/// Find similar articles based on embedding similarity using sqlite-vec
+#[tauri::command]
+pub fn find_similar_articles(
+    state: State<AppState>,
+    fnord_id: i64,
+    limit: Option<i64>,
+) -> Result<SimilarArticlesResponse, String> {
+    let limit = limit.unwrap_or(5);
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Get the embedding for the source article
+    let embedding: Option<Vec<u8>> = db
+        .conn()
+        .query_row(
+            "SELECT embedding FROM fnords WHERE id = ?",
+            [fnord_id],
+            |row| row.get(0),
+        )
+        .ok();
+
+    let embedding = match embedding {
+        Some(e) if !e.is_empty() => e,
+        _ => {
+            return Ok(SimilarArticlesResponse {
+                fnord_id,
+                similar: vec![],
+            });
+        }
+    };
+
+    // Use sqlite-vec to find similar articles
+    // vec_fnords uses cosine distance, so lower distance = more similar
+    // Distance of 0 = identical, distance of 2 = opposite
+    // Convert distance to similarity: similarity = 1 - (distance / 2)
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"SELECT
+                v.fnord_id,
+                v.distance,
+                f.title,
+                p.title as pentacle_title,
+                f.published_at
+            FROM vec_fnords v
+            JOIN fnords f ON f.id = v.fnord_id
+            LEFT JOIN pentacles p ON p.id = f.pentacle_id
+            WHERE v.embedding MATCH ?1
+            AND k = ?2
+            AND v.fnord_id != ?3
+            ORDER BY v.distance ASC"#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let similar: Vec<SimilarArticle> = stmt
+        .query_map(
+            rusqlite::params![embedding, limit + 1, fnord_id],
+            |row| {
+                let distance: f64 = row.get(1)?;
+                // Convert cosine distance to similarity score
+                let similarity = 1.0 - (distance / 2.0);
+                Ok(SimilarArticle {
+                    fnord_id: row.get(0)?,
+                    title: row.get(2)?,
+                    pentacle_title: row.get(3)?,
+                    published_at: row.get(4)?,
+                    similarity,
+                })
+            },
+        )
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        // Filter out low similarity results (< 0.5)
+        .filter(|a| a.similarity >= 0.5)
+        .take(limit as usize)
+        .collect();
+
+    Ok(SimilarArticlesResponse { fnord_id, similar })
+}
+
+// ============================================================
+// ARTICLE EMBEDDING BATCH GENERATION (Phase 3)
+// ============================================================
+
+#[derive(serde::Serialize)]
+pub struct ArticleEmbeddingCount {
+    pub total_articles: i64,
+    pub with_embedding: i64,
+    pub without_embedding: i64,
+    pub processable: i64,  // Articles with content_full that could get embeddings
+}
+
+/// Get count of articles with and without embeddings
+#[tauri::command]
+pub fn get_article_embedding_stats(state: State<AppState>) -> Result<ArticleEmbeddingCount, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let total_articles: i64 = db
+        .conn()
+        .query_row("SELECT COUNT(*) FROM fnords", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    let with_embedding: i64 = db
+        .conn()
+        .query_row(
+            "SELECT COUNT(*) FROM fnords WHERE embedding IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let processable: i64 = db
+        .conn()
+        .query_row(
+            r#"SELECT COUNT(*) FROM fnords
+               WHERE embedding IS NULL
+               AND processed_at IS NOT NULL
+               AND content_full IS NOT NULL
+               AND LENGTH(content_full) >= 100"#,
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(ArticleEmbeddingCount {
+        total_articles,
+        with_embedding,
+        without_embedding: total_articles - with_embedding,
+        processable,
+    })
+}
+
+#[derive(serde::Serialize, Clone)]
+pub struct ArticleEmbeddingProgress {
+    pub current: i64,
+    pub total: i64,
+    pub fnord_id: i64,
+    pub title: String,
+    pub success: bool,
+    pub error: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct ArticleEmbeddingBatchResult {
+    pub processed: i64,
+    pub succeeded: i64,
+    pub failed: i64,
+}
+
+/// Generate embeddings for all processed articles that don't have one yet
+#[tauri::command]
+pub async fn generate_article_embeddings_batch(
+    window: Window,
+    state: State<'_, AppState>,
+    limit: Option<i64>,
+) -> Result<ArticleEmbeddingBatchResult, String> {
+    let limit = limit.unwrap_or(1000);
+
+    // Get articles that need embeddings
+    let articles: Vec<(i64, String, String)> = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let mut stmt = db
+            .conn()
+            .prepare(
+                r#"SELECT id, title, content_full
+                   FROM fnords
+                   WHERE embedding IS NULL
+                   AND processed_at IS NOT NULL
+                   AND content_full IS NOT NULL
+                   AND LENGTH(content_full) >= 100
+                   ORDER BY processed_at DESC
+                   LIMIT ?"#,
+            )
+            .map_err(|e| e.to_string())?;
+
+        let result: Vec<(i64, String, String)> = stmt
+            .query_map([limit], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+        result
+    };
+
+    let total = articles.len() as i64;
+    if total == 0 {
+        return Ok(ArticleEmbeddingBatchResult {
+            processed: 0,
+            succeeded: 0,
+            failed: 0,
+        });
+    }
+
+    let _ = window.emit(
+        "article-embedding-progress",
+        ArticleEmbeddingProgress {
+            current: 0,
+            total,
+            fnord_id: 0,
+            title: "Starting...".to_string(),
+            success: true,
+            error: None,
+        },
+    );
+
+    let client = OllamaClient::new(None);
+    let mut succeeded = 0i64;
+    let mut failed = 0i64;
+
+    for (idx, (fnord_id, title, content)) in articles.into_iter().enumerate() {
+        let result = generate_and_save_article_embedding(
+            &client,
+            &state.db,
+            fnord_id,
+            &title,
+            &content,
+        )
+        .await;
+
+        let (success, error) = match result {
+            Ok(()) => {
+                succeeded += 1;
+                (true, None)
+            }
+            Err(e) => {
+                failed += 1;
+                (false, Some(e))
+            }
+        };
+
+        let _ = window.emit(
+            "article-embedding-progress",
+            ArticleEmbeddingProgress {
+                current: (idx + 1) as i64,
+                total,
+                fnord_id,
+                title: title.clone(),
+                success,
+                error,
+            },
+        );
+    }
+
+    info!(
+        "Article embedding batch complete: {} succeeded, {} failed",
+        succeeded, failed
+    );
+
+    Ok(ArticleEmbeddingBatchResult {
+        processed: total,
+        succeeded,
+        failed,
+    })
 }

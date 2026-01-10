@@ -483,6 +483,24 @@ struct HardwareProfile {
 | Moderat | 4 | Guter Kompromiss |
 | Hohe Leistung | 8 | Für High-End Hardware |
 
+### Similar Articles (Phase 3)
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `find_similar_articles` | `fnord_id`, `limit?` | `SimilarArticlesResponse` | Ähnliche Artikel finden |
+| `get_article_embedding_stats` | - | `ArticleEmbeddingCount` | Embedding-Statistiken |
+| `generate_article_embeddings_batch` | `limit?` | `ArticleEmbeddingBatchResult` | Batch-Embedding-Generierung |
+
+**SimilarArticle Struktur:**
+```rust
+struct SimilarArticle {
+    fnord_id: i64,
+    title: String,
+    pentacle_title: Option<String>,
+    published_at: Option<String>,
+    similarity: f64,  // 0.0-1.0, Threshold >= 0.5
+}
+```
+
 ## AI Processing Pipeline
 
 1. **Hagbard's Retrieval** - Fetch full text for ALL new articles (automatic after sync)
@@ -494,8 +512,13 @@ struct HardwareProfile {
    - Artikel ohne Volltext werden nicht zur Analyse vorgeschlagen
    - Einzelartikel können jederzeit neu analysiert werden (Button in ArticleView)
    - "Alle neu analysieren" (Settings → Wartung) mit Fortschrittsanzeige
-3. **Greyface Alert** - Bias detection (political_bias: -2 to +2, sachlichkeit: 0-4)
-4. **Immanentize Network** - Schlagwort-Verarbeitung:
+3. **Article Embedding** - Generate embedding for similarity search (Phase 3)
+   - Automatisch nach erfolgreicher Discordian Analysis
+   - Verwendet Titel + erste 500 Zeichen Content
+   - snowflake-arctic-embed2 für 1024-dim Embeddings
+   - Gespeichert in `fnords.embedding` + `vec_fnords`
+4. **Greyface Alert** - Bias detection (political_bias: -2 to +2, sachlichkeit: 0-4)
+5. **Immanentize Network** - Schlagwort-Verarbeitung:
    - Neue Schlagworte: Embedding via snowflake-arctic-embed2
    - Kategorie-Assoziation: immanentize_sephiroth aktualisieren
    - Nachbar-Update: Kookkurrenz + Embedding-Similarity

@@ -60,40 +60,42 @@ Das ministral-3:latest Modell hat `num_ctx=32768` als Default. Das erklärt den 
 
 Status: In Entwicklung
 
-### 1. Artikel-Embeddings (HÖCHSTE PRIORITÄT)
+### 1. Artikel-Embeddings ✅
 
 **Warum zuerst?** Basis für alle folgenden Features (Ähnliche Artikel, Semantische Suche).
 
-- [ ] **Schema-Migration**
+- [x] **Schema-Migration**
   - `fnords.embedding` Spalte hinzufügen (1024-dim BLOB)
-  - Index für Performance
+  - `vec_fnords` Virtual Table für schnelle Vektorsuche
+  - Index `idx_fnords_no_embedding` für Performance
 
-- [ ] **Embedding-Generierung**
+- [x] **Embedding-Generierung**
   - Bei Artikel-Analyse: Titel + Content embedden
   - In `process_article_discordian` integrieren
+  - Automatisch bei Batch-Verarbeitung
 
-- [ ] **Batch-Regenerierung**
-  - Command für bestehende Artikel ohne Embedding
-  - Fortschrittsanzeige wie bei Batch-Analyse
+- [x] **Batch-Regenerierung**
+  - `generate_article_embeddings_batch` Command
+  - `get_article_embedding_stats` Command
+  - Fortschrittsanzeige mit Events
 
 Quelle: `fuckupRSS-Anforderungen.md` C.2
 
-### 2. Ähnliche Artikel (HOHE PRIORITÄT)
+### 2. Ähnliche Artikel ✅
 
-**Abhängigkeit:** Artikel-Embeddings müssen implementiert sein.
-
-- [ ] **Backend**
+- [x] **Backend**
   - `find_similar_articles(fnord_id, limit)` Command
-  - Cosine-Distance-Berechnung
-  - Threshold für Mindest-Ähnlichkeit
+  - sqlite-vec basierte Vektorsuche (O(log n))
+  - Similarity-Threshold ≥ 0.5
 
-- [ ] **Frontend**
+- [x] **Frontend**
   - Sektion "Ähnliche Artikel" in ArticleView
   - Klickbare Links zu verwandten Artikeln
+  - Similarity-Score-Anzeige
 
 Quelle: `fuckupRSS-Anforderungen.md` C.2
 
-### 3. Semantische Suche (MITTLERE PRIORITÄT)
+### 3. Semantische Suche (HÖCHSTE PRIORITÄT)
 
 **Abhängigkeit:** Artikel-Embeddings müssen implementiert sein.
 
@@ -244,6 +246,10 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 - [x] `find_similar_keywords` Command
 - [x] sqlite-vec Extension Loading implementiert
 - [x] Hardware-Profile-Settings UI
+- [x] Artikel-Embeddings (fnords.embedding + vec_fnords)
+- [x] `find_similar_articles` Command
+- [x] "Ähnliche Artikel" UI in ArticleView
+- [x] Batch-Regenerierung für Artikel-Embeddings
 
 ---
 
@@ -252,12 +258,15 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 **Empfohlene Reihenfolge für Phase 3:**
 
 ```
-1. fnords.embedding Spalte     ─────┐
-                                    ├──► 3. Ähnliche Artikel UI
-2. Embedding bei Analyse       ─────┘
-                                    ┌──► 4. Semantische Suche
-3. find_similar_articles ──────────►┤
-                                    └──► 5. VSS-Optimierung
+1. fnords.embedding Spalte     ───── ✅
+
+2. Embedding bei Analyse       ───── ✅
+
+3. find_similar_articles       ───── ✅
+
+4. Semantische Suche           <──── NÄCHSTER SCHRITT
+
+5. VSS-Optimierung             <──── Nach Semantischer Suche
 ```
 
 ---

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { _, locale } from 'svelte-i18n';
-  import { appState, toasts, type FnordRevision, type ArticleCategory, type Tag } from "../stores/state.svelte";
+  import { appState, toasts, type FnordRevision, type ArticleCategory, type Tag, type SimilarArticle } from "../stores/state.svelte";
   import Tooltip from "./Tooltip.svelte";
   import RevisionView from "./RevisionView.svelte";
 
@@ -12,10 +12,14 @@
   let categories = $state<ArticleCategory[]>([]);
   let tags = $state<Tag[]>([]);
 
+  // Similar Articles
+  let similarArticles = $state<SimilarArticle[]>([]);
+  let loadingSimilar = $state(false);
+
   // Track the last loaded article to prevent redundant fetches
   let lastLoadedFnordId = $state<number | null>(null);
 
-  async function loadArticleData(fnordId: number, revisionCount: number) {
+  async function loadArticleData(fnordId: number, revisionCount: number, hasEmbedding: boolean) {
     // Load revisions if available
     if (revisionCount > 0) {
       loadingRevisions = true;
@@ -42,6 +46,20 @@
       categories = [];
       tags = [];
     }
+
+    // Load similar articles (only if article was processed and has embedding)
+    if (hasEmbedding) {
+      loadingSimilar = true;
+      try {
+        similarArticles = await appState.findSimilarArticles(fnordId, 5);
+      } catch {
+        similarArticles = [];
+      } finally {
+        loadingSimilar = false;
+      }
+    } else {
+      similarArticles = [];
+    }
   }
 
   function toggleRevisions() {
@@ -58,6 +76,7 @@
         revisions = [];
         categories = [];
         tags = [];
+        similarArticles = [];
         lastLoadedFnordId = null;
       }
       return;
@@ -71,7 +90,9 @@
     // Load data only if article changed
     if (fnord.id !== lastLoadedFnordId) {
       lastLoadedFnordId = fnord.id;
-      loadArticleData(fnord.id, fnord.revision_count);
+      // Pass whether article was processed (likely has embedding)
+      const hasEmbedding = fnord.processed_at !== null;
+      loadArticleData(fnord.id, fnord.revision_count, hasEmbedding);
     }
   });
 
@@ -168,6 +189,24 @@
 
   function navigateToKeyword(tagId: number) {
     window.dispatchEvent(new CustomEvent('navigate-to-network', { detail: { keywordId: tagId } }));
+  }
+
+  function navigateToSimilarArticle(fnordId: number) {
+    appState.selectFnord(fnordId);
+  }
+
+  function formatSimilarity(similarity: number): string {
+    return `${Math.round(similarity * 100)}%`;
+  }
+
+  function formatShortDate(dateStr: string | null): string {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    const currentLocale = $locale || 'de';
+    return date.toLocaleDateString(currentLocale.startsWith('de') ? "de-DE" : "en-US", {
+      day: "numeric",
+      month: "short",
+    });
   }
 </script>
 
@@ -345,6 +384,42 @@
                   </button>
                 {/each}
               </div>
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
+
+    <!-- Similar Articles -->
+    {#if similarArticles.length > 0 || loadingSimilar}
+      <div class="similar-section">
+        <div class="section-content">
+          <div class="section-header">{$_('articleView.similarArticles')}</div>
+          {#if loadingSimilar}
+            <div class="similar-loading">{$_('articleList.loading')}</div>
+          {:else}
+            <div class="similar-list">
+              {#each similarArticles as article}
+                <button
+                  class="similar-item"
+                  onclick={() => navigateToSimilarArticle(article.fnord_id)}
+                >
+                  <div class="similar-content">
+                    <span class="similar-title">{article.title}</span>
+                    <span class="similar-meta">
+                      {#if article.pentacle_title}
+                        <span class="similar-source">{article.pentacle_title}</span>
+                      {/if}
+                      {#if article.published_at}
+                        <span class="similar-date">{formatShortDate(article.published_at)}</span>
+                      {/if}
+                    </span>
+                  </div>
+                  <span class="similar-score" title={$_('articleView.similarity')}>
+                    {formatSimilarity(article.similarity)}
+                  </span>
+                </button>
+              {/each}
             </div>
           {/if}
         </div>
@@ -637,6 +712,87 @@
   .tag-badge.clickable:hover {
     background-color: var(--accent-primary);
     color: var(--text-on-accent);
+  }
+
+  /* Similar Articles Section */
+  .similar-section {
+    padding: 1rem 1.5rem;
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .similar-loading {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+  }
+
+  .similar-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .similar-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    background-color: var(--bg-overlay);
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+    width: 100%;
+  }
+
+  .similar-item:hover {
+    background-color: var(--bg-hover);
+  }
+
+  .similar-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .similar-title {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .similar-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .similar-source {
+    font-weight: 500;
+  }
+
+  .similar-date::before {
+    content: "·";
+    margin-right: 0.5rem;
+  }
+
+  .similar-score {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--accent-primary);
+    background-color: var(--bg-base);
+    padding: 0.25rem 0.5rem;
+    border-radius: 9999px;
+    white-space: nowrap;
   }
 
   .content-section {

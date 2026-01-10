@@ -315,6 +315,49 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         )?;
     }
 
+    // Migration 10: Add embedding column to fnords table for article embeddings
+    let has_fnord_embedding: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('fnords') WHERE name = 'embedding'")?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_fnord_embedding {
+        conn.execute_batch(
+            r#"
+            ALTER TABLE fnords ADD COLUMN embedding BLOB DEFAULT NULL;
+            ALTER TABLE fnords ADD COLUMN embedding_at DATETIME DEFAULT NULL;
+            "#,
+        )?;
+    }
+
+    // Create vec_fnords virtual table for fast article similarity search
+    let has_vec_fnords: bool = conn
+        .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='vec_fnords'")?
+        .query_row([], |row| row.get::<_, i64>(0).map(|c| c > 0))?;
+
+    if !has_vec_fnords {
+        // Create virtual table for 1024-dim embeddings (snowflake-arctic-embed2)
+        conn.execute(
+            "CREATE VIRTUAL TABLE vec_fnords USING vec0(fnord_id INTEGER PRIMARY KEY, embedding float[1024] distance_metric=cosine)",
+            [],
+        )?;
+
+        // Populate from existing embeddings (if any)
+        conn.execute(
+            r#"INSERT INTO vec_fnords (fnord_id, embedding)
+               SELECT id, embedding FROM fnords WHERE embedding IS NOT NULL"#,
+            [],
+        )?;
+    }
+
+    // Index for finding articles without embeddings
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_fnords_no_embedding
+            ON fnords(processed_at DESC)
+            WHERE embedding IS NULL AND processed_at IS NOT NULL;
+        "#,
+    )?;
+
     Ok(())
 }
 
@@ -397,6 +440,10 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             analysis_attempts INTEGER DEFAULT 0,
             analysis_error TEXT,
             analysis_hopeless BOOLEAN DEFAULT FALSE,
+
+            -- Embeddings (Phase 3)
+            embedding BLOB DEFAULT NULL,
+            embedding_at DATETIME DEFAULT NULL,
 
             -- Constraints
             FOREIGN KEY (pentacle_id) REFERENCES pentacles(id) ON DELETE CASCADE,

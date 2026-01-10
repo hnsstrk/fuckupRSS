@@ -281,3 +281,24 @@ export interface NetworkGraph {
 }
 
 export type MainView = 'articles' | 'network' | 'fnord';
+
+// Similar Articles (Phase 3)
+export interface SimilarArticle {
+  fnord_id: number;
+  title: string;
+  pentacle_title: string | null;
+  published_at: string | null;
+  similarity: number;
+}
+
+export interface SimilarArticlesResponse {
+  fnord_id: number;
+  similar: SimilarArticle[];
+}
+
+export interface ArticleEmbeddingStats {
+  total_articles: number;
+  with_embedding: number;
+  without_embedding: number;
+  processable: number;
+}

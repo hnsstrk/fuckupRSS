@@ -115,6 +115,10 @@ pub fn run() {
             commands::ollama::unload_model,
             commands::ollama::ensure_models_loaded,
             commands::ollama::reset_articles_for_reprocessing,
+            // Similar Articles (Phase 3)
+            commands::ollama::find_similar_articles,
+            commands::ollama::get_article_embedding_stats,
+            commands::ollama::generate_article_embeddings_batch,
             commands::categories::get_all_categories,
             commands::categories::get_article_categories,
             commands::categories::set_article_categories,

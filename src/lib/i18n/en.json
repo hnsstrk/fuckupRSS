@@ -59,7 +59,9 @@
       "biasRight": "Right",
       "sachlichkeit": "Objectivity",
       "quality": "Source Quality"
-    }
+    },
+    "similarArticles": "Similar Articles",
+    "similarity": "Similarity"
   },
   "status": {
     "concealed": "Unread",

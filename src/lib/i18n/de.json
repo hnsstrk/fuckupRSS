@@ -59,7 +59,9 @@
       "biasRight": "Rechts",
       "sachlichkeit": "Sachlichkeit",
       "quality": "Quellenqualität"
-    }
+    },
+    "similarArticles": "Ähnliche Artikel",
+    "similarity": "Ähnlichkeit"
   },
   "status": {
     "concealed": "Ungelesen",

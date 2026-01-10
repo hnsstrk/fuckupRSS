@@ -27,6 +27,9 @@ import type {
   NetworkStats,
   NetworkGraph,
   MainView,
+  SimilarArticle,
+  SimilarArticlesResponse,
+  ArticleEmbeddingStats,
 } from "../types";
 
 export { toasts, removeToast } from "./toast.svelte";
@@ -58,6 +61,9 @@ export type {
   NetworkStats,
   NetworkGraph,
   MainView,
+  SimilarArticle,
+  SimilarArticlesResponse,
+  ArticleEmbeddingStats,
 };
 
 const log = createLogger("state");
@@ -730,6 +736,28 @@ class AppState {
     } catch (e) {
       console.error("Failed to get article tags:", e);
       return [];
+    }
+  }
+
+  async findSimilarArticles(fnordId: number, limit?: number): Promise<SimilarArticle[]> {
+    try {
+      const response = await invoke<SimilarArticlesResponse>("find_similar_articles", {
+        fnordId,
+        limit: limit ?? 5,
+      });
+      return response.similar;
+    } catch (e) {
+      log.error("Failed to find similar articles:", e);
+      return [];
+    }
+  }
+
+  async getArticleEmbeddingStats(): Promise<ArticleEmbeddingStats | null> {
+    try {
+      return await invoke<ArticleEmbeddingStats>("get_article_embedding_stats");
+    } catch (e) {
+      log.error("Failed to get article embedding stats:", e);
+      return null;
     }
   }
 
