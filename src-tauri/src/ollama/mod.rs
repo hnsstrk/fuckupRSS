@@ -464,7 +464,8 @@ Content: {}"#,
                 num_ctx: self.num_ctx,
                 // Ensure enough output tokens for JSON analysis
                 // Default is 128 which is too small for structured output
-                num_predict: 2048,
+                // 4096 allows for detailed summaries + full JSON structure
+                num_predict: 4096,
             },
         };
 
