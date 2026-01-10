@@ -455,6 +455,14 @@ Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
 | `merge_keyword_pair` | `keep_id`, `remove_id` | `MergeSynonymsResult` | Keywords zusammenführen |
 | `dismiss_synonym_pair` | `keyword_a_id`, `keyword_b_id` | - | Synonym-Vorschlag ignorieren |
 
+### Hardware Profiles
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_hardware_profiles` | - | `Vec<HardwareProfile>` | Verfügbare Profile laden |
+| `save_hardware_profile` | `profile` | - | Profil erstellen/aktualisieren |
+| `delete_hardware_profile` | `id` | - | Profil löschen |
+| `apply_hardware_profile` | `profile_id` | - | Profil aktivieren |
+
 ## AI Processing Pipeline
 
 1. **Hagbard's Retrieval** - Fetch full text for ALL new articles (automatic after sync)
