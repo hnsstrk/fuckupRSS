@@ -1389,6 +1389,9 @@ pub fn find_synonym_candidates(
 
     let mut candidates: Vec<SynonymCandidate> = Vec::new();
 
+    // O(n²) comparison - limited to 500 keywords = max 125,000 comparisons
+    // Future optimization: Use sqlite-vec for O(log n) approximate nearest neighbor search
+    // when extension bundling is implemented
     for i in 0..keywords_with_embeddings.len() {
         for j in (i + 1)..keywords_with_embeddings.len() {
             let (id_a, name_a, emb_a) = &keywords_with_embeddings[i];
