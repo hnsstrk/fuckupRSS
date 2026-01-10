@@ -1,4 +1,4 @@
-use crate::ollama::{OllamaClient, RECOMMENDED_EMBEDDING_MODEL};
+use crate::embeddings::{blob_to_embedding, cosine_similarity};
 use crate::{find_canonical_keyword, normalize_keyword, AppState};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -1270,112 +1270,6 @@ pub fn auto_prune_low_quality(
 // ============================================================
 // EMBEDDING-BASED SYNONYM DETECTION
 // ============================================================
-
-fn embedding_to_blob(embedding: &[f32]) -> Vec<u8> {
-    embedding
-        .iter()
-        .flat_map(|f| f.to_le_bytes())
-        .collect()
-}
-
-fn blob_to_embedding(blob: &[u8]) -> Vec<f32> {
-    blob.chunks_exact(4)
-        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
-        .collect()
-}
-
-fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
-    if a.len() != b.len() || a.is_empty() {
-        return 0.0;
-    }
-
-    let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
-    let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
-    let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-
-    if norm_a == 0.0 || norm_b == 0.0 {
-        return 0.0;
-    }
-
-    (dot / (norm_a * norm_b)) as f64
-}
-
-#[derive(Debug, Serialize)]
-pub struct EmbeddingResult {
-    pub generated_count: i64,
-    pub failed_count: i64,
-    pub skipped_count: i64,
-}
-
-#[tauri::command]
-pub async fn generate_keyword_embeddings(
-    state: State<'_, AppState>,
-    limit: Option<i64>,
-    model: Option<String>,
-) -> Result<EmbeddingResult, String> {
-    let limit = limit.unwrap_or(50);
-    let model = model.unwrap_or_else(|| RECOMMENDED_EMBEDDING_MODEL.to_string());
-
-    let keywords: Vec<(i64, String)> = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
-        let mut stmt = db.conn()
-            .prepare(
-                r#"SELECT id, name FROM immanentize 
-                   WHERE embedding IS NULL 
-                   AND article_count > 0
-                   ORDER BY article_count DESC
-                   LIMIT ?"#,
-            )
-            .map_err(|e| e.to_string())?;
-        
-        let result: Vec<(i64, String)> = stmt
-            .query_map([limit], |row| Ok((row.get(0)?, row.get(1)?)))
-            .map_err(|e| e.to_string())?
-            .filter_map(|r| r.ok())
-            .collect();
-        result
-    };
-
-    if keywords.is_empty() {
-        return Ok(EmbeddingResult {
-            generated_count: 0,
-            failed_count: 0,
-            skipped_count: 0,
-        });
-    }
-
-    let client = OllamaClient::new(None);
-    let mut generated_count = 0i64;
-    let mut failed_count = 0i64;
-
-    for (id, name) in &keywords {
-        // Add unique suffix to work around Ollama embedding cache issue
-        let embedding_text = format!("{}_{}", name, id);
-        match client.generate_embedding(&model, &embedding_text).await {
-            Ok(embedding) => {
-                let blob = embedding_to_blob(&embedding);
-                let db = state.db.lock().map_err(|e| e.to_string())?;
-                db.conn()
-                    .execute(
-                        "UPDATE immanentize SET embedding = ?1, embedding_at = datetime('now') WHERE id = ?2",
-                        params![blob, id],
-                    )
-                    .ok();
-                generated_count += 1;
-            }
-            Err(e) => {
-                eprintln!("Failed to generate embedding for '{}': {}", name, e);
-                failed_count += 1;
-            }
-        }
-    }
-
-    Ok(EmbeddingResult {
-        generated_count,
-        failed_count,
-        skipped_count: 0,
-    })
-}
 
 #[derive(Debug, Serialize)]
 pub struct SimilarKeyword {

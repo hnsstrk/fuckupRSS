@@ -4,6 +4,7 @@
 //! the embedding queue, generating embeddings for new keywords.
 
 use crate::db::Database;
+use crate::embeddings::{cosine_similarity_from_blobs, embedding_to_blob};
 use crate::ollama::{OllamaClient, RECOMMENDED_EMBEDDING_MODEL};
 use futures::future::join_all;
 use log::{debug, error, info, warn};
@@ -52,11 +53,6 @@ pub struct EmbeddingProgress {
     pub processed: i64,
     pub failed: i64,
     pub is_processing: bool,
-}
-
-/// Convert embedding vector to blob for storage
-fn embedding_to_blob(embedding: &[f32]) -> Vec<u8> {
-    embedding.iter().flat_map(|f| f.to_le_bytes()).collect()
 }
 
 /// Get the current queue size
@@ -338,15 +334,7 @@ pub fn start_background_worker(
                         if processed > 0 || failed > 0 {
                             info!("Embedding worker: processed={}, failed={}", processed, failed);
                         }
-
-                        // Calculate quality scores for newly embedded keywords
-                        if processed > 0 {
-                            if let Ok(scored) = calculate_pending_quality_scores(&db_clone, processed) {
-                                if scored > 0 {
-                                    debug!("Calculated quality scores for {} keywords", scored);
-                                }
-                            }
-                        }
+                        // Quality scores are calculated when queue is empty (below)
                     }
                     Err(e) => {
                         error!("Embedding worker error: {}", e);
@@ -367,7 +355,16 @@ pub fn start_background_worker(
                 // No pause between batches - keep going until queue is empty!
                 // (unless batch analysis starts, checked at loop start)
             } else {
-                // Queue is empty - calculate neighbor similarities if needed
+                // Queue is empty - calculate quality scores for all pending keywords
+                if let Ok(scored) = calculate_pending_quality_scores(&db_clone, 1000) {
+                    if scored > 0 {
+                        info!("Calculated quality scores for {} keywords", scored);
+                        // Keep going without sleep if there's more to do
+                        continue;
+                    }
+                }
+
+                // Then calculate neighbor similarities
                 if let Ok(calculated) = calculate_neighbor_similarities(&db_clone, 500) {
                     if calculated > 0 {
                         info!("Calculated {} neighbor similarities", calculated);
@@ -442,45 +439,6 @@ pub fn calculate_neighbor_similarities(db: &Arc<Mutex<Database>>, limit: i64) ->
     }
 
     Ok(updated)
-}
-
-/// Calculate cosine similarity from two embedding blobs
-fn cosine_similarity_from_blobs(blob_a: &[u8], blob_b: &[u8]) -> Option<f64> {
-    if blob_a.len() != blob_b.len() || blob_a.is_empty() {
-        return None;
-    }
-
-    let dim = blob_a.len() / 4; // f32 = 4 bytes
-    let mut dot = 0.0f64;
-    let mut norm_a = 0.0f64;
-    let mut norm_b = 0.0f64;
-
-    for i in 0..dim {
-        let offset = i * 4;
-        let a = f32::from_le_bytes([
-            blob_a[offset],
-            blob_a[offset + 1],
-            blob_a[offset + 2],
-            blob_a[offset + 3],
-        ]) as f64;
-        let b = f32::from_le_bytes([
-            blob_b[offset],
-            blob_b[offset + 1],
-            blob_b[offset + 2],
-            blob_b[offset + 3],
-        ]) as f64;
-
-        dot += a * b;
-        norm_a += a * a;
-        norm_b += b * b;
-    }
-
-    let denom = norm_a.sqrt() * norm_b.sqrt();
-    if denom > 0.0 {
-        Some(dot / denom)
-    } else {
-        None
-    }
 }
 
 /// Calculate combined weight for a neighbor pair

@@ -273,6 +273,26 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 8: Add embedding-related indexes for performance
+    conn.execute_batch(
+        r#"
+        -- Index for finding keywords without embeddings (used by queue system)
+        CREATE INDEX IF NOT EXISTS idx_immanentize_no_embedding
+            ON immanentize(article_count DESC)
+            WHERE embedding IS NULL;
+
+        -- Index for finding keywords without quality scores
+        CREATE INDEX IF NOT EXISTS idx_immanentize_no_quality
+            ON immanentize(id)
+            WHERE embedding IS NOT NULL AND quality_score IS NULL;
+
+        -- Index for finding neighbor pairs without similarity calculated
+        CREATE INDEX IF NOT EXISTS idx_neighbors_no_similarity
+            ON immanentize_neighbors(immanentize_id_a, immanentize_id_b)
+            WHERE embedding_similarity IS NULL;
+        "#,
+    )?;
+
     Ok(())
 }
 

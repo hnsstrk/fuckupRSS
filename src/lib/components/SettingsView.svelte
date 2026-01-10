@@ -460,11 +460,9 @@
     maintenanceRunning = "embeddings";
     maintenanceResult = null;
     try {
-      const result = await invoke<{
-        generated_count: number;
-        failed_count: number;
-      }>("generate_keyword_embeddings", { limit: 50 });
-      maintenanceResult = `${result.generated_count} ${$_("settings.maintenance.generated")}`;
+      // Queue keywords for embedding generation - the background worker handles the rest
+      const queuedCount = await invoke<number>("queue_missing_embeddings");
+      maintenanceResult = `${queuedCount} ${$_("settings.maintenance.queued")}`;
     } catch (e) {
       maintenanceResult = `Error: ${e}`;
     } finally {

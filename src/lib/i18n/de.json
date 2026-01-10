@@ -142,6 +142,7 @@
       "result": "Ergebnis",
       "updated": "aktualisiert",
       "generated": "generiert",
+      "queued": "zur Verarbeitung eingereiht",
       "found": "gefunden",
       "pruned": "entfernt",
       "candidates": "Kandidaten",

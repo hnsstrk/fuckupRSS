@@ -2,6 +2,7 @@ mod categories;
 mod commands;
 mod db;
 mod embedding_worker;
+mod embeddings;
 mod keywords;
 mod logging;
 mod ollama;
@@ -157,7 +158,6 @@ pub fn run() {
             commands::immanentize::get_low_quality_keywords,
             commands::immanentize::auto_prune_low_quality,
             // Embedding-based Synonym Detection
-            commands::immanentize::generate_keyword_embeddings,
             commands::immanentize::find_similar_keywords,
             commands::immanentize::find_synonym_candidates,
             commands::immanentize::merge_keyword_pair,
