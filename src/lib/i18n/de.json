@@ -113,7 +113,9 @@
       "downloading": "Lade...",
       "downloadSuccess": "Erfolgreich heruntergeladen",
       "downloadError": "Fehler beim Download",
-      "noModels": "Keine Modelle installiert"
+      "noModels": "Keine Modelle installiert",
+      "hardwareProfile": "Leistungsprofil (AI Parallelität)",
+      "profileDescription": "Steuert die Anzahl gleichzeitiger KI-Analysen. 'High-End' erfordert >12GB VRAM."
     },
     "prompts": {
       "title": "KI-Prompts",

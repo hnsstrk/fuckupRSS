@@ -489,12 +489,14 @@ Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
 ollama pull ministral-3:latest
 ollama pull snowflake-arctic-embed2
 
-# Configure for dual model loading (Linux)
+# Configure for dual model loading and parallel processing (Linux)
 sudo systemctl edit ollama.service
-# Add:
+
+# Add/Edit in [Service] section:
 # [Service]
 # Environment="OLLAMA_MAX_LOADED_MODELS=2"
 # Environment="OLLAMA_FLASH_ATTENTION=1"
+# Environment="OLLAMA_NUM_PARALLEL=4"  # Match this with your Hardware Profile (e.g. 4 for RTX 3080 Ti)
 ```
 
 **Hinweis:** Bei Modellwechsel müssen alle Keywords neu eingebettet werden (Settings → Wartung → Embeddings generieren).

@@ -8,6 +8,7 @@ pub mod retrieval;
 pub mod settings;
 pub mod sync;
 pub mod tags;
+pub mod profiles;
 
 #[cfg(test)]
 mod tests;

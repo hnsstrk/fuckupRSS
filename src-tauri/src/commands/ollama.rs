@@ -8,6 +8,7 @@ use crate::AppState;
 use log::info;
 use std::sync::atomic::Ordering;
 use tauri::{Emitter, Manager, State, Window};
+use futures::{stream, StreamExt};
 
 #[derive(serde::Serialize)]
 pub struct OllamaStatus {
@@ -83,7 +84,6 @@ pub struct DiscordianResponse {
 // ============================================================
 
 /// Save categories (Sephiroth) for an article and update article counts
-/// Returns the list of successfully saved category names
 fn save_article_categories(
     conn: &rusqlite::Connection,
     fnord_id: i64,
@@ -122,7 +122,6 @@ fn save_article_categories(
 }
 
 /// Save keywords (Immanentize) for an article and update the keyword network
-/// Returns the list of saved keyword names and tag IDs
 fn save_article_keywords_and_network(
     conn: &rusqlite::Connection,
     fnord_id: i64,
@@ -132,7 +131,7 @@ fn save_article_keywords_and_network(
 ) -> (Vec<String>, Vec<i64>) {
     let mut tags_saved = Vec::new();
     let mut tag_ids: Vec<i64> = Vec::new();
-    let mut new_keyword_ids: Vec<i64> = Vec::new(); // Track newly created keywords
+    let mut new_keyword_ids: Vec<i64> = Vec::new();
 
     let existing_tag_ids: Vec<i64> = {
         let mut stmt = conn
@@ -220,7 +219,6 @@ fn save_article_keywords_and_network(
                 .ok();
             }
 
-            // Track newly created keywords for embedding queue
             if is_new_keyword {
                 new_keyword_ids.push(tag_id);
             }
@@ -230,7 +228,6 @@ fn save_article_keywords_and_network(
         }
     }
 
-    // Queue new keywords for embedding generation
     for keyword_id in &new_keyword_ids {
         conn.execute(
             r#"INSERT OR IGNORE INTO embedding_queue (immanentize_id, priority, queued_at)
@@ -440,11 +437,6 @@ pub async fn get_loaded_models() -> Result<LoadedModelsResponse, String> {
 pub async fn load_model(model: String) -> Result<bool, String> {
     let client = reqwest_new::Client::new();
 
-    // Use keep_alive: -1 to keep the model loaded indefinitely
-    // For embedding models, use /api/embeddings endpoint
-    // For generation models, use /api/generate endpoint
-
-    // Try embedding first (works for nomic-embed-text)
     let embed_body = serde_json::json!({
         "model": model,
         "prompt": "test",
@@ -463,7 +455,6 @@ pub async fn load_model(model: String) -> Result<bool, String> {
         }
     }
 
-    // If embedding fails, try generate (for LLM models)
     let gen_body = serde_json::json!({
         "model": model,
         "prompt": "",
@@ -504,32 +495,26 @@ pub async fn unload_model(model: String) -> Result<bool, String> {
 /// Ensure only the specified models are loaded (main + embedding)
 #[tauri::command]
 pub async fn ensure_models_loaded(main_model: String, embedding_model: String) -> Result<LoadedModelsResponse, String> {
-    // First, get currently loaded models
     let loaded = get_loaded_models().await?;
     let loaded_names: Vec<&str> = loaded.models.iter().map(|m| m.name.as_str()).collect();
 
-    // Unload models that aren't needed
     for model in &loaded.models {
         if model.name != main_model && model.name != embedding_model {
             let _ = unload_model(model.name.clone()).await;
         }
     }
 
-    // Load embedding model first (smaller, faster)
     if !loaded_names.contains(&embedding_model.as_str()) {
         load_model(embedding_model).await?;
     }
 
-    // Load main model
     if !loaded_names.contains(&main_model.as_str()) {
         load_model(main_model).await?;
     }
 
-    // Return updated list
     get_loaded_models().await
 }
 
-/// Helper to get locale from settings
 fn get_locale_from_db(state: &State<'_, AppState>) -> String {
     let db = match state.db.lock() {
         Ok(db) => db,
@@ -544,7 +529,6 @@ fn get_locale_from_db(state: &State<'_, AppState>) -> String {
         .unwrap_or_else(|_| "de".to_string())
 }
 
-/// Helper to get custom prompt from settings or use default with language
 fn get_summary_prompt(state: &State<'_, AppState>, locale: &str) -> String {
     let language = get_language_for_locale(locale);
     let db = match state.db.lock() {
@@ -587,7 +571,6 @@ fn get_analysis_prompt(state: &State<'_, AppState>, locale: &str) -> String {
     }
 }
 
-/// Generate summary for an article
 #[tauri::command]
 pub async fn generate_summary(
     state: State<'_, AppState>,
@@ -598,7 +581,6 @@ pub async fn generate_summary(
     let locale = get_locale_from_db(&state);
     let prompt_template = get_summary_prompt(&state, &locale);
 
-    // Get article content from database
     let content: String = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         db.conn()
@@ -619,10 +601,8 @@ pub async fn generate_summary(
         });
     }
 
-    // Generate summary with locale-aware prompt
     match client.summarize_with_prompt(&model, &content, &prompt_template).await {
         Ok(summary) => {
-            // Store summary in database
             let db = state.db.lock().map_err(|e| e.to_string())?;
             db.conn()
                 .execute(
@@ -647,7 +627,6 @@ pub async fn generate_summary(
     }
 }
 
-/// Analyze article for bias and objectivity
 #[tauri::command]
 pub async fn analyze_article(
     state: State<'_, AppState>,
@@ -658,7 +637,6 @@ pub async fn analyze_article(
     let locale = get_locale_from_db(&state);
     let prompt_template = get_analysis_prompt(&state, &locale);
 
-    // Get article title and content from database
     let (title, content): (String, String) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         db.conn()
@@ -679,10 +657,8 @@ pub async fn analyze_article(
         });
     }
 
-    // Analyze article with locale-aware prompt
     match client.analyze_bias_with_prompt(&model, &title, &content, &prompt_template).await {
         Ok(analysis) => {
-            // Store analysis in database
             let db = state.db.lock().map_err(|e| e.to_string())?;
             db.conn()
                 .execute(
@@ -717,7 +693,6 @@ pub async fn analyze_article(
     }
 }
 
-/// Generate summary and analysis for an article (combined, parallel)
 #[tauri::command]
 pub async fn process_article(
     state: State<'_, AppState>,
@@ -729,7 +704,6 @@ pub async fn process_article(
     let summary_prompt_template = get_summary_prompt(&state, &locale);
     let analysis_prompt_template = get_analysis_prompt(&state, &locale);
 
-    // Get article content once
     let (title, content): (String, String) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         db.conn()
@@ -758,7 +732,6 @@ pub async fn process_article(
         ));
     }
 
-    // Run both API calls in parallel
     let model_clone = model.clone();
     let content_clone = content.clone();
     let summary_future = client.summarize_with_prompt(&model, &content, &summary_prompt_template);
@@ -766,10 +739,8 @@ pub async fn process_article(
 
     let (summary_result, analysis_result) = tokio::join!(summary_future, analysis_future);
 
-    // Process results
     let summary_response = match summary_result {
         Ok(summary) => {
-            // Store summary
             let db = state.db.lock().map_err(|e| e.to_string())?;
             let _ = db.conn().execute(
                 "UPDATE fnords SET summary = ?1 WHERE id = ?2",
@@ -792,7 +763,6 @@ pub async fn process_article(
 
     let analysis_response = match analysis_result {
         Ok(analysis) => {
-            // Store analysis
             let db = state.db.lock().map_err(|e| e.to_string())?;
             let _ = db.conn().execute(
                 r#"UPDATE fnords SET
@@ -826,7 +796,6 @@ pub async fn process_article(
     Ok((summary_response, analysis_response))
 }
 
-/// Full Discordian Analysis: Summary + Bias + Categories + Keywords in one call
 #[tauri::command]
 pub async fn process_article_discordian(
     state: State<'_, AppState>,
@@ -836,7 +805,6 @@ pub async fn process_article_discordian(
     let client = OllamaClient::new(None);
     let locale = get_locale_from_db(&state);
 
-    // Get article content and date
     let (title, content, article_date): (String, String, Option<String>) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         db.conn()
@@ -970,7 +938,6 @@ pub struct FailedCount {
     pub count: i64,
 }
 
-/// Get count of hopeless articles (analysis failed after multiple retries)
 #[tauri::command]
 pub fn get_hopeless_count(state: State<AppState>) -> Result<HopelessCount, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -987,7 +954,6 @@ pub fn get_hopeless_count(state: State<AppState>) -> Result<HopelessCount, Strin
     Ok(HopelessCount { count })
 }
 
-/// Get count of failed articles (have errors but not yet hopeless)
 #[tauri::command]
 pub fn get_failed_count(state: State<AppState>) -> Result<FailedCount, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -1006,7 +972,6 @@ pub fn get_failed_count(state: State<AppState>) -> Result<FailedCount, String> {
     Ok(FailedCount { count })
 }
 
-/// Get count of unprocessed articles (excludes hopeless articles)
 #[tauri::command]
 pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -1037,6 +1002,150 @@ pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount,
     Ok(UnprocessedCount { total, with_content })
 }
 
+// ------------------------------------------------------------
+// PARALLEL BATCH PROCESSING IMPL
+// ------------------------------------------------------------
+
+fn get_ai_concurrency(state: &AppState) -> usize {
+    let db = match state.db.lock() {
+        Ok(db) => db,
+        Err(_) => return 1,
+    };
+    let val: String = db.conn()
+        .query_row("SELECT value FROM settings WHERE key = 'ai_parallelism'", [], |row| row.get(0))
+        .unwrap_or_else(|_| "1".to_string());
+    
+    val.parse().unwrap_or(1).clamp(1, 10)
+}
+
+struct BatchArticle {
+    fnord_id: i64,
+    title: String,
+    content: String,
+    article_date: Option<String>,
+    attempts: i64,
+    previous_error: Option<String>,
+}
+
+async fn process_single_article(
+    client: &OllamaClient,
+    state: &AppState,
+    model: &str,
+    locale: &str,
+    article: BatchArticle,
+) -> (bool, Option<String>) {
+    let fnord_id = article.fnord_id;
+
+    if article.content.is_empty() {
+        return (false, Some("No content".to_string()));
+    }
+
+    let local_keywords = extract_keywords(&article.title, &article.content, 10);
+    let local_categories = classify_by_keywords(&local_keywords);
+
+    let analysis_result = client
+        .discordian_analysis_with_retry(model, &article.title, &article.content, locale, article.previous_error.as_deref())
+        .await;
+
+    match analysis_result {
+        Ok(analysis) => {
+            let db = match state.db.lock() {
+                Ok(db) => db,
+                Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
+            };
+
+            let update_result = db.conn().execute(
+                r#"UPDATE fnords SET
+                    summary = ?1,
+                    political_bias = ?2,
+                    sachlichkeit = ?3,
+                    article_type = ?4,
+                    processed_at = CURRENT_TIMESTAMP,
+                    analysis_attempts = 0,
+                    analysis_error = NULL
+                WHERE id = ?5"#,
+                (
+                    &analysis.summary,
+                    analysis.political_bias,
+                    analysis.sachlichkeit,
+                    &analysis.article_type,
+                    fnord_id,
+                ),
+            );
+
+            if let Err(e) = update_result {
+                return (false, Some(format!("DB update failed: {}", e)));
+            }
+
+            let merged_categories = validate_and_merge_categories(&analysis.categories, local_categories);
+            let categories_saved = save_article_categories(db.conn(), fnord_id, &merged_categories);
+
+            let merged_keywords = merge_keywords(&analysis.keywords, local_keywords, 15);
+            let (_tags_saved, _tag_ids) = save_article_keywords_and_network(
+                db.conn(),
+                fnord_id,
+                &merged_keywords,
+                &categories_saved,
+                article.article_date.as_deref(),
+            );
+
+            (true, None)
+        }
+        Err(e) => {
+            let db = match state.db.lock() {
+                Ok(db) => db,
+                Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
+            };
+            
+            let new_attempts = article.attempts + 1;
+
+            let (error_msg, is_hopeless) = match &e {
+                OllamaError::JsonParseError { message, .. } => {
+                    if new_attempts >= 2 {
+                        (format!("JSON parse error after {} attempts: {}", new_attempts, message), true)
+                    } else {
+                        (message.clone(), false)
+                    }
+                }
+                other => {
+                    if new_attempts >= 2 {
+                        (format!("Analysis failed after {} attempts: {}", new_attempts, other), true)
+                    } else {
+                        (other.to_string(), false)
+                    }
+                }
+            };
+
+            let _ = db.conn().execute(
+                r#"UPDATE fnords SET
+                    analysis_attempts = ?1,
+                    analysis_error = ?2,
+                    analysis_hopeless = ?3
+                WHERE id = ?4"#,
+                rusqlite::params![new_attempts, &error_msg, is_hopeless, fnord_id],
+            );
+
+            if !local_categories.is_empty() || !local_keywords.is_empty() {
+                let categories_saved = save_article_categories(db.conn(), fnord_id, &local_categories);
+                let _ = save_article_keywords_and_network(
+                    db.conn(),
+                    fnord_id,
+                    &local_keywords,
+                    &categories_saved,
+                    article.article_date.as_deref(),
+                );
+            }
+
+            let status_msg = if is_hopeless {
+                format!("Marked hopeless: {}", error_msg)
+            } else {
+                format!("Attempt {}/2 failed, will retry: {}", new_attempts, error_msg)
+            };
+            (false, Some(status_msg))
+        }
+    }
+}
+
 /// Process all unprocessed articles in batch using Discordian Analysis
 /// Emits 'batch-progress' events to the window
 #[tauri::command]
@@ -1046,19 +1155,14 @@ pub async fn process_batch(
     model: String,
     limit: Option<i64>,
 ) -> Result<BatchResult, String> {
-    let client = OllamaClient::new(None);
-
-    // Get locale for the batch
     let locale = get_locale_from_db(&state);
+    let concurrency = get_ai_concurrency(&state);
+    
+    info!("Starting batch processing with concurrency: {}", concurrency);
 
-    // Get unprocessed articles with content (including date for trend tracking)
-    // Include analysis_attempts and analysis_error for retry logic
-    let articles: Vec<(i64, String, String, Option<String>, i64, Option<String>)> = {
+    let articles: Vec<BatchArticle> = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
 
-        // Use limit if provided, otherwise process all
-        // Only process articles with full text (content_full), not truncated RSS content
-        // Exclude articles marked as hopeless (analysis_hopeless = TRUE)
         let query = match limit {
             Some(n) => format!(
                 r#"SELECT id, title, content_full,
@@ -1085,255 +1189,108 @@ pub async fn process_batch(
         };
 
         let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
-
-        let rows = stmt
-            .query_map([], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
-            })
-            .map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| {
+             Ok(BatchArticle {
+                 fnord_id: row.get(0)?,
+                 title: row.get(1)?,
+                 content: row.get(2)?,
+                 article_date: row.get(3)?,
+                 attempts: row.get(4)?,
+                 previous_error: row.get(5)?,
+             })
+        }).map_err(|e| e.to_string())?;
 
         rows.filter_map(|r| r.ok()).collect()
     };
 
     let total = articles.len() as i64;
-    let mut succeeded: i64 = 0;
-    let mut failed: i64 = 0;
+    
+    // Check if empty
+    if total == 0 {
+        return Ok(BatchResult { processed: 0, succeeded: 0, failed: 0 });
+    }
 
-    // Reset cancel flag and set running flag at start
     state.batch_cancel.store(false, Ordering::SeqCst);
     state.batch_running.store(true, Ordering::SeqCst);
 
-    // Emit initial progress event so UI knows batch has started
-    if total > 0 {
-        let _ = window.emit(
-            "batch-progress",
-            BatchProgress {
-                current: 0,
-                total,
-                fnord_id: 0,
-                title: "Starting...".to_string(),
-                success: true,
-                error: None,
-            },
-        );
-    }
+    let _ = window.emit("batch-progress", BatchProgress {
+        current: 0,
+        total,
+        fnord_id: 0,
+        title: format!("Starting batch ({} parallel)...", concurrency),
+        success: true,
+        error: None,
+    });
 
-    for (idx, (fnord_id, title, content, article_date, attempts, previous_error)) in articles.into_iter().enumerate() {
-        // Check for cancellation
-        if state.batch_cancel.load(Ordering::SeqCst) {
-            let _ = window.emit(
-                "batch-progress",
-                BatchProgress {
-                    current: (idx + 1) as i64,
-                    total,
-                    fnord_id: 0,
-                    title: "Cancelled".to_string(),
-                    success: false,
-                    error: Some("Batch cancelled by user".to_string()),
-                },
-            );
-            break;
-        }
-
-        let current = (idx + 1) as i64;
-
-        if content.is_empty() {
-            failed += 1;
-            let _ = window.emit(
-                "batch-progress",
-                BatchProgress {
-                    current,
-                    total,
-                    fnord_id,
-                    title: title.clone(),
-                    success: false,
-                    error: Some("No content".to_string()),
-                },
-            );
-            continue;
-        }
-
-        let local_keywords = extract_keywords(&title, &content, 10);
-        let local_categories = classify_by_keywords(&local_keywords);
-
-        // Use retry logic: if there was a previous error, pass it to the LLM
-        let analysis_result = client
-            .discordian_analysis_with_retry(&model, &title, &content, &locale, previous_error.as_deref())
-            .await;
-
-        let (success, error) = match analysis_result {
-            Ok(analysis) => {
-                let db = state.db.lock().map_err(|e| e.to_string())?;
-
-                // Success: reset attempts and error, set processed_at
-                let update_result = db.conn().execute(
-                    r#"UPDATE fnords SET
-                        summary = ?1,
-                        political_bias = ?2,
-                        sachlichkeit = ?3,
-                        article_type = ?4,
-                        processed_at = CURRENT_TIMESTAMP,
-                        analysis_attempts = 0,
-                        analysis_error = NULL
-                    WHERE id = ?5"#,
-                    (
-                        &analysis.summary,
-                        analysis.political_bias,
-                        analysis.sachlichkeit,
-                        &analysis.article_type,
-                        fnord_id,
-                    ),
-                );
-
-                if update_result.is_err() {
-                    failed += 1;
-                    (false, Some("DB update failed".to_string()))
-                } else {
-                    let merged_categories = validate_and_merge_categories(&analysis.categories, local_categories.clone());
-                    let categories_saved = save_article_categories(db.conn(), fnord_id, &merged_categories);
-
-                    let merged_keywords = merge_keywords(&analysis.keywords, local_keywords.clone(), 15);
-                    let (_tags_saved, _tag_ids) = save_article_keywords_and_network(
-                        db.conn(),
-                        fnord_id,
-                        &merged_keywords,
-                        &categories_saved,
-                        article_date.as_deref(),
-                    );
-
-                    succeeded += 1;
-                    (true, None)
-                }
+    // Create stream for parallel processing
+    let stream = stream::iter(articles.into_iter().enumerate());
+    
+    let results = stream.map(|(idx, article)| {
+        let title = article.title.clone();
+        let fnord_id = article.fnord_id;
+        let model = model.clone();
+        let locale = locale.clone();
+        let state = state.clone();
+        let window = window.clone();
+        
+        async move {
+            if state.batch_cancel.load(Ordering::SeqCst) {
+                return (idx, title, fnord_id, false, Some("Cancelled".to_string()));
             }
-            Err(e) => {
-                let db = state.db.lock().map_err(|e| e.to_string())?;
-                let new_attempts = attempts + 1;
-
-                // Check if this is a JSON parse error (retryable)
-                let (error_msg, is_hopeless) = match &e {
-                    OllamaError::JsonParseError { message, raw_response: _ } => {
-                        // If we've tried twice with error feedback, mark as hopeless
-                        if new_attempts >= 2 {
-                            (format!("JSON parse error after {} attempts: {}", new_attempts, message), true)
-                        } else {
-                            (message.clone(), false)
-                        }
-                    }
-                    other => {
-                        // Other errors (network, timeout, etc.) - also track attempts
-                        if new_attempts >= 2 {
-                            (format!("Analysis failed after {} attempts: {}", new_attempts, other), true)
-                        } else {
-                            (other.to_string(), false)
-                        }
-                    }
-                };
-
-                // Update the article with error info
-                db.conn().execute(
-                    r#"UPDATE fnords SET
-                        analysis_attempts = ?1,
-                        analysis_error = ?2,
-                        analysis_hopeless = ?3
-                    WHERE id = ?4"#,
-                    rusqlite::params![new_attempts, &error_msg, is_hopeless, fnord_id],
-                ).ok();
-
-                // Still save local keywords/categories even on failure
-                if !local_categories.is_empty() || !local_keywords.is_empty() {
-                    let categories_saved = save_article_categories(db.conn(), fnord_id, &local_categories);
-                    let (_tags_saved, _tag_ids) = save_article_keywords_and_network(
-                        db.conn(),
-                        fnord_id,
-                        &local_keywords,
-                        &categories_saved,
-                        article_date.as_deref(),
-                    );
-                }
-
-                failed += 1;
-                let status_msg = if is_hopeless {
-                    format!("Marked hopeless: {}", error_msg)
-                } else {
-                    format!("Attempt {}/2 failed, will retry: {}", new_attempts, error_msg)
-                };
-                (false, Some(status_msg))
-            }
-        };
-
-        // Emit progress event
-        let _ = window.emit(
-            "batch-progress",
-            BatchProgress {
-                current,
+            
+            // Re-create client in each future (cheap)
+            let client = OllamaClient::new(None);
+            
+            let (success, error) = process_single_article(&client, &state, &model, &locale, article).await;
+            
+            // Emit progress immediately
+             let _ = window.emit("batch-progress", BatchProgress {
+                current: (idx + 1) as i64,
                 total,
                 fnord_id,
-                title,
+                title: title.clone(),
                 success,
-                error,
-            },
-        );
+                error: error.clone(),
+            });
+            
+            (idx, title, fnord_id, success, error)
+        }
+    })
+    .buffer_unordered(concurrency) // Run 'concurrency' futures in parallel
+    .collect::<Vec<_>>()
+    .await;
+    
+    // Calculate stats
+    let mut succeeded = 0;
+    let mut failed = 0;
+    for (_, _, _, success, _) in &results {
+        if *success { succeeded += 1; } else { failed += 1; }
     }
 
-    // Option B: After batch analysis, immediately process embedding queue
-    if succeeded > 0 {
-        // Get queue size
+    // Embeddings queue processing (after batch)
+    if succeeded > 0 && !state.batch_cancel.load(Ordering::SeqCst) {
         let queue_size = {
             let db = state.db.lock().map_err(|e| e.to_string())?;
-            db.conn()
-                .query_row("SELECT COUNT(*) FROM embedding_queue", [], |row| row.get::<_, i64>(0))
-                .unwrap_or(0)
+            db.conn().query_row("SELECT COUNT(*) FROM embedding_queue", [], |row| row.get::<_, i64>(0)).unwrap_or(0)
         };
 
         if queue_size > 0 {
-            info!("Batch complete, processing {} queued keywords for embeddings", queue_size);
-
-            // Emit embedding start event
-            let _ = window.emit("embedding-progress", embedding_worker::EmbeddingProgress {
-                queue_size,
-                processed: 0,
-                failed: 0,
-                is_processing: true,
+             let _ = window.emit("embedding-progress", embedding_worker::EmbeddingProgress {
+                queue_size, processed: 0, failed: 0, is_processing: true
             });
-
-            // Process all queued embeddings
-            match embedding_worker::process_embedding_queue(
+            
+            let _ = embedding_worker::process_embedding_queue(
                 state.db.clone(),
                 Some(&window.app_handle()),
                 queue_size,
-            ).await {
-                Ok((emb_processed, emb_failed)) => {
-                    info!("Embedding generation: {} processed, {} failed", emb_processed, emb_failed);
-
-                    // Calculate quality scores for newly embedded keywords
-                    if emb_processed > 0 {
-                        if let Ok(scored) = embedding_worker::calculate_pending_quality_scores(&state.db, emb_processed) {
-                            info!("Calculated quality scores for {} keywords", scored);
-                        }
-                    }
-
-                    // Emit completion
-                    let remaining = {
-                        let db = state.db.lock().map_err(|e| e.to_string())?;
-                        db.conn()
-                            .query_row("SELECT COUNT(*) FROM embedding_queue", [], |row| row.get::<_, i64>(0))
-                            .unwrap_or(0)
-                    };
-                    let _ = window.emit("embedding-progress", embedding_worker::EmbeddingProgress {
-                        queue_size: remaining,
-                        processed: emb_processed,
-                        failed: emb_failed,
-                        is_processing: false,
-                    });
-                }
-                Err(e) => {
-                    info!("Embedding generation failed: {}", e);
-                }
-            }
+            ).await;
+             
+             let _ = window.emit("embedding-progress", embedding_worker::EmbeddingProgress {
+                queue_size: 0, processed: queue_size, failed: 0, is_processing: false
+            });
         }
     }
 
-    // Reset running flag when done
     state.batch_running.store(false, Ordering::SeqCst);
 
     Ok(BatchResult {
@@ -1343,7 +1300,6 @@ pub async fn process_batch(
     })
 }
 
-/// Cancel ongoing batch processing
 #[tauri::command]
 pub fn cancel_batch(state: State<AppState>) -> Result<(), String> {
     state.batch_cancel.store(true, Ordering::SeqCst);
@@ -1354,12 +1310,10 @@ pub fn cancel_batch(state: State<AppState>) -> Result<(), String> {
 // MODEL MANAGEMENT
 // ============================================================
 
-/// Pull/download a model from Ollama
 #[tauri::command]
 pub async fn pull_model(window: Window, model: String) -> Result<ModelPullResult, String> {
     let client = OllamaClient::new(None);
 
-    // Emit start event
     let _ = window.emit("model-pull-start", &model);
 
     match client.pull_model(&model).await {
@@ -1388,7 +1342,6 @@ pub async fn pull_model(window: Window, model: String) -> Result<ModelPullResult
 // PROMPT TEMPLATES
 // ============================================================
 
-/// Get default prompt templates
 #[tauri::command]
 pub fn get_default_prompts() -> DefaultPrompts {
     DefaultPrompts {
@@ -1397,7 +1350,6 @@ pub fn get_default_prompts() -> DefaultPrompts {
     }
 }
 
-/// Get current prompt templates (from DB or defaults)
 #[tauri::command]
 pub fn get_prompts(state: State<AppState>) -> Result<PromptTemplates, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -1426,7 +1378,6 @@ pub fn get_prompts(state: State<AppState>) -> Result<PromptTemplates, String> {
     })
 }
 
-/// Save prompt templates to DB
 #[tauri::command]
 pub fn set_prompts(
     state: State<AppState>,
@@ -1452,7 +1403,6 @@ pub fn set_prompts(
     Ok(())
 }
 
-/// Reset prompts to defaults
 #[tauri::command]
 pub fn reset_prompts(state: State<AppState>) -> Result<PromptTemplates, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -1485,7 +1435,6 @@ pub fn reset_articles_for_reprocessing(
     let only_with_content = only_with_content.unwrap_or(true);
 
     let sql = if only_with_content {
-        // Only reset articles with full text content (not truncated RSS content)
         r#"UPDATE fnords SET processed_at = NULL
            WHERE content_full IS NOT NULL AND content_full != ''"#
     } else {

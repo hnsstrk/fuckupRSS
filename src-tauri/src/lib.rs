@@ -128,6 +128,11 @@ pub fn run() {
             commands::settings::get_system_theme,
             commands::settings::get_log_levels,
             commands::settings::set_log_level,
+            // Hardware Profiles
+            commands::profiles::get_hardware_profiles,
+            commands::profiles::save_hardware_profile,
+            commands::profiles::delete_hardware_profile,
+            commands::profiles::apply_hardware_profile,
             // Immanentize Network
             commands::immanentize::get_keywords,
             commands::immanentize::get_keyword,

@@ -113,7 +113,9 @@
       "downloading": "Downloading...",
       "downloadSuccess": "Successfully downloaded",
       "downloadError": "Download failed",
-      "noModels": "No models installed"
+      "noModels": "No models installed",
+      "hardwareProfile": "Performance Profile (AI Concurrency)",
+      "profileDescription": "Controls the number of concurrent AI analyses. 'High-End' requires >12GB VRAM."
     },
     "prompts": {
       "title": "AI Prompts",
@@ -319,7 +321,7 @@
     "days7": "7 days",
     "days30": "30 days",
     "days90": "90 days",
-    "days": "days",
+    "days": "Tage",
     "selectKeywordForTrend": "Select a keyword from the Keywords tab to see its trend",
     "trendComparison": "Trend Comparison",
     "comparedWith": "Co-occurring"
