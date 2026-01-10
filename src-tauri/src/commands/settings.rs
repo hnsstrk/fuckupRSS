@@ -1,4 +1,4 @@
-use crate::ollama::DEFAULT_NUM_CTX;
+use crate::ollama::{DEFAULT_NUM_CTX, RECOMMENDED_EMBEDDING_MODEL};
 use crate::{AppState, LogLevel};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,8 @@ pub struct Settings {
     pub log_level: String,
     /// Ollama context length (num_ctx) - affects VRAM usage and speed
     pub ollama_num_ctx: u32,
+    /// Embedding model for keyword similarity (e.g., "snowflake-arctic-embed2")
+    pub embedding_model: String,
 }
 
 #[tauri::command]
@@ -50,6 +52,11 @@ pub fn get_settings(state: State<AppState>) -> Result<Settings, String> {
         .and_then(|v| v.parse().ok())
         .unwrap_or(DEFAULT_NUM_CTX);
 
+    let embedding_model = settings_map
+        .get("embedding_model")
+        .cloned()
+        .unwrap_or_else(|| RECOMMENDED_EMBEDDING_MODEL.to_string());
+
     Ok(Settings {
         locale: settings_map
             .get("locale")
@@ -65,6 +72,7 @@ pub fn get_settings(state: State<AppState>) -> Result<Settings, String> {
             .unwrap_or(true),
         log_level,
         ollama_num_ctx,
+        embedding_model,
     })
 }
 
@@ -96,6 +104,17 @@ pub fn get_setting(state: State<AppState>, key: String) -> Result<Option<String>
         .ok();
 
     Ok(result)
+}
+
+/// Get the configured embedding model from the database
+/// Returns the default if not configured
+pub fn get_embedding_model_from_db(conn: &rusqlite::Connection) -> String {
+    conn.query_row(
+        "SELECT value FROM settings WHERE key = 'embedding_model'",
+        [],
+        |row| row.get(0),
+    )
+    .unwrap_or_else(|_| RECOMMENDED_EMBEDDING_MODEL.to_string())
 }
 
 /// Detects if the system prefers dark mode

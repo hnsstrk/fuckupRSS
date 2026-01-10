@@ -3,9 +3,10 @@
 //! This module provides a background worker that continuously processes
 //! the embedding queue, generating embeddings for new keywords.
 
+use crate::commands::settings::get_embedding_model_from_db;
 use crate::db::Database;
 use crate::embeddings::{cosine_similarity_from_blobs, embedding_to_blob};
-use crate::ollama::{OllamaClient, RECOMMENDED_EMBEDDING_MODEL};
+use crate::ollama::OllamaClient;
 use futures::future::join_all;
 use log::{debug, error, info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -155,7 +156,11 @@ pub async fn process_embedding_queue(
         return Ok((0, 0));
     }
 
-    let model = RECOMMENDED_EMBEDDING_MODEL;
+    // Get configured embedding model from settings
+    let model = {
+        let db_guard = db.lock().map_err(|e| e.to_string())?;
+        get_embedding_model_from_db(db_guard.conn())
+    };
     let concurrency = 10; // Process 10 embeddings in parallel
 
     let mut processed = 0i64;
@@ -167,6 +172,7 @@ pub async fn process_embedding_queue(
             .iter()
             .map(|(queue_id, keyword_id, name)| {
                 let client = Arc::clone(&client);
+                let model = model.clone();
                 let name = name.clone();
                 let queue_id = *queue_id;
                 let keyword_id = *keyword_id;
@@ -174,7 +180,7 @@ pub async fn process_embedding_queue(
                 async move {
                     // Add unique suffix to work around Ollama embedding cache issue
                     let embedding_text = format!("{}_{}", name, keyword_id);
-                    let result = client.generate_embedding(model, &embedding_text).await;
+                    let result = client.generate_embedding(&model, &embedding_text).await;
                     (queue_id, keyword_id, name, result)
                 }
             })

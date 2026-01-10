@@ -16,12 +16,16 @@ interface Settings {
   sync_interval: number; // in minutes
   sync_on_start: boolean;
   log_level: LogLevel;
+  embedding_model: string; // Embedding model for keyword similarity
 }
 
 const THEME_CLASSES: Theme[] = ['mocha', 'macchiato', 'frappe', 'latte'];
 const DARK_THEMES: DarkTheme[] = ['mocha', 'macchiato', 'frappe'];
 
 const LOG_LEVELS: LogLevel[] = ['error', 'warn', 'info', 'debug', 'trace'];
+
+// Default embedding model (matches Rust RECOMMENDED_EMBEDDING_MODEL)
+const DEFAULT_EMBEDDING_MODEL = 'snowflake-arctic-embed2';
 
 class SettingsStore {
   #settings = $state<Settings>({
@@ -31,6 +35,7 @@ class SettingsStore {
     sync_interval: 30,
     sync_on_start: true,
     log_level: import.meta.env.DEV ? 'debug' : 'info',
+    embedding_model: DEFAULT_EMBEDDING_MODEL,
   });
   #initialized = false;
   // Default to dark - will be updated by Tauri command on init
@@ -123,6 +128,19 @@ class SettingsStore {
     return LOG_LEVELS;
   }
 
+  get embeddingModel(): string {
+    return this.#settings.embedding_model;
+  }
+
+  set embeddingModel(value: string) {
+    this.#settings.embedding_model = value;
+    this.#saveSetting('embedding_model', value);
+  }
+
+  get defaultEmbeddingModel(): string {
+    return DEFAULT_EMBEDDING_MODEL;
+  }
+
   async #saveSetting(key: string, value: string) {
     try {
       await invoke('set_setting', { key, value });
@@ -206,6 +224,13 @@ class SettingsStore {
       }
       // Apply log level to logger
       log.setLevel(this.#settings.log_level);
+
+      // Load embedding model
+      const savedEmbeddingModel = dbSettings.embedding_model as string;
+      if (savedEmbeddingModel) {
+        this.#settings.embedding_model = savedEmbeddingModel;
+      }
+
       log.info('Settings loaded successfully');
 
       this.#initialized = true;
