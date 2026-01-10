@@ -1,8 +1,9 @@
 use crate::embedding_worker;
 use crate::ollama::{
     BiasAnalysis, DiscordianAnalysis, OllamaClient, OllamaError, DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
-    RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale,
+    RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale, DEFAULT_NUM_CTX,
 };
+use crate::db::Database;
 use crate::{extract_keywords, classify_by_keywords, normalize_keyword, find_canonical_keyword, SEPHIROTH_CATEGORIES};
 use crate::AppState;
 use log::info;
@@ -348,6 +349,25 @@ fn validate_and_merge_categories(
     }
 }
 
+/// Get num_ctx setting from database, falling back to DEFAULT_NUM_CTX
+fn get_num_ctx_setting(db: &Database) -> u32 {
+    db.conn()
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'ollama_num_ctx'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_NUM_CTX)
+}
+
+/// Create OllamaClient with num_ctx from settings
+fn create_ollama_client(db: &Database) -> OllamaClient {
+    let num_ctx = get_num_ctx_setting(db);
+    OllamaClient::with_context(None, num_ctx)
+}
+
 #[tauri::command]
 pub async fn check_ollama() -> Result<OllamaStatus, String> {
     let client = OllamaClient::new(None);
@@ -577,19 +597,20 @@ pub async fn generate_summary(
     fnord_id: i64,
     model: String,
 ) -> Result<SummaryResponse, String> {
-    let client = OllamaClient::new(None);
     let locale = get_locale_from_db(&state);
     let prompt_template = get_summary_prompt(&state, &locale);
 
-    let content: String = {
+    let (client, content): (OllamaClient, String) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        db.conn()
+        let client = create_ollama_client(&db);
+        let content = db.conn()
             .query_row(
                 "SELECT COALESCE(content_full, '') FROM fnords WHERE id = ?1",
                 [fnord_id],
                 |row| row.get(0),
             )
-            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+        (client, content)
     };
 
     if content.is_empty() {
@@ -633,19 +654,20 @@ pub async fn analyze_article(
     fnord_id: i64,
     model: String,
 ) -> Result<AnalysisResponse, String> {
-    let client = OllamaClient::new(None);
     let locale = get_locale_from_db(&state);
     let prompt_template = get_analysis_prompt(&state, &locale);
 
-    let (title, content): (String, String) = {
+    let (client, title, content): (OllamaClient, String, String) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        db.conn()
+        let client = create_ollama_client(&db);
+        let (title, content) = db.conn()
             .query_row(
                 "SELECT title, COALESCE(content_full, '') FROM fnords WHERE id = ?1",
                 [fnord_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
-            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+        (client, title, content)
     };
 
     if content.is_empty() {
@@ -699,20 +721,21 @@ pub async fn process_article(
     fnord_id: i64,
     model: String,
 ) -> Result<(SummaryResponse, AnalysisResponse), String> {
-    let client = OllamaClient::new(None);
     let locale = get_locale_from_db(&state);
     let summary_prompt_template = get_summary_prompt(&state, &locale);
     let analysis_prompt_template = get_analysis_prompt(&state, &locale);
 
-    let (title, content): (String, String) = {
+    let (client, title, content): (OllamaClient, String, String) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        db.conn()
+        let client = create_ollama_client(&db);
+        let (title, content) = db.conn()
             .query_row(
                 "SELECT title, COALESCE(content_full, '') FROM fnords WHERE id = ?1",
                 [fnord_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
-            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+        (client, title, content)
     };
 
     if content.is_empty() {
@@ -802,18 +825,19 @@ pub async fn process_article_discordian(
     fnord_id: i64,
     model: String,
 ) -> Result<DiscordianResponse, String> {
-    let client = OllamaClient::new(None);
     let locale = get_locale_from_db(&state);
 
-    let (title, content, article_date): (String, String, Option<String>) = {
+    let (client, title, content, article_date): (OllamaClient, String, String, Option<String>) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        db.conn()
+        let client = create_ollama_client(&db);
+        let (title, content, article_date) = db.conn()
             .query_row(
                 "SELECT title, COALESCE(content_full, ''), DATE(COALESCE(published_at, fetched_at)) FROM fnords WHERE id = ?1",
                 [fnord_id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
-            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+        (client, title, content, article_date)
     };
 
     if content.is_empty() {
@@ -1160,8 +1184,9 @@ pub async fn process_batch(
     
     info!("Starting batch processing with concurrency: {}", concurrency);
 
-    let articles: Vec<BatchArticle> = {
+    let (articles, num_ctx): (Vec<BatchArticle>, u32) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
+        let num_ctx = get_num_ctx_setting(&db);
 
         let query = match limit {
             Some(n) => format!(
@@ -1200,7 +1225,7 @@ pub async fn process_batch(
              })
         }).map_err(|e| e.to_string())?;
 
-        rows.filter_map(|r| r.ok()).collect()
+        (rows.filter_map(|r| r.ok()).collect(), num_ctx)
     };
 
     let total = articles.len() as i64;
@@ -1237,9 +1262,9 @@ pub async fn process_batch(
             if state.batch_cancel.load(Ordering::SeqCst) {
                 return (idx, title, fnord_id, false, Some("Cancelled".to_string()));
             }
-            
-            // Re-create client in each future (cheap)
-            let client = OllamaClient::new(None);
+
+            // Re-create client in each future with configured num_ctx
+            let client = OllamaClient::with_context(None, num_ctx);
             
             let (success, error) = process_single_article(&client, &state, &model, &locale, article).await;
             

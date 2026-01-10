@@ -157,15 +157,28 @@ pub fn get_language_for_locale(locale: &str) -> &'static str {
     }
 }
 
+/// Default context length - optimized for 12GB GPU (100% GPU, ~1.5s/article)
+pub const DEFAULT_NUM_CTX: u32 = 4096;
+
 /// Ollama API client for local LLM inference
 pub struct OllamaClient {
     base_url: String,
+    num_ctx: u32,
 }
 
 impl OllamaClient {
     pub fn new(base_url: Option<String>) -> Self {
         Self {
             base_url: base_url.unwrap_or_else(|| "http://localhost:11434".to_string()),
+            num_ctx: DEFAULT_NUM_CTX,
+        }
+    }
+
+    /// Create client with custom context length
+    pub fn with_context(base_url: Option<String>, num_ctx: u32) -> Self {
+        Self {
+            base_url: base_url.unwrap_or_else(|| "http://localhost:11434".to_string()),
+            num_ctx,
         }
     }
 
@@ -442,7 +455,7 @@ Content: {}"#,
             stream: false,
             format,
             options: GenerateOptions {
-                num_ctx: 4096, // 4K context: 100% GPU, 15x faster than 32K default
+                num_ctx: self.num_ctx,
             },
         };
 

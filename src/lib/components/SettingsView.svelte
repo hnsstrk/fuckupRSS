@@ -50,6 +50,17 @@
   let selectedProfileId = $state("default");
   let profileDropdownOpen = $state(false);
 
+  // Context length (num_ctx)
+  const DEFAULT_NUM_CTX = 4096;
+  let ollamaNumCtx = $state(DEFAULT_NUM_CTX);
+  const numCtxOptions = [
+    { value: 2048, label: "2K", desc: "Minimal - sehr schnell" },
+    { value: 4096, label: "4K", desc: "Standard - empfohlen" },
+    { value: 8192, label: "8K", desc: "Erweitert - mehr VRAM" },
+    { value: 16384, label: "16K", desc: "Groß - hoher VRAM-Bedarf" },
+    { value: 32768, label: "32K", desc: "Maximum - sehr hoher VRAM-Bedarf" },
+  ];
+
   // Prompts state
   // Prompts state
   let summaryPrompt = $state("");
@@ -66,6 +77,7 @@
   let logLevelDropdownOpen = $state(false);
   let mainModelDropdownOpen = $state(false);
   let embeddingModelDropdownOpen = $state(false);
+  let numCtxDropdownOpen = $state(false);
 
   // Tab state
   let activeTab = $state<"general" | "ollama" | "prompts" | "maintenance">(
@@ -135,6 +147,13 @@
     await loadOllamaStatus();
     await loadHardwareProfiles();
     await loadPrompts();
+    // Load num_ctx setting
+    const savedNumCtx = await invoke<string | null>("get_setting", {
+      key: "ollama_num_ctx",
+    });
+    if (savedNumCtx) {
+      ollamaNumCtx = parseInt(savedNumCtx) || DEFAULT_NUM_CTX;
+    }
   });
 
   onDestroy(() => {
@@ -232,6 +251,7 @@
     logLevelDropdownOpen = false;
     mainModelDropdownOpen = false;
     embeddingModelDropdownOpen = false;
+    numCtxDropdownOpen = false;
   }
 
   async function handleSave() {
@@ -257,6 +277,12 @@
         value: selectedEmbeddingModel,
       });
     }
+
+    // Save context length
+    await invoke("set_setting", {
+      key: "ollama_num_ctx",
+      value: ollamaNumCtx.toString(),
+    });
 
     // Ensure only the selected models are loaded
     if (selectedMainModel && selectedEmbeddingModel) {
@@ -1098,6 +1124,49 @@
           </p>
         </div>
 
+        <!-- Context Length (num_ctx) -->
+        <div class="setting-group">
+          <span class="label">{$_("settings.ollama.contextLength") || "Kontext-Länge (num_ctx)"}</span>
+          <div class="custom-select">
+            <button
+              type="button"
+              class="select-trigger"
+              onclick={() => {
+                numCtxDropdownOpen = !numCtxDropdownOpen;
+                profileDropdownOpen = false;
+              }}
+            >
+              <span>
+                {numCtxOptions.find(o => o.value === ollamaNumCtx)?.label || ollamaNumCtx}
+                <span class="ctx-desc">
+                  ({numCtxOptions.find(o => o.value === ollamaNumCtx)?.desc || ""})
+                </span>
+              </span>
+              <span class="arrow">{numCtxDropdownOpen ? "▲" : "▼"}</span>
+            </button>
+            {#if numCtxDropdownOpen}
+              <div class="select-options">
+                {#each numCtxOptions as option}
+                  <button
+                    type="button"
+                    class="select-option ctx-option {ollamaNumCtx === option.value ? 'selected' : ''}"
+                    onclick={() => {
+                      ollamaNumCtx = option.value;
+                      numCtxDropdownOpen = false;
+                    }}
+                  >
+                    <span class="ctx-label">{option.label}</span>
+                    <span class="ctx-option-desc">{option.desc}</span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+          <p class="setting-description">
+            {$_("settings.ollama.contextLengthDescription") || "Höhere Werte erlauben längere Artikel, benötigen aber mehr VRAM. 4K ist für die meisten Artikel ausreichend."}
+          </p>
+        </div>
+
         {#if downloadError}
           <div class="error-message">
             {$_("settings.ollama.downloadError")}: {downloadError}
@@ -1826,6 +1895,35 @@
   .profile-desc {
     font-size: 0.75rem;
     color: var(--text-muted);
+  }
+
+  /* Context Length (num_ctx) */
+  .ctx-desc {
+    color: var(--text-muted);
+    font-size: 0.85em;
+    margin-left: 0.5rem;
+  }
+
+  .ctx-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem !important;
+  }
+
+  .ctx-label {
+    font-weight: 600;
+    color: var(--accent-primary);
+    min-width: 3rem;
+  }
+
+  .ctx-option-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .ctx-option.selected .ctx-label {
+    color: var(--accent-secondary);
   }
 
   .profile-badge {

@@ -115,7 +115,9 @@
       "downloadError": "Fehler beim Download",
       "noModels": "Keine Modelle installiert",
       "hardwareProfile": "Leistungsprofil (AI Parallelität)",
-      "profileDescription": "Steuert die Anzahl gleichzeitiger KI-Analysen. 'High-End' erfordert >12GB VRAM."
+      "profileDescription": "Steuert die Anzahl gleichzeitiger KI-Analysen. 'High-End' erfordert >12GB VRAM.",
+      "contextLength": "Kontext-Länge (num_ctx)",
+      "contextLengthDescription": "Höhere Werte erlauben längere Artikel, benötigen aber mehr VRAM. 4K ist für die meisten Artikel ausreichend."
     },
     "prompts": {
       "title": "KI-Prompts",

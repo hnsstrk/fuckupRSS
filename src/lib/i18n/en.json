@@ -115,7 +115,9 @@
       "downloadError": "Download failed",
       "noModels": "No models installed",
       "hardwareProfile": "Performance Profile (AI Concurrency)",
-      "profileDescription": "Controls the number of concurrent AI analyses. 'High-End' requires >12GB VRAM."
+      "profileDescription": "Controls the number of concurrent AI analyses. 'High-End' requires >12GB VRAM.",
+      "contextLength": "Context Length (num_ctx)",
+      "contextLengthDescription": "Higher values allow longer articles but require more VRAM. 4K is sufficient for most articles."
     },
     "prompts": {
       "title": "AI Prompts",

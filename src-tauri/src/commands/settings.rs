@@ -1,3 +1,4 @@
+use crate::ollama::DEFAULT_NUM_CTX;
 use crate::{AppState, LogLevel};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,8 @@ pub struct Settings {
     pub theme: String,
     pub show_terminology_tooltips: bool,
     pub log_level: String,
+    /// Ollama context length (num_ctx) - affects VRAM usage and speed
+    pub ollama_num_ctx: u32,
 }
 
 #[tauri::command]
@@ -42,6 +45,11 @@ pub fn get_settings(state: State<AppState>) -> Result<Settings, String> {
             }
         });
 
+    let ollama_num_ctx = settings_map
+        .get("ollama_num_ctx")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_NUM_CTX);
+
     Ok(Settings {
         locale: settings_map
             .get("locale")
@@ -56,6 +64,7 @@ pub fn get_settings(state: State<AppState>) -> Result<Settings, String> {
             .map(|v| v == "true")
             .unwrap_or(true),
         log_level,
+        ollama_num_ctx,
     })
 }
 
