@@ -8,7 +8,6 @@
     CounterPerspective,
     ReadingTrend,
   } from "../types";
-  import { appState } from "../stores/state.svelte";
   import Tabs, { type Tab } from "./Tabs.svelte";
 
   // Tab state
@@ -154,8 +153,7 @@
   }
 
   function handleReadArticle(fnordId: number) {
-    appState.selectedFnordId = fnordId;
-    appState.currentView = "articles";
+    window.dispatchEvent(new CustomEvent('navigate-to-article', { detail: { articleId: fnordId } }));
   }
 
   // Derived values

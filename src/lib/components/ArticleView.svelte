@@ -192,7 +192,8 @@
   }
 
   function navigateToSimilarArticle(fnordId: number) {
-    appState.selectFnord(fnordId);
+    // Use navigate event to ensure article is loaded even if not in current filter
+    window.dispatchEvent(new CustomEvent('navigate-to-article', { detail: { articleId: fnordId } }));
   }
 
   function formatSimilarity(similarity: number): string {

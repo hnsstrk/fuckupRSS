@@ -27,9 +27,12 @@
   // Listen for article navigation events
   async function handleNavigateToArticle(event: CustomEvent<{ articleId: number }>) {
     mainView = 'articles';
-    // Reset filter and load all articles so the selected one is found
+    // Reset filter
     appState.selectedPentacleId = null;
-    await appState.loadFnords();
+    appState.selectedSephirothId = null;
+
+    // Ensure the article is loaded (fetch if not in current list)
+    await appState.ensureFnordLoaded(event.detail.articleId);
     appState.selectFnord(event.detail.articleId);
   }
 

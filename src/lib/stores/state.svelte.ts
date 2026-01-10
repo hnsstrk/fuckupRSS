@@ -293,6 +293,28 @@ class AppState {
     }
   }
 
+  // Ensure a specific fnord is loaded (fetch if not in list)
+  async ensureFnordLoaded(id: number): Promise<boolean> {
+    // Check if already in list
+    if (this.fnords.find((f) => f.id === id)) {
+      return true;
+    }
+
+    // Fetch the specific article
+    try {
+      const fnord = await invoke<Fnord | null>("get_fnord", { id });
+      if (fnord) {
+        // Add to beginning of list so it's visible
+        this.fnords = [fnord, ...this.fnords];
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("Failed to load fnord:", e);
+      return false;
+    }
+  }
+
   selectNextFnord(): void {
     if (this.fnords.length === 0) return;
 

@@ -6,13 +6,6 @@
   import { invoke } from "@tauri-apps/api/core";
   import Tooltip from "./Tooltip.svelte";
 
-  interface LoadedModel {
-    name: string;
-    size: number;
-    size_vram: number;
-    parameter_size: string;
-  }
-
   interface Props {
     onsettings?: () => void;
     onnetwork?: () => void;
@@ -34,26 +27,9 @@
   let searchInput = $state("");
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   let unlisten: UnlistenFn | null = null;
-  let unlistenModels: UnlistenFn | null = null;
   let unlistenArticlesReset: UnlistenFn | null = null;
   let unlistenEmbedding: UnlistenFn | null = null;
-  let loadedModels = $state<LoadedModel[]>([]);
   let maintenanceInterval: ReturnType<typeof setInterval> | null = null;
-
-  async function loadLoadedModels() {
-    try {
-      const response = await invoke<{ models: LoadedModel[] }>('get_loaded_models');
-      loadedModels = response.models;
-    } catch (e) {
-      console.error('Failed to load loaded models:', e);
-      loadedModels = [];
-    }
-  }
-
-  function formatVram(bytes: number): string {
-    const gb = bytes / (1024 * 1024 * 1024);
-    return `${gb.toFixed(1)}G`;
-  }
 
   onMount(async () => {
     await appState.loadPentacles();
@@ -68,8 +44,6 @@
     appState.syncAllFeeds();
     // Load unprocessed count
     appState.loadUnprocessedCount();
-    // Load currently loaded models
-    await loadLoadedModels();
 
     // Listen for batch progress events
     console.log("Setting up batch-progress event listener...");
@@ -80,12 +54,6 @@
       console.log("Current batchProgress after update:", appState.batchProgress);
     });
     console.log("Batch-progress listener set up successfully");
-
-    // Listen for model changes from Settings
-    unlistenModels = await listen("models-changed", async () => {
-      console.log("Models changed event received, refreshing loaded models...");
-      await loadLoadedModels();
-    });
 
     // Listen for articles reset from Settings
     unlistenArticlesReset = await listen("articles-reset", async () => {
@@ -106,7 +74,6 @@
 
   onDestroy(() => {
     if (unlisten) unlisten();
-    if (unlistenModels) unlistenModels();
     if (unlistenArticlesReset) unlistenArticlesReset();
     if (unlistenEmbedding) unlistenEmbedding();
     if (maintenanceInterval) clearInterval(maintenanceInterval);
@@ -151,6 +118,13 @@
     }
   }
 
+  function handleSelectAll() {
+    appState.selectedView = "all";
+    appState.selectedPentacleId = null;
+    appState.selectedSephirothId = null;
+    appState.loadFnords();
+  }
+
   function handleSelectPentacle(id: number) {
     appState.selectedView = "pentacle";
     appState.selectPentacle(id);
@@ -177,9 +151,6 @@
     const result = await appState.startBatchProcessing();
     console.log("startBatchProcessing result:", result);
     console.log("appState.error:", appState.error);
-
-    // Refresh loaded models after batch processing (model may have been loaded)
-    await loadLoadedModels();
 
     if (result) {
       toasts.success($_('batch.complete', {
@@ -333,6 +304,17 @@
   <!-- Feed List -->
   <div class="feed-list">
     {#if sidebarMode === 'pentacles'}
+      <!-- All Articles -->
+      <div
+        class="feed-item all-feeds {appState.selectedPentacleId === null && appState.selectedSephirothId === null ? 'active' : ''}"
+        onclick={handleSelectAll}
+        onkeydown={(e) => e.key === 'Enter' && handleSelectAll()}
+        role="button"
+        tabindex="0"
+      >
+        <span class="feed-name">{$_('sidebar.allFeeds')}</span>
+      </div>
+
       <!-- Pentacles List -->
       {#each appState.pentacles as pentacle (pentacle.id)}
         <div
@@ -408,114 +390,28 @@
 
   <!-- Batch Processing -->
   <div class="batch-section">
-    <div class="batch-header">
-      <Tooltip termKey="discordian"><span class="batch-title">{$_('batch.title')}</span></Tooltip>
-      {#if appState.unprocessedCount.with_content > 0 && !appState.batchProcessing}
-        <span class="unprocessed-badge">{appState.unprocessedCount.with_content}</span>
-      {/if}
-    </div>
-
     {#if appState.batchProcessing}
-      <div class="batch-progress">
-        {#if appState.batchProgress && appState.batchProgress.current > 0}
-          <div class="progress-bar">
-            <div
-              class="progress-fill"
-              style="width: {(appState.batchProgress.current / appState.batchProgress.total) * 100}%"
-            ></div>
-          </div>
-          <div class="progress-text">
-            {$_('batch.progress', { values: { current: appState.batchProgress.current, total: appState.batchProgress.total }})}
-          </div>
-          <div class="progress-title" title={appState.batchProgress.title}>
-            {appState.batchProgress.title.length > 30
-              ? appState.batchProgress.title.slice(0, 30) + "..."
-              : appState.batchProgress.title}
-          </div>
-          {#if !appState.batchProgress.success && appState.batchProgress.error}
-            <div class="progress-error">{appState.batchProgress.error}</div>
-          {/if}
-        {:else if appState.batchProgress}
-          <!-- Initial event received (current=0), show total -->
-          <div class="progress-bar">
-            <div class="progress-fill indeterminate"></div>
-          </div>
-          <div class="progress-text">{$_('batch.starting')} ({appState.batchProgress.total})</div>
-        {:else}
-          <!-- No event yet -->
-          <div class="progress-bar">
-            <div class="progress-fill indeterminate"></div>
-          </div>
-          <div class="progress-text">{$_('batch.starting')}</div>
-        {/if}
-        <button onclick={handleCancelBatch} class="btn-cancel" title={$_('batch.cancel')}>
-          {$_('batch.cancel')}
-        </button>
-      </div>
+      <button onclick={handleCancelBatch} class="btn-batch processing" title={$_('batch.cancel')}>
+        <Tooltip termKey="discordian">DISCORDIAN ANALYSIS</Tooltip>
+        <span class="cancel-icon">×</span>
+      </button>
     {:else if appState.ollamaStatus.available}
       <button
         onclick={handleBatchProcessing}
         class="btn-batch"
         disabled={appState.batchProcessing || appState.unprocessedCount.with_content === 0}
       >
+        <Tooltip termKey="discordian">DISCORDIAN ANALYSIS</Tooltip>
         {#if appState.unprocessedCount.with_content > 0}
-          {$_('batch.process')} ({appState.unprocessedCount.with_content})
-        {:else}
-          {$_('batch.process')}
+          <span class="unprocessed-badge">{appState.unprocessedCount.with_content}</span>
         {/if}
       </button>
     {:else}
-      <div class="batch-unavailable">{$_('batch.noOllama')}</div>
+      <button class="btn-batch" disabled title={$_('batch.noOllama')}>
+        <Tooltip termKey="discordian">DISCORDIAN ANALYSIS</Tooltip>
+      </button>
     {/if}
   </div>
-
-  <!-- Embedding Progress (shown when generating embeddings) -->
-  {#if appState.embeddingProgress}
-    {@const progress = appState.embeddingProgress}
-    {@const progressPercent = progress.total > 0 ? Math.round(((progress.total - progress.queue_size) / progress.total) * 100) : 0}
-    <div class="embedding-progress">
-      <div class="embedding-header">
-        <span class="embedding-icon">⚡</span>
-        <span class="embedding-label">Embeddings</span>
-        {#if progress.is_processing && progress.total > 0}
-          <span class="embedding-percent">{progressPercent}%</span>
-        {/if}
-      </div>
-      {#if progress.is_processing}
-        <div class="progress-bar">
-          {#if progress.total > 0}
-            <div class="progress-fill" style="width: {progressPercent}%"></div>
-          {:else}
-            <div class="progress-fill indeterminate"></div>
-          {/if}
-        </div>
-        <div class="embedding-text">
-          {progress.total - progress.queue_size} / {progress.total}
-        </div>
-      {:else if progress.processed > 0 || progress.failed > 0}
-        <div class="embedding-text success">
-          ✓ {progress.processed} generated
-          {#if progress.failed > 0}
-            , {progress.failed} failed
-          {/if}
-        </div>
-      {/if}
-    </div>
-  {/if}
-
-  <!-- Loaded Models -->
-  {#if loadedModels.length > 0}
-    <div class="loaded-models-status">
-      <span class="loaded-label">VRAM:</span>
-      {#each loadedModels as model, i}
-        <span class="loaded-model-chip" title="{model.name} ({model.parameter_size})">
-          {model.name.split(':')[0]}
-          <span class="vram-size">{formatVram(model.size_vram)}</span>
-        </span>
-        {#if i < loadedModels.length - 1}<span class="model-sep">·</span>{/if}
-      {/each}
-    </div>
-  {/if}
 
   <!-- Stats -->
   <div class="stats">
@@ -676,6 +572,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .all-feeds {
+    border-bottom: 1px solid var(--border-default);
+    margin-bottom: 0.25rem;
+  }
+
+  .all-feeds.active {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
   }
 
   .feed-actions {
@@ -855,40 +761,22 @@
     padding: 0.75rem 1rem;
   }
 
-  .batch-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-  }
-
-  .batch-title {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .unprocessed-badge {
-    background-color: var(--accent-primary);
-    color: var(--text-on-accent);
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    font-size: 0.625rem;
-    font-weight: 600;
-  }
-
   .btn-batch {
     width: 100%;
     padding: 0.5rem 0.75rem;
     border-radius: 0.375rem;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
     cursor: pointer;
     transition: all 0.2s;
     border: 1px solid var(--accent-primary);
     background-color: transparent;
     color: var(--accent-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
   }
 
   .btn-batch:hover:not(:disabled) {
@@ -901,166 +789,40 @@
     cursor: not-allowed;
   }
 
-  .batch-progress {
-    font-size: 0.75rem;
-  }
-
-  .progress-bar {
-    height: 4px;
-    background-color: var(--bg-overlay);
-    border-radius: 2px;
-    overflow: hidden;
-    margin-bottom: 0.375rem;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background-color: var(--accent-primary);
-    transition: width 0.3s ease;
-  }
-
-  .progress-fill.indeterminate {
-    width: 30%;
-    animation: indeterminate 1.5s ease-in-out infinite;
-  }
-
-  @keyframes indeterminate {
-    0% {
-      transform: translateX(-100%);
-    }
-    50% {
-      transform: translateX(233%);
-    }
-    100% {
-      transform: translateX(-100%);
-    }
-  }
-
-  .progress-text {
-    color: var(--text-muted);
-    text-align: center;
-    margin-bottom: 0.25rem;
-  }
-
-  .progress-title {
-    color: var(--text-secondary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .progress-error {
-    color: var(--accent-error);
-    font-size: 0.625rem;
-    margin-top: 0.25rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .batch-unavailable {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-align: center;
-    padding: 0.5rem;
-  }
-
-  /* Embedding progress styles */
-  .embedding-progress {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.75rem;
-    border-top: 1px solid var(--border-primary);
-    background-color: var(--bg-secondary);
-  }
-
-  .embedding-header {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    margin-bottom: 0.375rem;
-  }
-
-  .embedding-icon {
-    font-size: 0.875rem;
+  .btn-batch.processing {
+    border-color: var(--accent-warning);
     color: var(--accent-warning);
+    animation: pulse-border 1.5s ease-in-out infinite;
   }
 
-  .embedding-label {
-    color: var(--text-secondary);
-    font-weight: 500;
-  }
-
-  .embedding-percent {
-    margin-left: auto;
-    color: var(--accent-warning);
-    font-weight: 600;
-    font-size: 0.875rem;
-  }
-
-  .embedding-text {
-    color: var(--text-muted);
-    text-align: center;
-  }
-
-  .embedding-text.success {
-    color: var(--accent-success);
-  }
-
-  .btn-cancel {
-    width: 100%;
-    padding: 0.375rem 0.5rem;
-    margin-top: 0.5rem;
-    border-radius: 0.375rem;
-    font-size: 0.625rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: 1px solid var(--accent-error);
-    background-color: transparent;
-    color: var(--accent-error);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .btn-cancel:hover {
+  .btn-batch.processing:hover {
     background-color: var(--accent-error);
+    border-color: var(--accent-error);
     color: var(--text-on-accent);
   }
 
-  /* Loaded Models Status */
-  .loaded-models-status {
-    padding: 0.5rem 1rem;
-    border-top: 1px solid var(--border-default);
-    font-size: 0.625rem;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.25rem;
+  @keyframes pulse-border {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
   }
 
-  .loaded-label {
-    color: var(--text-muted);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .loaded-model-chip {
-    background-color: var(--bg-overlay);
+  .unprocessed-badge {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
     padding: 0.125rem 0.375rem;
     border-radius: 0.25rem;
-    color: var(--text-secondary);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .vram-size {
-    color: var(--accent-primary);
+    font-size: 0.625rem;
     font-weight: 600;
   }
 
-  .model-sep {
-    color: var(--text-muted);
+  .btn-batch:hover .unprocessed-badge {
+    background-color: var(--text-on-accent);
+    color: var(--accent-primary);
+  }
+
+  .cancel-icon {
+    font-size: 1rem;
+    font-weight: 400;
   }
 
   /* Semantic Search */
