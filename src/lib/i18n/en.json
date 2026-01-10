@@ -355,5 +355,77 @@
     "selectKeywordForTrend": "Select a keyword from the Keywords tab to see its trend",
     "trendComparison": "Trend Comparison",
     "comparedWith": "Co-occurring"
+  },
+  "mindfuck": {
+    "title": "Operation Mindfuck",
+    "subtitle": "Your Reading Behavior Mirrored",
+    "description": "Discover your filter bubble and expand your horizons",
+    "profile": {
+      "title": "Reading Profile",
+      "totalRead": "Articles Read",
+      "totalArticles": "Available Articles",
+      "readPercentage": "Read Percentage",
+      "firstRead": "First Read",
+      "lastRead": "Last Read",
+      "avgBias": "Average Political Bias",
+      "avgSachlichkeit": "Average Objectivity",
+      "noData": "No articles read yet. Start reading to build your profile."
+    },
+    "categories": {
+      "title": "By Category",
+      "read": "read",
+      "available": "available"
+    },
+    "bias": {
+      "title": "Political Bias",
+      "strongLeft": "Strong left",
+      "left": "Lean left",
+      "neutral": "Neutral",
+      "right": "Lean right",
+      "strongRight": "Strong right",
+      "balanced": "Balanced",
+      "leaningLeft": "Left-leaning",
+      "leaningRight": "Right-leaning"
+    },
+    "sachlichkeit": {
+      "title": "Objectivity",
+      "highlyEmotional": "Highly emotional",
+      "emotional": "Emotional",
+      "mixed": "Mixed",
+      "mostlyObjective": "Mostly objective",
+      "objective": "Objective"
+    },
+    "blindSpots": {
+      "title": "Blind Spots",
+      "description": "Areas you read less",
+      "noBlindSpots": "No blind spots detected - you're reading balanced!",
+      "severity": {
+        "high": "Highly underrepresented",
+        "medium": "Underrepresented",
+        "low": "Slightly underrepresented"
+      }
+    },
+    "counterPerspectives": {
+      "title": "Counter-Perspectives",
+      "description": "Articles with alternative viewpoints",
+      "noRecommendations": "No recommendations available",
+      "readArticle": "Read article"
+    },
+    "trends": {
+      "title": "Reading Trends",
+      "description": "Your reading behavior over time",
+      "last7Days": "Last 7 days",
+      "last30Days": "Last 30 days",
+      "last90Days": "Last 90 days",
+      "articlesRead": "Articles read",
+      "avgBiasOverTime": "Average bias",
+      "noTrends": "Not enough data for trends yet"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "blindSpots": "Blind Spots",
+      "recommendations": "Recommendations",
+      "trends": "Trends"
+    }
   }
 }

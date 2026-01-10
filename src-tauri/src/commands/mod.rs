@@ -2,6 +2,7 @@ pub mod categories;
 pub mod embedding;
 pub mod fnords;
 pub mod immanentize;
+pub mod mindfuck;
 pub mod ollama;
 pub mod opml;
 pub mod pentacles;

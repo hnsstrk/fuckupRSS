@@ -180,6 +180,11 @@ pub fn run() {
             commands::opml::parse_opml_preview,
             commands::opml::import_opml,
             commands::opml::export_opml,
+            // Operation Mindfuck (Bias Mirror)
+            commands::mindfuck::get_reading_profile,
+            commands::mindfuck::get_blind_spots,
+            commands::mindfuck::get_counter_perspectives,
+            commands::mindfuck::get_reading_trends,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

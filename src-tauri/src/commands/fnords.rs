@@ -252,18 +252,22 @@ pub fn update_fnord_status(state: State<AppState>, id: i64, status: String) -> R
 
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
-    let read_at = if status == "illuminated" || status == "golden_apple" {
-        Some(chrono::Utc::now().to_rfc3339())
+    // Only set read_at on first read (when transitioning from concealed to read status)
+    // and preserve existing read_at value
+    if status == "illuminated" || status == "golden_apple" {
+        // Set read_at only if it's NULL (first time reading)
+        db.conn()
+            .execute(
+                "UPDATE fnords SET status = ?1, read_at = COALESCE(read_at, ?2) WHERE id = ?3",
+                (&status, chrono::Utc::now().to_rfc3339(), id),
+            )
+            .map_err(|e| e.to_string())?;
     } else {
-        None
-    };
-
-    db.conn()
-        .execute(
-            "UPDATE fnords SET status = ?1, read_at = ?2 WHERE id = ?3",
-            (&status, &read_at, id),
-        )
-        .map_err(|e| e.to_string())?;
+        // Just update status, don't touch read_at (preserve reading history)
+        db.conn()
+            .execute("UPDATE fnords SET status = ?1 WHERE id = ?2", (&status, id))
+            .map_err(|e| e.to_string())?;
+    }
 
     Ok(())
 }

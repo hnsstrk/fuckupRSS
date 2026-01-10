@@ -280,7 +280,70 @@ export interface NetworkGraph {
   edges: GraphEdge[];
 }
 
-export type MainView = 'articles' | 'network' | 'fnord';
+export type MainView = 'articles' | 'network' | 'fnord' | 'mindfuck';
+
+// Operation Mindfuck (Bias Mirror)
+export interface CategoryReadStats {
+  sephiroth_id: number;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  read_count: number;
+  total_count: number;
+  percentage: number;
+}
+
+export interface BiasReadStats {
+  bias_value: number;
+  label: string;
+  read_count: number;
+  percentage: number;
+}
+
+export interface SachlichkeitReadStats {
+  sachlichkeit_value: number;
+  label: string;
+  read_count: number;
+  percentage: number;
+}
+
+export interface ReadingProfile {
+  total_read: number;
+  total_articles: number;
+  read_percentage: number;
+  avg_political_bias: number | null;
+  avg_sachlichkeit: number | null;
+  by_category: CategoryReadStats[];
+  by_bias: BiasReadStats[];
+  by_sachlichkeit: SachlichkeitReadStats[];
+  first_read_at: string | null;
+  last_read_at: string | null;
+}
+
+export interface BlindSpot {
+  spot_type: string;
+  name: string;
+  description: string;
+  severity: string;
+  available_count: number;
+  read_count: number;
+}
+
+export interface CounterPerspective {
+  fnord_id: number;
+  title: string;
+  pentacle_title: string | null;
+  published_at: string | null;
+  political_bias: number | null;
+  reason: string;
+}
+
+export interface ReadingTrend {
+  date: string;
+  read_count: number;
+  avg_bias: number | null;
+  avg_sachlichkeit: number | null;
+}
 
 // OPML Import/Export
 export interface OpmlFeedPreview {

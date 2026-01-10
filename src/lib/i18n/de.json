@@ -355,5 +355,77 @@
     "selectKeywordForTrend": "Wähle ein Keyword im Keywords-Tab um den Trend zu sehen",
     "trendComparison": "Trend-Vergleich",
     "comparedWith": "Gemeinsam vorkommend"
+  },
+  "mindfuck": {
+    "title": "Operation Mindfuck",
+    "subtitle": "Dein Leseverhalten im Spiegel",
+    "description": "Entdecke deine Filter-Blase und erweitere deinen Horizont",
+    "profile": {
+      "title": "Leseprofil",
+      "totalRead": "Gelesene Artikel",
+      "totalArticles": "Verfügbare Artikel",
+      "readPercentage": "Leseanteil",
+      "firstRead": "Erste Lesung",
+      "lastRead": "Letzte Lesung",
+      "avgBias": "Durchschnittliche politische Tendenz",
+      "avgSachlichkeit": "Durchschnittliche Sachlichkeit",
+      "noData": "Noch keine Artikel gelesen. Beginne zu lesen um dein Profil zu erstellen."
+    },
+    "categories": {
+      "title": "Nach Kategorien",
+      "read": "gelesen",
+      "available": "verfügbar"
+    },
+    "bias": {
+      "title": "Politische Tendenz",
+      "strongLeft": "Stark links",
+      "left": "Leicht links",
+      "neutral": "Neutral",
+      "right": "Leicht rechts",
+      "strongRight": "Stark rechts",
+      "balanced": "Ausgewogen",
+      "leaningLeft": "Links-Tendenz",
+      "leaningRight": "Rechts-Tendenz"
+    },
+    "sachlichkeit": {
+      "title": "Sachlichkeit",
+      "highlyEmotional": "Stark emotional",
+      "emotional": "Emotional",
+      "mixed": "Gemischt",
+      "mostlyObjective": "Überwiegend sachlich",
+      "objective": "Sachlich"
+    },
+    "blindSpots": {
+      "title": "Blinde Flecken",
+      "description": "Bereiche die du weniger liest",
+      "noBlindSpots": "Keine blinden Flecken erkannt - du liest ausgewogen!",
+      "severity": {
+        "high": "Stark unterrepräsentiert",
+        "medium": "Unterrepräsentiert",
+        "low": "Leicht unterrepräsentiert"
+      }
+    },
+    "counterPerspectives": {
+      "title": "Gegenperspektiven",
+      "description": "Artikel mit alternativen Sichtweisen",
+      "noRecommendations": "Keine Empfehlungen verfügbar",
+      "readArticle": "Artikel lesen"
+    },
+    "trends": {
+      "title": "Lesetrends",
+      "description": "Dein Leseverhalten über Zeit",
+      "last7Days": "Letzte 7 Tage",
+      "last30Days": "Letzte 30 Tage",
+      "last90Days": "Letzte 90 Tage",
+      "articlesRead": "Artikel gelesen",
+      "avgBiasOverTime": "Durchschnittliche Tendenz",
+      "noTrends": "Noch nicht genug Daten für Trends"
+    },
+    "tabs": {
+      "overview": "Übersicht",
+      "blindSpots": "Blinde Flecken",
+      "recommendations": "Empfehlungen",
+      "trends": "Trends"
+    }
   }
 }
