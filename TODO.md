@@ -126,27 +126,28 @@ Quelle: `fuckupRSS-Anforderungen.md` C.2
 
 Status: Geplant (nach Phase 3)
 
-### Operation Mindfuck (Bias-Spiegel)
+### Operation Mindfuck (Bias-Spiegel) ✅
 
 **Abhängigkeitsreihenfolge:**
 
-1. [ ] **Lesehistorie erfassen** (zuerst)
+1. [x] **Lesehistorie erfassen** ✅
    - `read_at` Timestamp beim Öffnen eines Artikels
-   - Optional: Verweildauer tracken
+   - COALESCE-Logik bewahrt ersten Lesezeitpunkt
 
-2. [ ] **Bias-Berechnung** (benötigt Lesehistorie)
+2. [x] **Bias-Berechnung** ✅
    - Aggregierte politische Tendenz
    - Thematische Verteilung (Sephiroth)
 
-3. [ ] **Blinde-Flecken-Erkennung** (benötigt Bias-Berechnung)
+3. [x] **Blinde-Flecken-Erkennung** ✅
    - Unterrepräsentierte Kategorien
    - Fehlende politische Perspektiven
 
-4. [ ] **Bias-Dashboard UI** (benötigt alle vorherigen)
+4. [x] **Bias-Dashboard UI** ✅
    - Visualisierung der Filterblase
    - Trends über Zeit
+   - Tab-basierte Navigation (Übersicht, Blinde Flecken, Empfehlungen, Trends)
 
-5. [ ] **Gegenpol-Empfehlungen** (benötigt Dashboard)
+5. [x] **Gegenpol-Empfehlungen** ✅
    - Artikel mit alternativen Perspektiven
    - "Erweiter deinen Horizont"-Feature
 
@@ -250,21 +251,26 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 ### Phase 4: Polish (In Arbeit)
 - [x] OPML Import mit Preview und Duplikaterkennung
 - [x] OPML Export mit Save-Dialog
+- [x] Operation Mindfuck (Bias-Spiegel) komplett implementiert
+  - Backend: get_reading_profile, get_blind_spots, get_counter_perspectives, get_reading_trends
+  - UI: MindfuckView.svelte mit Tabs für Übersicht, Blinde Flecken, Empfehlungen, Trends
 
 ---
 
 ## Quick Reference: Nächste Schritte
 
-**Phase 4 in Arbeit!**
+**Phase 4 fast abgeschlossen!**
 
 ```
 1. OPML Import                 ───── ✅
 
 2. OPML Export                 ───── ✅
 
-3. Operation Mindfuck          <──── Nächster Schritt
+3. Operation Mindfuck          ───── ✅
 
 4. VSS-Optimierung             <──── Bei Bedarf (>10.000 Artikel)
+
+5. Phase 5: Release            <──── Nächster Schritt
 ```
 
 ---

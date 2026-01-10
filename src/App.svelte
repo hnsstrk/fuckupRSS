@@ -6,6 +6,7 @@
   import ArticleView from "./lib/components/ArticleView.svelte";
   import KeywordNetwork from "./lib/components/KeywordNetwork.svelte";
   import FnordView from "./lib/components/FnordView.svelte";
+  import MindfuckView from "./lib/components/MindfuckView.svelte";
   import SettingsView from "./lib/components/SettingsView.svelte";
   import Toast from "./lib/components/Toast.svelte";
   import StatusBar from "./lib/components/StatusBar.svelte";
@@ -13,7 +14,7 @@
   import { initLocaleFromDb } from "./lib/i18n";
   import { networkStore, appState } from "./lib/stores/state.svelte";
 
-  let mainView = $state<'articles' | 'network' | 'fnord' | 'settings'>('articles');
+  let mainView = $state<'articles' | 'network' | 'fnord' | 'mindfuck' | 'settings'>('articles');
 
   // Listen for navigation events from other components
   function handleNavigateToNetwork(event: CustomEvent<{ keywordId?: number }>) {
@@ -56,10 +57,12 @@
         onarticles={() => mainView = 'articles'}
         onfnord={() => mainView = 'fnord'}
         onnetwork={() => mainView = 'network'}
+        onmindfuck={() => mainView = 'mindfuck'}
         onsettings={() => mainView = 'settings'}
         articlesActive={mainView === 'articles'}
         fnordActive={mainView === 'fnord'}
         networkActive={mainView === 'network'}
+        mindfuckActive={mainView === 'mindfuck'}
         settingsActive={mainView === 'settings'}
       />
 
@@ -75,6 +78,9 @@
         {:else if mainView === 'fnord'}
           <!-- Fnord Statistics View -->
           <FnordView />
+        {:else if mainView === 'mindfuck'}
+          <!-- Operation Mindfuck (Bias Mirror) -->
+          <MindfuckView />
         {:else if mainView === 'settings'}
           <!-- Settings View -->
           <SettingsView />
