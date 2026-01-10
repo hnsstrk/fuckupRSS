@@ -1011,12 +1011,13 @@ pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount,
         )
         .map_err(|e| e.to_string())?;
 
+    // Require minimum 100 chars to match batch processing filter
     let with_content: i64 = db
         .conn()
         .query_row(
             r#"SELECT COUNT(*) FROM fnords
                WHERE processed_at IS NULL
-               AND content_full IS NOT NULL AND content_full != ''
+               AND content_full IS NOT NULL AND LENGTH(content_full) >= 100
                AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)"#,
             [],
             |row| row.get(0),
@@ -1189,6 +1190,7 @@ pub async fn process_batch(
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let num_ctx = get_num_ctx_setting(&db);
 
+        // Require minimum 100 chars to filter out failed retrievals (e.g. "<!DOCTYPE html>")
         let query = match limit {
             Some(n) => format!(
                 r#"SELECT id, title, content_full,
@@ -1197,7 +1199,7 @@ pub async fn process_batch(
                           analysis_error
                    FROM fnords
                    WHERE processed_at IS NULL
-                   AND content_full IS NOT NULL AND content_full != ''
+                   AND content_full IS NOT NULL AND LENGTH(content_full) >= 100
                    AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)
                    ORDER BY published_at DESC
                    LIMIT {}"#,
@@ -1209,7 +1211,7 @@ pub async fn process_batch(
                           analysis_error
                    FROM fnords
                    WHERE processed_at IS NULL
-                   AND content_full IS NOT NULL AND content_full != ''
+                   AND content_full IS NOT NULL AND LENGTH(content_full) >= 100
                    AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)
                    ORDER BY published_at DESC"#.to_string(),
         };
