@@ -687,13 +687,11 @@ pub async fn analyze_article(
                     r#"UPDATE fnords SET
                         political_bias = ?1,
                         sachlichkeit = ?2,
-                        article_type = ?3,
                         processed_at = CURRENT_TIMESTAMP
-                    WHERE id = ?4"#,
+                    WHERE id = ?3"#,
                     (
                         analysis.political_bias,
                         analysis.sachlichkeit,
-                        &analysis.article_type,
                         fnord_id,
                     ),
                 )
@@ -791,13 +789,11 @@ pub async fn process_article(
                 r#"UPDATE fnords SET
                     political_bias = ?1,
                     sachlichkeit = ?2,
-                    article_type = ?3,
                     processed_at = CURRENT_TIMESTAMP
-                WHERE id = ?4"#,
+                WHERE id = ?3"#,
                 (
                     analysis.political_bias,
                     analysis.sachlichkeit,
-                    &analysis.article_type,
                     fnord_id,
                 ),
             );
@@ -864,14 +860,12 @@ pub async fn process_article_discordian(
                         summary = ?1,
                         political_bias = ?2,
                         sachlichkeit = ?3,
-                        article_type = ?4,
                         processed_at = CURRENT_TIMESTAMP
-                    WHERE id = ?5"#,
+                    WHERE id = ?4"#,
                     (
                         &analysis.summary,
                         analysis.political_bias,
                         analysis.sachlichkeit,
-                        &analysis.article_type,
                         fnord_id,
                     ),
                 )
@@ -1084,16 +1078,14 @@ async fn process_single_article(
                     summary = ?1,
                     political_bias = ?2,
                     sachlichkeit = ?3,
-                    article_type = ?4,
                     processed_at = CURRENT_TIMESTAMP,
                     analysis_attempts = 0,
                     analysis_error = NULL
-                WHERE id = ?5"#,
+                WHERE id = ?4"#,
                 (
                     &analysis.summary,
                     analysis.political_bias,
                     analysis.sachlichkeit,
-                    &analysis.article_type,
                     fnord_id,
                 ),
             );

@@ -130,26 +130,22 @@ Content: {content}"#;
 
 /// Combined prompt for full Discordian Analysis (summary + bias + categories + keywords)
 pub const DEFAULT_DISCORDIAN_PROMPT: &str = r#"/no_think
-Analyze this news article comprehensively. Respond in {language}.
-Respond with the JSON object below.
+Analyze this news article. Respond in {language}. Return ONLY this JSON:
 
 {
-  "summary": "<2-3 sentence summary in {language}>",
-  "categories": ["<category1>", "<category2>"],
-  "keywords": ["<keyword1>", "<keyword2>", "<keyword3>"],
   "political_bias": <-2 to 2>,
   "sachlichkeit": <0 to 4>,
-  "article_type": "<type>"
+  "summary": "<1-2 sentences>",
+  "categories": ["<cat1>", "<cat2>"],
+  "keywords": ["<kw1>", "<kw2>", "<kw3>"]
 }
 
 Rules:
-- summary: 2-3 factual sentences
-- categories: 1-3 from ONLY these: Technik, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit, Verteidigung, Energie, Recht
-- keywords: Extract 3-7 short keywords from BOTH title and content.
-  RULES: 1-3 words each, NO parentheses, NO year numbers, NO explanations.
-- political_bias: -2=strong left, -1=lean left, 0=neutral, 1=lean right, 2=strong right
-- sachlichkeit: 0=highly emotional, 1=emotional, 2=mixed, 3=mostly objective, 4=objective
-- article_type: news, opinion, analysis, satire, ad, or unknown
+- political_bias: -2=strong left, 0=neutral, 2=strong right
+- sachlichkeit: 0=emotional, 2=mixed, 4=objective
+- summary: 1-2 factual sentences in {language}
+- categories: 1-2 from: Technik, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit, Verteidigung, Energie, Recht
+- keywords: 3-5 short keywords (1-2 words each)
 
 Title: {title}
 Content: {content}"#;
@@ -407,17 +403,15 @@ impl OllamaClient {
             // Retry prompt with error feedback
             format!(
                 r#"Your previous response could not be parsed. Error: {}
-Please try again and make sure to return ONLY valid JSON with this exact structure:
+Return ONLY valid JSON:
 {{
-  "summary": "...",
-  "categories": ["..."],
-  "keywords": ["..."],
   "political_bias": 0,
   "sachlichkeit": 2,
-  "article_type": "news"
+  "summary": "...",
+  "categories": ["..."],
+  "keywords": ["..."]
 }}
 
-Original article:
 Title: {}
 Content: {}"#,
                 error, title, truncated_content
@@ -540,6 +534,7 @@ impl Default for OllamaClient {
 /// Raw Discordian analysis from LLM (accepts floats)
 #[derive(Deserialize, Debug)]
 struct RawDiscordianAnalysis {
+    #[serde(default)]
     summary: String,
     #[serde(default)]
     categories: Vec<String>,
@@ -547,7 +542,6 @@ struct RawDiscordianAnalysis {
     keywords: Vec<String>,
     political_bias: f64,
     sachlichkeit: f64,
-    article_type: String,
 }
 
 /// Full Discordian analysis with all KI-extracted data
@@ -558,7 +552,6 @@ pub struct DiscordianAnalysis {
     pub keywords: Vec<String>,
     pub political_bias: i32,
     pub sachlichkeit: i32,
-    pub article_type: String,
 }
 
 impl From<RawDiscordianAnalysis> for DiscordianAnalysis {
@@ -569,7 +562,6 @@ impl From<RawDiscordianAnalysis> for DiscordianAnalysis {
             keywords: raw.keywords,
             political_bias: raw.political_bias.round() as i32,
             sachlichkeit: raw.sachlichkeit.round() as i32,
-            article_type: raw.article_type,
         }
     }
 }
