@@ -1263,9 +1263,23 @@ pub async fn process_batch(
                 return (idx, title, fnord_id, false, Some("Cancelled".to_string()));
             }
 
-            // Re-create client in each future with configured num_ctx
-            let client = OllamaClient::with_context(None, num_ctx);
-            
+            // Calculate num_ctx multiplier based on retry attempts
+            // 0 attempts (first try): 1.0x, 1 attempt (second try): 1.5x, 2+ attempts (third try): 2.0x
+            let (ctx_multiplier, adjusted_num_ctx) = match article.attempts {
+                0 => (1.0, num_ctx),
+                1 => (1.5, ((num_ctx as f64) * 1.5) as u32),
+                _ => (2.0, num_ctx * 2),
+            };
+
+            if article.attempts > 0 {
+                info!(
+                    "Retry attempt {} for article {}: using {}x context (num_ctx={})",
+                    article.attempts + 1, fnord_id, ctx_multiplier, adjusted_num_ctx
+                );
+            }
+
+            let client = OllamaClient::with_context(None, adjusted_num_ctx);
+
             let (success, error) = process_single_article(&client, &state, &model, &locale, article).await;
             
             // Emit progress immediately

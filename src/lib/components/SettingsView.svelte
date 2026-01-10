@@ -254,56 +254,56 @@
     numCtxDropdownOpen = false;
   }
 
-  async function handleSave() {
-    // Save general settings
-    await setLocale(selectedLocale);
-    settings.showTerminologyTooltips = showTooltips;
-    settings.darkTheme = selectedDarkTheme;
-    settings.syncInterval = syncInterval;
-    settings.syncOnStart = syncOnStart;
-    settings.logLevel = selectedLogLevel;
+  // Auto-save handlers for individual settings
+  function handleTooltipsChange(checked: boolean) {
+    showTooltips = checked;
+    settings.showTerminologyTooltips = checked;
+  }
 
-    // Save model preferences
-    if (selectedMainModel) {
-      await invoke("set_setting", {
-        key: "main_model",
-        value: selectedMainModel,
-      });
-      appState.selectedModel = selectedMainModel;
-    }
-    if (selectedEmbeddingModel) {
-      await invoke("set_setting", {
-        key: "embedding_model",
-        value: selectedEmbeddingModel,
-      });
-    }
+  function handleSyncIntervalChange(value: number) {
+    syncInterval = value;
+    settings.syncInterval = value;
+  }
 
-    // Save context length
+  function handleSyncOnStartChange(checked: boolean) {
+    syncOnStart = checked;
+    settings.syncOnStart = checked;
+  }
+
+  async function handleNumCtxChange(value: number) {
+    ollamaNumCtx = value;
+    numCtxDropdownOpen = false;
     await invoke("set_setting", {
       key: "ollama_num_ctx",
-      value: ollamaNumCtx.toString(),
+      value: value.toString(),
     });
+  }
 
-    // Ensure only the selected models are loaded
-    if (selectedMainModel && selectedEmbeddingModel) {
-      loadingModels = true;
-      try {
-        await invoke("ensure_models_loaded", {
-          mainModel: selectedMainModel,
-          embeddingModel: selectedEmbeddingModel,
-        });
-        await emit("models-changed");
-      } catch (e) {
-        console.error("Failed to ensure models loaded:", e);
-      }
+  // Load models into VRAM (separate from saving preferences)
+  async function handleLoadModels() {
+    if (!selectedMainModel || !selectedEmbeddingModel) return;
+
+    loadingModels = true;
+    try {
+      await invoke("ensure_models_loaded", {
+        mainModel: selectedMainModel,
+        embeddingModel: selectedEmbeddingModel,
+      });
+      await emit("models-changed");
+    } catch (e) {
+      console.error("Failed to load models:", e);
+    } finally {
       loadingModels = false;
     }
+  }
 
-    // Save prompts
+  // Save prompts (called by individual OK buttons)
+  async function handleSavePrompts() {
     await invoke("set_prompts", {
       summaryPrompt: summaryPrompt,
       analysisPrompt: analysisPrompt,
     });
+    promptsModified = false;
   }
 
   async function handleResetPrompts() {
@@ -349,29 +349,40 @@
     }
   }
 
-  function selectLocale(value: string) {
+  async function selectLocale(value: string) {
     selectedLocale = value;
     langDropdownOpen = false;
+    // Auto-save
+    await setLocale(value);
   }
 
   function selectDarkTheme(value: DarkTheme) {
     selectedDarkTheme = value;
     themeDropdownOpen = false;
+    // Auto-save
+    settings.darkTheme = value;
   }
 
   function selectLogLevel(value: LogLevel) {
     selectedLogLevel = value;
     logLevelDropdownOpen = false;
+    // Auto-save
+    settings.logLevel = value;
   }
 
-  function selectMainModel(value: string) {
+  async function selectMainModel(value: string) {
     selectedMainModel = value;
     mainModelDropdownOpen = false;
+    // Auto-save model preference
+    await invoke("set_setting", { key: "main_model", value });
+    appState.selectedModel = value;
   }
 
-  function selectEmbeddingModel(value: string) {
+  async function selectEmbeddingModel(value: string) {
     selectedEmbeddingModel = value;
     embeddingModelDropdownOpen = false;
+    // Auto-save model preference
+    await invoke("set_setting", { key: "embedding_model", value });
   }
 
   function toggleLangDropdown() {
@@ -705,9 +716,6 @@
 <div class="settings-view">
   <div class="settings-header">
     <h2>{$_("settings.title")}</h2>
-    <button type="button" class="btn-save" onclick={handleSave}>
-      {$_("settings.save")}
-    </button>
   </div>
 
   <!-- Tabs -->
@@ -813,7 +821,11 @@
 
       <div class="setting-group checkbox-group">
         <label>
-          <input type="checkbox" bind:checked={showTooltips} />
+          <input
+            type="checkbox"
+            checked={showTooltips}
+            onchange={(e) => handleTooltipsChange(e.currentTarget.checked)}
+          />
           <span class="checkbox-label">{$_("settings.tooltips")}</span>
         </label>
         <p class="setting-description">{$_("settings.tooltipsDescription")}</p>
@@ -835,7 +847,8 @@
             min="5"
             max="120"
             step="5"
-            bind:value={syncInterval}
+            value={syncInterval}
+            onchange={(e) => handleSyncIntervalChange(parseInt(e.currentTarget.value))}
             class="slider"
           />
           <span class="slider-value"
@@ -851,7 +864,11 @@
 
       <div class="setting-group checkbox-group">
         <label>
-          <input type="checkbox" bind:checked={syncOnStart} />
+          <input
+            type="checkbox"
+            checked={syncOnStart}
+            onchange={(e) => handleSyncOnStartChange(e.currentTarget.checked)}
+          />
           <span class="checkbox-label">{$_("settings.sync.onStart")}</span>
         </label>
         <p class="setting-description">
@@ -1080,6 +1097,25 @@
           </div>
         </div>
 
+        <!-- Load Models Button -->
+        <div class="setting-group">
+          <button
+            type="button"
+            class="btn-load-models"
+            onclick={handleLoadModels}
+            disabled={loadingModels || !selectedMainModel || !selectedEmbeddingModel}
+          >
+            {#if loadingModels}
+              {$_("settings.ollama.loadingModels") || "Lade Modelle..."}
+            {:else}
+              {$_("settings.ollama.loadModels") || "Modelle in VRAM laden"}
+            {/if}
+          </button>
+          <p class="setting-description">
+            {$_("settings.ollama.loadModelsDescription") || "Lädt die ausgewählten Modelle in den Grafikspeicher. Die Auswahl wird automatisch gespeichert."}
+          </p>
+        </div>
+
         <!-- Hardware Profile Selection -->
         <div class="setting-group">
           <span class="label">{$_("settings.ollama.hardwareProfile")}</span>
@@ -1151,10 +1187,7 @@
                   <button
                     type="button"
                     class="select-option ctx-option {ollamaNumCtx === option.value ? 'selected' : ''}"
-                    onclick={() => {
-                      ollamaNumCtx = option.value;
-                      numCtxDropdownOpen = false;
-                    }}
+                    onclick={() => handleNumCtxChange(option.value)}
                   >
                     <span class="ctx-label">{option.label}</span>
                     <span class="ctx-option-desc">{option.desc}</span>
@@ -1210,9 +1243,14 @@
         </div>
 
         {#if promptsModified}
-          <button type="button" class="btn-reset" onclick={handleResetPrompts}>
-            {$_("settings.prompts.reset")}
-          </button>
+          <div class="prompt-actions">
+            <button type="button" class="btn-save-prompts" onclick={handleSavePrompts}>
+              {$_("settings.prompts.save") || "Prompts speichern"}
+            </button>
+            <button type="button" class="btn-reset" onclick={handleResetPrompts}>
+              {$_("settings.prompts.reset")}
+            </button>
+          </div>
         {/if}
       {/if}
     {:else if activeTab === "maintenance"}
@@ -1981,6 +2019,52 @@
   .btn-reset:hover {
     border-color: var(--accent-primary);
     color: var(--accent-primary);
+  }
+
+  /* Load Models Button */
+  .btn-load-models {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 0.375rem;
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-load-models:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+
+  .btn-load-models:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Prompt Actions */
+  .prompt-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .btn-save-prompts {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.375rem;
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-save-prompts:hover {
+    filter: brightness(1.1);
   }
 
   .maintenance-result {
