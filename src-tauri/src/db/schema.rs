@@ -293,6 +293,28 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 9: Create vec0 virtual table for fast vector similarity search
+    // This enables O(log n) approximate nearest neighbor search via sqlite-vec
+    let has_vec_table: bool = conn
+        .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='vec_immanentize'")?
+        .query_row([], |row| row.get::<_, i64>(0).map(|c| c > 0))?;
+
+    if !has_vec_table {
+        // Create virtual table for 1024-dim embeddings (snowflake-arctic-embed2)
+        // Using cosine distance metric for semantic similarity search
+        conn.execute(
+            "CREATE VIRTUAL TABLE vec_immanentize USING vec0(immanentize_id INTEGER PRIMARY KEY, embedding float[1024] distance_metric=cosine)",
+            [],
+        )?;
+
+        // Populate from existing embeddings
+        conn.execute(
+            r#"INSERT INTO vec_immanentize (immanentize_id, embedding)
+               SELECT id, embedding FROM immanentize WHERE embedding IS NOT NULL"#,
+            [],
+        )?;
+    }
+
     Ok(())
 }
 

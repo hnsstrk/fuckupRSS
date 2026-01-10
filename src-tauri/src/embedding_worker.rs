@@ -106,6 +106,20 @@ fn save_embedding_and_dequeue(
         )
         .map_err(|e| e.to_string())?;
 
+    // Insert into vec0 virtual table for fast similarity search
+    // Use REPLACE to handle re-embeddings (e.g., after model change)
+    db.conn()
+        .execute(
+            "INSERT OR REPLACE INTO vec_immanentize (immanentize_id, embedding) VALUES (?1, ?2)",
+            rusqlite::params![keyword_id, blob],
+        )
+        .map_err(|e| {
+            // Log but don't fail - main embedding table is the source of truth
+            warn!("Failed to update vec_immanentize: {}", e);
+            e.to_string()
+        })
+        .ok();
+
     // Remove from queue
     db.conn()
         .execute("DELETE FROM embedding_queue WHERE id = ?", [queue_id])

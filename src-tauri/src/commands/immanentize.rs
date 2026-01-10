@@ -934,6 +934,9 @@ pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, Str
 
                         conn.execute("DELETE FROM immanentize WHERE id = ?", [id])
                             .ok();
+                        // Also remove from vec_immanentize (sqlite-vec)
+                        conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id])
+                            .ok();
 
                         merged_count += 1;
                         affected_articles += moved;
@@ -1000,6 +1003,9 @@ pub fn cleanup_garbage_keywords(state: State<AppState>) -> Result<CleanupResult,
         )
         .ok();
         conn.execute("DELETE FROM immanentize WHERE id = ?", [id])
+            .ok();
+        // Also remove from vec_immanentize (sqlite-vec)
+        conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id])
             .ok();
     }
 
@@ -1258,6 +1264,9 @@ pub fn auto_prune_low_quality(
             .ok();
             conn.execute("DELETE FROM immanentize WHERE id = ?", [id])
                 .ok();
+            // Also remove from vec_immanentize (sqlite-vec)
+            conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id])
+                .ok();
         }
     }
 
@@ -1352,6 +1361,7 @@ pub struct SynonymCandidate {
     pub similarity: f64,
 }
 
+/// Find synonym candidates using sqlite-vec for O(log n) approximate nearest neighbor search
 #[tauri::command]
 pub fn find_synonym_candidates(
     state: State<AppState>,
@@ -1363,6 +1373,11 @@ pub fn find_synonym_candidates(
     let threshold = threshold.unwrap_or(0.85);
     let limit = limit.unwrap_or(50);
 
+    // Cosine distance = 1 - cosine similarity
+    // For similarity >= 0.85, we need distance <= 0.15
+    let max_distance = 1.0 - threshold;
+
+    // Load dismissed pairs
     let dismissed: std::collections::HashSet<(i64, i64)> = conn
         .prepare("SELECT keyword_a_id, keyword_b_id FROM dismissed_synonyms")
         .map_err(|e| e.to_string())?
@@ -1371,55 +1386,101 @@ pub fn find_synonym_candidates(
         .filter_map(|r| r.ok())
         .collect();
 
-    let keywords_with_embeddings: Vec<(i64, String, Vec<f32>)> = conn
+    // Get keywords with embeddings (sorted by importance for prioritized search)
+    let keywords: Vec<(i64, String, Vec<u8>)> = conn
         .prepare(
-            r#"SELECT id, name, embedding FROM immanentize 
+            r#"SELECT id, name, embedding FROM immanentize
                WHERE embedding IS NOT NULL
                ORDER BY article_count DESC
                LIMIT 500"#,
         )
         .map_err(|e| e.to_string())?
-        .query_map([], |row| {
-            let blob: Vec<u8> = row.get(2)?;
-            Ok((row.get(0)?, row.get(1)?, blob_to_embedding(&blob)))
-        })
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         .collect();
 
     let mut candidates: Vec<SynonymCandidate> = Vec::new();
+    let mut seen_pairs: std::collections::HashSet<(i64, i64)> = std::collections::HashSet::new();
 
-    // O(n²) comparison - limited to 500 keywords = max 125,000 comparisons
-    // Future optimization: Use sqlite-vec for O(log n) approximate nearest neighbor search
-    // when extension bundling is implemented
-    for i in 0..keywords_with_embeddings.len() {
-        for j in (i + 1)..keywords_with_embeddings.len() {
-            let (id_a, name_a, emb_a) = &keywords_with_embeddings[i];
-            let (id_b, name_b, emb_b) = &keywords_with_embeddings[j];
+    // Use sqlite-vec for O(log n) KNN search per keyword
+    // Each keyword searches for its nearest neighbors in the vector index
+    for (keyword_id, keyword_name, embedding_blob) in &keywords {
+        // Query vec_immanentize for nearest neighbors using KNN search
+        // The WHERE clause with MATCH performs approximate nearest neighbor search
+        let neighbors: Vec<(i64, f64)> = conn
+            .prepare(
+                r#"SELECT immanentize_id, distance
+                   FROM vec_immanentize
+                   WHERE embedding MATCH ?1 AND k = 10
+                   ORDER BY distance"#,
+            )
+            .map_err(|e| e.to_string())?
+            .query_map([embedding_blob], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
 
-            let (min_id, max_id) = if id_a < id_b { (*id_a, *id_b) } else { (*id_b, *id_a) };
-            if dismissed.contains(&(min_id, max_id)) {
+        for (neighbor_id, distance) in neighbors {
+            // Skip self-matches
+            if neighbor_id == *keyword_id {
                 continue;
             }
 
-            let similarity = cosine_similarity(emb_a, emb_b);
-            if similarity >= threshold {
-                candidates.push(SynonymCandidate {
-                    keyword_a_id: *id_a,
-                    keyword_a_name: name_a.clone(),
-                    keyword_b_id: *id_b,
-                    keyword_b_name: name_b.clone(),
-                    similarity,
-                });
+            // Check distance threshold
+            if distance > max_distance {
+                continue;
+            }
+
+            // Normalize pair ordering for deduplication
+            let (min_id, max_id) = if *keyword_id < neighbor_id {
+                (*keyword_id, neighbor_id)
+            } else {
+                (neighbor_id, *keyword_id)
+            };
+
+            // Skip if already seen or dismissed
+            if seen_pairs.contains(&(min_id, max_id)) || dismissed.contains(&(min_id, max_id)) {
+                continue;
+            }
+            seen_pairs.insert((min_id, max_id));
+
+            // Get neighbor name
+            let neighbor_name: String = conn
+                .query_row(
+                    "SELECT name FROM immanentize WHERE id = ?",
+                    [neighbor_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or_else(|_| format!("Keyword {}", neighbor_id));
+
+            // Convert distance back to similarity
+            let similarity = 1.0 - distance;
+
+            candidates.push(SynonymCandidate {
+                keyword_a_id: *keyword_id,
+                keyword_a_name: keyword_name.clone(),
+                keyword_b_id: neighbor_id,
+                keyword_b_name: neighbor_name,
+                similarity,
+            });
+
+            if candidates.len() >= limit as usize * 2 {
+                break;
             }
         }
 
-        if candidates.len() >= limit as usize {
+        if candidates.len() >= limit as usize * 2 {
             break;
         }
     }
 
-    candidates.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
+    // Sort by similarity descending and limit results
+    candidates.sort_by(|a, b| {
+        b.similarity
+            .partial_cmp(&a.similarity)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     candidates.truncate(limit as usize);
 
     Ok(candidates)
@@ -1487,6 +1548,10 @@ pub fn merge_keyword_pair(
     .ok();
 
     conn.execute("DELETE FROM immanentize WHERE id = ?", [remove_id])
+        .ok();
+
+    // Also remove from vec_immanentize (sqlite-vec)
+    conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [remove_id])
         .ok();
 
     Ok(MergeSynonymsResult {
