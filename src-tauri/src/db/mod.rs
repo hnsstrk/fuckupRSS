@@ -2,6 +2,7 @@ mod schema;
 #[cfg(test)]
 mod tests;
 
+use log::{info, warn};
 use rusqlite::Connection;
 use std::path::PathBuf;
 use tauri::AppHandle;
@@ -30,10 +31,30 @@ impl Database {
             std::fs::create_dir_all(parent)?;
         }
 
+        // Must act mutable to enable load extension
         let conn = Connection::open(&db_path)?;
 
         // Enable WAL mode for better performance
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
+
+        // Try to load vector extension
+        // Note: In a real production build, we might statically link this or bundle the .so/.dll
+        // For now, we attempt to allow extension loading.
+        unsafe {
+            // Try loading common names for vector extensions if they are in library path
+            // This is a "best effort" for now until we have a proper bundling strategy
+            if let Err(e) = conn.load_extension("vector0", None) {
+                 warn!("Could not load 'vector0' extension (sqlite-vec): {}. Vector search might not work.", e);
+                 // Fallback to vss0
+                 if let Err(e2) = conn.load_extension("vss0", None) {
+                     warn!("Could not load 'vss0' extension (sqlite-vss): {}. Vector search might not work.", e2);
+                 } else {
+                     info!("Successfully loaded 'vss0' extension.");
+                 }
+            } else {
+                info!("Successfully loaded 'vector0' extension.");
+            }
+        }
 
         // Initialize schema
         schema::init(&conn)?;

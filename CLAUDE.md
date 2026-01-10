@@ -30,8 +30,9 @@ fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U
 ## Technology Stack
 
 - **Framework:** Tauri 2.x (Rust backend + Svelte 5 frontend)
-- **Database:** SQLite + sqlite-vec (vector search, pure Rust)
-- **AI Backend:** Ollama (local) with ministral-3:latest and snowflake-arctic-embed2 models
+- **Database:** SQLite + sqlite-vec/vector0 (vector search extension, dynamically loaded in Rust)
+- **AI Backend:** Ollama (local) with native JSON mode for stability
+- **Models:** ministral-3:latest (text) and snowflake-arctic-embed2 (embeddings)
 - **Styling:** TailwindCSS
 - **i18n:** svelte-i18n (DE/EN)
 - **Target Platforms:** Linux (primary), macOS (secondary)
@@ -341,7 +342,7 @@ Alle Illuminatus!-Begriffe (Fnord, Pentacle, etc.) haben erklärende Tooltips:
 | HTTP Client | `reqwest` | ✅ |
 | Readability | `readability` | ✅ |
 | Ollama API | `ollama-rs` | ✅ |
-| Vector Search | `sqlite-vec` | ⏳ Phase 3 |
+| Vector Search | `sqlite-vec` | ⏳ Phase 3 (Loading implemented) |
 | OPML Parsing | `opml` | ⏳ Phase 4 |
 
 ## Illuminatus! Terminology

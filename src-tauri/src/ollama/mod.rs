@@ -44,6 +44,8 @@ struct GenerateRequest {
     model: String,
     prompt: String,
     stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    format: Option<String>,
     options: GenerateOptions,
 }
 
@@ -110,10 +112,7 @@ Summary:"#;
 
 pub const DEFAULT_ANALYSIS_PROMPT: &str = r#"/no_think
 Analyze the following news article for political bias and objectivity.
-
-IMPORTANT: Respond ONLY in the specified JSON format. Do not use any other format or add explanations.
-
-Respond in the following JSON format (ONLY the JSON, no explanation):
+Respond in the following JSON format:
 {
   "political_bias": <-2 to 2, where -2=strong left, 0=neutral, 2=strong right>,
   "sachlichkeit": <0 to 4, where 0=highly emotional, 4=very objective>,
@@ -121,15 +120,12 @@ Respond in the following JSON format (ONLY the JSON, no explanation):
 }
 
 Title: {title}
-Content: {content}
-
-JSON:"#;
+Content: {content}"#;
 
 /// Combined prompt for full Discordian Analysis (summary + bias + categories + keywords)
 pub const DEFAULT_DISCORDIAN_PROMPT: &str = r#"/no_think
 Analyze this news article comprehensively. Respond in {language}.
-
-IMPORTANT: Respond ONLY with the JSON object below. No explanation, no markdown.
+Respond with the JSON object below.
 
 {
   "summary": "<2-3 sentence summary in {language}>",
@@ -143,15 +139,14 @@ IMPORTANT: Respond ONLY with the JSON object below. No explanation, no markdown.
 Rules:
 - summary: 2-3 factual sentences
 - categories: 1-3 from ONLY these: Technik, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit, Verteidigung, Energie, Recht
-- keywords: 3-7 specific terms (people, places, organizations, concepts) - NOT generic words
+- keywords: Extract 3-7 short keywords from BOTH title and content.
+  RULES: 1-3 words each, NO parentheses, NO year numbers, NO explanations.
 - political_bias: -2=strong left, -1=lean left, 0=neutral, 1=lean right, 2=strong right
 - sachlichkeit: 0=highly emotional, 1=emotional, 2=mixed, 3=mostly objective, 4=objective
 - article_type: news, opinion, analysis, satire, ad, or unknown
 
 Title: {title}
-Content: {content}
-
-JSON:"#;
+Content: {content}"#;
 
 /// Get language name for prompt based on locale
 pub fn get_language_for_locale(locale: &str) -> &'static str {
@@ -160,159 +155,6 @@ pub fn get_language_for_locale(locale: &str) -> &'static str {
         "en" => "English",
         _ => "German", // Default to German
     }
-}
-
-/// Extract and fix JSON object from LLM response, handling various formats
-fn extract_json_from_response(response: &str) -> String {
-    let trimmed = response.trim();
-
-    // Remove markdown code blocks
-    let without_markdown = trimmed
-        .trim_start_matches("```json")
-        .trim_start_matches("```JSON")
-        .trim_start_matches("```")
-        .trim_end_matches("```")
-        .trim();
-
-    // Try to find JSON object by looking for { and }
-    let json_str = if let Some(start) = without_markdown.find('{') {
-        if let Some(end) = without_markdown.rfind('}') {
-            if end > start {
-                without_markdown[start..=end].to_string()
-            } else {
-                without_markdown.to_string()
-            }
-        } else {
-            without_markdown.to_string()
-        }
-    } else {
-        without_markdown.to_string()
-    };
-
-    // Fix common LLM JSON mistakes
-    fix_json_string(&json_str)
-}
-
-/// Fix common JSON mistakes from LLM output
-fn fix_json_string(json: &str) -> String {
-    let mut result = json.to_string();
-
-    // Replace single quotes with double quotes (common LLM mistake)
-    result = fix_quotes(&result);
-
-    // Remove trailing commas before } or ]
-    result = result.replace(",}", "}").replace(",]", "]");
-
-    // Fix unescaped quotes inside string values
-    result = fix_inner_quotes(&result);
-
-    // Fix number-as-string issue (e.g., "0" instead of 0 for numeric fields)
-    result = fix_numeric_strings(&result);
-
-    result
-}
-
-/// Replace single quotes with double quotes in JSON-like strings
-fn fix_quotes(input: &str) -> String {
-    let mut result = String::with_capacity(input.len());
-    let chars: Vec<char> = input.chars().collect();
-    let mut i = 0;
-
-    while i < chars.len() {
-        let c = chars[i];
-
-        if c == '\'' {
-            // Check if this looks like a JSON string delimiter
-            result.push('"');
-        } else {
-            result.push(c);
-        }
-        i += 1;
-    }
-
-    result
-}
-
-/// Fix unescaped quotes inside JSON string values
-/// E.g., "summary": "He said "hello" to me" -> "summary": "He said \"hello\" to me"
-fn fix_inner_quotes(json: &str) -> String {
-    let mut result = String::with_capacity(json.len() + 100);
-    let chars: Vec<char> = json.chars().collect();
-    let len = chars.len();
-    let mut i = 0;
-    let mut in_string = false;
-
-    while i < len {
-        let c = chars[i];
-
-        if c == '"' && (i == 0 || chars[i - 1] != '\\') {
-            if !in_string {
-                // Starting a string
-                in_string = true;
-                result.push(c);
-            } else {
-                // Could be end of string or unescaped quote inside
-                // Look ahead to see if this looks like end of string
-                let next_non_ws = chars[i + 1..].iter().position(|&ch| !ch.is_whitespace());
-                let is_end_of_string = match next_non_ws {
-                    Some(pos) => {
-                        let next_char = chars[i + 1 + pos];
-                        // Valid JSON after string: , } ] :
-                        next_char == ',' || next_char == '}' || next_char == ']' || next_char == ':'
-                    }
-                    None => true, // End of input
-                };
-
-                if is_end_of_string {
-                    // This is the end of the string
-                    in_string = false;
-                    result.push(c);
-                } else {
-                    // This is an unescaped quote inside the string - escape it
-                    result.push('\\');
-                    result.push('"');
-                }
-            }
-        } else {
-            result.push(c);
-        }
-        i += 1;
-    }
-
-    result
-}
-
-/// Fix numeric fields that are incorrectly quoted as strings
-/// E.g., "political_bias": "0" -> "political_bias": 0
-fn fix_numeric_strings(json: &str) -> String {
-    // Pattern: "field_name": "number" -> "field_name": number
-    // Only for known numeric fields to avoid breaking actual string values
-    let numeric_fields = ["political_bias", "sachlichkeit", "quality_score"];
-    let mut result = json.to_string();
-
-    for field in &numeric_fields {
-        // Match patterns like "field": "0" or "field": "-1"
-        let patterns = [
-            (format!("\"{}\": \"", field), format!("\"{}\": ", field)),
-        ];
-
-        for (search, replace) in &patterns {
-            if let Some(start) = result.find(search) {
-                let value_start = start + search.len();
-                if let Some(end_quote) = result[value_start..].find('"') {
-                    let value = &result[value_start..value_start + end_quote];
-                    // Check if value is a valid number
-                    if value.parse::<f64>().is_ok() {
-                        let full_match = format!("{}{}", search, &result[value_start..value_start + end_quote + 1]);
-                        let replacement = format!("{}{}", replace, value);
-                        result = result.replace(&full_match, &replacement);
-                    }
-                }
-            }
-        }
-    }
-
-    result
 }
 
 /// Ollama API client for local LLM inference
@@ -449,18 +291,15 @@ impl OllamaClient {
         Ok(result.embedding)
     }
 
-    /// Generate embeddings for multiple texts (batch)
+    /// Generate embeddings for multiple texts (batch) parallelly
     #[allow(dead_code)]
     pub async fn generate_embeddings_batch(
         &self,
         model: &str,
         texts: &[String],
     ) -> Vec<Result<Vec<f32>, OllamaError>> {
-        let mut results = Vec::with_capacity(texts.len());
-        for text in texts {
-            results.push(self.generate_embedding(model, text).await);
-        }
-        results
+        let futures = texts.iter().map(|text| self.generate_embedding(model, text));
+        futures::future::join_all(futures).await
     }
 
     /// Generate a summary for article content
@@ -478,7 +317,7 @@ impl OllamaClient {
     ) -> Result<String, OllamaError> {
         let truncated_content = content.chars().take(8000).collect::<String>();
         let prompt = prompt_template.replace("{content}", &truncated_content);
-        self.generate(model, &prompt).await
+        self.generate(model, &prompt, None).await
     }
 
     /// Analyze article for bias and objectivity
@@ -505,15 +344,16 @@ impl OllamaClient {
             .replace("{title}", title)
             .replace("{content}", &truncated_content);
 
-        let response = self.generate(model, &prompt).await?;
+        // Use JSON mode
+        let response = self.generate(model, &prompt, Some("json".to_string())).await?;
 
-        // Try to extract JSON from response - handle various LLM output formats
-        let json_str = extract_json_from_response(&response);
-
-        // Parse as RawBiasAnalysis (accepts floats) then convert to BiasAnalysis (integers)
-        let raw: RawBiasAnalysis = serde_json::from_str(&json_str).map_err(|e| {
-            warn!("JSON parse error: {}. Extracted JSON: {}", e, truncate_str(&json_str, 300));
-            OllamaError::GenerationFailed(format!("Failed to parse bias analysis: {}", e))
+        // Parse directly
+        let raw: RawBiasAnalysis = serde_json::from_str(&response).map_err(|e| {
+            warn!("JSON parse error: {}. Response: {}", e, truncate_str(&response, 300));
+            OllamaError::JsonParseError {
+                message: e.to_string(),
+                raw_response: response.chars().take(500).collect(),
+            }
         })?;
 
         Ok(raw.into())
@@ -548,7 +388,6 @@ impl OllamaClient {
             // Retry prompt with error feedback
             format!(
                 r#"Your previous response could not be parsed. Error: {}
-
 Please try again and make sure to return ONLY valid JSON with this exact structure:
 {{
   "summary": "...",
@@ -561,9 +400,7 @@ Please try again and make sure to return ONLY valid JSON with this exact structu
 
 Original article:
 Title: {}
-Content: {}
-
-Respond ONLY with the JSON object, no other text."#,
+Content: {}"#,
                 error, title, truncated_content
             )
         } else {
@@ -574,15 +411,14 @@ Respond ONLY with the JSON object, no other text."#,
                 .replace("{content}", &truncated_content)
         };
 
-        let response = self.generate(model, &prompt).await?;
-        let json_str = extract_json_from_response(&response);
+        // Use JSON mode
+        let response = self.generate(model, &prompt, Some("json".to_string())).await?;
 
-        let raw: RawDiscordianAnalysis = serde_json::from_str(&json_str).map_err(|e| {
-            // Only log on actual parse failure (after extraction was attempted)
-            warn!("JSON parse error: {}. Extracted JSON: {}", e, truncate_str(&json_str, 300));
+        let raw: RawDiscordianAnalysis = serde_json::from_str(&response).map_err(|e| {
+            warn!("JSON parse error: {}. Response: {}", e, truncate_str(&response, 300));
             OllamaError::JsonParseError {
                 message: e.to_string(),
-                raw_response: json_str.chars().take(500).collect(),
+                raw_response: response.chars().take(500).collect(),
             }
         })?;
 
@@ -596,7 +432,7 @@ Respond ONLY with the JSON object, no other text."#,
     }
 
     /// Generate text with Ollama
-    async fn generate(&self, model: &str, prompt: &str) -> Result<String, OllamaError> {
+    async fn generate(&self, model: &str, prompt: &str, format: Option<String>) -> Result<String, OllamaError> {
         let url = format!("{}/api/generate", self.base_url);
         let client = self.client();
 
@@ -604,6 +440,7 @@ Respond ONLY with the JSON object, no other text."#,
             model: model.to_string(),
             prompt: prompt.to_string(),
             stream: false,
+            format,
             options: GenerateOptions {
                 num_ctx: 8192, // 8K context is enough for article analysis
             },
