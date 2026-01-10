@@ -30,25 +30,17 @@ Der hohe VRAM-Verbrauch kommt vom **KV-Cache** für parallele Anfragen.
 
 **Optionen:**
 
-1. **NUM_PARALLEL=2 statt 4** → ministral-3:latest (~7-8 GB) + Embedding (~0.7 GB) = ~8-9 GB
-2. **ministral-3:3b verwenden** → 3b (~4-5 GB) + Embedding (~0.7 GB) = ~5-6 GB, erlaubt NUM_PARALLEL=4
+| Konfiguration | VRAM | Parallelisierung | Qualität |
+|---------------|------|------------------|----------|
+| 8.9B + NUM_PARALLEL=2 | ~8-9 GB | 2 gleichzeitig | Besser |
+| 3B + NUM_PARALLEL=4 | ~5-6 GB | 4 gleichzeitig | Ausreichend |
 
-**Trade-offs:**
+**Empfehlung:**
+- **12 GB GPU (RTX 3080 Ti):** `OLLAMA_NUM_PARALLEL=2` mit 8.9B ODER `NUM_PARALLEL=4` mit 3B
+- **16+ GB GPU:** `OLLAMA_NUM_PARALLEL=4` mit 8.9B problemlos möglich
+- **8 GB GPU:** `ministral-3:3b` + `NUM_PARALLEL=2`
 
-| Aspekt | 8.9B + NUM_PARALLEL=2 | 3B + NUM_PARALLEL=4 |
-|--------|----------------------|---------------------|
-| Qualität | Bessere Zusammenfassungen | Ausreichend für RSS |
-| Geschwindigkeit | ~2x langsamer | ~2-3x schneller |
-| VRAM | ~8-9 GB | ~5-6 GB |
-| Parallelisierung | 2 gleichzeitige Analysen | 4 gleichzeitige Analysen |
-
-**Empfehlung:** Für 12 GB GPU (RTX 3080 Ti) mit Fokus auf Durchsatz:
-- `ministral-3:3b` + `OLLAMA_NUM_PARALLEL=4`
-- Alternativ: `ministral-3:latest` + `OLLAMA_NUM_PARALLEL=2`
-
-**Entscheidung:** Offen - Benutzer kann in Settings wählen.
-
-**TODO:** Hardware-Profile-Settings anpassen, um diese Empfehlungen zu reflektieren.
+**Status:** Benutzer wählt Modell in Settings, Hardware-Profile dokumentiert.
 
 ---
 
@@ -56,129 +48,159 @@ Der hohe VRAM-Verbrauch kommt vom **KV-Cache** für parallele Anfragen.
 
 Status: In Entwicklung
 
-### Hohe Priorität
+### 1. Artikel-Embeddings (HÖCHSTE PRIORITÄT)
 
-- [ ] **Artikel-Embeddings implementieren**
+**Warum zuerst?** Basis für alle folgenden Features (Ähnliche Artikel, Semantische Suche).
+
+- [ ] **Schema-Migration**
   - `fnords.embedding` Spalte hinzufügen (1024-dim BLOB)
-  - Embedding-Generierung bei Artikel-Analyse
-  - Batch-Regenerierung für bestehende Artikel
-  - Quelle: `fuckupRSS-Anforderungen.md` C.2
+  - Index für Performance
 
-- [ ] **Ähnliche Artikel finden**
-  - `find_similar_articles` Command implementieren
-  - UI-Integration in ArticleView
-  - Vektor-Ähnlichkeit via Cosine-Distance
-  - Quelle: `fuckupRSS-Anforderungen.md` C.2
+- [ ] **Embedding-Generierung**
+  - Bei Artikel-Analyse: Titel + Content embedden
+  - In `process_article_discordian` integrieren
 
-### Mittlere Priorität
+- [ ] **Batch-Regenerierung**
+  - Command für bestehende Artikel ohne Embedding
+  - Fortschrittsanzeige wie bei Batch-Analyse
 
-- [ ] **Semantische Suche**
-  - Volltext-Suche via Embeddings
-  - Query-Embedding generieren
-  - Top-K ähnlichste Artikel zurückgeben
-  - Quelle: `fuckupRSS-Anforderungen.md` C.2, `README.md`
+Quelle: `fuckupRSS-Anforderungen.md` C.2
 
-### Niedrige Priorität
+### 2. Ähnliche Artikel (HOHE PRIORITÄT)
 
-- [ ] **VSS-Integration optimieren**
-  - sqlite-vec für performante Nearest-Neighbor-Suche
-  - Index-Optimierung für große Datenmengen
-  - Quelle: `fuckupRSS-Anforderungen.md` C.2
+**Abhängigkeit:** Artikel-Embeddings müssen implementiert sein.
+
+- [ ] **Backend**
+  - `find_similar_articles(fnord_id, limit)` Command
+  - Cosine-Distance-Berechnung
+  - Threshold für Mindest-Ähnlichkeit
+
+- [ ] **Frontend**
+  - Sektion "Ähnliche Artikel" in ArticleView
+  - Klickbare Links zu verwandten Artikeln
+
+Quelle: `fuckupRSS-Anforderungen.md` C.2
+
+### 3. Semantische Suche (MITTLERE PRIORITÄT)
+
+**Abhängigkeit:** Artikel-Embeddings müssen implementiert sein.
+
+- [ ] **Backend**
+  - `semantic_search(query, limit)` Command
+  - Query-Text → Embedding → Nearest Neighbors
+
+- [ ] **Frontend**
+  - Such-UI erweitern
+  - Umschalten zwischen Volltext/Semantisch
+
+Quelle: `fuckupRSS-Anforderungen.md` C.2, `README.md`
+
+### 4. VSS-Optimierung (NIEDRIGE PRIORITÄT)
+
+**Abhängigkeit:** Artikel-Embeddings + signifikante Datenmenge.
+
+- [ ] sqlite-vec Index für performante Nearest-Neighbor-Suche
+- [ ] Benchmark bei >10.000 Artikeln
+
+Quelle: `fuckupRSS-Anforderungen.md` C.2
 
 ---
 
 ## Phase 4: Polish
 
-Status: Geplant
+Status: Geplant (nach Phase 3)
 
 ### Operation Mindfuck (Bias-Spiegel)
 
-- [ ] **Lesehistorie erfassen**
-  - Tracking welche Artikel gelesen werden
-  - Zeitstempel und Verweildauer
+**Abhängigkeitsreihenfolge:**
 
-- [ ] **Bias-Berechnung**
-  - Politische Tendenz der gelesenen Artikel aggregieren
-  - Thematische Verteilung analysieren
+1. [ ] **Lesehistorie erfassen** (zuerst)
+   - `read_at` Timestamp beim Öffnen eines Artikels
+   - Optional: Verweildauer tracken
 
-- [ ] **Blinde-Flecken-Erkennung**
-  - Unterrepräsentierte Kategorien identifizieren
-  - Fehlende Perspektiven aufzeigen
+2. [ ] **Bias-Berechnung** (benötigt Lesehistorie)
+   - Aggregierte politische Tendenz
+   - Thematische Verteilung (Sephiroth)
 
-- [ ] **Bias-Dashboard UI**
-  - Visualisierung der eigenen Filterblase
-  - Trends über Zeit
+3. [ ] **Blinde-Flecken-Erkennung** (benötigt Bias-Berechnung)
+   - Unterrepräsentierte Kategorien
+   - Fehlende politische Perspektiven
 
-- [ ] **Gegenpol-Empfehlungen**
-  - Artikel mit alternativen Perspektiven vorschlagen
-  - Basierend auf Bias-Analyse
+4. [ ] **Bias-Dashboard UI** (benötigt alle vorherigen)
+   - Visualisierung der Filterblase
+   - Trends über Zeit
+
+5. [ ] **Gegenpol-Empfehlungen** (benötigt Dashboard)
+   - Artikel mit alternativen Perspektiven
+   - "Erweiter deinen Horizont"-Feature
 
 Quelle: `fuckupRSS-Anforderungen.md` Phase 4, `README.md`
 
 ### Import/Export
 
 - [ ] **OPML Import**
-  - Feed-Listen aus anderen Readern importieren
-  - Kategorien übernehmen
+  - Feed-Listen aus anderen Readern
+  - Kategorien-Mapping auf Sephiroth
 
 - [ ] **OPML Export**
-  - Feed-Liste exportieren
-  - Kompatibilität mit anderen Readern
+  - Kompatibilität mit Feedly, Inoreader, etc.
 
-Quelle: `fuckupRSS-Anforderungen.md` Phase 4, `CLAUDE.md`
+Quelle: `fuckupRSS-Anforderungen.md` Phase 4
 
 ### UX-Verbesserungen
 
 - [ ] **Erweiterte Keyboard-Shortcuts (Vim-Style)**
-  - Navigation: j/k, gg/G
-  - Aktionen: m (mark), s (star)
-  - Quelle: `fuckupRSS-Anforderungen.md` Phase 4
+  - Navigation: j/k, gg/G, Ctrl+d/u
+  - Aktionen: m (mark read), s (star), o (open)
 
 - [ ] **Desktop-Notifications**
-  - Benachrichtigung bei neuen Artikeln
-  - Konfigurierbar pro Feed
-  - Quelle: `fuckupRSS-Anforderungen.md` Phase 4
+  - Tauri Notification API
+  - Konfigurierbar: Global, pro Feed, pro Kategorie
+
+Quelle: `fuckupRSS-Anforderungen.md` Phase 4
 
 ---
 
 ## Phase 5: Release
 
-Status: Geplant
+Status: Geplant (nach Phase 4)
 
 - [ ] **Linux-Paketierung**
-  - .deb für Debian/Ubuntu
-  - .rpm für Fedora/RHEL
-  - AppImage für universelle Distribution
-  - Quelle: `fuckupRSS-Anforderungen.md` Phase 5
+  - .deb (Debian/Ubuntu)
+  - .rpm (Fedora/RHEL)
+  - AppImage (universal)
+  - Flatpak (optional)
 
 - [ ] **macOS-Build**
-  - Apple Silicon optimiert
-  - Code-Signierung
-  - DMG-Paketierung
-  - Quelle: `fuckupRSS-Anforderungen.md` Phase 5
+  - Universal Binary (x86_64 + arm64)
+  - Code-Signierung + Notarisierung
+  - DMG mit Installer
 
-- [ ] **Dokumentation finalisieren**
-  - README.md aktualisieren
-  - Screenshots hinzufügen
-  - Installation guides vervollständigen
-  - Quelle: `fuckupRSS-Anforderungen.md` Phase 5
+- [ ] **Dokumentation**
+  - Screenshots für README
+  - Video-Demo (optional)
+  - Installation Guide pro Plattform
 
 - [ ] **Release v1.0**
-  - GitHub Release erstellen
-  - Changelog schreiben
-  - Quelle: `fuckupRSS-Anforderungen.md` Phase 5
+  - GitHub Release
+  - Changelog
+  - Ankündigung
+
+Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 
 ---
 
 ## Technische Schulden
 
-- [ ] **Hardware-Profile-Dokumentation erweitern**
-  - Empfehlungen für verschiedene GPU-Größen (8GB, 12GB, 16GB+)
-  - macOS Apple Silicon Konfiguration
+- [ ] **Hardware-Profile erweitern**
+  - Preset für 8GB GPU
+  - Preset für 16GB+ GPU
+  - macOS-spezifische Empfehlungen
 
-- [ ] **Test-Coverage erhöhen**
+- [ ] **Test-Coverage**
   - Aktuell: 260 Tests
-  - Ziel: Alle neuen Features testen
+  - Neue Features müssen getestet werden
+  - E2E-Tests für KI-Features
 
 ---
 
@@ -207,7 +229,24 @@ Status: Geplant
 
 ### Phase 3: KI-Features (Teilweise) ✅
 - [x] Keyword-Embeddings via snowflake-arctic-embed2
+- [x] `find_similar_keywords` Command
 - [x] sqlite-vec Extension Loading implementiert
+- [x] Hardware-Profile-Settings UI
+
+---
+
+## Quick Reference: Nächste Schritte
+
+**Empfohlene Reihenfolge für Phase 3:**
+
+```
+1. fnords.embedding Spalte     ─────┐
+                                    ├──► 3. Ähnliche Artikel UI
+2. Embedding bei Analyse       ─────┘
+                                    ┌──► 4. Semantische Suche
+3. find_similar_articles ──────────►┤
+                                    └──► 5. VSS-Optimierung
+```
 
 ---
 
