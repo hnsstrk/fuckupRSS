@@ -102,6 +102,10 @@
   let totalVram = $derived(
     loadedModels.reduce((sum, m) => sum + m.size_vram, 0)
   );
+
+  let totalArticles = $derived(
+    appState.pentacles.reduce((sum, p) => sum + p.article_count, 0)
+  );
 </script>
 
 <footer class="status-bar">
@@ -192,10 +196,10 @@
   </div>
 
   <!-- Article Stats -->
-  <div class="status-section" title="Articles">
+  <div class="status-section" title="{$_('statusBar.articlesTooltip')}">
     <span class="status-icon">▣</span>
-    <span class="status-label">Articles</span>
-    <span class="status-value">{appState.fnords.length}</span>
+    <span class="status-label">{$_('statusBar.articles')}</span>
+    <span class="status-value">{totalArticles}</span>
   </div>
 </footer>
 

@@ -5,6 +5,7 @@
   },
   "sidebar": {
     "title": "Pentacles",
+    "sephiroth": "Sephiroth",
     "addFeed": "Add Feed",
     "addFeedPlaceholder": "Enter feed URL...",
     "allFeeds": "All Feeds",
@@ -240,7 +241,9 @@
     "hopeless": "Hopeless",
     "hopelessTooltip": "Articles whose AI analysis failed after multiple retries. These will no longer be analyzed automatically.",
     "failed": "Failed",
-    "failedTooltip": "Articles where AI analysis failed, but more retries are pending."
+    "failedTooltip": "Articles where AI analysis failed, but more retries are pending.",
+    "articles": "Articles",
+    "articlesTooltip": "Total number of articles in the database"
   },
   "batch": {
     "title": "Discordian Analysis",
@@ -299,6 +302,7 @@
     "firstSeen": "First seen",
     "lastUsed": "Last used",
     "categories": "Categories",
+    "categoriesHelp": "Shows which topic areas this keyword appears in. The percentage indicates the relative strength of the association (based on article frequency).",
     "neighbors": "Related Keywords",
     "cooccurrence": "Co-occurrence",
     "similarity": "Semantic Similarity",
@@ -315,6 +319,9 @@
     "days7": "7 days",
     "days30": "30 days",
     "days90": "90 days",
-    "selectKeywordForTrend": "Select a keyword from the Keywords tab to see its trend"
+    "days": "days",
+    "selectKeywordForTrend": "Select a keyword from the Keywords tab to see its trend",
+    "trendComparison": "Trend Comparison",
+    "comparedWith": "Co-occurring"
   }
 }

@@ -157,6 +157,7 @@ pub fn run() {
             commands::immanentize::find_synonym_candidates,
             commands::immanentize::merge_keyword_pair,
             commands::immanentize::dismiss_synonym_pair,
+            commands::immanentize::get_cooccurring_keywords,
             // Embedding Queue
             commands::embedding::get_embedding_queue_status,
             commands::embedding::process_embedding_queue_now,

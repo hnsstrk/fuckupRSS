@@ -16,6 +16,13 @@
     status: string;
   }
 
+  // Type for co-occurring keywords
+  interface CooccurringKeyword {
+    id: number;
+    name: string;
+    cooccurrence_count: number;
+  }
+
   type TabType = 'list' | 'graph';
   let activeTab = $state<TabType>('list');
   let searchInput = $state('');
@@ -31,6 +38,8 @@
   let keywordArticles = $state<KeywordArticle[]>([]);
   let searchResults = $state<Keyword[]>([]);
   let graphData = $state<NetworkGraphType | null>(null);
+  let cooccurringKeywords = $state<CooccurringKeyword[]>([]);
+  let trendDays = $state(30);
   let loading = $state(false);
   let graphLoading = $state(false);
   let articlesLoading = $state(false);
@@ -90,22 +99,25 @@
   async function selectKeywordById(id: number) {
     loading = true;
     error = null;
-    // Reset articles when selecting new keyword
+    // Reset articles and co-occurring keywords when selecting new keyword
     keywordArticles = [];
+    cooccurringKeywords = [];
     articlesOffset = 0;
     hasMoreArticles = true;
 
     try {
-      const [kw, nbrs, cats, articles] = await Promise.all([
+      const [kw, nbrs, cats, articles, cooccurring] = await Promise.all([
         invoke<Keyword | null>('get_keyword', { id }),
         invoke<KeywordNeighbor[]>('get_keyword_neighbors', { id, limit: 10 }),
         invoke<KeywordCategory[]>('get_keyword_categories', { id }),
         invoke<KeywordArticle[]>('get_keyword_articles', { id, limit: articlesLimit, offset: 0 }),
+        invoke<CooccurringKeyword[]>('get_cooccurring_keywords', { keywordId: id, days: trendDays, limit: 20 }),
       ]);
       selectedKeyword = kw;
       neighbors = nbrs;
       keywordCategories = cats;
       keywordArticles = articles;
+      cooccurringKeywords = cooccurring;
       articlesOffset = articles.length;
       hasMoreArticles = articles.length >= articlesLimit;
     } catch (e) {
@@ -138,6 +150,26 @@
   function openArticle(articleId: number) {
     // Dispatch event to navigate to article view
     window.dispatchEvent(new CustomEvent('navigate-to-article', { detail: { articleId } }));
+  }
+
+  async function loadCooccurringKeywords(keywordId: number, days: number) {
+    try {
+      cooccurringKeywords = await invoke<CooccurringKeyword[]>('get_cooccurring_keywords', {
+        keywordId,
+        days,
+        limit: 20,
+      });
+    } catch (e) {
+      console.error('Failed to load co-occurring keywords:', e);
+      cooccurringKeywords = [];
+    }
+  }
+
+  function handleDaysChange(days: number) {
+    trendDays = days;
+    if (selectedKeyword) {
+      loadCooccurringKeywords(selectedKeyword.id, days);
+    }
   }
 
   async function loadGraphDataAsync(forceRefresh = false) {
@@ -377,6 +409,7 @@
             <div class="detail-section">
               <h4 class="section-title">
                 <Tooltip termKey="sephiroth">{$_('network.categories')}</Tooltip>
+                <span class="help-icon" title={$_('network.categoriesHelp')}>?</span>
               </h4>
               <div class="categories-list">
                 {#each keywordCategories as cat (cat.sephiroth_id)}
@@ -390,26 +423,36 @@
             </div>
           {/if}
 
-          <!-- Trend Chart with Neighbors -->
+          <!-- Trend Chart with Co-occurring Keywords -->
           <div class="detail-section">
-            <h4 class="section-title">{$_('network.trendComparison') || 'Trend-Vergleich'}</h4>
+            <h4 class="section-title">{$_('network.trendComparison')}</h4>
             <KeywordTrendChart
               keywordId={selectedKeyword.id}
               keywordName={selectedKeyword.name}
-              neighborIds={neighbors.slice(0, 4).map(n => n.id)}
+              neighborIds={cooccurringKeywords.slice(0, 7).map(k => k.id)}
+              ondayschange={handleDaysChange}
             />
-            {#if neighbors.length > 0}
+            {#if cooccurringKeywords.length > 0}
               <div class="neighbor-legend">
-                <span class="legend-label">{$_('network.comparedWith') || 'Verglichen mit'}:</span>
-                {#each neighbors.slice(0, 4) as neighbor, idx}
+                <span class="legend-label">{$_('network.comparedWith')}:</span>
+                {#each cooccurringKeywords.slice(0, 7) as coKw, idx}
                   <button
                     class="neighbor-tag"
-                    style="--neighbor-color: {['#f9e2af', '#a6e3a1', '#89b4fa', '#f5c2e7'][idx]}"
-                    onclick={() => selectKeywordById(neighbor.id)}
+                    style="--neighbor-color: {['#f9e2af', '#a6e3a1', '#89b4fa', '#f5c2e7', '#94e2d5', '#fab387', '#89dceb'][idx]}"
+                    onclick={() => selectKeywordById(coKw.id)}
+                    title="{coKw.cooccurrence_count} {$_('network.articleCount')}"
                   >
-                    {neighbor.name}
+                    {coKw.name}
                   </button>
                 {/each}
+                {#if cooccurringKeywords.length > 7}
+                  <span
+                    class="more-count"
+                    title={cooccurringKeywords.slice(7).map(k => k.name).join(', ')}
+                  >
+                    +{cooccurringKeywords.length - 7}
+                  </span>
+                {/if}
               </div>
             {/if}
           </div>
@@ -784,6 +827,30 @@
     margin: 0 0 0.75rem 0;
     text-transform: uppercase;
     letter-spacing: 0.025em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .help-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: 50%;
+    cursor: help;
+    text-transform: none;
+  }
+
+  .help-icon:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-primary);
   }
 
   /* Categories */
@@ -888,6 +955,17 @@
   .neighbor-tag:hover {
     background-color: var(--neighbor-color);
     color: var(--bg-default);
+  }
+
+  .more-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    padding: 0.25rem 0.5rem;
+    cursor: help;
+  }
+
+  .more-count:hover {
+    color: var(--text-primary);
   }
 
   /* Articles List */

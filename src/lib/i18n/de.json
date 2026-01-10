@@ -5,6 +5,7 @@
   },
   "sidebar": {
     "title": "Pentacles",
+    "sephiroth": "Sephiroth",
     "addFeed": "Feed hinzufügen",
     "addFeedPlaceholder": "Feed-URL eingeben...",
     "allFeeds": "Alle Feeds",
@@ -240,7 +241,9 @@
     "hopeless": "Hoffnungslos",
     "hopelessTooltip": "Artikel, deren KI-Analyse nach mehreren Versuchen fehlgeschlagen ist. Diese werden nicht mehr automatisch analysiert.",
     "failed": "Fehlgeschlagen",
-    "failedTooltip": "Artikel, bei denen die KI-Analyse fehlgeschlagen ist, aber noch weitere Versuche ausstehen."
+    "failedTooltip": "Artikel, bei denen die KI-Analyse fehlgeschlagen ist, aber noch weitere Versuche ausstehen.",
+    "articles": "Artikel",
+    "articlesTooltip": "Gesamtzahl aller Artikel in der Datenbank"
   },
   "batch": {
     "title": "Discordian Analysis",
@@ -299,6 +302,7 @@
     "firstSeen": "Erstmals",
     "lastUsed": "Zuletzt",
     "categories": "Kategorien",
+    "categoriesHelp": "Zeigt in welchen Themenbereichen dieses Stichwort vorkommt. Der Prozentwert gibt die relative Stärke der Zuordnung an (basierend auf Artikel-Häufigkeit).",
     "neighbors": "Verwandte Stichworte",
     "cooccurrence": "Gemeinsames Auftreten",
     "similarity": "Semantische Ähnlichkeit",
@@ -315,6 +319,9 @@
     "days7": "7 Tage",
     "days30": "30 Tage",
     "days90": "90 Tage",
-    "selectKeywordForTrend": "Wähle ein Keyword im Keywords-Tab um den Trend zu sehen"
+    "days": "Tage",
+    "selectKeywordForTrend": "Wähle ein Keyword im Keywords-Tab um den Trend zu sehen",
+    "trendComparison": "Trend-Vergleich",
+    "comparedWith": "Gemeinsam vorkommend"
   }
 }

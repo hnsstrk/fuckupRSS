@@ -28,6 +28,7 @@
 
   let showAddForm = $state(false);
   let newFeedUrl = $state("");
+  let sidebarMode = $state<'pentacles' | 'sephiroth'>('pentacles');
   let unlisten: UnlistenFn | null = null;
   let unlistenModels: UnlistenFn | null = null;
   let unlistenArticlesReset: UnlistenFn | null = null;
@@ -52,6 +53,7 @@
 
   onMount(async () => {
     await appState.loadPentacles();
+    await appState.loadSephiroth();
     await appState.loadFnords();
     // Reset false positive changes from migration bug (one-time fix)
     await appState.resetAllChanges();
@@ -145,13 +147,13 @@
     }
   }
 
-  function handleSelectAll() {
-    appState.selectView("all");
-  }
-
   function handleSelectPentacle(id: number) {
     appState.selectedView = "pentacle";
     appState.selectPentacle(id);
+  }
+
+  function handleSelectSephiroth(id: number) {
+    appState.selectSephiroth(id);
   }
 
   async function handleDeletePentacle(id: number) {
@@ -237,46 +239,71 @@
     </div>
   </div>
 
-  <!-- All Feeds -->
-  <button
-    class="feed-item {appState.selectedView === 'all' ? 'active' : ''}"
-    onclick={handleSelectAll}
-  >
-    <span class="feed-name">
-      {$_('sidebar.allFeeds')}
-    </span>
-  </button>
-
-  <!-- Pentacles List -->
-  <div class="feed-list">
-    <div class="section-header">
+  <!-- Mode Toggle -->
+  <div class="mode-toggle">
+    <button
+      class="toggle-btn {sidebarMode === 'pentacles' ? 'active' : ''}"
+      onclick={() => sidebarMode = 'pentacles'}
+    >
       <Tooltip termKey="pentacle">{$_('sidebar.title')}</Tooltip>
-    </div>
+    </button>
+    <button
+      class="toggle-btn {sidebarMode === 'sephiroth' ? 'active' : ''}"
+      onclick={() => sidebarMode = 'sephiroth'}
+    >
+      <Tooltip termKey="sephiroth">{$_('sidebar.sephiroth')}</Tooltip>
+    </button>
+  </div>
 
-    {#each appState.pentacles as pentacle (pentacle.id)}
-      <div
-        class="feed-item {appState.selectedPentacleId === pentacle.id ? 'active' : ''}"
-        onclick={() => handleSelectPentacle(pentacle.id)}
-        onkeydown={(e) => e.key === 'Enter' && handleSelectPentacle(pentacle.id)}
-        role="button"
-        tabindex="0"
-      >
-        <span class="feed-name">{pentacle.title || pentacle.url}</span>
-        <div class="feed-actions">
-          <button
-            class="delete-btn"
-            onclick={(e) => { e.stopPropagation(); handleDeletePentacle(pentacle.id); }}
-            title={$_('actions.delete')}
-          >×</button>
+  <!-- Feed List -->
+  <div class="feed-list">
+    {#if sidebarMode === 'pentacles'}
+      <!-- Pentacles List -->
+      {#each appState.pentacles as pentacle (pentacle.id)}
+        <div
+          class="feed-item {appState.selectedPentacleId === pentacle.id ? 'active' : ''}"
+          onclick={() => handleSelectPentacle(pentacle.id)}
+          onkeydown={(e) => e.key === 'Enter' && handleSelectPentacle(pentacle.id)}
+          role="button"
+          tabindex="0"
+        >
+          <span class="feed-name">{pentacle.title || pentacle.url}</span>
+          <div class="feed-actions">
+            <button
+              class="delete-btn"
+              onclick={(e) => { e.stopPropagation(); handleDeletePentacle(pentacle.id); }}
+              title={$_('actions.delete')}
+            >×</button>
+          </div>
         </div>
-      </div>
-    {/each}
+      {/each}
 
-    {#if appState.pentacles.length === 0 && !appState.loading}
-      <div class="empty-state">
-        {$_('articleList.noArticles')}<br />
-        <Tooltip termKey="pentacle">{$_('sidebar.addFeed')}</Tooltip>
-      </div>
+      {#if appState.pentacles.length === 0 && !appState.loading}
+        <div class="empty-state">
+          {$_('articleList.noArticles')}<br />
+          <Tooltip termKey="pentacle">{$_('sidebar.addFeed')}</Tooltip>
+        </div>
+      {/if}
+    {:else}
+      <!-- Sephiroth (Categories) List -->
+      {#each appState.sephiroth as category (category.id)}
+        {#if category.article_count > 0}
+          <div
+            class="feed-item sephiroth-item {appState.selectedSephirothId === category.id ? 'active' : ''}"
+            onclick={() => handleSelectSephiroth(category.id)}
+            onkeydown={(e) => e.key === 'Enter' && handleSelectSephiroth(category.id)}
+            role="button"
+            tabindex="0"
+          >
+            <span class="feed-name">
+              {#if category.icon}
+                <span class="category-icon">{category.icon}</span>
+              {/if}
+              {category.name}
+            </span>
+          </div>
+        {/if}
+      {/each}
     {/if}
   </div>
 
@@ -621,6 +648,45 @@
     color: var(--text-faint);
     text-transform: uppercase;
     letter-spacing: 0.05em;
+  }
+
+  .mode-toggle {
+    display: flex;
+    margin: 0.5rem 0.5rem 0.25rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    overflow: hidden;
+  }
+
+  .toggle-btn {
+    flex: 1;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .toggle-btn:hover {
+    background-color: var(--bg-overlay);
+    color: var(--text-primary);
+  }
+
+  .toggle-btn.active {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+  }
+
+  .sephiroth-item {
+    font-size: 0.8125rem;
+  }
+
+  .category-icon {
+    margin-right: 0.375rem;
   }
 
   .empty-state {

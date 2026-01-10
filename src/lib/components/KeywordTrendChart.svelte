@@ -11,9 +11,10 @@
     keywordId: number;
     keywordName: string;
     neighborIds?: number[];
+    ondayschange?: (days: number) => void;
   }
 
-  let { keywordId, keywordName, neighborIds = [] }: Props = $props();
+  let { keywordId, keywordName, neighborIds = [], ondayschange }: Props = $props();
 
   let canvas: HTMLCanvasElement;
   let chart: Chart | null = null;
@@ -26,13 +27,16 @@
   let prevNeighborIdsKey = '';
   let mounted = false;
 
-  // Color palette: main keyword first, then neighbors
+  // Color palette: main keyword first (Mauve), then 7 co-occurring keywords
   const colors = [
     { border: '#cba6f7', bg: 'rgba(203, 166, 247, 0.3)' }, // Mauve - Main keyword
     { border: '#f9e2af', bg: 'rgba(249, 226, 175, 0.15)' }, // Yellow
     { border: '#a6e3a1', bg: 'rgba(166, 227, 161, 0.15)' }, // Green
     { border: '#89b4fa', bg: 'rgba(137, 180, 250, 0.15)' }, // Blue
     { border: '#f5c2e7', bg: 'rgba(245, 194, 231, 0.15)' }, // Pink
+    { border: '#94e2d5', bg: 'rgba(148, 226, 213, 0.15)' }, // Teal
+    { border: '#fab387', bg: 'rgba(250, 179, 135, 0.15)' }, // Peach
+    { border: '#89dceb', bg: 'rgba(137, 220, 235, 0.15)' }, // Sky
   ];
 
   async function loadTrendData() {
@@ -42,8 +46,8 @@
     error = null;
 
     try {
-      // Build list of all IDs (main keyword + neighbors)
-      const allIds = [keywordId, ...neighborIds.slice(0, 4)];
+      // Build list of all IDs (main keyword + up to 7 co-occurring)
+      const allIds = [keywordId, ...neighborIds.slice(0, 7)];
 
       const response = await invoke<{
         keywords: { id: number; name: string; counts: number[] }[];
@@ -192,6 +196,7 @@
 
   function handleDaysChange(newDays: number) {
     days = newDays;
+    ondayschange?.(newDays);
     loadTrendData();
   }
 
@@ -200,6 +205,7 @@
     // Initialize tracking values
     prevKeywordId = keywordId;
     prevNeighborIdsKey = neighborIds.join(',');
+    ondayschange?.(days);
     loadTrendData();
   });
 

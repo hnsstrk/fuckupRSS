@@ -1610,13 +1610,68 @@ pub fn dismiss_synonym_pair(
     } else {
         (keyword_b_id, keyword_a_id)
     };
-    
+
     db.conn()
         .execute(
             "INSERT OR IGNORE INTO dismissed_synonyms (keyword_a_id, keyword_b_id) VALUES (?1, ?2)",
             params![min_id, max_id],
         )
         .map_err(|e| e.to_string())?;
-    
+
     Ok(())
+}
+
+#[derive(serde::Serialize)]
+pub struct CooccurringKeyword {
+    pub id: i64,
+    pub name: String,
+    pub cooccurrence_count: i64,
+}
+
+/// Get keywords that co-occur with the given keyword in articles within a time period
+#[tauri::command]
+pub fn get_cooccurring_keywords(
+    state: State<AppState>,
+    keyword_id: i64,
+    days: Option<i64>,
+    limit: Option<i64>,
+) -> Result<Vec<CooccurringKeyword>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let days = days.unwrap_or(30);
+    let limit = limit.unwrap_or(20);
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT
+                i.id,
+                i.name,
+                COUNT(DISTINCT fi2.fnord_id) as cooccurrence_count
+            FROM fnord_immanentize fi1
+            JOIN fnords f ON f.id = fi1.fnord_id
+            JOIN fnord_immanentize fi2 ON fi2.fnord_id = fi1.fnord_id AND fi2.immanentize_id != ?1
+            JOIN immanentize i ON i.id = fi2.immanentize_id
+            WHERE fi1.immanentize_id = ?1
+            AND f.published_at > datetime('now', '-' || ?2 || ' days')
+            GROUP BY i.id
+            ORDER BY cooccurrence_count DESC
+            LIMIT ?3
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let keywords = stmt
+        .query_map(rusqlite::params![keyword_id, days, limit], |row| {
+            Ok(CooccurringKeyword {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                cooccurrence_count: row.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(keywords)
 }

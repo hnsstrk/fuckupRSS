@@ -61,6 +61,7 @@ export interface FnordRevision {
 
 export interface FnordFilter {
   pentacle_id?: number;
+  sephiroth_id?: number;
   status?: string;
   limit?: number;
   offset?: number;

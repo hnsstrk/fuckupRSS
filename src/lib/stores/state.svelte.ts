@@ -83,7 +83,11 @@ class AppState {
   });
   selectedModel = $state<string | null>(null);
   changedFnords = $state<Fnord[]>([]);
-  selectedView = $state<"all" | "changed" | "pentacle">("all");
+  selectedView = $state<"all" | "changed" | "pentacle" | "sephiroth">("all");
+
+  // Sephiroth (Categories) state
+  sephiroth = $state<Sephiroth[]>([]);
+  selectedSephirothId = $state<number | null>(null);
 
   // Batch processing state
   batchProcessing = $state(false);
@@ -104,6 +108,10 @@ class AppState {
 
   get selectedFnord(): Fnord | undefined {
     return this.fnords.find((f) => f.id === this.selectedFnordId);
+  }
+
+  get selectedSephirothCategory(): Sephiroth | undefined {
+    return this.sephiroth.find((s) => s.id === this.selectedSephirothId);
   }
 
   get totalUnread(): number {
@@ -128,6 +136,15 @@ class AppState {
       console.error("Failed to load pentacles:", e);
     } finally {
       this.loading = false;
+    }
+  }
+
+  async loadSephiroth(): Promise<void> {
+    try {
+      this.sephiroth = await invoke<Sephiroth[]>("get_all_categories");
+    } catch (e) {
+      this.error = String(e);
+      console.error("Failed to load sephiroth:", e);
     }
   }
 
@@ -229,9 +246,22 @@ class AppState {
 
   selectPentacle(id: number | null): void {
     this.selectedPentacleId = id;
+    this.selectedSephirothId = null;
     this.selectedFnordId = null;
     if (id !== null) {
       this.loadFnords({ pentacle_id: id });
+    } else {
+      this.loadFnords();
+    }
+  }
+
+  selectSephiroth(id: number | null): void {
+    this.selectedSephirothId = id;
+    this.selectedPentacleId = null;
+    this.selectedFnordId = null;
+    this.selectedView = "sephiroth";
+    if (id !== null) {
+      this.loadFnords({ sephiroth_id: id });
     } else {
       this.loadFnords();
     }
@@ -558,20 +588,23 @@ class AppState {
     }
   }
 
-  selectView(view: "all" | "changed" | "pentacle"): void {
+  selectView(view: "all" | "changed" | "pentacle" | "sephiroth"): void {
     this.selectedView = view;
     this.selectedFnordId = null;
 
     if (view === "changed") {
       this.selectedPentacleId = null;
+      this.selectedSephirothId = null;
       this.loadChangedFnords();
       // Use changedFnords for display
       this.fnords = this.changedFnords;
     } else if (view === "all") {
       this.selectedPentacleId = null;
+      this.selectedSephirothId = null;
       this.loadFnords();
     }
     // "pentacle" view is handled by selectPentacle
+    // "sephiroth" view is handled by selectSephiroth
   }
 
   async loadUnprocessedCount(): Promise<void> {

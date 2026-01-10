@@ -495,7 +495,7 @@
 
   async function handleMergeSynonym(keepId: number, mergeId: number, keepName: string, mergeName: string) {
     try {
-      await invoke('merge_keyword_pair', { keepId, mergeId });
+      await invoke('merge_keyword_pair', { keepId, removeId: mergeId });
       synonymCandidates = synonymCandidates.filter(c =>
         !(c.keyword_a_id === keepId && c.keyword_b_id === mergeId) &&
         !(c.keyword_a_id === mergeId && c.keyword_b_id === keepId)
