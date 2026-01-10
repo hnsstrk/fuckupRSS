@@ -383,7 +383,6 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             political_bias INTEGER CHECK(political_bias BETWEEN -2 AND 2),
             sachlichkeit INTEGER CHECK(sachlichkeit BETWEEN 0 AND 4),
             quality_score INTEGER CHECK(quality_score BETWEEN 1 AND 5),
-            article_type TEXT CHECK(article_type IN ('news', 'analysis', 'opinion', 'satire', 'ad', 'unknown')),
 
             -- Relevanz
             relevance_score REAL DEFAULT 0.0,

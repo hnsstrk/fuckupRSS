@@ -29,7 +29,6 @@ pub struct Fnord {
     pub political_bias: Option<i32>,
     pub sachlichkeit: Option<i32>,
     pub quality_score: Option<i32>,
-    pub article_type: Option<String>,
     pub has_changes: bool,
     pub changed_at: Option<String>,
     pub revision_count: i32,
@@ -77,10 +76,9 @@ fn fnord_from_row(row: &Row) -> Result<Fnord, rusqlite::Error> {
         political_bias: row.get(14)?,
         sachlichkeit: row.get(15)?,
         quality_score: row.get(16)?,
-        article_type: row.get(17)?,
-        has_changes: row.get(18)?,
-        changed_at: row.get(19)?,
-        revision_count: row.get(20)?,
+        has_changes: row.get(17)?,
+        changed_at: row.get(18)?,
+        revision_count: row.get(19)?,
         categories: vec![],
     })
 }
@@ -149,7 +147,6 @@ const FNORD_SELECT_COLUMNS: &str = r#"
     f.political_bias,
     f.sachlichkeit,
     f.quality_score,
-    f.article_type,
     COALESCE(f.has_changes, FALSE) as has_changes,
     f.changed_at,
     COALESCE(f.revision_count, 0) as revision_count

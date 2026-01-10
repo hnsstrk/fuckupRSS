@@ -33,14 +33,12 @@ fn test_raw_bias_analysis_conversion() {
     let raw = RawBiasAnalysis {
         political_bias: 1.7,
         sachlichkeit: 3.2,
-        article_type: "news".to_string(),
     };
 
     let analysis: BiasAnalysis = raw.into();
 
     assert_eq!(analysis.political_bias, 2); // 1.7 rounds to 2
     assert_eq!(analysis.sachlichkeit, 3); // 3.2 rounds to 3
-    assert_eq!(analysis.article_type, "news");
 }
 
 #[test]
@@ -48,7 +46,6 @@ fn test_raw_bias_analysis_negative() {
     let raw = RawBiasAnalysis {
         political_bias: -1.6,
         sachlichkeit: 0.4,
-        article_type: "opinion".to_string(),
     };
 
     let analysis: BiasAnalysis = raw.into();
@@ -62,7 +59,6 @@ fn test_raw_bias_analysis_exact_values() {
     let raw = RawBiasAnalysis {
         political_bias: 0.0,
         sachlichkeit: 4.0,
-        article_type: "analysis".to_string(),
     };
 
     let analysis: BiasAnalysis = raw.into();
@@ -83,7 +79,6 @@ fn test_raw_discordian_analysis_conversion() {
         keywords: vec!["keyword1".to_string(), "keyword2".to_string()],
         political_bias: -0.8,
         sachlichkeit: 2.6,
-        article_type: "news".to_string(),
     };
 
     let analysis: DiscordianAnalysis = raw.into();
@@ -93,7 +88,6 @@ fn test_raw_discordian_analysis_conversion() {
     assert_eq!(analysis.keywords.len(), 2);
     assert_eq!(analysis.political_bias, -1); // -0.8 rounds to -1
     assert_eq!(analysis.sachlichkeit, 3); // 2.6 rounds to 3
-    assert_eq!(analysis.article_type, "news");
 }
 
 #[test]
@@ -104,7 +98,6 @@ fn test_raw_discordian_analysis_empty_collections() {
         keywords: vec![],
         political_bias: 0.0,
         sachlichkeit: 2.0,
-        article_type: "unknown".to_string(),
     };
 
     let analysis: DiscordianAnalysis = raw.into();
@@ -161,7 +154,6 @@ fn test_default_analysis_prompt() {
     assert!(DEFAULT_ANALYSIS_PROMPT.contains("{content}"));
     assert!(DEFAULT_ANALYSIS_PROMPT.contains("political_bias"));
     assert!(DEFAULT_ANALYSIS_PROMPT.contains("sachlichkeit"));
-    assert!(DEFAULT_ANALYSIS_PROMPT.contains("article_type"));
 }
 
 #[test]
@@ -199,7 +191,6 @@ fn test_bias_analysis_serialize() {
     let analysis = BiasAnalysis {
         political_bias: -1,
         sachlichkeit: 3,
-        article_type: "news".to_string(),
     };
 
     let json = serde_json::to_string(&analysis).expect("Serialization failed");
@@ -215,7 +206,6 @@ fn test_discordian_analysis_serialize() {
         keywords: vec!["keyword".to_string()],
         political_bias: 0,
         sachlichkeit: 2,
-        article_type: "analysis".to_string(),
     };
 
     let json = serde_json::to_string(&analysis).expect("Serialization failed");

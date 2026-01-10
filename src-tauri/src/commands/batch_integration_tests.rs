@@ -205,7 +205,6 @@ fn test_update_article_after_processing() {
                 summary = 'Test summary',
                 political_bias = 0,
                 sachlichkeit = 3,
-                article_type = 'news',
                 processed_at = CURRENT_TIMESTAMP
             WHERE guid = 'test-guid'"#,
             [],
@@ -213,19 +212,18 @@ fn test_update_article_after_processing() {
         .expect("Update failed");
 
     // Verify update
-    let (summary, bias, sach, atype): (String, i32, i32, String) = db
+    let (summary, bias, sach): (String, i32, i32) = db
         .conn()
         .query_row(
-            "SELECT summary, political_bias, sachlichkeit, article_type FROM fnords WHERE guid = 'test-guid'",
+            "SELECT summary, political_bias, sachlichkeit FROM fnords WHERE guid = 'test-guid'",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .expect("Query failed");
 
     assert_eq!(summary, "Test summary");
     assert_eq!(bias, 0);
     assert_eq!(sach, 3);
-    assert_eq!(atype, "news");
 
     // Verify processed_at is now set
     let processed_at_after: Option<String> = db

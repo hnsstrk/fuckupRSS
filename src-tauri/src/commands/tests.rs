@@ -318,7 +318,6 @@ fn test_analysis_response_success() {
     let analysis = BiasAnalysis {
         political_bias: 0,
         sachlichkeit: 3,
-        article_type: "news".to_string(),
     };
 
     let response = AnalysisResponse {
@@ -350,7 +349,6 @@ fn test_discordian_response_success() {
         keywords: vec!["keyword1".to_string(), "keyword2".to_string()],
         political_bias: -1,
         sachlichkeit: 3,
-        article_type: "news".to_string(),
     };
 
     let response = DiscordianResponse {

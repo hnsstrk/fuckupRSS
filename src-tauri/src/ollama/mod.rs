@@ -121,8 +121,7 @@ Analyze the following news article for political bias and objectivity.
 Respond in the following JSON format:
 {
   "political_bias": <-2 to 2, where -2=strong left, 0=neutral, 2=strong right>,
-  "sachlichkeit": <0 to 4, where 0=highly emotional, 4=very objective>,
-  "article_type": "<news|opinion|analysis|satire|ad|unknown>"
+  "sachlichkeit": <0 to 4, where 0=highly emotional, 4=very objective>
 }
 
 Title: {title}
@@ -504,7 +503,6 @@ Content: {}"#,
 struct RawBiasAnalysis {
     political_bias: f64,
     sachlichkeit: f64,
-    article_type: String,
 }
 
 /// Bias analysis with integer values (for storage and display)
@@ -512,7 +510,6 @@ struct RawBiasAnalysis {
 pub struct BiasAnalysis {
     pub political_bias: i32,
     pub sachlichkeit: i32,
-    pub article_type: String,
 }
 
 impl From<RawBiasAnalysis> for BiasAnalysis {
@@ -520,7 +517,6 @@ impl From<RawBiasAnalysis> for BiasAnalysis {
         Self {
             political_bias: raw.political_bias.round() as i32,
             sachlichkeit: raw.sachlichkeit.round() as i32,
-            article_type: raw.article_type,
         }
     }
 }
