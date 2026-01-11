@@ -768,20 +768,20 @@
             {#if keepSearchInput}
               <button onclick={clearKeepSearch} class="clear-btn" aria-label="Clear"><i class="fa-solid fa-xmark"></i></button>
             {/if}
+            {#if keepSearchResults.length > 0 && !selectedKeepKeyword}
+              <div class="merge-search-results">
+                {#each keepSearchResults as keyword (keyword.id)}
+                  <button
+                    class="merge-search-item"
+                    onclick={() => selectKeepKeyword(keyword)}
+                  >
+                    <span class="item-name">{keyword.name}</span>
+                    <span class="item-count">{keyword.article_count}</span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
           </div>
-          {#if keepSearchResults.length > 0 && !selectedKeepKeyword}
-            <div class="merge-search-results">
-              {#each keepSearchResults as keyword (keyword.id)}
-                <button
-                  class="merge-search-item"
-                  onclick={() => selectKeepKeyword(keyword)}
-                >
-                  <span class="item-name">{keyword.name}</span>
-                  <span class="item-count">{keyword.article_count}</span>
-                </button>
-              {/each}
-            </div>
-          {/if}
           {#if selectedKeepKeyword}
             <div class="selected-chip keep">
               <i class="fa-solid fa-check"></i>
@@ -814,22 +814,22 @@
             {#if removeSearchInput}
               <button onclick={clearRemoveSearch} class="clear-btn" aria-label="Clear"><i class="fa-solid fa-xmark"></i></button>
             {/if}
+            {#if removeSearchResults.length > 0 && !selectedRemoveKeyword}
+              <div class="merge-search-results">
+                {#each removeSearchResults as keyword (keyword.id)}
+                  {#if keyword.id !== selectedKeepKeyword?.id}
+                    <button
+                      class="merge-search-item"
+                      onclick={() => selectRemoveKeyword(keyword)}
+                    >
+                      <span class="item-name">{keyword.name}</span>
+                      <span class="item-count">{keyword.article_count}</span>
+                    </button>
+                  {/if}
+                {/each}
+              </div>
+            {/if}
           </div>
-          {#if removeSearchResults.length > 0 && !selectedRemoveKeyword}
-            <div class="merge-search-results">
-              {#each removeSearchResults as keyword (keyword.id)}
-                {#if keyword.id !== selectedKeepKeyword?.id}
-                  <button
-                    class="merge-search-item"
-                    onclick={() => selectRemoveKeyword(keyword)}
-                  >
-                    <span class="item-name">{keyword.name}</span>
-                    <span class="item-count">{keyword.article_count}</span>
-                  </button>
-                {/if}
-              {/each}
-            </div>
-          {/if}
           {#if selectedRemoveKeyword}
             <div class="selected-chip remove">
               <i class="fa-solid fa-trash"></i>
