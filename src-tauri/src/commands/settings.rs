@@ -1,25 +1,14 @@
 use crate::ollama::{DEFAULT_NUM_CTX, RECOMMENDED_EMBEDDING_MODEL};
 use crate::{AppState, LogLevel};
 use log::{debug, info};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::Command;
 use tauri::State;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Settings {
-    pub locale: String,
-    pub theme: String,
-    pub show_terminology_tooltips: bool,
-    pub log_level: String,
-    /// Ollama context length (num_ctx) - affects VRAM usage and speed
-    pub ollama_num_ctx: u32,
-    /// Embedding model for keyword similarity (e.g., "snowflake-arctic-embed2")
-    pub embedding_model: String,
-}
-
+/// Returns all settings as a key-value map
+/// This allows the frontend to access any setting without needing to update the struct
 #[tauri::command]
-pub fn get_settings(state: State<AppState>) -> Result<Settings, String> {
+pub fn get_settings(state: State<AppState>) -> Result<HashMap<String, serde_json::Value>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     let mut stmt = db
@@ -35,45 +24,69 @@ pub fn get_settings(state: State<AppState>) -> Result<Settings, String> {
         .filter_map(|r| r.ok())
         .collect();
 
-    let log_level = settings_map
-        .get("logLevel")
-        .cloned()
-        .unwrap_or_else(|| {
-            // Default to debug in dev, info in release
-            if cfg!(debug_assertions) {
-                "debug".to_string()
-            } else {
-                "info".to_string()
+    // Convert to JSON values, parsing booleans and numbers where appropriate
+    let mut result: HashMap<String, serde_json::Value> = HashMap::new();
+
+    for (key, value) in settings_map {
+        let json_value = match key.as_str() {
+            // Boolean settings
+            "showTerminologyTooltips" | "syncOnStart" => {
+                serde_json::Value::Bool(value == "true")
             }
-        });
+            // Numeric settings
+            "syncInterval" | "ollama_num_ctx" => {
+                if let Ok(num) = value.parse::<i64>() {
+                    serde_json::Value::Number(num.into())
+                } else {
+                    serde_json::Value::String(value)
+                }
+            }
+            // String settings (theme_mode, dark_theme, light_theme, locale, etc.)
+            _ => serde_json::Value::String(value),
+        };
+        result.insert(key, json_value);
+    }
 
-    let ollama_num_ctx = settings_map
-        .get("ollama_num_ctx")
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(DEFAULT_NUM_CTX);
-
-    let embedding_model = settings_map
-        .get("embedding_model")
-        .cloned()
-        .unwrap_or_else(|| RECOMMENDED_EMBEDDING_MODEL.to_string());
-
-    Ok(Settings {
-        locale: settings_map
-            .get("locale")
-            .cloned()
-            .unwrap_or_else(|| "de".to_string()),
-        theme: settings_map
+    // Add defaults for missing settings
+    if !result.contains_key("locale") {
+        result.insert("locale".to_string(), serde_json::Value::String("de".to_string()));
+    }
+    if !result.contains_key("theme_mode") {
+        result.insert("theme_mode".to_string(), serde_json::Value::String("system".to_string()));
+    }
+    if !result.contains_key("dark_theme") {
+        // Fall back to legacy 'theme' key if exists
+        let default_dark = result
             .get("theme")
-            .cloned()
-            .unwrap_or_else(|| "mocha".to_string()),
-        show_terminology_tooltips: settings_map
-            .get("showTerminologyTooltips")
-            .map(|v| v == "true")
-            .unwrap_or(true),
-        log_level,
-        ollama_num_ctx,
-        embedding_model,
-    })
+            .and_then(|v| v.as_str())
+            .unwrap_or("mocha")
+            .to_string();
+        result.insert("dark_theme".to_string(), serde_json::Value::String(default_dark));
+    }
+    if !result.contains_key("light_theme") {
+        result.insert("light_theme".to_string(), serde_json::Value::String("latte".to_string()));
+    }
+    if !result.contains_key("showTerminologyTooltips") {
+        result.insert("showTerminologyTooltips".to_string(), serde_json::Value::Bool(true));
+    }
+    if !result.contains_key("syncInterval") {
+        result.insert("syncInterval".to_string(), serde_json::Value::Number(30.into()));
+    }
+    if !result.contains_key("syncOnStart") {
+        result.insert("syncOnStart".to_string(), serde_json::Value::Bool(true));
+    }
+    if !result.contains_key("logLevel") {
+        let default_level = if cfg!(debug_assertions) { "debug" } else { "info" };
+        result.insert("logLevel".to_string(), serde_json::Value::String(default_level.to_string()));
+    }
+    if !result.contains_key("ollama_num_ctx") {
+        result.insert("ollama_num_ctx".to_string(), serde_json::Value::Number(DEFAULT_NUM_CTX.into()));
+    }
+    if !result.contains_key("embedding_model") {
+        result.insert("embedding_model".to_string(), serde_json::Value::String(RECOMMENDED_EMBEDDING_MODEL.to_string()));
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]

@@ -361,12 +361,12 @@ class SettingsStore {
         this.#settings.lightTheme = 'latte';
       }
 
-      this.#settings.show_terminology_tooltips = (dbSettings.show_terminology_tooltips as boolean) ?? true;
-      this.#settings.sync_interval = (dbSettings.sync_interval as number) ?? 30;
-      this.#settings.sync_on_start = (dbSettings.sync_on_start as boolean) ?? true;
+      this.#settings.show_terminology_tooltips = (dbSettings.showTerminologyTooltips as boolean) ?? true;
+      this.#settings.sync_interval = (dbSettings.syncInterval as number) ?? 30;
+      this.#settings.sync_on_start = (dbSettings.syncOnStart as boolean) ?? true;
 
       // Load log level (default based on environment)
-      const savedLogLevel = dbSettings.log_level as string;
+      const savedLogLevel = dbSettings.logLevel as string;
       if (savedLogLevel && LOG_LEVELS.includes(savedLogLevel as LogLevel)) {
         this.#settings.log_level = savedLogLevel as LogLevel;
       }
