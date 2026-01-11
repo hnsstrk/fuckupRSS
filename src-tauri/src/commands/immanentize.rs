@@ -364,17 +364,42 @@ pub fn search_keywords(
 ) -> Result<Vec<Keyword>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let limit = limit.unwrap_or(20);
-    let search_pattern = format!("%{}%", query.to_lowercase());
+    let query_lower = query.to_lowercase();
 
+    // Build fuzzy pattern: "abc" -> "%a%b%c%"
+    let fuzzy_pattern: String = query_lower
+        .chars()
+        .map(|c| format!("%{}", c))
+        .collect::<String>() + "%";
+
+    // Also keep exact contains pattern for prioritization
+    let contains_pattern = format!("%{}%", query_lower);
+    let starts_pattern = format!("{}%", query_lower);
+
+    // Search with priority: exact start > contains > fuzzy
+    // Use CASE to create a sort priority
     let sql = format!(
-        "SELECT {} FROM immanentize WHERE LOWER(name) LIKE ?1 ORDER BY article_count DESC, count DESC LIMIT ?2",
+        "SELECT {} FROM immanentize
+         WHERE LOWER(name) LIKE ?1
+         ORDER BY
+           CASE
+             WHEN LOWER(name) LIKE ?2 THEN 0
+             WHEN LOWER(name) LIKE ?3 THEN 1
+             ELSE 2
+           END,
+           article_count DESC,
+           count DESC
+         LIMIT ?4",
         KEYWORD_SELECT_COLUMNS
     );
 
     let mut stmt = db.conn().prepare(&sql).map_err(|e| e.to_string())?;
 
     let keywords = stmt
-        .query_map(rusqlite::params![search_pattern, limit], keyword_from_row)
+        .query_map(
+            rusqlite::params![fuzzy_pattern, starts_pattern, contains_pattern, limit],
+            keyword_from_row,
+        )
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
