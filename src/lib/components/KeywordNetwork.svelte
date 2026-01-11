@@ -793,7 +793,7 @@
 
         <!-- Visual Arrow -->
         <div class="merge-arrow">
-          <i class="fa-solid fa-arrow-left"></i>
+          <i class="fa-solid fa-arrow-right"></i>
           <span class="arrow-label">{$_('network.replacesLabel') || 'ersetzt'}</span>
         </div>
 
