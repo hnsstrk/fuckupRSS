@@ -393,11 +393,19 @@
     "create": "Erstellen",
     "keywordCreated": "erstellt",
     "keywordExists": "existiert bereits",
-    "manualMerge": "Manuelles Zusammenfuehren",
-    "selectedKeyword": "Ausgewaehlt",
+    "manualMerge": "Manuelles Zusammenführen",
+    "manualMergeDescription": "Wähle zwei Keywords aus: Das erste bleibt erhalten, das zweite wird gelöscht und alle Verknüpfungen werden übertragen.",
+    "keepKeyword": "Behalten",
+    "removeKeyword": "Löschen",
+    "searchKeywordPlaceholder": "Keyword suchen...",
+    "replacesLabel": "ersetzt",
+    "executeMerge": "Zusammenführen",
+    "selectBothKeywords": "Wähle beide Keywords aus, um sie zusammenzuführen.",
+    "sameKeywordError": "Die beiden Keywords müssen unterschiedlich sein.",
+    "selectedKeyword": "Ausgewählt",
     "searchToReplace": "Keyword zum Ersetzen suchen...",
     "replace": "Ersetzen",
-    "noKeywordSelected": "Waehle zuerst ein Keyword im \"Keywords\"-Tab aus, um es mit anderen Keywords zusammenzufuehren."
+    "noKeywordSelected": "Wähle zuerst ein Keyword im \"Keywords\"-Tab aus, um es mit anderen Keywords zusammenzuführen."
   },
   "mindfuck": {
     "title": "Operation Mindfuck",

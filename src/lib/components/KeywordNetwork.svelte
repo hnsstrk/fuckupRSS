@@ -85,9 +85,18 @@
   let synonymsLoading = $state(false);
   let synonymsError = $state<string | null>(null);
   let synonymSuccess = $state<string | null>(null);
-  let manualSearchInput = $state('');
-  let manualSearchResults = $state<Keyword[]>([]);
-  let manualSearchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Manual merge - two search fields
+  let keepSearchInput = $state('');
+  let keepSearchResults = $state<Keyword[]>([]);
+  let keepSearchTimeout: ReturnType<typeof setTimeout> | null = null;
+  let selectedKeepKeyword = $state<Keyword | null>(null);
+
+  let removeSearchInput = $state('');
+  let removeSearchResults = $state<Keyword[]>([]);
+  let removeSearchTimeout: ReturnType<typeof setTimeout> | null = null;
+  let selectedRemoveKeyword = $state<Keyword | null>(null);
+
   let newKeywordInput = $state('');
   let createKeywordLoading = $state(false);
   let createKeywordSuccess = $state<string | null>(null);
@@ -377,18 +386,19 @@
     }
   }
 
-  function handleManualSearch() {
-    if (manualSearchTimeout) clearTimeout(manualSearchTimeout);
+  // Search for "keep" keyword (the one that stays)
+  function handleKeepSearch() {
+    if (keepSearchTimeout) clearTimeout(keepSearchTimeout);
 
-    if (!manualSearchInput.trim()) {
-      manualSearchResults = [];
+    if (!keepSearchInput.trim()) {
+      keepSearchResults = [];
       return;
     }
 
-    manualSearchTimeout = setTimeout(async () => {
+    keepSearchTimeout = setTimeout(async () => {
       try {
-        manualSearchResults = await invoke<Keyword[]>('search_keywords', {
-          query: manualSearchInput,
+        keepSearchResults = await invoke<Keyword[]>('search_keywords', {
+          query: keepSearchInput,
           limit: 10,
         });
       } catch (e) {
@@ -397,23 +407,67 @@
     }, 300);
   }
 
-  function clearManualSearch() {
-    if (manualSearchTimeout) clearTimeout(manualSearchTimeout);
-    manualSearchInput = '';
-    manualSearchResults = [];
+  function selectKeepKeyword(keyword: Keyword) {
+    selectedKeepKeyword = keyword;
+    keepSearchInput = keyword.name;
+    keepSearchResults = [];
   }
 
-  async function manualMergeKeyword(targetKeyword: Keyword) {
-    if (!selectedKeyword) return;
+  function clearKeepSearch() {
+    if (keepSearchTimeout) clearTimeout(keepSearchTimeout);
+    keepSearchInput = '';
+    keepSearchResults = [];
+    selectedKeepKeyword = null;
+  }
 
-    // Selected keyword replaces the target (searched) keyword
+  // Search for "remove" keyword (the one that will be replaced)
+  function handleRemoveSearch() {
+    if (removeSearchTimeout) clearTimeout(removeSearchTimeout);
+
+    if (!removeSearchInput.trim()) {
+      removeSearchResults = [];
+      return;
+    }
+
+    removeSearchTimeout = setTimeout(async () => {
+      try {
+        removeSearchResults = await invoke<Keyword[]>('search_keywords', {
+          query: removeSearchInput,
+          limit: 10,
+        });
+      } catch (e) {
+        console.error('Failed to search keywords:', e);
+      }
+    }, 300);
+  }
+
+  function selectRemoveKeyword(keyword: Keyword) {
+    selectedRemoveKeyword = keyword;
+    removeSearchInput = keyword.name;
+    removeSearchResults = [];
+  }
+
+  function clearRemoveSearch() {
+    if (removeSearchTimeout) clearTimeout(removeSearchTimeout);
+    removeSearchInput = '';
+    removeSearchResults = [];
+    selectedRemoveKeyword = null;
+  }
+
+  async function executeManualMerge() {
+    if (!selectedKeepKeyword || !selectedRemoveKeyword) return;
+    if (selectedKeepKeyword.id === selectedRemoveKeyword.id) return;
+
     await mergeKeywords(
-      selectedKeyword.id,
-      targetKeyword.id,
-      selectedKeyword.name,
-      targetKeyword.name
+      selectedKeepKeyword.id,
+      selectedRemoveKeyword.id,
+      selectedKeepKeyword.name,
+      selectedRemoveKeyword.name
     );
-    clearManualSearch();
+
+    // Clear both search fields after successful merge
+    clearKeepSearch();
+    clearRemoveSearch();
   }
 
   async function createNewKeyword() {
@@ -793,53 +847,133 @@
       <!-- Right Panel: Manual Keyword Linking -->
       <div class="synonyms-right-panel">
         <div class="synonyms-section">
-          <h3 class="section-heading">{$_('network.manualMerge') || 'Manuelles Zusammenfuehren'}</h3>
+          <h3 class="section-heading">{$_('network.manualMerge') || 'Manuelles Zusammenführen'}</h3>
+          <p class="section-description">{$_('network.manualMergeDescription') || 'Wähle zwei Keywords aus: Das erste bleibt erhalten, das zweite wird gelöscht und alle Verknüpfungen werden übertragen.'}</p>
 
-          {#if selectedKeyword}
-            <div class="selected-keyword-info">
-              <span class="selected-label">{$_('network.selectedKeyword') || 'Ausgewaehlt'}:</span>
-              <span class="selected-name">{selectedKeyword.name}</span>
-              <span class="selected-count">({selectedKeyword.article_count} {$_('network.articleCount') || 'Artikel'})</span>
-            </div>
-
-            <div class="manual-search-box">
-              <input
-                type="text"
-                bind:value={manualSearchInput}
-                oninput={handleManualSearch}
-                placeholder={$_('network.searchToReplace') || 'Keyword zum Ersetzen suchen...'}
-                class="manual-search-input"
-              />
-              {#if manualSearchInput}
-                <button onclick={clearManualSearch} class="clear-btn">&times;</button>
+          <div class="merge-form">
+            <!-- Keep Keyword (Target) -->
+            <div class="merge-field">
+              <label class="merge-label">
+                <i class="fa-solid fa-check merge-label-icon keep"></i>
+                {$_('network.keepKeyword') || 'Behalten'}
+              </label>
+              <div class="merge-search-box">
+                <input
+                  type="text"
+                  bind:value={keepSearchInput}
+                  oninput={handleKeepSearch}
+                  placeholder={$_('network.searchKeywordPlaceholder') || 'Keyword suchen...'}
+                  class="merge-search-input"
+                />
+                {#if keepSearchInput}
+                  <button onclick={clearKeepSearch} class="clear-btn" aria-label="Clear"><i class="fa-solid fa-xmark"></i></button>
+                {/if}
+              </div>
+              {#if keepSearchResults.length > 0}
+                <div class="merge-search-results">
+                  {#each keepSearchResults as keyword (keyword.id)}
+                    <button
+                      class="merge-search-item"
+                      onclick={() => selectKeepKeyword(keyword)}
+                    >
+                      <span class="item-name">{keyword.name}</span>
+                      <span class="item-count">{keyword.article_count}</span>
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+              {#if selectedKeepKeyword}
+                <div class="selected-chip keep">
+                  <i class="fa-solid fa-check"></i>
+                  <span>{selectedKeepKeyword.name}</span>
+                  <span class="chip-count">({selectedKeepKeyword.article_count} Artikel)</span>
+                </div>
               {/if}
             </div>
 
-            {#if manualSearchResults.length > 0}
-              <div class="manual-search-results">
-                {#each manualSearchResults as keyword (keyword.id)}
-                  {#if keyword.id !== selectedKeyword.id}
-                    <div class="manual-search-item">
-                      <span class="manual-keyword-name">{keyword.name}</span>
-                      <span class="manual-keyword-count">{keyword.article_count}</span>
-                      <button
-                        class="replace-btn"
-                        onclick={() => manualMergeKeyword(keyword)}
-                        disabled={synonymsLoading}
-                        title="{keyword.name} wird durch {selectedKeyword.name} ersetzt"
-                      >
-                        {$_('network.replace') || 'Ersetzen'}
-                      </button>
-                    </div>
-                  {/if}
-                {/each}
+            <!-- Visual Arrow -->
+            <div class="merge-arrow">
+              <i class="fa-solid fa-arrow-left"></i>
+              <span class="arrow-label">{$_('network.replacesLabel') || 'ersetzt'}</span>
+            </div>
+
+            <!-- Remove Keyword (Source) -->
+            <div class="merge-field">
+              <label class="merge-label">
+                <i class="fa-solid fa-trash merge-label-icon remove"></i>
+                {$_('network.removeKeyword') || 'Löschen'}
+              </label>
+              <div class="merge-search-box">
+                <input
+                  type="text"
+                  bind:value={removeSearchInput}
+                  oninput={handleRemoveSearch}
+                  placeholder={$_('network.searchKeywordPlaceholder') || 'Keyword suchen...'}
+                  class="merge-search-input"
+                />
+                {#if removeSearchInput}
+                  <button onclick={clearRemoveSearch} class="clear-btn" aria-label="Clear"><i class="fa-solid fa-xmark"></i></button>
+                {/if}
               </div>
-            {:else if manualSearchInput && !manualSearchResults.length}
-              <div class="empty-hint">{$_('network.noResults') || 'Keine Ergebnisse gefunden'}</div>
-            {/if}
+              {#if removeSearchResults.length > 0}
+                <div class="merge-search-results">
+                  {#each removeSearchResults as keyword (keyword.id)}
+                    {#if keyword.id !== selectedKeepKeyword?.id}
+                      <button
+                        class="merge-search-item"
+                        onclick={() => selectRemoveKeyword(keyword)}
+                      >
+                        <span class="item-name">{keyword.name}</span>
+                        <span class="item-count">{keyword.article_count}</span>
+                      </button>
+                    {/if}
+                  {/each}
+                </div>
+              {/if}
+              {#if selectedRemoveKeyword}
+                <div class="selected-chip remove">
+                  <i class="fa-solid fa-trash"></i>
+                  <span>{selectedRemoveKeyword.name}</span>
+                  <span class="chip-count">({selectedRemoveKeyword.article_count} Artikel)</span>
+                </div>
+              {/if}
+            </div>
+          </div>
+
+          <!-- Merge Preview & Action -->
+          {#if selectedKeepKeyword && selectedRemoveKeyword}
+            <div class="merge-preview">
+              <div class="preview-text">
+                <i class="fa-solid fa-info-circle"></i>
+                <span>
+                  <strong>"{selectedRemoveKeyword.name}"</strong> wird gelöscht.
+                  Alle {selectedRemoveKeyword.article_count} Artikel werden zu <strong>"{selectedKeepKeyword.name}"</strong> übertragen.
+                </span>
+              </div>
+              <button
+                class="action-btn danger"
+                onclick={executeManualMerge}
+                disabled={synonymsLoading || selectedKeepKeyword.id === selectedRemoveKeyword.id}
+              >
+                {#if synonymsLoading}
+                  <i class="fa-solid fa-rotate fa-spin"></i>
+                {:else}
+                  <i class="fa-solid fa-merge"></i>
+                {/if}
+                {$_('network.executeMerge') || 'Zusammenführen'}
+              </button>
+            </div>
           {:else}
-            <div class="no-keyword-selected">
-              <p>{$_('network.noKeywordSelected') || 'Waehle zuerst ein Keyword im "Keywords"-Tab aus, um es mit anderen Keywords zusammenzufuehren.'}</p>
+            <div class="merge-hint">
+              <i class="fa-solid fa-hand-pointer"></i>
+              {$_('network.selectBothKeywords') || 'Wähle beide Keywords aus, um sie zusammenzuführen.'}
+            </div>
+          {/if}
+
+          {#if selectedKeepKeyword && selectedRemoveKeyword && selectedKeepKeyword.id === selectedRemoveKeyword.id}
+            <div class="merge-error">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              {$_('network.sameKeywordError') || 'Die beiden Keywords müssen unterschiedlich sein.'}
             </div>
           {/if}
         </div>
@@ -1711,5 +1845,242 @@
     margin: 0;
     font-size: 0.875rem;
     line-height: 1.5;
+  }
+
+  /* Manual Merge Form */
+  .section-description {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    line-height: 1.5;
+  }
+
+  .merge-form {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .merge-field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .merge-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .merge-label-icon {
+    font-size: 0.875rem;
+  }
+
+  .merge-label-icon.keep {
+    color: var(--accent-success);
+  }
+
+  .merge-label-icon.remove {
+    color: var(--accent-error);
+  }
+
+  .merge-search-box {
+    position: relative;
+  }
+
+  .merge-search-input {
+    width: 100%;
+    padding: 0.625rem 2rem 0.625rem 0.75rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    background-color: var(--bg-overlay);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+  }
+
+  .merge-search-input::placeholder {
+    color: var(--text-faint);
+  }
+
+  .merge-search-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+  }
+
+  .merge-search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .merge-search-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-primary);
+    transition: background-color 0.15s;
+  }
+
+  .merge-search-item:hover {
+    background-color: var(--bg-overlay);
+  }
+
+  .merge-search-item .item-name {
+    font-size: 0.875rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .merge-search-item .item-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background-color: var(--bg-overlay);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  .selected-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .selected-chip.keep {
+    background-color: rgba(34, 197, 94, 0.15);
+    border: 1px solid var(--accent-success);
+    color: var(--accent-success);
+  }
+
+  .selected-chip.remove {
+    background-color: rgba(239, 68, 68, 0.15);
+    border: 1px solid var(--accent-error);
+    color: var(--accent-error);
+  }
+
+  .selected-chip i {
+    font-size: 0.75rem;
+  }
+
+  .chip-count {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    font-weight: 400;
+  }
+
+  .merge-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding-top: 1.5rem;
+    color: var(--text-muted);
+  }
+
+  .merge-arrow i {
+    font-size: 1.25rem;
+  }
+
+  .arrow-label {
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .merge-preview {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+    border-left: 3px solid var(--accent-warning);
+  }
+
+  .preview-text {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .preview-text i {
+    color: var(--accent-warning);
+    margin-top: 0.125rem;
+    flex-shrink: 0;
+  }
+
+  .preview-text strong {
+    color: var(--text-primary);
+  }
+
+  .merge-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+    border: 1px dashed var(--border-default);
+  }
+
+  .merge-error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin-top: 0.5rem;
+    background-color: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--accent-error);
+    border-radius: 0.375rem;
+    color: var(--accent-error);
+    font-size: 0.8125rem;
+  }
+
+  .action-btn.danger {
+    background-color: var(--accent-error);
+    border-color: var(--accent-error);
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .action-btn.danger:hover:not(:disabled) {
+    opacity: 0.9;
   }
 </style>
