@@ -161,11 +161,19 @@
 
   async function analyzeWithAI() {
     if (appState.selectedFnord && appState.ollamaStatus.available) {
-      const result = await appState.processArticleDiscordian(appState.selectedFnord.id);
+      const fnordId = appState.selectedFnord.id;
+      const result = await appState.processArticleDiscordian(fnordId);
       if (result?.success) {
-        // Reload categories and tags after analysis
-        categories = await appState.getArticleCategories(appState.selectedFnord.id);
-        tags = await appState.getArticleTags(appState.selectedFnord.id);
+        // Reload categories, tags, and similar articles after analysis
+        // (embedding is regenerated in backend, so similar articles may change)
+        const [cats, tgs, similar] = await Promise.all([
+          appState.getArticleCategories(fnordId),
+          appState.getArticleTags(fnordId),
+          appState.findSimilarArticles(fnordId, 5)
+        ]);
+        categories = cats;
+        tags = tgs;
+        similarArticles = similar;
         toasts.success($_('toast.analyzeSuccess'));
       } else if (result?.error) {
         toasts.error($_('toast.analyzeError', { values: { error: result.error }}));
