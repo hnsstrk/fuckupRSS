@@ -1,5 +1,6 @@
 <script lang="ts">
   import { _, locale } from 'svelte-i18n';
+  import { onMount, onDestroy } from 'svelte';
   import { appState, toasts, type FnordRevision, type ArticleCategory, type Tag, type SimilarArticle } from "../stores/state.svelte";
   import Tooltip from "./Tooltip.svelte";
   import RevisionView from "./RevisionView.svelte";
@@ -94,6 +95,34 @@
       const hasEmbedding = fnord.processed_at !== null;
       loadArticleData(fnord.id, fnord.revision_count, hasEmbedding);
     }
+  });
+
+  // Listen for batch-complete event to refresh similar articles
+  // (embeddings are regenerated during batch processing)
+  async function handleBatchComplete() {
+    const fnord = appState.selectedFnord;
+    if (fnord && fnord.processed_at) {
+      try {
+        const [cats, tgs, similar] = await Promise.all([
+          appState.getArticleCategories(fnord.id),
+          appState.getArticleTags(fnord.id),
+          appState.findSimilarArticles(fnord.id, 5)
+        ]);
+        categories = cats;
+        tags = tgs;
+        similarArticles = similar;
+      } catch {
+        // Ignore errors during refresh
+      }
+    }
+  }
+
+  onMount(() => {
+    window.addEventListener('batch-complete', handleBatchComplete);
+  });
+
+  onDestroy(() => {
+    window.removeEventListener('batch-complete', handleBatchComplete);
   });
 
   function stripHtml(html: string): string {

@@ -612,6 +612,9 @@
       await appState.loadFnords();
       await appState.loadPentacles();
       await appState.loadUnprocessedCount();
+
+      // Notify components that batch processing is complete (for refreshing similar articles etc.)
+      window.dispatchEvent(new CustomEvent('batch-complete'));
     } catch (e) {
       maintenanceResult = `Error: ${e}`;
     } finally {

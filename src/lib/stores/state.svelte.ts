@@ -717,6 +717,9 @@ class AppState {
       await this.loadPentacles();
       await this.loadUnprocessedCount();
 
+      // Notify components that batch processing is complete (for refreshing similar articles etc.)
+      window.dispatchEvent(new CustomEvent('batch-complete'));
+
       return result;
     } catch (e) {
       this.error = String(e);
