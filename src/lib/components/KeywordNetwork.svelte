@@ -745,238 +745,234 @@
   {:else if activeTab === 'synonyms'}
   <!-- Synonyms View -->
   <div class="synonyms-view">
-    <div class="synonyms-content">
-      <!-- Left Panel: AI Suggestions & Create Keyword -->
-      <div class="synonyms-left-panel">
-        <!-- AI Synonym Suggestions -->
-        <div class="synonyms-section">
-          <h3 class="section-heading">{$_('network.synonymCandidates') || 'KI-Synonym-Vorschlaege'}</h3>
-          <button
-            class="action-btn primary"
-            onclick={findSynonymCandidates}
-            disabled={synonymsLoading}
-          >
-            {#if synonymsLoading}
-              {$_('network.loading') || 'Lade...'}
-            {:else}
-              {$_('network.findSynonyms') || 'Synonyme finden'}
+    <!-- Manual Merge - Full Width at Top -->
+    <div class="synonyms-section full-width">
+      <h3 class="section-heading">{$_('network.manualMerge') || 'Manuelles Zusammenführen'}</h3>
+      <p class="section-description">{$_('network.manualMergeDescription') || 'Wähle zwei Keywords aus: Das erste bleibt erhalten, das zweite wird gelöscht und alle Verknüpfungen werden übertragen.'}</p>
+
+      <div class="merge-form">
+        <!-- Keep Keyword (Target) -->
+        <div class="merge-field">
+          <label class="merge-label">
+            <i class="fa-solid fa-check merge-label-icon keep"></i>
+            {$_('network.keepKeyword') || 'Behalten'}
+          </label>
+          <div class="merge-search-box">
+            <input
+              type="text"
+              bind:value={keepSearchInput}
+              oninput={handleKeepSearch}
+              placeholder={$_('network.searchKeywordPlaceholder') || 'Keyword suchen...'}
+              class="merge-search-input"
+            />
+            {#if keepSearchInput}
+              <button onclick={clearKeepSearch} class="clear-btn" aria-label="Clear"><i class="fa-solid fa-xmark"></i></button>
             {/if}
-          </button>
-
-          {#if synonymsError}
-            <div class="feedback-message error">{synonymsError}</div>
-          {/if}
-          {#if synonymSuccess}
-            <div class="feedback-message success">{synonymSuccess}</div>
-          {/if}
-
-          {#if synonymCandidates.length > 0}
-            <div class="synonym-list">
-              {#each synonymCandidates as candidate (candidate.keyword_a_id + '-' + candidate.keyword_b_id)}
-                <div class="synonym-item">
-                  <div class="synonym-pair">
-                    <span class="synonym-keyword">{candidate.keyword_a_name}</span>
-                    <span class="synonym-similarity">{(candidate.similarity * 100).toFixed(0)}%</span>
-                    <span class="synonym-keyword">{candidate.keyword_b_name}</span>
-                  </div>
-                  <div class="synonym-actions">
-                    <button
-                      class="merge-btn left"
-                      onclick={() => mergeKeywords(candidate.keyword_a_id, candidate.keyword_b_id, candidate.keyword_a_name, candidate.keyword_b_name)}
-                      title="{candidate.keyword_b_name} -> {candidate.keyword_a_name}"
-                      disabled={synonymsLoading}
-                    >
-                      &#8592;
-                    </button>
-                    <button
-                      class="merge-btn right"
-                      onclick={() => mergeKeywords(candidate.keyword_b_id, candidate.keyword_a_id, candidate.keyword_b_name, candidate.keyword_a_name)}
-                      title="{candidate.keyword_a_name} -> {candidate.keyword_b_name}"
-                      disabled={synonymsLoading}
-                    >
-                      &#8594;
-                    </button>
-                    <button
-                      class="dismiss-btn"
-                      onclick={() => dismissSynonymPair(candidate.keyword_a_id, candidate.keyword_b_id)}
-                      title={$_('network.dismissSynonym') || 'Ignorieren'}
-                    >
-                      &#10005;
-                    </button>
-                  </div>
-                </div>
+          </div>
+          {#if keepSearchResults.length > 0 && !selectedKeepKeyword}
+            <div class="merge-search-results">
+              {#each keepSearchResults as keyword (keyword.id)}
+                <button
+                  class="merge-search-item"
+                  onclick={() => selectKeepKeyword(keyword)}
+                >
+                  <span class="item-name">{keyword.name}</span>
+                  <span class="item-count">{keyword.article_count}</span>
+                </button>
               {/each}
             </div>
-          {:else if !synonymsLoading && synonymCandidates.length === 0}
-            <div class="empty-hint">{$_('network.clickFindSynonyms') || 'Klicke auf "Synonyme finden" um KI-Vorschlaege zu laden'}</div>
+          {/if}
+          {#if selectedKeepKeyword}
+            <div class="selected-chip keep">
+              <i class="fa-solid fa-check"></i>
+              <span>{selectedKeepKeyword.name}</span>
+              <span class="chip-count">({selectedKeepKeyword.article_count} Artikel)</span>
+            </div>
           {/if}
         </div>
 
-        <!-- Create New Keyword -->
-        <div class="synonyms-section">
-          <h3 class="section-heading">{$_('network.createKeyword') || 'Neues Keyword erstellen'}</h3>
-          <div class="create-keyword-form">
+        <!-- Visual Arrow -->
+        <div class="merge-arrow">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span class="arrow-label">{$_('network.replacesLabel') || 'ersetzt'}</span>
+        </div>
+
+        <!-- Remove Keyword (Source) -->
+        <div class="merge-field">
+          <label class="merge-label">
+            <i class="fa-solid fa-trash merge-label-icon remove"></i>
+            {$_('network.removeKeyword') || 'Löschen'}
+          </label>
+          <div class="merge-search-box">
             <input
               type="text"
-              bind:value={newKeywordInput}
-              placeholder={$_('network.newKeywordPlaceholder') || 'Keyword eingeben...'}
-              class="create-keyword-input"
-              onkeydown={(e) => e.key === 'Enter' && createNewKeyword()}
+              bind:value={removeSearchInput}
+              oninput={handleRemoveSearch}
+              placeholder={$_('network.searchKeywordPlaceholder') || 'Keyword suchen...'}
+              class="merge-search-input"
             />
-            <button
-              class="action-btn primary"
-              onclick={createNewKeyword}
-              disabled={createKeywordLoading || !newKeywordInput.trim()}
-            >
-              {#if createKeywordLoading}
-                {$_('network.loading') || 'Lade...'}
-              {:else}
-                {$_('network.create') || 'Erstellen'}
-              {/if}
-            </button>
+            {#if removeSearchInput}
+              <button onclick={clearRemoveSearch} class="clear-btn" aria-label="Clear"><i class="fa-solid fa-xmark"></i></button>
+            {/if}
           </div>
-          {#if createKeywordError}
-            <div class="feedback-message error">{createKeywordError}</div>
+          {#if removeSearchResults.length > 0 && !selectedRemoveKeyword}
+            <div class="merge-search-results">
+              {#each removeSearchResults as keyword (keyword.id)}
+                {#if keyword.id !== selectedKeepKeyword?.id}
+                  <button
+                    class="merge-search-item"
+                    onclick={() => selectRemoveKeyword(keyword)}
+                  >
+                    <span class="item-name">{keyword.name}</span>
+                    <span class="item-count">{keyword.article_count}</span>
+                  </button>
+                {/if}
+              {/each}
+            </div>
           {/if}
-          {#if createKeywordSuccess}
-            <div class="feedback-message success">{createKeywordSuccess}</div>
+          {#if selectedRemoveKeyword}
+            <div class="selected-chip remove">
+              <i class="fa-solid fa-trash"></i>
+              <span>{selectedRemoveKeyword.name}</span>
+              <span class="chip-count">({selectedRemoveKeyword.article_count} Artikel)</span>
+            </div>
           {/if}
         </div>
       </div>
 
-      <!-- Right Panel: Manual Keyword Linking -->
-      <div class="synonyms-right-panel">
-        <div class="synonyms-section">
-          <h3 class="section-heading">{$_('network.manualMerge') || 'Manuelles Zusammenführen'}</h3>
-          <p class="section-description">{$_('network.manualMergeDescription') || 'Wähle zwei Keywords aus: Das erste bleibt erhalten, das zweite wird gelöscht und alle Verknüpfungen werden übertragen.'}</p>
-
-          <div class="merge-form">
-            <!-- Keep Keyword (Target) -->
-            <div class="merge-field">
-              <label class="merge-label">
-                <i class="fa-solid fa-check merge-label-icon keep"></i>
-                {$_('network.keepKeyword') || 'Behalten'}
-              </label>
-              <div class="merge-search-box">
-                <input
-                  type="text"
-                  bind:value={keepSearchInput}
-                  oninput={handleKeepSearch}
-                  placeholder={$_('network.searchKeywordPlaceholder') || 'Keyword suchen...'}
-                  class="merge-search-input"
-                />
-                {#if keepSearchInput}
-                  <button onclick={clearKeepSearch} class="clear-btn" aria-label="Clear"><i class="fa-solid fa-xmark"></i></button>
-                {/if}
-              </div>
-              {#if keepSearchResults.length > 0}
-                <div class="merge-search-results">
-                  {#each keepSearchResults as keyword (keyword.id)}
-                    <button
-                      class="merge-search-item"
-                      onclick={() => selectKeepKeyword(keyword)}
-                    >
-                      <span class="item-name">{keyword.name}</span>
-                      <span class="item-count">{keyword.article_count}</span>
-                    </button>
-                  {/each}
-                </div>
-              {/if}
-              {#if selectedKeepKeyword}
-                <div class="selected-chip keep">
-                  <i class="fa-solid fa-check"></i>
-                  <span>{selectedKeepKeyword.name}</span>
-                  <span class="chip-count">({selectedKeepKeyword.article_count} Artikel)</span>
-                </div>
-              {/if}
-            </div>
-
-            <!-- Visual Arrow -->
-            <div class="merge-arrow">
-              <i class="fa-solid fa-arrow-left"></i>
-              <span class="arrow-label">{$_('network.replacesLabel') || 'ersetzt'}</span>
-            </div>
-
-            <!-- Remove Keyword (Source) -->
-            <div class="merge-field">
-              <label class="merge-label">
-                <i class="fa-solid fa-trash merge-label-icon remove"></i>
-                {$_('network.removeKeyword') || 'Löschen'}
-              </label>
-              <div class="merge-search-box">
-                <input
-                  type="text"
-                  bind:value={removeSearchInput}
-                  oninput={handleRemoveSearch}
-                  placeholder={$_('network.searchKeywordPlaceholder') || 'Keyword suchen...'}
-                  class="merge-search-input"
-                />
-                {#if removeSearchInput}
-                  <button onclick={clearRemoveSearch} class="clear-btn" aria-label="Clear"><i class="fa-solid fa-xmark"></i></button>
-                {/if}
-              </div>
-              {#if removeSearchResults.length > 0}
-                <div class="merge-search-results">
-                  {#each removeSearchResults as keyword (keyword.id)}
-                    {#if keyword.id !== selectedKeepKeyword?.id}
-                      <button
-                        class="merge-search-item"
-                        onclick={() => selectRemoveKeyword(keyword)}
-                      >
-                        <span class="item-name">{keyword.name}</span>
-                        <span class="item-count">{keyword.article_count}</span>
-                      </button>
-                    {/if}
-                  {/each}
-                </div>
-              {/if}
-              {#if selectedRemoveKeyword}
-                <div class="selected-chip remove">
-                  <i class="fa-solid fa-trash"></i>
-                  <span>{selectedRemoveKeyword.name}</span>
-                  <span class="chip-count">({selectedRemoveKeyword.article_count} Artikel)</span>
-                </div>
-              {/if}
-            </div>
+      <!-- Merge Preview & Action -->
+      {#if selectedKeepKeyword && selectedRemoveKeyword}
+        <div class="merge-preview">
+          <div class="preview-text">
+            <i class="fa-solid fa-info-circle"></i>
+            <span>
+              <strong>"{selectedRemoveKeyword.name}"</strong> wird gelöscht.
+              Alle {selectedRemoveKeyword.article_count} Artikel werden zu <strong>"{selectedKeepKeyword.name}"</strong> übertragen.
+            </span>
           </div>
-
-          <!-- Merge Preview & Action -->
-          {#if selectedKeepKeyword && selectedRemoveKeyword}
-            <div class="merge-preview">
-              <div class="preview-text">
-                <i class="fa-solid fa-info-circle"></i>
-                <span>
-                  <strong>"{selectedRemoveKeyword.name}"</strong> wird gelöscht.
-                  Alle {selectedRemoveKeyword.article_count} Artikel werden zu <strong>"{selectedKeepKeyword.name}"</strong> übertragen.
-                </span>
-              </div>
-              <button
-                class="action-btn danger"
-                onclick={executeManualMerge}
-                disabled={synonymsLoading || selectedKeepKeyword.id === selectedRemoveKeyword.id}
-              >
-                {#if synonymsLoading}
-                  <i class="fa-solid fa-rotate fa-spin"></i>
-                {:else}
-                  <i class="fa-solid fa-merge"></i>
-                {/if}
-                {$_('network.executeMerge') || 'Zusammenführen'}
-              </button>
-            </div>
-          {:else}
-            <div class="merge-hint">
-              <i class="fa-solid fa-hand-pointer"></i>
-              {$_('network.selectBothKeywords') || 'Wähle beide Keywords aus, um sie zusammenzuführen.'}
-            </div>
-          {/if}
-
-          {#if selectedKeepKeyword && selectedRemoveKeyword && selectedKeepKeyword.id === selectedRemoveKeyword.id}
-            <div class="merge-error">
-              <i class="fa-solid fa-triangle-exclamation"></i>
-              {$_('network.sameKeywordError') || 'Die beiden Keywords müssen unterschiedlich sein.'}
-            </div>
-          {/if}
+          <button
+            class="action-btn danger"
+            onclick={executeManualMerge}
+            disabled={synonymsLoading || selectedKeepKeyword.id === selectedRemoveKeyword.id}
+          >
+            {#if synonymsLoading}
+              <i class="fa-solid fa-rotate fa-spin"></i>
+            {:else}
+              <i class="fa-solid fa-code-merge"></i>
+            {/if}
+            {$_('network.executeMerge') || 'Zusammenführen'}
+          </button>
         </div>
+      {:else}
+        <div class="merge-hint">
+          <i class="fa-solid fa-hand-pointer"></i>
+          {$_('network.selectBothKeywords') || 'Wähle beide Keywords aus, um sie zusammenzuführen.'}
+        </div>
+      {/if}
+
+      {#if selectedKeepKeyword && selectedRemoveKeyword && selectedKeepKeyword.id === selectedRemoveKeyword.id}
+        <div class="merge-error">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          {$_('network.sameKeywordError') || 'Die beiden Keywords müssen unterschiedlich sein.'}
+        </div>
+      {/if}
+    </div>
+
+    <!-- Two columns below -->
+    <div class="synonyms-columns">
+      <!-- AI Synonym Suggestions -->
+      <div class="synonyms-section">
+        <h3 class="section-heading">{$_('network.synonymCandidates') || 'KI-Synonym-Vorschläge'}</h3>
+        <button
+          class="action-btn primary"
+          onclick={findSynonymCandidates}
+          disabled={synonymsLoading}
+        >
+          {#if synonymsLoading}
+            {$_('network.loading') || 'Lade...'}
+          {:else}
+            {$_('network.findSynonyms') || 'Synonyme finden'}
+          {/if}
+        </button>
+
+        {#if synonymsError}
+          <div class="feedback-message error">{synonymsError}</div>
+        {/if}
+        {#if synonymSuccess}
+          <div class="feedback-message success">{synonymSuccess}</div>
+        {/if}
+
+        {#if synonymCandidates.length > 0}
+          <div class="synonym-list">
+            {#each synonymCandidates as candidate (candidate.keyword_a_id + '-' + candidate.keyword_b_id)}
+              <div class="synonym-item">
+                <div class="synonym-pair">
+                  <span class="synonym-keyword">{candidate.keyword_a_name}</span>
+                  <span class="synonym-similarity">{(candidate.similarity * 100).toFixed(0)}%</span>
+                  <span class="synonym-keyword">{candidate.keyword_b_name}</span>
+                </div>
+                <div class="synonym-actions">
+                  <button
+                    class="merge-btn left"
+                    onclick={() => mergeKeywords(candidate.keyword_a_id, candidate.keyword_b_id, candidate.keyword_a_name, candidate.keyword_b_name)}
+                    title="{candidate.keyword_b_name} -> {candidate.keyword_a_name}"
+                    disabled={synonymsLoading}
+                  >
+                    &#8592;
+                  </button>
+                  <button
+                    class="merge-btn right"
+                    onclick={() => mergeKeywords(candidate.keyword_b_id, candidate.keyword_a_id, candidate.keyword_b_name, candidate.keyword_a_name)}
+                    title="{candidate.keyword_a_name} -> {candidate.keyword_b_name}"
+                    disabled={synonymsLoading}
+                  >
+                    &#8594;
+                  </button>
+                  <button
+                    class="dismiss-btn"
+                    onclick={() => dismissSynonymPair(candidate.keyword_a_id, candidate.keyword_b_id)}
+                    title={$_('network.dismissSynonym') || 'Ignorieren'}
+                  >
+                    &#10005;
+                  </button>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {:else if !synonymsLoading && synonymCandidates.length === 0}
+          <div class="empty-hint">{$_('network.clickFindSynonyms') || 'Klicke auf "Synonyme finden" um KI-Vorschläge zu laden'}</div>
+        {/if}
+      </div>
+
+      <!-- Create New Keyword -->
+      <div class="synonyms-section">
+        <h3 class="section-heading">{$_('network.createKeyword') || 'Neues Keyword erstellen'}</h3>
+        <div class="create-keyword-form">
+          <input
+            type="text"
+            bind:value={newKeywordInput}
+            placeholder={$_('network.newKeywordPlaceholder') || 'Keyword eingeben...'}
+            class="create-keyword-input"
+            onkeydown={(e) => e.key === 'Enter' && createNewKeyword()}
+          />
+          <button
+            class="action-btn primary"
+            onclick={createNewKeyword}
+            disabled={createKeywordLoading || !newKeywordInput.trim()}
+          >
+            {#if createKeywordLoading}
+              {$_('network.loading') || 'Lade...'}
+            {:else}
+              {$_('network.create') || 'Erstellen'}
+            {/if}
+          </button>
+        </div>
+        {#if createKeywordError}
+          <div class="feedback-message error">{createKeywordError}</div>
+        {/if}
+        {#if createKeywordSuccess}
+          <div class="feedback-message success">{createKeywordSuccess}</div>
+        {/if}
       </div>
     </div>
   </div>
@@ -1505,25 +1501,18 @@
     flex: 1;
     padding: 1rem;
     overflow-y: auto;
-  }
-
-  .synonyms-content {
-    display: flex;
-    gap: 1.5rem;
-    height: 100%;
-  }
-
-  .synonyms-left-panel {
-    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem;
   }
 
-  .synonyms-right-panel {
-    flex: 1;
+  .synonyms-columns {
     display: flex;
-    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .synonyms-columns .synonyms-section {
+    flex: 1;
   }
 
   .synonyms-section {
@@ -1531,6 +1520,10 @@
     border-radius: 0.5rem;
     padding: 1rem;
     border: 1px solid var(--border-default);
+  }
+
+  .synonyms-section.full-width {
+    width: 100%;
   }
 
   .section-heading {
