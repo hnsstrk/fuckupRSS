@@ -170,6 +170,9 @@ pub fn run() {
             commands::immanentize::merge_keyword_pair,
             commands::immanentize::dismiss_synonym_pair,
             commands::immanentize::get_cooccurring_keywords,
+            // Manual Keyword Management
+            commands::immanentize::create_keyword,
+            commands::immanentize::delete_keyword,
             // Embedding Queue
             commands::embedding::get_embedding_queue_status,
             commands::embedding::process_embedding_queue_now,

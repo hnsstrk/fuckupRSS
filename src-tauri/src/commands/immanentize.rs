@@ -1637,3 +1637,113 @@ pub fn get_cooccurring_keywords(
 
     Ok(keywords)
 }
+
+// ============================================================
+// KEYWORD MANAGEMENT (Manual Creation, Deletion, Linking)
+// ============================================================
+
+/// Result of creating a keyword
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateKeywordResult {
+    pub id: i64,
+    pub name: String,
+    pub created: bool, // true if newly created, false if already existed
+}
+
+/// Create a new keyword manually
+/// Returns the keyword ID (either new or existing)
+#[tauri::command]
+pub fn create_keyword(state: State<AppState>, name: String) -> Result<CreateKeywordResult, String> {
+    use crate::normalize_keyword;
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Normalize the keyword name
+    let normalized = normalize_keyword(&name).ok_or_else(|| {
+        format!(
+            "Ungültiges Keyword: '{}'. Keywords müssen 3-50 Zeichen haben und sinnvolle Wörter enthalten.",
+            name
+        )
+    })?;
+
+    // Check if keyword already exists (case-insensitive)
+    let existing: Option<(i64, String)> = conn
+        .query_row(
+            "SELECT id, name FROM immanentize WHERE LOWER(name) = LOWER(?)",
+            [&normalized],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .ok();
+
+    if let Some((id, existing_name)) = existing {
+        return Ok(CreateKeywordResult {
+            id,
+            name: existing_name,
+            created: false,
+        });
+    }
+
+    // Insert new keyword
+    conn.execute(
+        r#"INSERT INTO immanentize (name, count, article_count, is_canonical, first_seen)
+           VALUES (?1, 0, 0, TRUE, CURRENT_TIMESTAMP)"#,
+        [&normalized],
+    )
+    .map_err(|e| format!("Fehler beim Erstellen des Keywords: {}", e))?;
+
+    let id = conn.last_insert_rowid();
+
+    Ok(CreateKeywordResult {
+        id,
+        name: normalized,
+        created: true,
+    })
+}
+
+/// Delete a keyword and all its associations
+#[tauri::command]
+pub fn delete_keyword(state: State<AppState>, id: i64) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Delete from fnord_immanentize
+    conn.execute("DELETE FROM fnord_immanentize WHERE immanentize_id = ?", [id])
+        .ok();
+
+    // Delete from immanentize_neighbors
+    conn.execute(
+        "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
+        params![id, id],
+    )
+    .ok();
+
+    // Delete from immanentize_sephiroth
+    conn.execute("DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?", [id])
+        .ok();
+
+    // Delete from immanentize_daily
+    conn.execute("DELETE FROM immanentize_daily WHERE immanentize_id = ?", [id])
+        .ok();
+
+    // Delete from vec_immanentize (sqlite-vec)
+    conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id])
+        .ok();
+
+    // Delete from embedding_queue
+    conn.execute("DELETE FROM embedding_queue WHERE immanentize_id = ?", [id])
+        .ok();
+
+    // Delete from dismissed_synonyms
+    conn.execute(
+        "DELETE FROM dismissed_synonyms WHERE keyword_a_id = ? OR keyword_b_id = ?",
+        params![id, id],
+    )
+    .ok();
+
+    // Finally delete the keyword itself
+    conn.execute("DELETE FROM immanentize WHERE id = ?", [id])
+        .map_err(|e| format!("Fehler beim Löschen des Keywords: {}", e))?;
+
+    Ok(())
+}

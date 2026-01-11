@@ -24,12 +24,35 @@
     cooccurrence_count: number;
   }
 
+  // Type for synonym candidate
+  interface SynonymCandidate {
+    keyword_a_id: number;
+    keyword_a_name: string;
+    keyword_b_id: number;
+    keyword_b_name: string;
+    similarity: number;
+  }
+
+  // Type for merge result
+  interface MergeSynonymsResult {
+    merged_pairs: number;
+    affected_articles: number;
+  }
+
+  // Type for create keyword result
+  interface CreateKeywordResult {
+    id: number;
+    name: string;
+    created: boolean;
+  }
+
   let activeTab = $state<string>('list');
 
   // Tabs definition
   let tabs = $derived<Tab[]>([
     { id: 'list', label: $_('network.listTab') || 'Keywords' },
     { id: 'graph', label: $_('network.graphTab') || 'Graph' },
+    { id: 'synonyms', label: $_('network.synonymsTab') || 'Synonyme' },
   ]);
   let searchInput = $state('');
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -56,6 +79,19 @@
   let articlesOffset = $state(0);
   const limit = 50;
   const articlesLimit = 10;
+
+  // Synonyms tab state
+  let synonymCandidates = $state<SynonymCandidate[]>([]);
+  let synonymsLoading = $state(false);
+  let synonymsError = $state<string | null>(null);
+  let synonymSuccess = $state<string | null>(null);
+  let manualSearchInput = $state('');
+  let manualSearchResults = $state<Keyword[]>([]);
+  let manualSearchTimeout: ReturnType<typeof setTimeout> | null = null;
+  let newKeywordInput = $state('');
+  let createKeywordLoading = $state(false);
+  let createKeywordSuccess = $state<string | null>(null);
+  let createKeywordError = $state<string | null>(null);
 
   // Stable empty graph data to prevent re-renders
   const emptyGraphData: NetworkGraphType = { nodes: [], edges: [] };
@@ -266,6 +302,148 @@
     if (weight >= 0.4) return 'weight-medium';
     return 'weight-low';
   }
+
+  // === Synonyms Tab Functions ===
+
+  async function findSynonymCandidates() {
+    synonymsLoading = true;
+    synonymsError = null;
+    synonymSuccess = null;
+
+    try {
+      synonymCandidates = await invoke<SynonymCandidate[]>('find_synonym_candidates', {
+        threshold: 0.85,
+        limit: 20,
+      });
+      if (synonymCandidates.length === 0) {
+        synonymSuccess = $_('network.noSynonymCandidates') || 'Keine Synonym-Kandidaten gefunden';
+      }
+    } catch (e) {
+      synonymsError = String(e);
+      console.error('Failed to find synonym candidates:', e);
+    } finally {
+      synonymsLoading = false;
+    }
+  }
+
+  async function mergeKeywords(keepId: number, removeId: number, keepName: string, removeName: string) {
+    synonymsLoading = true;
+    synonymsError = null;
+    synonymSuccess = null;
+
+    try {
+      const result = await invoke<MergeSynonymsResult>('merge_keyword_pair', {
+        keepId,
+        removeId,
+      });
+      synonymSuccess = `"${removeName}" -> "${keepName}" (${result.affected_articles} ${$_('network.articleCount') || 'Artikel'})`;
+      // Remove the merged candidate from the list
+      synonymCandidates = synonymCandidates.filter(
+        (c) =>
+          !(
+            (c.keyword_a_id === keepId && c.keyword_b_id === removeId) ||
+            (c.keyword_a_id === removeId && c.keyword_b_id === keepId)
+          )
+      );
+      // Refresh keywords list
+      await loadKeywords(true);
+      await loadNetworkStats();
+    } catch (e) {
+      synonymsError = String(e);
+      console.error('Failed to merge keywords:', e);
+    } finally {
+      synonymsLoading = false;
+    }
+  }
+
+  async function dismissSynonymPair(keywordAId: number, keywordBId: number) {
+    synonymsError = null;
+    synonymSuccess = null;
+
+    try {
+      await invoke('dismiss_synonym_pair', { keywordAId, keywordBId });
+      // Remove from list
+      synonymCandidates = synonymCandidates.filter(
+        (c) =>
+          !(
+            (c.keyword_a_id === keywordAId && c.keyword_b_id === keywordBId) ||
+            (c.keyword_a_id === keywordBId && c.keyword_b_id === keywordAId)
+          )
+      );
+      synonymSuccess = $_('network.synonymDismissed') || 'Synonym-Vorschlag ignoriert';
+    } catch (e) {
+      synonymsError = String(e);
+      console.error('Failed to dismiss synonym pair:', e);
+    }
+  }
+
+  function handleManualSearch() {
+    if (manualSearchTimeout) clearTimeout(manualSearchTimeout);
+
+    if (!manualSearchInput.trim()) {
+      manualSearchResults = [];
+      return;
+    }
+
+    manualSearchTimeout = setTimeout(async () => {
+      try {
+        manualSearchResults = await invoke<Keyword[]>('search_keywords', {
+          query: manualSearchInput,
+          limit: 10,
+        });
+      } catch (e) {
+        console.error('Failed to search keywords:', e);
+      }
+    }, 300);
+  }
+
+  function clearManualSearch() {
+    if (manualSearchTimeout) clearTimeout(manualSearchTimeout);
+    manualSearchInput = '';
+    manualSearchResults = [];
+  }
+
+  async function manualMergeKeyword(targetKeyword: Keyword) {
+    if (!selectedKeyword) return;
+
+    // Selected keyword replaces the target (searched) keyword
+    await mergeKeywords(
+      selectedKeyword.id,
+      targetKeyword.id,
+      selectedKeyword.name,
+      targetKeyword.name
+    );
+    clearManualSearch();
+  }
+
+  async function createNewKeyword() {
+    if (!newKeywordInput.trim()) return;
+
+    createKeywordLoading = true;
+    createKeywordError = null;
+    createKeywordSuccess = null;
+
+    try {
+      const result = await invoke<CreateKeywordResult>('create_keyword', {
+        name: newKeywordInput.trim(),
+      });
+
+      if (result.created) {
+        createKeywordSuccess = `"${result.name}" ${$_('network.keywordCreated') || 'erstellt'}`;
+      } else {
+        createKeywordSuccess = `"${result.name}" ${$_('network.keywordExists') || 'existiert bereits'}`;
+      }
+      newKeywordInput = '';
+      // Refresh keywords list
+      await loadKeywords(true);
+      await loadNetworkStats();
+    } catch (e) {
+      createKeywordError = String(e);
+      console.error('Failed to create keyword:', e);
+    } finally {
+      createKeywordLoading = false;
+    }
+  }
 </script>
 
 <div class="keyword-network">
@@ -427,7 +605,7 @@
             {#if cooccurringKeywords.length > 0}
               <div class="neighbor-legend">
                 <span class="legend-label">{$_('network.comparedWith')}:</span>
-                {#each cooccurringKeywords.slice(0, 7) as coKw, idx}
+                {#each cooccurringKeywords.slice(0, 7) as coKw, idx (coKw.id)}
                   <button
                     class="neighbor-tag"
                     style="--neighbor-color: {['#f9e2af', '#a6e3a1', '#89b4fa', '#f5c2e7', '#94e2d5', '#fab387', '#89dceb'][idx]}"
@@ -505,6 +683,164 @@
       onNodeClick={handleGraphNodeClick}
       loading={graphLoading}
     />
+  </div>
+  {:else if activeTab === 'synonyms'}
+  <!-- Synonyms View -->
+  <div class="synonyms-view">
+    <div class="synonyms-content">
+      <!-- Left Panel: AI Suggestions & Create Keyword -->
+      <div class="synonyms-left-panel">
+        <!-- AI Synonym Suggestions -->
+        <div class="synonyms-section">
+          <h3 class="section-heading">{$_('network.synonymCandidates') || 'KI-Synonym-Vorschlaege'}</h3>
+          <button
+            class="action-btn primary"
+            onclick={findSynonymCandidates}
+            disabled={synonymsLoading}
+          >
+            {#if synonymsLoading}
+              {$_('network.loading') || 'Lade...'}
+            {:else}
+              {$_('network.findSynonyms') || 'Synonyme finden'}
+            {/if}
+          </button>
+
+          {#if synonymsError}
+            <div class="feedback-message error">{synonymsError}</div>
+          {/if}
+          {#if synonymSuccess}
+            <div class="feedback-message success">{synonymSuccess}</div>
+          {/if}
+
+          {#if synonymCandidates.length > 0}
+            <div class="synonym-list">
+              {#each synonymCandidates as candidate (candidate.keyword_a_id + '-' + candidate.keyword_b_id)}
+                <div class="synonym-item">
+                  <div class="synonym-pair">
+                    <span class="synonym-keyword">{candidate.keyword_a_name}</span>
+                    <span class="synonym-similarity">{(candidate.similarity * 100).toFixed(0)}%</span>
+                    <span class="synonym-keyword">{candidate.keyword_b_name}</span>
+                  </div>
+                  <div class="synonym-actions">
+                    <button
+                      class="merge-btn left"
+                      onclick={() => mergeKeywords(candidate.keyword_a_id, candidate.keyword_b_id, candidate.keyword_a_name, candidate.keyword_b_name)}
+                      title="{candidate.keyword_b_name} -> {candidate.keyword_a_name}"
+                      disabled={synonymsLoading}
+                    >
+                      &#8592;
+                    </button>
+                    <button
+                      class="merge-btn right"
+                      onclick={() => mergeKeywords(candidate.keyword_b_id, candidate.keyword_a_id, candidate.keyword_b_name, candidate.keyword_a_name)}
+                      title="{candidate.keyword_a_name} -> {candidate.keyword_b_name}"
+                      disabled={synonymsLoading}
+                    >
+                      &#8594;
+                    </button>
+                    <button
+                      class="dismiss-btn"
+                      onclick={() => dismissSynonymPair(candidate.keyword_a_id, candidate.keyword_b_id)}
+                      title={$_('network.dismissSynonym') || 'Ignorieren'}
+                    >
+                      &#10005;
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else if !synonymsLoading && synonymCandidates.length === 0}
+            <div class="empty-hint">{$_('network.clickFindSynonyms') || 'Klicke auf "Synonyme finden" um KI-Vorschlaege zu laden'}</div>
+          {/if}
+        </div>
+
+        <!-- Create New Keyword -->
+        <div class="synonyms-section">
+          <h3 class="section-heading">{$_('network.createKeyword') || 'Neues Keyword erstellen'}</h3>
+          <div class="create-keyword-form">
+            <input
+              type="text"
+              bind:value={newKeywordInput}
+              placeholder={$_('network.newKeywordPlaceholder') || 'Keyword eingeben...'}
+              class="create-keyword-input"
+              onkeydown={(e) => e.key === 'Enter' && createNewKeyword()}
+            />
+            <button
+              class="action-btn primary"
+              onclick={createNewKeyword}
+              disabled={createKeywordLoading || !newKeywordInput.trim()}
+            >
+              {#if createKeywordLoading}
+                {$_('network.loading') || 'Lade...'}
+              {:else}
+                {$_('network.create') || 'Erstellen'}
+              {/if}
+            </button>
+          </div>
+          {#if createKeywordError}
+            <div class="feedback-message error">{createKeywordError}</div>
+          {/if}
+          {#if createKeywordSuccess}
+            <div class="feedback-message success">{createKeywordSuccess}</div>
+          {/if}
+        </div>
+      </div>
+
+      <!-- Right Panel: Manual Keyword Linking -->
+      <div class="synonyms-right-panel">
+        <div class="synonyms-section">
+          <h3 class="section-heading">{$_('network.manualMerge') || 'Manuelles Zusammenfuehren'}</h3>
+
+          {#if selectedKeyword}
+            <div class="selected-keyword-info">
+              <span class="selected-label">{$_('network.selectedKeyword') || 'Ausgewaehlt'}:</span>
+              <span class="selected-name">{selectedKeyword.name}</span>
+              <span class="selected-count">({selectedKeyword.article_count} {$_('network.articleCount') || 'Artikel'})</span>
+            </div>
+
+            <div class="manual-search-box">
+              <input
+                type="text"
+                bind:value={manualSearchInput}
+                oninput={handleManualSearch}
+                placeholder={$_('network.searchToReplace') || 'Keyword zum Ersetzen suchen...'}
+                class="manual-search-input"
+              />
+              {#if manualSearchInput}
+                <button onclick={clearManualSearch} class="clear-btn">&times;</button>
+              {/if}
+            </div>
+
+            {#if manualSearchResults.length > 0}
+              <div class="manual-search-results">
+                {#each manualSearchResults as keyword (keyword.id)}
+                  {#if keyword.id !== selectedKeyword.id}
+                    <div class="manual-search-item">
+                      <span class="manual-keyword-name">{keyword.name}</span>
+                      <span class="manual-keyword-count">{keyword.article_count}</span>
+                      <button
+                        class="replace-btn"
+                        onclick={() => manualMergeKeyword(keyword)}
+                        disabled={synonymsLoading}
+                        title="{keyword.name} wird durch {selectedKeyword.name} ersetzt"
+                      >
+                        {$_('network.replace') || 'Ersetzen'}
+                      </button>
+                    </div>
+                  {/if}
+                {/each}
+              </div>
+            {:else if manualSearchInput && !manualSearchResults.length}
+              <div class="empty-hint">{$_('network.noResults') || 'Keine Ergebnisse gefunden'}</div>
+            {/if}
+          {:else}
+            <div class="no-keyword-selected">
+              <p>{$_('network.noKeywordSelected') || 'Waehle zuerst ein Keyword im "Keywords"-Tab aus, um es mit anderen Keywords zusammenzufuehren.'}</p>
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
   </div>
   {/if}
 </div>
@@ -1024,5 +1360,352 @@
     font-size: 0.875rem;
     background-color: var(--bg-surface);
     border-radius: 0.375rem;
+  }
+
+  /* Synonyms View */
+  .synonyms-view {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+  }
+
+  .synonyms-content {
+    display: flex;
+    gap: 1.5rem;
+    height: 100%;
+  }
+
+  .synonyms-left-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .synonyms-right-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .synonyms-section {
+    background-color: var(--bg-surface);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    border: 1px solid var(--border-default);
+  }
+
+  .section-heading {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0 0 0.75rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+  }
+
+  .action-btn {
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid var(--border-default);
+    background-color: var(--bg-overlay);
+    color: var(--text-primary);
+  }
+
+  .action-btn:hover:not(:disabled) {
+    background-color: var(--bg-tertiary);
+  }
+
+  .action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .action-btn.primary {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: var(--bg-default);
+  }
+
+  .action-btn.primary:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  .feedback-message {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+  }
+
+  .feedback-message.error {
+    background-color: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--accent-error);
+    color: var(--accent-error);
+  }
+
+  .feedback-message.success {
+    background-color: rgba(34, 197, 94, 0.1);
+    border: 1px solid var(--accent-success);
+    color: var(--accent-success);
+  }
+
+  .synonym-list {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .synonym-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+    gap: 0.5rem;
+  }
+
+  .synonym-pair {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .synonym-keyword {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .synonym-similarity {
+    font-size: 0.625rem;
+    font-weight: 600;
+    padding: 0.125rem 0.375rem;
+    background-color: var(--bg-surface);
+    border-radius: 0.25rem;
+    color: var(--accent-primary);
+    flex-shrink: 0;
+  }
+
+  .synonym-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  .merge-btn {
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.25rem;
+    border: 1px solid var(--border-default);
+    background-color: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.875rem;
+  }
+
+  .merge-btn:hover:not(:disabled) {
+    background-color: var(--accent-success);
+    border-color: var(--accent-success);
+    color: var(--bg-default);
+  }
+
+  .merge-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .dismiss-btn {
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.25rem;
+    border: 1px solid var(--border-default);
+    background-color: var(--bg-surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.75rem;
+  }
+
+  .dismiss-btn:hover {
+    background-color: var(--accent-error);
+    border-color: var(--accent-error);
+    color: var(--bg-default);
+  }
+
+  .empty-hint {
+    margin-top: 0.75rem;
+    padding: 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+  }
+
+  .create-keyword-form {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .create-keyword-input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    background-color: var(--bg-overlay);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+  }
+
+  .create-keyword-input::placeholder {
+    color: var(--text-faint);
+  }
+
+  .create-keyword-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+  }
+
+  .selected-keyword-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .selected-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .selected-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--accent-primary);
+  }
+
+  .selected-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .manual-search-box {
+    position: relative;
+    margin-bottom: 0.75rem;
+  }
+
+  .manual-search-input {
+    width: 100%;
+    padding: 0.5rem 2rem 0.5rem 0.75rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    background-color: var(--bg-overlay);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+  }
+
+  .manual-search-input::placeholder {
+    color: var(--text-faint);
+  }
+
+  .manual-search-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+  }
+
+  .manual-search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .manual-search-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+  }
+
+  .manual-keyword-name {
+    flex: 1;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .manual-keyword-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background-color: var(--bg-surface);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  .replace-btn {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    border: 1px solid var(--accent-warning);
+    background-color: transparent;
+    color: var(--accent-warning);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .replace-btn:hover:not(:disabled) {
+    background-color: var(--accent-warning);
+    color: var(--bg-default);
+  }
+
+  .replace-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .no-keyword-selected {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-muted);
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+  }
+
+  .no-keyword-selected p {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
   }
 </style>

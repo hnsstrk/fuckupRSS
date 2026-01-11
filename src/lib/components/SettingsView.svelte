@@ -117,17 +117,6 @@
   // Confirmation dialog state
   let confirmAction = $state<"prune" | "reset" | null>(null);
 
-  // Synonym candidates state
-  let synonymCandidates = $state<
-    {
-      keyword_a_id: number;
-      keyword_a_name: string;
-      keyword_b_id: number;
-      keyword_b_name: string;
-      similarity: number;
-    }[]
-  >([]);
-
   // Keyword statistics state
   let keywordStats = $state<{
     total: number;
@@ -810,67 +799,6 @@
       };
     } catch (e) {
       console.error("Failed to load keyword stats:", e);
-    }
-  }
-
-  async function handleFindSynonyms() {
-    maintenanceRunning = "synonyms";
-    maintenanceResult = null;
-    try {
-      const result = await invoke<
-        {
-          keyword_a_id: number;
-          keyword_a_name: string;
-          keyword_b_id: number;
-          keyword_b_name: string;
-          similarity: number;
-        }[]
-      >("find_synonym_candidates", { threshold: 0.85, limit: 20 });
-      synonymCandidates = result;
-      maintenanceResult = `${result.length} ${$_("settings.maintenance.candidates")} ${$_("settings.maintenance.found")}`;
-    } catch (e) {
-      maintenanceResult = `Error: ${e}`;
-    } finally {
-      maintenanceRunning = null;
-    }
-  }
-
-  async function handleMergeSynonym(
-    keepId: number,
-    mergeId: number,
-    keepName: string,
-    mergeName: string,
-  ) {
-    try {
-      await invoke("merge_keyword_pair", { keepId, removeId: mergeId });
-      synonymCandidates = synonymCandidates.filter(
-        (c) =>
-          !(c.keyword_a_id === keepId && c.keyword_b_id === mergeId) &&
-          !(c.keyword_a_id === mergeId && c.keyword_b_id === keepId),
-      );
-      maintenanceResult = `"${mergeName}" → "${keepName}" ${$_("settings.maintenance.merged")}`;
-      await loadKeywordStats();
-    } catch (e) {
-      maintenanceResult = `Error: ${e}`;
-    }
-  }
-
-  async function handleDismissSynonym(
-    keywordAId: number,
-    keywordBId: number,
-    nameA: string,
-    nameB: string,
-  ) {
-    try {
-      await invoke("dismiss_synonym_pair", { keywordAId, keywordBId });
-      synonymCandidates = synonymCandidates.filter(
-        (c) =>
-          !(c.keyword_a_id === keywordAId && c.keyword_b_id === keywordBId) &&
-          !(c.keyword_a_id === keywordBId && c.keyword_b_id === keywordAId),
-      );
-      maintenanceResult = `"${nameA}" ↔ "${nameB}" ${$_("settings.maintenance.dismissed")}`;
-    } catch (e) {
-      maintenanceResult = `Error: ${e}`;
     }
   }
 
@@ -1834,27 +1762,6 @@
         <div class="maintenance-action">
           <div class="action-info">
             <span class="action-title"
-              >{$_("settings.maintenance.findSynonyms")}</span
-            >
-            <p class="action-desc">
-              {$_("settings.maintenance.findSynonymsDesc")}
-            </p>
-          </div>
-          <button
-            type="button"
-            class="btn-action"
-            onclick={handleFindSynonyms}
-            disabled={maintenanceRunning !== null}
-          >
-            {maintenanceRunning === "synonyms"
-              ? $_("settings.maintenance.running")
-              : $_("settings.maintenance.findSynonyms")}
-          </button>
-        </div>
-
-        <div class="maintenance-action">
-          <div class="action-info">
-            <span class="action-title"
               >{$_("settings.maintenance.pruneLowQuality")}</span
             >
             <p class="action-desc">
@@ -1873,74 +1780,6 @@
           </button>
         </div>
       </div>
-
-      <!-- Synonym Candidates -->
-      {#if synonymCandidates.length > 0}
-        <h3 style="margin-top: 1.5rem;">
-          {$_("settings.maintenance.synonymCandidates")}
-        </h3>
-        <div class="synonym-list">
-          {#each synonymCandidates as candidate}
-            <div class="synonym-item">
-              <div class="synonym-pair">
-                <span class="synonym-name">{candidate.keyword_a_name}</span>
-                <span class="synonym-similarity"
-                  >≈ {(candidate.similarity * 100).toFixed(0)}%</span
-                >
-                <span class="synonym-name">{candidate.keyword_b_name}</span>
-              </div>
-              <div class="synonym-actions">
-                <button
-                  type="button"
-                  class="btn-merge"
-                  onclick={() =>
-                    handleMergeSynonym(
-                      candidate.keyword_a_id,
-                      candidate.keyword_b_id,
-                      candidate.keyword_a_name,
-                      candidate.keyword_b_name,
-                    )}
-                  title="{$_(
-                    'settings.maintenance.keep',
-                  )} '{candidate.keyword_a_name}'"
-                >
-                  ← {$_("settings.maintenance.merge")}
-                </button>
-                <button
-                  type="button"
-                  class="btn-merge"
-                  onclick={() =>
-                    handleMergeSynonym(
-                      candidate.keyword_b_id,
-                      candidate.keyword_a_id,
-                      candidate.keyword_b_name,
-                      candidate.keyword_a_name,
-                    )}
-                  title="{$_(
-                    'settings.maintenance.keep',
-                  )} '{candidate.keyword_b_name}'"
-                >
-                  {$_("settings.maintenance.merge")} →
-                </button>
-                <button
-                  type="button"
-                  class="btn-dismiss"
-                  onclick={() =>
-                    handleDismissSynonym(
-                      candidate.keyword_a_id,
-                      candidate.keyword_b_id,
-                      candidate.keyword_a_name,
-                      candidate.keyword_b_name,
-                    )}
-                  title={$_("settings.maintenance.dismiss")}
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
 
       <h3 style="margin-top: 1.5rem;">
         {$_("settings.maintenance.reprocessArticles")}
@@ -2812,81 +2651,6 @@
   .stat-label {
     font-size: 0.75rem;
     color: var(--text-muted);
-  }
-
-  .synonym-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .synonym-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 0.75rem;
-    background-color: var(--bg-overlay);
-    border-radius: 0.375rem;
-    border: 1px solid var(--border-default);
-  }
-
-  .synonym-pair {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex: 1;
-  }
-
-  .synonym-name {
-    font-weight: 500;
-    color: var(--text-primary);
-  }
-
-  .synonym-similarity {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    padding: 0.125rem 0.375rem;
-    background-color: var(--bg-muted);
-    border-radius: 0.25rem;
-  }
-
-  .synonym-actions {
-    display: flex;
-    gap: 0.25rem;
-  }
-
-  .btn-merge {
-    padding: 0.25rem 0.5rem;
-    border: 1px solid var(--accent-secondary);
-    border-radius: 0.25rem;
-    background: none;
-    color: var(--accent-secondary);
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-merge:hover {
-    background-color: var(--accent-secondary);
-    color: var(--text-on-accent);
-  }
-
-  .btn-dismiss {
-    padding: 0.25rem 0.5rem;
-    border: 1px solid var(--text-muted);
-    border-radius: 0.25rem;
-    background: none;
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-dismiss:hover {
-    border-color: var(--status-error);
-    color: var(--status-error);
   }
 
   /* Log Level Badges */
