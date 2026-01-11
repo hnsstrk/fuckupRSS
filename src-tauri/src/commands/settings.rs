@@ -118,57 +118,87 @@ pub fn get_embedding_model_from_db(conn: &rusqlite::Connection) -> String {
 }
 
 /// Detects if the system prefers dark mode
-/// Uses multiple methods to detect dark mode on Linux:
-/// 1. GNOME/GTK color-scheme setting
-/// 2. GTK theme name containing "dark"
-/// 3. KDE color scheme
+/// Platform-specific detection:
+/// - macOS: Uses `defaults read -g AppleInterfaceStyle`
+/// - Linux: Uses gsettings (GNOME/GTK), kreadconfig5 (KDE), environment variables
 #[tauri::command]
 pub fn get_system_theme() -> String {
-    // Method 1: Check GNOME/GTK color-scheme (works for most GTK-based desktops)
-    if let Ok(output) = Command::new("gsettings")
-        .args(["get", "org.gnome.desktop.interface", "color-scheme"])
-        .output()
+    // macOS detection
+    #[cfg(target_os = "macos")]
     {
-        let result = String::from_utf8_lossy(&output.stdout);
-        if result.contains("dark") {
-            return "dark".to_string();
+        // On macOS, AppleInterfaceStyle is "Dark" when dark mode is enabled
+        // The key doesn't exist when light mode is active (command returns exit code 1)
+        if let Ok(output) = Command::new("defaults")
+            .args(["read", "-g", "AppleInterfaceStyle"])
+            .output()
+        {
+            // Check if command succeeded (exit code 0) and returned "Dark"
+            if output.status.success() {
+                let result = String::from_utf8_lossy(&output.stdout);
+                if result.trim().eq_ignore_ascii_case("dark") {
+                    return "dark".to_string();
+                }
+            }
         }
-        if result.contains("light") || result.contains("default") {
-            return "light".to_string();
-        }
+        // If the command fails (light mode) or returns something else
+        return "light".to_string();
     }
 
-    // Method 2: Check GTK theme name
-    if let Ok(output) = Command::new("gsettings")
-        .args(["get", "org.gnome.desktop.interface", "gtk-theme"])
-        .output()
+    // Linux detection
+    #[cfg(target_os = "linux")]
     {
-        let result = String::from_utf8_lossy(&output.stdout).to_lowercase();
-        if result.contains("dark") {
-            return "dark".to_string();
+        // Method 1: Check GNOME/GTK color-scheme (works for most GTK-based desktops)
+        if let Ok(output) = Command::new("gsettings")
+            .args(["get", "org.gnome.desktop.interface", "color-scheme"])
+            .output()
+        {
+            let result = String::from_utf8_lossy(&output.stdout);
+            if result.contains("dark") {
+                return "dark".to_string();
+            }
+            if result.contains("light") || result.contains("default") {
+                return "light".to_string();
+            }
         }
+
+        // Method 2: Check GTK theme name
+        if let Ok(output) = Command::new("gsettings")
+            .args(["get", "org.gnome.desktop.interface", "gtk-theme"])
+            .output()
+        {
+            let result = String::from_utf8_lossy(&output.stdout).to_lowercase();
+            if result.contains("dark") {
+                return "dark".to_string();
+            }
+        }
+
+        // Method 3: Check KDE color scheme (Plasma)
+        if let Ok(output) = Command::new("kreadconfig5")
+            .args(["--group", "General", "--key", "ColorScheme"])
+            .output()
+        {
+            let result = String::from_utf8_lossy(&output.stdout).to_lowercase();
+            if result.contains("dark") {
+                return "dark".to_string();
+            }
+        }
+
+        // Method 4: Check environment variable
+        if let Ok(theme) = std::env::var("GTK_THEME") {
+            if theme.to_lowercase().contains("dark") {
+                return "dark".to_string();
+            }
+        }
+
+        // Default to dark for Linux
+        return "dark".to_string();
     }
 
-    // Method 3: Check KDE color scheme (Plasma)
-    if let Ok(output) = Command::new("kreadconfig5")
-        .args(["--group", "General", "--key", "ColorScheme"])
-        .output()
+    // Fallback for other platforms (Windows, etc.)
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
-        let result = String::from_utf8_lossy(&output.stdout).to_lowercase();
-        if result.contains("dark") {
-            return "dark".to_string();
-        }
+        "dark".to_string()
     }
-
-    // Method 4: Check environment variable
-    if let Ok(theme) = std::env::var("GTK_THEME") {
-        if theme.to_lowercase().contains("dark") {
-            return "dark".to_string();
-        }
-    }
-
-    // Default to dark (most users of this app probably prefer dark mode)
-    "dark".to_string()
 }
 
 /// Get available log levels
