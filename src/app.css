@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 /* ===========================================
-   Catppuccin Theme System
-   Default: Mocha (darkest)
-   Variants: Macchiato, Frappé, Latte (lightest)
+   Theme System
+   Supports: Catppuccin, Ayu, Gruvbox, Tokyo Night, Solarized
+   Default: Mocha (Catppuccin darkest)
    =========================================== */
 
 :root {
@@ -193,6 +193,366 @@ html.latte {
   --bg-highlight: var(--ctp-surface2);
 
   --text-on-accent: var(--ctp-base);
+}
+
+/* ===========================================
+   Ayu Dark
+   =========================================== */
+html.ayu-dark {
+  --bg-base: #0d1017;
+  --bg-surface: #0b0e14;
+  --bg-overlay: #1b1f29;
+  --bg-muted: #252b38;
+  --bg-highlight: #323a4a;
+
+  --text-primary: #bfbdb6;
+  --text-secondary: #9b9992;
+  --text-muted: #7a7972;
+  --text-faint: #555e73;
+
+  --border-default: #252b38;
+  --border-muted: #1b1f29;
+
+  --accent-primary: #e6b450;
+  --accent-secondary: #ffcc66;
+  --accent-warning: #ff8f40;
+  --accent-error: #d95757;
+  --accent-success: #70bf56;
+  --accent-info: #59c2ff;
+
+  --status-error: #d95757;
+  --status-success: #70bf56;
+  --status-warning: #ff8f40;
+
+  --fnord-color: #f07178;
+  --illuminated-color: #555e73;
+  --golden-apple-color: #e6b450;
+
+  --text-on-accent: #0d1017;
+}
+
+/* ===========================================
+   Ayu Mirage
+   =========================================== */
+html.ayu-mirage {
+  --bg-base: #1f2430;
+  --bg-surface: #1a1e29;
+  --bg-overlay: #282e3b;
+  --bg-muted: #323a4a;
+  --bg-highlight: #3e4759;
+
+  --text-primary: #cccac2;
+  --text-secondary: #b0aea5;
+  --text-muted: #8a9199;
+  --text-faint: #707a8c;
+
+  --border-default: #323a4a;
+  --border-muted: #282e3b;
+
+  --accent-primary: #ffcc66;
+  --accent-secondary: #ffd580;
+  --accent-warning: #ffad66;
+  --accent-error: #ff6666;
+  --accent-success: #87d96c;
+  --accent-info: #73d0ff;
+
+  --status-error: #ff6666;
+  --status-success: #87d96c;
+  --status-warning: #ffad66;
+
+  --fnord-color: #f28779;
+  --illuminated-color: #707a8c;
+  --golden-apple-color: #ffcc66;
+
+  --text-on-accent: #1f2430;
+}
+
+/* ===========================================
+   Ayu Light
+   =========================================== */
+html.ayu-light {
+  --bg-base: #fcfcfc;
+  --bg-surface: #f8f9fa;
+  --bg-overlay: #f0f1f2;
+  --bg-muted: #e8e9eb;
+  --bg-highlight: #d8dadd;
+
+  --text-primary: #5c6166;
+  --text-secondary: #6e7176;
+  --text-muted: #828e9f;
+  --text-faint: #a0a4ab;
+
+  --border-default: #e8e9eb;
+  --border-muted: #f0f1f2;
+
+  --accent-primary: #f29718;
+  --accent-secondary: #ff9940;
+  --accent-warning: #ff7e33;
+  --accent-error: #e65050;
+  --accent-success: #6cbf43;
+  --accent-info: #399ee6;
+
+  --status-error: #e65050;
+  --status-success: #6cbf43;
+  --status-warning: #ff7e33;
+
+  --fnord-color: #f07171;
+  --illuminated-color: #a0a4ab;
+  --golden-apple-color: #f29718;
+
+  --text-on-accent: #fcfcfc;
+}
+
+/* ===========================================
+   Gruvbox Dark
+   =========================================== */
+html.gruvbox-dark {
+  --bg-base: #282828;
+  --bg-surface: #1d2021;
+  --bg-overlay: #3c3836;
+  --bg-muted: #504945;
+  --bg-highlight: #665c54;
+
+  --text-primary: #ebdbb2;
+  --text-secondary: #d5c4a1;
+  --text-muted: #bdae93;
+  --text-faint: #a89984;
+
+  --border-default: #504945;
+  --border-muted: #3c3836;
+
+  --accent-primary: #fabd2f;
+  --accent-secondary: #fe8019;
+  --accent-warning: #fe8019;
+  --accent-error: #fb4934;
+  --accent-success: #b8bb26;
+  --accent-info: #83a598;
+
+  --status-error: #fb4934;
+  --status-success: #b8bb26;
+  --status-warning: #fe8019;
+
+  --fnord-color: #fb4934;
+  --illuminated-color: #a89984;
+  --golden-apple-color: #fabd2f;
+
+  --text-on-accent: #282828;
+}
+
+/* ===========================================
+   Gruvbox Light
+   =========================================== */
+html.gruvbox-light {
+  --bg-base: #fbf1c7;
+  --bg-surface: #f9f5d7;
+  --bg-overlay: #ebdbb2;
+  --bg-muted: #d5c4a1;
+  --bg-highlight: #bdae93;
+
+  --text-primary: #3c3836;
+  --text-secondary: #504945;
+  --text-muted: #665c54;
+  --text-faint: #7c6f64;
+
+  --border-default: #d5c4a1;
+  --border-muted: #ebdbb2;
+
+  --accent-primary: #b57614;
+  --accent-secondary: #af3a03;
+  --accent-warning: #af3a03;
+  --accent-error: #9d0006;
+  --accent-success: #79740e;
+  --accent-info: #427b58;
+
+  --status-error: #9d0006;
+  --status-success: #79740e;
+  --status-warning: #af3a03;
+
+  --fnord-color: #9d0006;
+  --illuminated-color: #7c6f64;
+  --golden-apple-color: #b57614;
+
+  --text-on-accent: #fbf1c7;
+}
+
+/* ===========================================
+   Tokyo Night
+   =========================================== */
+html.tokyo-night {
+  --bg-base: #1a1b26;
+  --bg-surface: #16161e;
+  --bg-overlay: #24283b;
+  --bg-muted: #2f3549;
+  --bg-highlight: #414868;
+
+  --text-primary: #a9b1d6;
+  --text-secondary: #9aa5ce;
+  --text-muted: #787c99;
+  --text-faint: #565f89;
+
+  --border-default: #2f3549;
+  --border-muted: #24283b;
+
+  --accent-primary: #7aa2f7;
+  --accent-secondary: #bb9af7;
+  --accent-warning: #e0af68;
+  --accent-error: #f7768e;
+  --accent-success: #9ece6a;
+  --accent-info: #7dcfff;
+
+  --status-error: #f7768e;
+  --status-success: #9ece6a;
+  --status-warning: #e0af68;
+
+  --fnord-color: #f7768e;
+  --illuminated-color: #565f89;
+  --golden-apple-color: #e0af68;
+
+  --text-on-accent: #1a1b26;
+}
+
+/* ===========================================
+   Tokyo Night Storm
+   =========================================== */
+html.tokyo-storm {
+  --bg-base: #24283b;
+  --bg-surface: #1f2335;
+  --bg-overlay: #2f3549;
+  --bg-muted: #3b4261;
+  --bg-highlight: #414868;
+
+  --text-primary: #c0caf5;
+  --text-secondary: #a9b1d6;
+  --text-muted: #9aa5ce;
+  --text-faint: #565f89;
+
+  --border-default: #3b4261;
+  --border-muted: #2f3549;
+
+  --accent-primary: #7aa2f7;
+  --accent-secondary: #bb9af7;
+  --accent-warning: #e0af68;
+  --accent-error: #f7768e;
+  --accent-success: #9ece6a;
+  --accent-info: #7dcfff;
+
+  --status-error: #f7768e;
+  --status-success: #9ece6a;
+  --status-warning: #e0af68;
+
+  --fnord-color: #f7768e;
+  --illuminated-color: #565f89;
+  --golden-apple-color: #e0af68;
+
+  --text-on-accent: #24283b;
+}
+
+/* ===========================================
+   Tokyo Night Day
+   =========================================== */
+html.tokyo-day {
+  --bg-base: #e1e2e7;
+  --bg-surface: #d5d6db;
+  --bg-overlay: #c8c9ce;
+  --bg-muted: #b4b5b9;
+  --bg-highlight: #9699a3;
+
+  --text-primary: #3760bf;
+  --text-secondary: #4c5067;
+  --text-muted: #6172b0;
+  --text-faint: #8990b3;
+
+  --border-default: #b4b5b9;
+  --border-muted: #c8c9ce;
+
+  --accent-primary: #2e7de9;
+  --accent-secondary: #9854f1;
+  --accent-warning: #8c6c3e;
+  --accent-error: #f52a65;
+  --accent-success: #587539;
+  --accent-info: #007197;
+
+  --status-error: #f52a65;
+  --status-success: #587539;
+  --status-warning: #8c6c3e;
+
+  --fnord-color: #f52a65;
+  --illuminated-color: #8990b3;
+  --golden-apple-color: #8c6c3e;
+
+  --text-on-accent: #e1e2e7;
+}
+
+/* ===========================================
+   Solarized Dark
+   =========================================== */
+html.solarized-dark {
+  --bg-base: #002b36;
+  --bg-surface: #001e26;
+  --bg-overlay: #073642;
+  --bg-muted: #094552;
+  --bg-highlight: #0b5464;
+
+  --text-primary: #839496;
+  --text-secondary: #93a1a1;
+  --text-muted: #657b83;
+  --text-faint: #586e75;
+
+  --border-default: #094552;
+  --border-muted: #073642;
+
+  --accent-primary: #268bd2;
+  --accent-secondary: #2aa198;
+  --accent-warning: #cb4b16;
+  --accent-error: #dc322f;
+  --accent-success: #859900;
+  --accent-info: #2aa198;
+
+  --status-error: #dc322f;
+  --status-success: #859900;
+  --status-warning: #cb4b16;
+
+  --fnord-color: #dc322f;
+  --illuminated-color: #586e75;
+  --golden-apple-color: #b58900;
+
+  --text-on-accent: #002b36;
+}
+
+/* ===========================================
+   Solarized Light
+   =========================================== */
+html.solarized-light {
+  --bg-base: #fdf6e3;
+  --bg-surface: #f5efdc;
+  --bg-overlay: #eee8d5;
+  --bg-muted: #ddd6c3;
+  --bg-highlight: #d0c9b5;
+
+  --text-primary: #657b83;
+  --text-secondary: #586e75;
+  --text-muted: #839496;
+  --text-faint: #93a1a1;
+
+  --border-default: #ddd6c3;
+  --border-muted: #eee8d5;
+
+  --accent-primary: #268bd2;
+  --accent-secondary: #2aa198;
+  --accent-warning: #cb4b16;
+  --accent-error: #dc322f;
+  --accent-success: #859900;
+  --accent-info: #2aa198;
+
+  --status-error: #dc322f;
+  --status-success: #859900;
+  --status-warning: #cb4b16;
+
+  --fnord-color: #dc322f;
+  --illuminated-color: #93a1a1;
+  --golden-apple-color: #b58900;
+
+  --text-on-accent: #fdf6e3;
 }
 
 /* ===========================================
