@@ -937,7 +937,7 @@
             onclick={toggleLangDropdown}
           >
             <span>{$_(getLocaleLabelKey(selectedLocale))}</span>
-            <span class="arrow">{langDropdownOpen ? "▲" : "▼"}</span>
+            <i class="arrow fa-solid {langDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
           </button>
           {#if langDropdownOpen}
             <div class="select-options">
@@ -987,7 +987,7 @@
             onclick={toggleThemeDropdown}
           >
             <span>{getThemeDisplayName(selectedDarkTheme, darkThemeOptions)}</span>
-            <span class="arrow">{themeDropdownOpen ? "▲" : "▼"}</span>
+            <i class="arrow fa-solid {themeDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
           </button>
           {#if themeDropdownOpen}
             <div class="select-options theme-options">
@@ -1036,7 +1036,7 @@
                 lightThemeOptions
               )}</span
             >
-            <span class="arrow">{lightThemeDropdownOpen ? "▲" : "▼"}</span>
+            <i class="arrow fa-solid {lightThemeDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
           </button>
           {#if lightThemeDropdownOpen}
             <div class="select-options theme-options">
@@ -1274,7 +1274,7 @@
                   >{selectedLogLevel.toUpperCase()}</span
                 >
               </span>
-              <span class="arrow">{logLevelDropdownOpen ? "▲" : "▼"}</span>
+              <i class="arrow fa-solid {logLevelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
             </button>
             {#if logLevelDropdownOpen}
               <div class="select-options">
@@ -1309,12 +1309,12 @@
           <div class="status-loading">...</div>
         {:else if ollamaStatus.available}
           <div class="status-available">
-            <span class="status-icon">✓</span>
+            <i class="status-icon fa-solid fa-check"></i>
             {$_("settings.ollama.available")}
           </div>
         {:else}
           <div class="status-unavailable">
-            <span class="status-icon">✗</span>
+            <i class="status-icon fa-solid fa-xmark"></i>
             {$_("settings.ollama.unavailable")}
             <p class="setting-description">
               {$_("settings.ollama.unavailableDescription")}
@@ -1364,7 +1364,7 @@
                 <span>
                   {selectedMainModel || $_("settings.ollama.noModels")}
                   {#if isModelLoaded(selectedMainModel)}
-                    <span class="loaded-badge">●</span>
+                    <i class="loaded-badge fa-solid fa-circle"></i>
                   {/if}
                   {#if ollamaStatus && isRecommendedModel(selectedMainModel, ollamaStatus.recommended_main)}
                     <span class="recommended"
@@ -1372,7 +1372,7 @@
                     >
                   {/if}
                 </span>
-                <span class="arrow">{mainModelDropdownOpen ? "▲" : "▼"}</span>
+                <i class="arrow fa-solid {mainModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
               </button>
               {#if mainModelDropdownOpen}
                 <div class="select-options">
@@ -1386,7 +1386,7 @@
                     >
                       {model}
                       {#if isModelLoaded(model)}
-                        <span class="loaded-badge">●</span>
+                        <i class="loaded-badge fa-solid fa-circle"></i>
                       {/if}
                       {#if isRecommendedModel(model, ollamaStatus.recommended_main)}
                         <span class="recommended"
@@ -1435,9 +1435,7 @@
                     >
                   {/if}
                 </span>
-                <span class="arrow"
-                  >{embeddingModelDropdownOpen ? "▲" : "▼"}</span
-                >
+                <i class="arrow fa-solid {embeddingModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
               </button>
               {#if embeddingModelDropdownOpen}
                 <div class="select-options">
@@ -1515,7 +1513,7 @@
                     ?.ai_parallelism || 1}x Parallel)
                 </span>
               </span>
-              <span class="arrow">{profileDropdownOpen ? "▲" : "▼"}</span>
+              <i class="arrow fa-solid {profileDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
             </button>
             {#if profileDropdownOpen}
               <div class="select-options">
@@ -1561,7 +1559,7 @@
                   ({numCtxOptions.find(o => o.value === ollamaNumCtx)?.desc || ""})
                 </span>
               </span>
-              <span class="arrow">{numCtxDropdownOpen ? "▲" : "▼"}</span>
+              <i class="arrow fa-solid {numCtxDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
             </button>
             {#if numCtxDropdownOpen}
               <div class="select-options">
@@ -1594,7 +1592,7 @@
 
       {#if !ollamaStatus?.available}
         <div class="status-unavailable">
-          <span class="status-icon">✗</span>
+          <i class="status-icon fa-solid fa-xmark"></i>
           {$_("settings.ollama.unavailable")}
         </div>
       {:else}

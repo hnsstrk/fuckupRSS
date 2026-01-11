@@ -113,9 +113,7 @@
 <footer class="status-bar">
   <!-- Sync Status -->
   <div class="status-section" title="Feed Sync">
-    <span class="status-icon" class:active={syncStatus === 'syncing'}>
-      {syncStatus === 'syncing' ? '↻' : '●'}
-    </span>
+    <i class="status-icon {syncStatus === 'syncing' ? 'fa-solid fa-rotate fa-spin' : 'fa-solid fa-circle'}" class:active={syncStatus === 'syncing'}></i>
     <span class="status-label">Sync</span>
     {#if syncStatus === 'syncing'}
       <span class="status-value spinning">...</span>
@@ -126,7 +124,7 @@
 
   <!-- Batch Analysis Status -->
   <div class="status-section" title="Discordian Analysis">
-    <span class="status-icon" class:active={batchStatus === 'processing'}>⚡</span>
+    <i class="status-icon fa-solid fa-bolt" class:active={batchStatus === 'processing'}></i>
     <span class="status-label">Analysis</span>
     {#if batchStatus === 'processing' && appState.batchProgress}
       <span class="status-value">{appState.batchProgress.current}/{appState.batchProgress.total}</span>
@@ -140,7 +138,7 @@
   <!-- Failed Articles Counter (only show if > 0) -->
   {#if failedCount > 0}
     <div class="status-section" title={$_('statusBar.failedTooltip')}>
-      <span class="status-icon failed">⚠</span>
+      <i class="status-icon fa-solid fa-triangle-exclamation failed"></i>
       <span class="status-label">{$_('statusBar.failed')}</span>
       <span class="status-value failed">{failedCount}</span>
     </div>
@@ -149,7 +147,7 @@
   <!-- Hopeless Articles Counter (only show if > 0) -->
   {#if hopelessCount > 0}
     <div class="status-section" title={$_('statusBar.hopelessTooltip')}>
-      <span class="status-icon hopeless">☠</span>
+      <i class="status-icon fa-solid fa-skull-crossbones hopeless"></i>
       <span class="status-label">{$_('statusBar.hopeless')}</span>
       <span class="status-value hopeless">{hopelessCount}</span>
     </div>
@@ -157,7 +155,7 @@
 
   <!-- Embedding Status -->
   <div class="status-section" title="Keyword Embeddings">
-    <span class="status-icon" class:active={embeddingStatus === 'processing'}>◈</span>
+    <i class="status-icon fa-solid fa-gem" class:active={embeddingStatus === 'processing'}></i>
     <span class="status-label">Embeddings</span>
     {#if embeddingStatus === 'processing'}
       <span class="status-value spinning">generating...</span>
@@ -170,7 +168,7 @@
 
   <!-- Keyword Stats -->
   <div class="status-section" title="Immanentize Network">
-    <span class="status-icon">◉</span>
+    <i class="status-icon fa-solid fa-circle-nodes"></i>
     <span class="status-label">Keywords</span>
     <span class="status-value">{keywordStats.total}</span>
   </div>
@@ -181,7 +179,7 @@
   <!-- Ollama Status -->
   <div class="status-section ollama-section" title={$_('statusBar.ollamaTooltip')}>
     {#if loadedModels.length > 0}
-      <span class="status-icon active">⬡</span>
+      <i class="status-icon fa-solid fa-microchip active"></i>
       <span class="status-label">Ollama</span>
       <span class="status-value models">
         {#each loadedModels as model, i}
@@ -191,11 +189,11 @@
         <span class="vram">({formatVram(totalVram)})</span>
       </span>
     {:else if appState.ollamaStatus.available}
-      <span class="status-icon active">⬡</span>
+      <i class="status-icon fa-solid fa-microchip active"></i>
       <span class="status-label">Ollama</span>
       <span class="status-value done">{$_('statusBar.ollamaReady')}</span>
     {:else}
-      <span class="status-icon">⬡</span>
+      <i class="status-icon fa-solid fa-microchip"></i>
       <span class="status-label">Ollama</span>
       <span class="status-value offline">{$_('statusBar.ollamaStopped')}</span>
     {/if}
@@ -203,7 +201,7 @@
 
   <!-- Article Stats -->
   <div class="status-section" title="{$_('statusBar.articlesTooltip')}">
-    <span class="status-icon">▣</span>
+    <i class="status-icon fa-solid fa-newspaper"></i>
     <span class="status-label">{$_('statusBar.articles')}</span>
     <span class="status-value">{totalArticles}</span>
   </div>

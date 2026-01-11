@@ -259,11 +259,11 @@
     return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
-  function getStatusIcon(status: string): string {
+  function getStatusIconClass(status: string): string {
     switch (status) {
-      case 'concealed': return '👁';
-      case 'illuminated': return '✓';
-      case 'golden_apple': return '🍎';
+      case 'concealed': return 'fa-solid fa-eye-slash';
+      case 'illuminated': return 'fa-solid fa-check';
+      case 'golden_apple': return 'fa-solid fa-apple-whole';
       default: return '';
     }
   }
@@ -513,7 +513,7 @@
                   onclick={() => selectKeywordById(keyword.id)}
                 >
                   <span class="keyword-name">
-                    <span class="trend-icon">&#9650;</span>
+                    <i class="trend-icon fa-solid fa-caret-up"></i>
                     {keyword.name}
                   </span>
                   <span class="keyword-count">{keyword.recent_count}</span>
@@ -584,7 +584,11 @@
               <div class="categories-list">
                 {#each keywordCategories as cat (cat.sephiroth_id)}
                   <div class="category-item" style="--cat-color: {cat.color || '#6366F1'}">
-                    <span class="category-icon">{cat.icon || '📁'}</span>
+                    {#if cat.icon}
+                      <span class="category-icon">{cat.icon}</span>
+                    {:else}
+                      <i class="category-icon fa-solid fa-folder"></i>
+                    {/if}
                     <span class="category-name">{cat.name}</span>
                     <span class="category-weight {getWeightClass(cat.weight)}">{(cat.weight * 100).toFixed(0)}%</span>
                   </div>
@@ -634,7 +638,7 @@
               <div class="articles-list">
                 {#each keywordArticles as article (article.id)}
                   <button class="article-item" onclick={() => openArticle(article.id)}>
-                    <span class="article-status" title={article.status}>{getStatusIcon(article.status)}</span>
+                    <i class="article-status {getStatusIconClass(article.status)}" title={article.status}></i>
                     <div class="article-info">
                       <span class="article-title">{article.title}</span>
                       <span class="article-meta">
@@ -669,7 +673,7 @@
         </div>
       {:else}
         <div class="no-selection">
-          <div class="no-selection-icon">&#128279;</div>
+          <i class="no-selection-icon fa-solid fa-link"></i>
           <p>{$_('network.selectKeyword')}</p>
         </div>
       {/if}

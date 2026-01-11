@@ -54,6 +54,22 @@ npm run tauri build
 npm run dev
 ```
 
+## Icons
+
+Font Awesome 6.4 Pro liegt lokal unter `static/fontawesome/`. Eingebunden via `app.html`:
+
+```html
+<link rel="stylesheet" href="/fontawesome/css/all.min.css">
+```
+
+Nutzung:
+```svelte
+<i class="fa-solid fa-rss"></i>
+<i class="fa-light fa-newspaper"></i>
+```
+
+Verfügbare Styles: `fa-solid`, `fa-regular`, `fa-light`, `fa-thin`, `fa-brands`, `fa-duotone`
+
 ## Testing (PFLICHT)
 
 **WICHTIG:** Alle neuen Features und Bugfixes MÜSSEN mit Tests abgedeckt werden. Code ohne Tests wird nicht akzeptiert.

@@ -19,12 +19,12 @@
     }
   }
 
-  function getStatusIcon(status: string): string {
+  function getStatusIconClass(status: string): string {
     switch (status) {
-      case "concealed": return "●";
-      case "illuminated": return "○";
-      case "golden_apple": return "✦";
-      default: return "○";
+      case "concealed": return "fa-solid fa-eye-slash";
+      case "illuminated": return "fa-solid fa-check";
+      case "golden_apple": return "fa-solid fa-apple-whole";
+      default: return "fa-solid fa-check";
     }
   }
 
@@ -55,14 +55,14 @@
   }
 
 
-  function getBiasIndicator(bias: number): string {
+  function getBiasIndicatorClass(bias: number): string {
     switch (bias) {
-      case -2: return "◀◀";
-      case -1: return "◀";
-      case 0: return "●";
-      case 1: return "▶";
-      case 2: return "▶▶";
-      default: return "●";
+      case -2: return "fa-solid fa-angles-left";
+      case -1: return "fa-solid fa-angle-left";
+      case 0: return "fa-solid fa-circle";
+      case 1: return "fa-solid fa-angle-right";
+      case 2: return "fa-solid fa-angles-right";
+      default: return "fa-solid fa-circle";
     }
   }
 
@@ -169,7 +169,7 @@
 
       {#if appState.searching}
         <div class="empty-state">
-          <span class="loading-spinner">↻</span>
+          <i class="loading-spinner fa-solid fa-rotate fa-spin"></i>
           {$_('search.searching')}
         </div>
       {/if}
@@ -181,7 +181,7 @@
         onclick={() => handleSelectFnord(fnord.id)}
       >
         <div class="article-row">
-          <span class="status-icon status-{fnord.status}">{getStatusIcon(fnord.status)}</span>
+          <i class="status-icon {getStatusIconClass(fnord.status)} status-{fnord.status}"></i>
           <div class="article-content">
             <h3 class="article-title {fnord.status === 'concealed' ? 'unread' : ''}">{fnord.title}</h3>
             <div class="article-meta">
@@ -200,17 +200,17 @@
                 {/if}
                 {#if fnord.revision_count > 0}
                   <span class="revision-count" title="{$_('articleView.changes.revisions')}: {fnord.revision_count}">
-                    ✎{fnord.revision_count}
+                    <i class="fa-solid fa-pen-to-square"></i>{fnord.revision_count}
                   </span>
                 {/if}
                 {#if fnord.quality_score}
                   <span class="quality" title={$_('articleView.greyface.quality')}>
-                    {"★".repeat(fnord.quality_score)}{"☆".repeat(5 - fnord.quality_score)}
+                    {#each Array(fnord.quality_score) as _}<i class="fa-solid fa-star"></i>{/each}{#each Array(5 - fnord.quality_score) as _}<i class="fa-regular fa-star"></i>{/each}
                   </span>
                 {/if}
                 {#if fnord.political_bias !== null && fnord.political_bias !== 0}
                   <span class="bias bias-{fnord.political_bias < 0 ? 'left' : 'right'}" title="{getBiasLabel(fnord.political_bias)}">
-                    {getBiasIndicator(fnord.political_bias)}
+                    <i class={getBiasIndicatorClass(fnord.political_bias)}></i>
                   </span>
                 {/if}
               </div>
@@ -222,7 +222,7 @@
 
     {#if appState.loadingMore}
       <div class="loading-more">
-        <span class="loading-spinner">↻</span>
+        <i class="loading-spinner fa-solid fa-rotate fa-spin"></i>
         {$locale?.startsWith('de') ? 'Lade mehr...' : 'Loading more...'}
       </div>
     {:else if appState.hasMoreFnords && appState.fnords.length > 0}

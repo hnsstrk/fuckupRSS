@@ -54,14 +54,14 @@
     });
   }
 
-  function getStatusIcon(status: string): string {
+  function getStatusIconClass(status: string): string {
     switch (status) {
       case 'concealed':
-        return '👁';
+        return 'fa-solid fa-eye-slash';
       case 'illuminated':
-        return '✓';
+        return 'fa-solid fa-check';
       case 'golden_apple':
-        return '🍎';
+        return 'fa-solid fa-apple-whole';
       default:
         return '';
     }
@@ -173,7 +173,7 @@
       <div class="articles-view">
         {#if changedFnords.length === 0}
           <div class="empty-state">
-            <div class="empty-icon">✓</div>
+            <i class="empty-icon fa-solid fa-check"></i>
             <p>{$_('fnordView.noChangedArticles') || 'Keine geänderten Artikel'}</p>
           </div>
         {:else}
@@ -184,7 +184,7 @@
                 onclick={() => selectFnord(fnord.id)}
               >
                 <div class="article-status" title={fnord.status}>
-                  {getStatusIcon(fnord.status)}
+                  <i class={getStatusIconClass(fnord.status)}></i>
                 </div>
                 <div class="article-info">
                   <span class="article-title">{fnord.title}</span>

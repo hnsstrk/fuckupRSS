@@ -275,7 +275,7 @@
             class="btn {fnord.status === 'golden_apple' ? 'btn-golden' : 'btn-default'}"
           >
             <Tooltip termKey="golden_apple">
-              <span class="btn-icon">{fnord.status === 'golden_apple' ? '✦' : '✧'}</span>
+              <i class="btn-icon {fnord.status === 'golden_apple' ? 'fa-solid fa-apple-whole' : 'fa-regular fa-star'}"></i>
               <span>{fnord.status === "golden_apple" ? $_('terminology.golden_apple.term') : $_('actions.favorite')}</span>
             </Tooltip>
           </button>
@@ -287,7 +287,7 @@
               title="{$_('articleView.fetchFullText')} (r)"
             >
               {#if appState.retrieving}
-                <span class="spinner">⟳</span>
+                <i class="spinner fa-solid fa-rotate fa-spin"></i>
               {/if}
               <Tooltip termKey="hagbard">
                 <span>{$_('articleView.fullText')}</span>
@@ -302,7 +302,7 @@
               title={$_('articleView.aiAnalysis')}
             >
               {#if appState.analyzing}
-                <span class="spinner">⟳</span>
+                <i class="spinner fa-solid fa-rotate fa-spin"></i>
               {/if}
               <Tooltip termKey="discordian">
                 <span>{fnord.summary ? $_('articleView.reanalyze') : $_('articleView.analyze')}</span>
@@ -321,7 +321,7 @@
       <div class="revision-section">
         <div class="section-content">
           <button class="revision-header" onclick={toggleRevisions}>
-            <span class="revision-icon">{showRevisions ? '▼' : '▶'}</span>
+            <i class="revision-icon fa-solid {showRevisions ? 'fa-caret-down' : 'fa-caret-right'}"></i>
             <span class="revision-title">
               <Tooltip termKey="fnord">{$_('articleView.changes.revisions')}</Tooltip> ({fnord.revision_count})
             </span>
@@ -363,7 +363,7 @@
             {#if fnord.quality_score !== null}
               <div class="greyface-item">
                 <div class="item-label">{$_('articleView.greyface.quality')}</div>
-                <div class="item-value quality">{"★".repeat(fnord.quality_score)}{"☆".repeat(5 - fnord.quality_score)}</div>
+                <div class="item-value quality">{#each Array(fnord.quality_score) as _}<i class="fa-solid fa-star"></i>{/each}{#each Array(5 - fnord.quality_score) as _}<i class="fa-regular fa-star"></i>{/each}</div>
               </div>
             {/if}
           </div>
@@ -483,7 +483,7 @@
   {:else}
     <!-- Empty State -->
     <div class="empty-state">
-      <div class="empty-icon">▲</div>
+      <i class="empty-icon fa-solid fa-eye"></i>
       <h2 class="empty-title">
         <Tooltip termKey="fnord">{$_('articleView.noSelection')}</Tooltip>
       </h2>

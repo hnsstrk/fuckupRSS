@@ -2,11 +2,11 @@
   import { _ } from 'svelte-i18n';
   import { toasts, type Toast, removeToast } from '../stores/state.svelte';
 
-  function getIcon(type: Toast['type']): string {
+  function getIconClass(type: Toast['type']): string {
     switch (type) {
-      case 'success': return '✓';
-      case 'error': return '✗';
-      case 'info': return 'ℹ';
+      case 'success': return 'fa-solid fa-check';
+      case 'error': return 'fa-solid fa-xmark';
+      case 'info': return 'fa-solid fa-circle-info';
       default: return '';
     }
   }
@@ -16,14 +16,14 @@
   <div class="toast-container">
     {#each toasts.items as toast (toast.id)}
       <div class="toast toast-{toast.type}" role="alert">
-        <span class="toast-icon">{getIcon(toast.type)}</span>
+        <i class="toast-icon {getIconClass(toast.type)}"></i>
         <span class="toast-message">{toast.message}</span>
         <button
           class="toast-close"
           onclick={() => removeToast(toast.id)}
           aria-label={$_('actions.close')}
         >
-          ×
+          <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
     {/each}
@@ -90,9 +90,10 @@
   }
 
   .toast-icon {
-    font-size: 1.25rem;
-    font-weight: bold;
+    font-size: 1rem;
     flex-shrink: 0;
+    width: 1.25rem;
+    text-align: center;
   }
 
   .toast-message {
@@ -114,7 +115,7 @@
     color: var(--text-muted);
     cursor: pointer;
     border-radius: 0.25rem;
-    font-size: 1.25rem;
+    font-size: 0.875rem;
     line-height: 1;
     transition: background-color 0.15s, color 0.15s;
   }
