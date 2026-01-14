@@ -120,6 +120,8 @@
     "logLevelDescription": "Nur im Entwicklungsmodus sichtbar. Steuert die Detailtiefe der Logs.",
     "save": "Speichern",
     "cancel": "Abbrechen",
+    "saveError": "Einstellung konnte nicht gespeichert werden",
+    "promptsSaved": "Prompts gespeichert",
     "ollama": {
       "title": "KI-Einstellungen (Ollama)",
       "status": "Status",

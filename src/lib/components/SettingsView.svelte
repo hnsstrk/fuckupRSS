@@ -11,7 +11,7 @@
   } from "../stores/settings.svelte";
   import { type LogLevel } from "../logger";
   import { setLocale, locale } from "../i18n";
-  import { appState } from "../stores/state.svelte";
+  import { appState, toasts } from "../stores/state.svelte";
   import { onMount, onDestroy } from "svelte";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -387,10 +387,15 @@
   async function handleNumCtxChange(value: number) {
     ollamaNumCtx = value;
     numCtxDropdownOpen = false;
-    await invoke("set_setting", {
-      key: "ollama_num_ctx",
-      value: value.toString(),
-    });
+    try {
+      await invoke("set_setting", {
+        key: "ollama_num_ctx",
+        value: value.toString(),
+      });
+    } catch (e) {
+      console.error("Failed to save num_ctx setting:", e);
+      toasts.error($_('settings.saveError'));
+    }
   }
 
   // Load models into VRAM (separate from saving preferences)
@@ -413,11 +418,17 @@
 
   // Save prompts (called by individual OK buttons)
   async function handleSavePrompts() {
-    await invoke("set_prompts", {
-      summaryPrompt: summaryPrompt,
-      analysisPrompt: analysisPrompt,
-    });
-    promptsModified = false;
+    try {
+      await invoke("set_prompts", {
+        summaryPrompt: summaryPrompt,
+        analysisPrompt: analysisPrompt,
+      });
+      promptsModified = false;
+      toasts.success($_('settings.promptsSaved'));
+    } catch (e) {
+      console.error("Failed to save prompts:", e);
+      toasts.error($_('settings.saveError'));
+    }
   }
 
   async function handleResetPrompts() {
@@ -501,15 +512,25 @@
     selectedMainModel = value;
     mainModelDropdownOpen = false;
     // Auto-save model preference
-    await invoke("set_setting", { key: "main_model", value });
-    appState.selectedModel = value;
+    try {
+      await invoke("set_setting", { key: "main_model", value });
+      appState.selectedModel = value;
+    } catch (e) {
+      console.error("Failed to save main model setting:", e);
+      toasts.error($_('settings.saveError'));
+    }
   }
 
   async function selectEmbeddingModel(value: string) {
     selectedEmbeddingModel = value;
     embeddingModelDropdownOpen = false;
     // Auto-save model preference
-    await invoke("set_setting", { key: "embedding_model", value });
+    try {
+      await invoke("set_setting", { key: "embedding_model", value });
+    } catch (e) {
+      console.error("Failed to save embedding model setting:", e);
+      toasts.error($_('settings.saveError'));
+    }
   }
 
   function toggleLangDropdown() {

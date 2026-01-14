@@ -120,6 +120,8 @@
     "logLevelDescription": "Only visible in development mode. Controls the detail level of logs.",
     "save": "Save",
     "cancel": "Cancel",
+    "saveError": "Could not save setting",
+    "promptsSaved": "Prompts saved",
     "ollama": {
       "title": "AI Settings (Ollama)",
       "status": "Status",
