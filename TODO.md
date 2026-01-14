@@ -214,6 +214,12 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
     - Sync/Unprocessed-Count-Reaktivität
     - deletePentacle/fetchFullContent/processArticleDiscordian
 
+- [x] **Frontend-Backend-Kommunikation Review (2026-01-14)**
+  - 78 invoke-Calls analysiert
+  - State-Konsistenz-Probleme behoben (5 Fixes)
+  - Error-Handling in SettingsView verbessert
+  - Checkliste erstellt: `QUALITY_CHECKLIST.md`
+
 ---
 
 ## Abgeschlossene Meilensteine
@@ -278,4 +284,4 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 
 ---
 
-*Dokumentation basiert auf: `fuckupRSS-Anforderungen.md`, `README.md`, `CLAUDE.md`, `AGENTS.md`*
+*Dokumentation basiert auf: `fuckupRSS-Anforderungen.md`, `README.md`, `CLAUDE.md`, `AGENTS.md`, `QUALITY_CHECKLIST.md`*

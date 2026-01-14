@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `fuckupRSS-Anforderungen.md` | Technische Spezifikation, Architektur, Entscheidungen | Architekturänderungen, neue Komponenten, Abweichungen vom Plan |
 | `CLAUDE.md` | Entwickler-Kontext für Claude Code | Build-Änderungen, neue Patterns, Strukturänderungen |
 | `TODO.md` | Zentrale Aufgabenliste, Entscheidungen | Neue Tasks, abgeschlossene Tasks, technische Entscheidungen |
+| `QUALITY_CHECKLIST.md` | Frontend-Backend-Kommunikation Checkliste | Neue invoke-Calls, Event-Listener, State-Updates |
 
 ### Dokumentations-Workflow
 
