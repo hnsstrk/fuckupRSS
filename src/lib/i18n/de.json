@@ -122,6 +122,9 @@
     "cancel": "Abbrechen",
     "saveError": "Einstellung konnte nicht gespeichert werden",
     "promptsSaved": "Prompts gespeichert",
+    "modelsLoaded": "Modelle in VRAM geladen",
+    "modelsLoadError": "Modelle konnten nicht geladen werden",
+    "profileApplied": "Leistungsprofil angewendet",
     "ollama": {
       "title": "KI-Einstellungen (Ollama)",
       "status": "Status",

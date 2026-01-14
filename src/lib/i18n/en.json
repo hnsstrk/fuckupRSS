@@ -122,6 +122,9 @@
     "cancel": "Cancel",
     "saveError": "Could not save setting",
     "promptsSaved": "Prompts saved",
+    "modelsLoaded": "Models loaded into VRAM",
+    "modelsLoadError": "Could not load models",
+    "profileApplied": "Performance profile applied",
     "ollama": {
       "title": "AI Settings (Ollama)",
       "status": "Status",

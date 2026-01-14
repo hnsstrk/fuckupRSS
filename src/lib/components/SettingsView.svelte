@@ -409,8 +409,10 @@
         embeddingModel: selectedEmbeddingModel,
       });
       await emit("models-changed");
+      toasts.success($_('settings.modelsLoaded'));
     } catch (e) {
       console.error("Failed to load models:", e);
+      toasts.error($_('settings.modelsLoadError'));
     } finally {
       loadingModels = false;
     }
@@ -580,8 +582,10 @@
     profileDropdownOpen = false;
     try {
       await invoke("apply_hardware_profile", { profileId });
+      toasts.success($_('settings.profileApplied'));
     } catch (e) {
       console.error("Failed to apply profile:", e);
+      toasts.error($_('settings.saveError'));
     }
   }
 
