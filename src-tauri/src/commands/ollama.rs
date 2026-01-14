@@ -1606,18 +1606,84 @@ pub fn reset_articles_for_reprocessing(
 // ============================================================
 
 #[derive(serde::Serialize, Clone)]
+pub struct SimilarArticleTag {
+    pub id: i64,
+    pub name: String,
+}
+
+#[derive(serde::Serialize, Clone)]
+pub struct SimilarArticleCategory {
+    pub id: i64,
+    pub name: String,
+    pub icon: Option<String>,
+    pub color: Option<String>,
+}
+
+#[derive(serde::Serialize, Clone)]
 pub struct SimilarArticle {
     pub fnord_id: i64,
     pub title: String,
     pub pentacle_title: Option<String>,
     pub published_at: Option<String>,
     pub similarity: f64,
+    pub tags: Vec<SimilarArticleTag>,
+    pub categories: Vec<SimilarArticleCategory>,
 }
 
 #[derive(serde::Serialize)]
 pub struct SimilarArticlesResponse {
     pub fnord_id: i64,
     pub similar: Vec<SimilarArticle>,
+}
+
+/// Helper function to get tags for an article
+fn get_article_tags(conn: &rusqlite::Connection, fnord_id: i64) -> Vec<SimilarArticleTag> {
+    let mut stmt = match conn.prepare(
+        r#"SELECT i.id, i.name
+           FROM immanentize i
+           JOIN fnord_immanentize fi ON fi.immanentize_id = i.id
+           WHERE fi.fnord_id = ?
+           ORDER BY i.article_count DESC
+           LIMIT 5"#,
+    ) {
+        Ok(s) => s,
+        Err(_) => return vec![],
+    };
+
+    stmt.query_map([fnord_id], |row| {
+        Ok(SimilarArticleTag {
+            id: row.get(0)?,
+            name: row.get(1)?,
+        })
+    })
+    .map(|iter| iter.filter_map(|r| r.ok()).collect())
+    .unwrap_or_default()
+}
+
+/// Helper function to get main categories for an article
+fn get_article_main_categories(conn: &rusqlite::Connection, fnord_id: i64) -> Vec<SimilarArticleCategory> {
+    let mut stmt = match conn.prepare(
+        r#"SELECT DISTINCT m.id, m.name, m.icon, m.color
+           FROM sephiroth m
+           JOIN sephiroth s ON (s.parent_id = m.id OR s.id = m.id)
+           JOIN fnord_sephiroth fs ON fs.sephiroth_id = s.id
+           WHERE fs.fnord_id = ? AND m.level = 0
+           ORDER BY m.name"#,
+    ) {
+        Ok(s) => s,
+        Err(_) => return vec![],
+    };
+
+    stmt.query_map([fnord_id], |row| {
+        Ok(SimilarArticleCategory {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            icon: row.get(2)?,
+            color: row.get(3)?,
+        })
+    })
+    .map(|iter| iter.filter_map(|r| r.ok()).collect())
+    .unwrap_or_default()
 }
 
 /// Find similar articles based on embedding similarity using sqlite-vec
@@ -1673,27 +1739,46 @@ pub fn find_similar_articles(
         )
         .map_err(|e| e.to_string())?;
 
-    let similar: Vec<SimilarArticle> = stmt
+    // First collect basic article info
+    let basic_articles: Vec<(i64, String, Option<String>, Option<String>, f64)> = stmt
         .query_map(
             rusqlite::params![embedding, limit + 1, fnord_id],
             |row| {
                 let distance: f64 = row.get(1)?;
                 // Convert cosine distance to similarity score
                 let similarity = 1.0 - (distance / 2.0);
-                Ok(SimilarArticle {
-                    fnord_id: row.get(0)?,
-                    title: row.get(2)?,
-                    pentacle_title: row.get(3)?,
-                    published_at: row.get(4)?,
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
                     similarity,
-                })
+                ))
             },
         )
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         // Filter out low similarity results (< 0.5)
-        .filter(|a| a.similarity >= 0.5)
+        .filter(|(_, _, _, _, similarity)| *similarity >= 0.5)
         .take(limit as usize)
+        .collect();
+
+    // Now fetch tags and categories for each article
+    let similar: Vec<SimilarArticle> = basic_articles
+        .into_iter()
+        .map(|(article_id, title, pentacle_title, published_at, similarity)| {
+            let tags = get_article_tags(db.conn(), article_id);
+            let categories = get_article_main_categories(db.conn(), article_id);
+            SimilarArticle {
+                fnord_id: article_id,
+                title,
+                pentacle_title,
+                published_at,
+                similarity,
+                tags,
+                categories,
+            }
+        })
         .collect();
 
     Ok(SimilarArticlesResponse { fnord_id, similar })

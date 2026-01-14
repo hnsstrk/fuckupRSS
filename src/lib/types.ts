@@ -404,12 +404,26 @@ export interface OpmlImportResult {
 }
 
 // Similar Articles (Phase 3)
+export interface SimilarArticleTag {
+  id: number;
+  name: string;
+}
+
+export interface SimilarArticleCategory {
+  id: number;
+  name: string;
+  icon: string | null;
+  color: string | null;
+}
+
 export interface SimilarArticle {
   fnord_id: number;
   title: string;
   pentacle_title: string | null;
   published_at: string | null;
   similarity: number;
+  tags: SimilarArticleTag[];
+  categories: SimilarArticleCategory[];
 }
 
 export interface SimilarArticlesResponse {
