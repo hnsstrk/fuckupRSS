@@ -567,3 +567,47 @@ pub fn get_fnord_stats(state: State<AppState>) -> Result<FnordStats, String> {
         by_source,
     })
 }
+
+/// Get subcategory stats for a main category
+#[tauri::command]
+pub fn get_subcategory_stats(
+    state: State<AppState>,
+    main_category_id: i64,
+) -> Result<Vec<CategoryRevisionStats>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT s.id, s.name, s.icon, m.color,
+                   COUNT(DISTINCT r.id) as revision_count,
+                   COUNT(DISTINCT r.fnord_id) as article_count
+            FROM sephiroth s
+            JOIN sephiroth m ON m.id = s.parent_id
+            LEFT JOIN fnord_sephiroth fs ON fs.sephiroth_id = s.id
+            LEFT JOIN fnord_revisions r ON r.fnord_id = fs.fnord_id
+            WHERE s.parent_id = ?1 AND s.level = 1
+            GROUP BY s.id
+            ORDER BY revision_count DESC
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let subcategories = stmt
+        .query_map([main_category_id], |row| {
+            Ok(CategoryRevisionStats {
+                sephiroth_id: row.get(0)?,
+                name: row.get(1)?,
+                icon: row.get(2)?,
+                color: row.get(3)?,
+                revision_count: row.get(4)?,
+                article_count: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(subcategories)
+}

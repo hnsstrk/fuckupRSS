@@ -481,12 +481,12 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.execute_batch(
             r#"
             INSERT INTO sephiroth (id, name, parent_id, level, icon, color) VALUES
-                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip', 'var(--accent-info)'),
-                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark', 'var(--accent-error)'),
-                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line', 'var(--accent-warning)'),
-                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf', 'var(--accent-success)'),
-                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved', 'var(--accent-secondary)'),
-                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater', 'var(--accent-primary)');
+                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip', '#22d3ee'),
+                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark', '#ef4444'),
+                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line', '#f97316'),
+                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf', '#22c55e'),
+                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved', '#a855f7'),
+                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater', '#3b82f6');
             "#,
         )?;
 
@@ -562,12 +562,12 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.execute_batch(
             r#"
             INSERT INTO sephiroth (id, name, parent_id, level, icon, color) VALUES
-                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip', 'var(--accent-info)'),
-                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark', 'var(--accent-error)'),
-                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line', 'var(--accent-warning)'),
-                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf', 'var(--accent-success)'),
-                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved', 'var(--accent-secondary)'),
-                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater', 'var(--accent-primary)');
+                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip', '#22d3ee'),
+                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark', '#ef4444'),
+                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line', '#f97316'),
+                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf', '#22c55e'),
+                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved', '#a855f7'),
+                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater', '#3b82f6');
             "#,
         )?;
 
@@ -594,6 +594,19 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         // Re-enable foreign key constraints
         conn.execute("PRAGMA foreign_keys = ON", [])?;
     }
+
+    // Fix main category colors (replace CSS variables with distinct hex colors)
+    // This runs on every startup to ensure correct colors
+    conn.execute_batch(
+        r#"
+        UPDATE sephiroth SET color = '#22d3ee' WHERE id = 1 AND level = 0;
+        UPDATE sephiroth SET color = '#ef4444' WHERE id = 2 AND level = 0;
+        UPDATE sephiroth SET color = '#f97316' WHERE id = 3 AND level = 0;
+        UPDATE sephiroth SET color = '#22c55e' WHERE id = 4 AND level = 0;
+        UPDATE sephiroth SET color = '#a855f7' WHERE id = 5 AND level = 0;
+        UPDATE sephiroth SET color = '#3b82f6' WHERE id = 6 AND level = 0;
+        "#,
+    )?;
 
     Ok(())
 }
@@ -925,12 +938,12 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             r#"
             -- Hauptkategorien (level 0) - für Visualisierung & Farben
             INSERT OR IGNORE INTO sephiroth (id, name, parent_id, level, icon, color) VALUES
-                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip', 'var(--accent-info)'),
-                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark', 'var(--accent-error)'),
-                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line', 'var(--accent-warning)'),
-                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf', 'var(--accent-success)'),
-                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved', 'var(--accent-secondary)'),
-                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater', 'var(--accent-primary)');
+                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip', '#22d3ee'),
+                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark', '#ef4444'),
+                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line', '#f97316'),
+                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf', '#22c55e'),
+                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved', '#a855f7'),
+                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater', '#3b82f6');
 
             -- Unterkategorien (level 1) - für KI-Klassifizierung & Blind Spots
             INSERT OR IGNORE INTO sephiroth (id, name, parent_id, level, icon) VALUES

@@ -93,6 +93,7 @@ pub fn run() {
             commands::fnords::get_changed_count,
             commands::fnords::reset_all_changes,
             commands::fnords::get_fnord_stats,
+            commands::fnords::get_subcategory_stats,
             commands::sync::sync_all_feeds,
             commands::sync::sync_feed,
             commands::retrieval::fetch_full_content,
