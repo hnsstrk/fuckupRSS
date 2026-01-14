@@ -26,20 +26,15 @@
   async function loadData() {
     loading = true;
     try {
-      console.log('[FnordView] Loading stats...');
       const statsData = await appState.getFnordStats();
-      console.log('[FnordView] Stats loaded:', statsData);
       stats = statsData;
 
-      console.log('[FnordView] Loading changed fnords...');
       await appState.loadChangedFnords();
       changedFnords = appState.changedFnords;
-      console.log('[FnordView] Changed fnords loaded:', changedFnords.length);
     } catch (e) {
       console.error('[FnordView] Error loading data:', e);
     } finally {
       loading = false;
-      console.log('[FnordView] Loading complete, loading =', loading);
     }
   }
 
