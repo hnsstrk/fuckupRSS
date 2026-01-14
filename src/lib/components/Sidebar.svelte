@@ -634,7 +634,10 @@
   }
 
   .category-icon {
+    width: 1.25rem;
     margin-right: 0.375rem;
+    text-align: center;
+    display: inline-block;
   }
 
   .empty-state {
