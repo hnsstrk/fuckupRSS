@@ -455,6 +455,7 @@
       "title": "Blind Spots",
       "description": "Areas you read less",
       "noBlindSpots": "No blind spots detected - you're reading balanced!",
+      "lowReadRate": "Low read rate",
       "severity": {
         "high": "Highly underrepresented",
         "medium": "Underrepresented",

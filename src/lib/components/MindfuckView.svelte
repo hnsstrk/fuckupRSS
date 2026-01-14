@@ -36,6 +36,17 @@
   // Trend period selection
   let trendPeriod = $state<7 | 30 | 90>(30);
 
+  // Expanded category for subcategory view
+  let expandedCategoryId = $state<number | null>(null);
+
+  function toggleCategoryExpand(categoryId: number) {
+    if (expandedCategoryId === categoryId) {
+      expandedCategoryId = null;
+    } else {
+      expandedCategoryId = categoryId;
+    }
+  }
+
   onMount(async () => {
     await loadReadingProfile();
   });
@@ -211,27 +222,61 @@
           </div>
         </div>
 
-        <!-- Category Distribution -->
+        <!-- Category Distribution - Expandable Main Categories -->
         <div class="section">
           <h3>{$_("mindfuck.categories.title")}</h3>
           <div class="category-bars">
             {#each readingProfile.by_category as cat (cat.sephiroth_id)}
-              <div class="category-bar-row">
-                <div class="category-label">
-                  {#if cat.icon}
-                    <i class="{cat.icon} category-icon"></i>
-                  {/if}
-                  <span class="category-name">{cat.name}</span>
-                </div>
-                <div class="bar-container">
-                  <div class="bar-background">
-                    <div
-                      class="bar-fill read"
-                      style="width: {cat.percentage}%; background-color: {cat.color || 'var(--accent-primary)'}"
-                    ></div>
+              <div class="category-group {expandedCategoryId === cat.sephiroth_id ? 'expanded' : ''}">
+                <button
+                  class="category-bar-row category-expandable"
+                  onclick={() => toggleCategoryExpand(cat.sephiroth_id)}
+                  style="--category-color: {cat.color || 'var(--accent-primary)'}"
+                >
+                  <div class="category-label">
+                    {#if cat.icon}
+                      <i class="{cat.icon} category-icon"></i>
+                    {/if}
+                    <span class="category-name">{cat.name}</span>
+                    <i class="expand-icon fa-solid {expandedCategoryId === cat.sephiroth_id ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
                   </div>
-                  <span class="bar-value">{cat.read_count} / {cat.total_count}</span>
-                </div>
+                  <div class="bar-container">
+                    <div class="bar-background">
+                      <div
+                        class="bar-fill read"
+                        style="width: {cat.percentage}%; background-color: {cat.color || 'var(--accent-primary)'}"
+                      ></div>
+                    </div>
+                    <span class="bar-value">{cat.read_count} / {cat.total_count}</span>
+                  </div>
+                </button>
+
+                {#if expandedCategoryId === cat.sephiroth_id && cat.subcategories && cat.subcategories.length > 0}
+                  <div class="subcategories-list">
+                    {#each cat.subcategories as sub (sub.sephiroth_id)}
+                      <div class="subcategory-bar-row">
+                        <div class="category-label subcategory-label">
+                          {#if sub.icon}
+                            <i class="{sub.icon} category-icon subcategory-icon"></i>
+                          {/if}
+                          <span class="category-name">{sub.name}</span>
+                        </div>
+                        <div class="bar-container">
+                          <div class="bar-background">
+                            <div
+                              class="bar-fill read subcategory-bar"
+                              style="width: {sub.percentage}%; background-color: {cat.color || 'var(--accent-primary)'}"
+                            ></div>
+                          </div>
+                          <span class="bar-value">{sub.read_count} / {sub.total_count}</span>
+                          {#if sub.percentage < 30 && sub.total_count > 5}
+                            <span class="warning-indicator" title={$_("mindfuck.blindSpots.lowReadRate")}>⚠️</span>
+                          {/if}
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
               </div>
             {/each}
           </div>
@@ -293,9 +338,16 @@
           <p class="section-description">{$_("mindfuck.blindSpots.description")}</p>
           <div class="blind-spots-list">
             {#each blindSpots as spot (spot.name)}
-              <div class="blind-spot-item" style="border-left-color: {getSeverityColor(spot.severity)}">
+              <div class="blind-spot-item" style="border-left-color: {spot.main_category_color || getSeverityColor(spot.severity)}">
                 <div class="blind-spot-header">
-                  <span class="blind-spot-name">{spot.name}</span>
+                  <div class="blind-spot-name-wrapper">
+                    <span class="blind-spot-name">{spot.name}</span>
+                    {#if spot.main_category}
+                      <span class="blind-spot-main-category" style="color: {spot.main_category_color || 'var(--text-muted)'}">
+                        {spot.main_category}
+                      </span>
+                    {/if}
+                  </div>
                   <span
                     class="blind-spot-severity"
                     style="color: {getSeverityColor(spot.severity)}"
@@ -525,33 +577,99 @@
     color: var(--text-muted);
   }
 
-  /* Category Bars */
+  /* Category Bars - Expandable */
   .category-bars {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .category-group {
+    border: 1px solid var(--border-default);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    transition: all 0.2s;
+  }
+
+  .category-group.expanded {
+    border-color: var(--category-color, var(--accent-primary));
   }
 
   .category-bar-row {
     display: flex;
     align-items: center;
     gap: 1rem;
+    width: 100%;
+    text-align: left;
+  }
+
+  .category-expandable {
+    padding: 0.75rem 1rem;
+    background: var(--bg-overlay);
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-left: 3px solid var(--category-color, var(--accent-primary));
+  }
+
+  .category-expandable:hover {
+    background-color: var(--bg-muted);
   }
 
   .category-label {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    min-width: 140px;
+    min-width: 180px;
+  }
+
+  .expand-icon {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-left: auto;
+    transition: transform 0.2s;
   }
 
   .category-icon {
     font-size: 1rem;
+    width: 1.25rem;
+    text-align: center;
   }
 
   .category-name {
     font-size: 0.875rem;
     color: var(--text-primary);
+  }
+
+  /* Subcategories */
+  .subcategories-list {
+    padding: 0.5rem 0;
+    background-color: var(--bg-surface);
+    border-top: 1px solid var(--border-default);
+  }
+
+  .subcategory-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 1rem 0.5rem 2rem;
+  }
+
+  .subcategory-label {
+    min-width: 150px;
+  }
+
+  .subcategory-icon {
+    font-size: 0.875rem;
+  }
+
+  .subcategory-bar {
+    opacity: 0.7;
+  }
+
+  .warning-indicator {
+    font-size: 0.875rem;
+    margin-left: 0.5rem;
   }
 
   .bar-container {
@@ -645,13 +763,25 @@
   .blind-spot-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 0.5rem;
+    gap: 1rem;
+  }
+
+  .blind-spot-name-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
   }
 
   .blind-spot-name {
     font-weight: 600;
     color: var(--text-primary);
+  }
+
+  .blind-spot-main-category {
+    font-size: 0.75rem;
+    font-weight: 500;
   }
 
   .blind-spot-severity {

@@ -52,6 +52,7 @@ pub struct FnordRevision {
 pub struct FnordFilter {
     pub pentacle_id: Option<i64>,
     pub sephiroth_id: Option<i64>,
+    pub main_sephiroth_id: Option<i64>,  // Filter by main category (includes all subcategories)
     pub status: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
@@ -162,6 +163,7 @@ pub fn get_fnords(
     let filter = filter.unwrap_or(FnordFilter {
         pentacle_id: None,
         sephiroth_id: None,
+        main_sephiroth_id: None,
         status: None,
         limit: Some(50),
         offset: None,
@@ -182,6 +184,12 @@ pub fn get_fnords(
     if let Some(sephiroth_id) = filter.sephiroth_id {
         sql.push_str(" AND f.id IN (SELECT fnord_id FROM fnord_sephiroth WHERE sephiroth_id = ?)");
         params.push(Box::new(sephiroth_id));
+    }
+
+    // Filter by main category (includes all subcategories)
+    if let Some(main_sephiroth_id) = filter.main_sephiroth_id {
+        sql.push_str(" AND f.id IN (SELECT fs.fnord_id FROM fnord_sephiroth fs JOIN sephiroth s ON s.id = fs.sephiroth_id WHERE s.parent_id = ?)");
+        params.push(Box::new(main_sephiroth_id));
     }
 
     if let Some(status) = &filter.status {
@@ -374,6 +382,12 @@ pub fn get_fnords_count(
         if let Some(sephiroth_id) = f.sephiroth_id {
             sql.push_str(" AND f.id IN (SELECT fnord_id FROM fnord_sephiroth WHERE sephiroth_id = ?)");
             params.push(Box::new(sephiroth_id));
+        }
+
+        // Filter by main category (includes all subcategories)
+        if let Some(main_sephiroth_id) = f.main_sephiroth_id {
+            sql.push_str(" AND f.id IN (SELECT fs.fnord_id FROM fnord_sephiroth fs JOIN sephiroth s ON s.id = fs.sephiroth_id WHERE s.parent_id = ?)");
+            params.push(Box::new(main_sephiroth_id));
         }
 
         if let Some(ref status) = f.status {

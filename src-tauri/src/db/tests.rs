@@ -49,7 +49,7 @@ fn test_sephiroth_seeded_with_13_categories() {
         .query_row("SELECT COUNT(*) FROM sephiroth", [], |row| row.get(0))
         .expect("Failed to count sephiroth");
 
-    assert_eq!(count, 13, "Should have 13 default categories");
+    assert_eq!(count, 19, "Should have 19 default categories (6 main + 13 sub)");
 }
 
 #[test]
@@ -82,7 +82,9 @@ fn test_sephiroth_categories_names() {
             )
             .expect("Failed to query sephiroth");
 
-        assert_eq!(exists, 1, "Category '{}' should exist", category);
+        // With hierarchical categories, some names may exist at multiple levels
+        // (e.g., "Wirtschaft" as both main and sub, "Sicherheit" as both main and sub)
+        assert!(exists >= 1, "Category '{}' should exist at least once", category);
     }
 }
 
@@ -426,7 +428,7 @@ fn test_database_with_tempfile() {
         .query_row("SELECT COUNT(*) FROM sephiroth", [], |row| row.get(0))
         .expect("Failed to count sephiroth");
 
-    assert_eq!(count, 13, "Should have 13 categories");
+    assert_eq!(count, 19, "Should have 19 categories (6 main + 13 sub)");
 }
 
 #[test]

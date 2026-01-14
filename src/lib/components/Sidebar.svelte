@@ -327,8 +327,8 @@
         </div>
       {/if}
     {:else}
-      <!-- Sephiroth (Categories) List -->
-      {#each appState.sephiroth as category (category.id)}
+      <!-- Sephiroth (Categories) List - Only main categories (level 0) -->
+      {#each appState.sephiroth.filter(c => c.level === 0) as category (category.id)}
         {#if category.article_count > 0}
           <div
             class="feed-item sephiroth-item {appState.selectedSephirothId === category.id ? 'active' : ''}"
@@ -336,6 +336,7 @@
             onkeydown={(e) => e.key === 'Enter' && handleSelectSephiroth(category.id)}
             role="button"
             tabindex="0"
+            style="--category-color: {category.color || 'var(--accent-primary)'}"
           >
             <span class="feed-name">
               {#if category.icon}
@@ -631,6 +632,12 @@
 
   .sephiroth-item {
     font-size: 0.8125rem;
+    border-left: 3px solid var(--category-color, var(--accent-primary));
+  }
+
+  .sephiroth-item.active {
+    border-left-color: var(--accent-primary);
+    background-color: var(--bg-overlay);
   }
 
   .category-icon {

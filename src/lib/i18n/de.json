@@ -455,6 +455,7 @@
       "title": "Blinde Flecken",
       "description": "Bereiche die du weniger liest",
       "noBlindSpots": "Keine blinden Flecken erkannt - du liest ausgewogen!",
+      "lowReadRate": "Niedrige Leserate",
       "severity": {
         "high": "Stark unterrepräsentiert",
         "medium": "Unterrepräsentiert",

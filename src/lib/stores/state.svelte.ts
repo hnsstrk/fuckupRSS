@@ -17,6 +17,8 @@ import type {
   EmbeddingProgress,
   EmbeddingQueueStatus,
   Sephiroth,
+  MainCategory,
+  SubCategory,
   ArticleCategory,
   Tag,
   DiscordianResponse,
@@ -32,6 +34,7 @@ import type {
   ArticleEmbeddingStats,
   SearchResult,
   SemanticSearchResponse,
+  SubCategoryReadStats,
 } from "../types";
 
 export { toasts, removeToast } from "./toast.svelte";
@@ -53,6 +56,8 @@ export type {
   EmbeddingProgress,
   EmbeddingQueueStatus,
   Sephiroth,
+  MainCategory,
+  SubCategory,
   ArticleCategory,
   Tag,
   DiscordianResponse,
@@ -68,6 +73,7 @@ export type {
   ArticleEmbeddingStats,
   SearchResult,
   SemanticSearchResponse,
+  SubCategoryReadStats,
 };
 
 const log = createLogger("state");
@@ -282,7 +288,15 @@ class AppState {
     this.selectedFnordId = null;
     this.selectedView = "sephiroth";
     if (id !== null) {
-      this.loadFnords({ sephiroth_id: id });
+      // Check if this is a main category (level 0) or subcategory (level 1)
+      const category = this.sephiroth.find(s => s.id === id);
+      if (category && category.level === 0) {
+        // Main category - filter by all its subcategories
+        this.loadFnords({ main_sephiroth_id: id });
+      } else {
+        // Subcategory - filter by exact sephiroth_id
+        this.loadFnords({ sephiroth_id: id });
+      }
     } else {
       this.loadFnords();
     }
@@ -850,6 +864,42 @@ class AppState {
       return await invoke<Sephiroth[]>("get_all_categories");
     } catch (e) {
       console.error("Failed to get all categories:", e);
+      return [];
+    }
+  }
+
+  async getMainCategories(): Promise<Sephiroth[]> {
+    try {
+      return await invoke<Sephiroth[]>("get_main_categories");
+    } catch (e) {
+      console.error("Failed to get main categories:", e);
+      return [];
+    }
+  }
+
+  async getSubcategories(): Promise<Sephiroth[]> {
+    try {
+      return await invoke<Sephiroth[]>("get_subcategories");
+    } catch (e) {
+      console.error("Failed to get subcategories:", e);
+      return [];
+    }
+  }
+
+  async getCategoriesWithStats(): Promise<MainCategory[]> {
+    try {
+      return await invoke<MainCategory[]>("get_categories_with_stats");
+    } catch (e) {
+      console.error("Failed to get categories with stats:", e);
+      return [];
+    }
+  }
+
+  async getSubcategoryNames(): Promise<string[]> {
+    try {
+      return await invoke<string[]>("get_subcategory_names");
+    } catch (e) {
+      console.error("Failed to get subcategory names:", e);
       return [];
     }
   }

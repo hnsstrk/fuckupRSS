@@ -61,6 +61,7 @@ export interface FnordRevision {
 export interface FnordFilter {
   pentacle_id?: number;
   sephiroth_id?: number;
+  main_sephiroth_id?: number;  // Filter by main category (includes all subcategories)
   status?: string;
   limit?: number;
   offset?: number;
@@ -176,10 +177,35 @@ export interface EmbeddingQueueStatus {
 export interface Sephiroth {
   id: number;
   name: string;
+  parent_id: number | null;
+  level: number;
   description: string | null;
   color: string | null;
   icon: string | null;
   article_count: number;
+}
+
+// Main category (level 0) with aggregated stats
+export interface MainCategory {
+  id: number;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  article_count: number;
+  read_count: number;
+  percentage: number;
+  subcategories: SubCategory[];
+}
+
+// Subcategory (level 1) with individual stats
+export interface SubCategory {
+  id: number;
+  name: string;
+  icon: string | null;
+  parent_id: number;
+  article_count: number;
+  read_count: number;
+  percentage: number;
 }
 
 export interface ArticleCategory {
@@ -190,6 +216,9 @@ export interface ArticleCategory {
   confidence: number;
   source: 'ai' | 'manual';
   assigned_at: string | null;
+  parent_id: number | null;
+  main_category_name: string | null;
+  main_category_color: string | null;
 }
 
 export interface Tag {
@@ -283,6 +312,15 @@ export interface NetworkGraph {
 export type MainView = 'articles' | 'network' | 'fnord' | 'mindfuck';
 
 // Operation Mindfuck (Bias Mirror)
+export interface SubCategoryReadStats {
+  sephiroth_id: number;
+  name: string;
+  icon: string | null;
+  read_count: number;
+  total_count: number;
+  percentage: number;
+}
+
 export interface CategoryReadStats {
   sephiroth_id: number;
   name: string;
@@ -291,6 +329,7 @@ export interface CategoryReadStats {
   read_count: number;
   total_count: number;
   percentage: number;
+  subcategories: SubCategoryReadStats[];
 }
 
 export interface BiasReadStats {
@@ -327,6 +366,8 @@ export interface BlindSpot {
   severity: string;
   available_count: number;
   read_count: number;
+  main_category: string | null;
+  main_category_color: string | null;
 }
 
 export interface CounterPerspective {

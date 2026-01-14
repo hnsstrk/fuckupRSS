@@ -11,13 +11,25 @@ use tauri::State;
 // Reading Statistics
 // ============================================================
 
-/// Category reading statistics
+/// Category reading statistics (main category level)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CategoryReadStats {
     pub sephiroth_id: i64,
     pub name: String,
     pub icon: Option<String>,
     pub color: Option<String>,
+    pub read_count: i64,
+    pub total_count: i64,
+    pub percentage: f64,
+    pub subcategories: Vec<SubCategoryReadStats>,
+}
+
+/// Subcategory reading statistics
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SubCategoryReadStats {
+    pub sephiroth_id: i64,
+    pub name: String,
+    pub icon: Option<String>,
     pub read_count: i64,
     pub total_count: i64,
     pub percentage: f64,
@@ -132,26 +144,7 @@ pub fn get_reading_profile(state: State<AppState>) -> Result<ReadingProfile, Str
 fn get_category_stats(
     db: &std::sync::MutexGuard<crate::db::Database>,
 ) -> Result<Vec<CategoryReadStats>, String> {
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
-            SELECT
-                s.id,
-                s.name,
-                s.icon,
-                s.color,
-                COUNT(DISTINCT f.id) FILTER (WHERE f.read_at IS NOT NULL) as read_count,
-                COUNT(DISTINCT f.id) as total_count
-            FROM sephiroth s
-            LEFT JOIN fnord_sephiroth fs ON fs.sephiroth_id = s.id
-            LEFT JOIN fnords f ON f.id = fs.fnord_id
-            GROUP BY s.id
-            ORDER BY read_count DESC
-            "#,
-        )
-        .map_err(|e| e.to_string())?;
-
+    // Get total read count for percentage calculation
     let total_read: i64 = db
         .conn()
         .query_row(
@@ -161,28 +154,96 @@ fn get_category_stats(
         )
         .unwrap_or(0);
 
-    let stats = stmt
+    // Get main categories (level 0)
+    let mut main_stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT id, name, icon, color
+            FROM sephiroth
+            WHERE level = 0
+            ORDER BY id
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let main_cats: Vec<(i64, String, Option<String>, Option<String>)> = main_stmt
         .query_map([], |row| {
-            let read_count: i64 = row.get(4)?;
-            Ok(CategoryReadStats {
-                sephiroth_id: row.get(0)?,
-                name: row.get(1)?,
-                icon: row.get(2)?,
-                color: row.get(3)?,
-                read_count,
-                total_count: row.get(5)?,
-                percentage: if total_read > 0 {
-                    (read_count as f64 / total_read as f64) * 100.0
-                } else {
-                    0.0
-                },
-            })
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
         })
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    Ok(stats)
+    let mut result = Vec::new();
+
+    for (main_id, main_name, main_icon, main_color) in main_cats {
+        // Get subcategories with stats
+        let mut sub_stmt = db
+            .conn()
+            .prepare(
+                r#"
+                SELECT
+                    sub.id,
+                    sub.name,
+                    sub.icon,
+                    COUNT(DISTINCT f.id) FILTER (WHERE f.read_at IS NOT NULL) as read_count,
+                    COUNT(DISTINCT f.id) as total_count
+                FROM sephiroth sub
+                LEFT JOIN fnord_sephiroth fs ON fs.sephiroth_id = sub.id
+                LEFT JOIN fnords f ON f.id = fs.fnord_id
+                WHERE sub.parent_id = ?
+                GROUP BY sub.id
+                ORDER BY sub.name
+                "#,
+            )
+            .map_err(|e| e.to_string())?;
+
+        let subcategories: Vec<SubCategoryReadStats> = sub_stmt
+            .query_map([main_id], |row| {
+                let read_count: i64 = row.get(3)?;
+                let total_count: i64 = row.get(4)?;
+                Ok(SubCategoryReadStats {
+                    sephiroth_id: row.get(0)?,
+                    name: row.get(1)?,
+                    icon: row.get(2)?,
+                    read_count,
+                    total_count,
+                    percentage: if total_count > 0 {
+                        (read_count as f64 / total_count as f64) * 100.0
+                    } else {
+                        0.0
+                    },
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        // Aggregate stats for main category
+        let total_count: i64 = subcategories.iter().map(|s| s.total_count).sum();
+        let read_count: i64 = subcategories.iter().map(|s| s.read_count).sum();
+
+        result.push(CategoryReadStats {
+            sephiroth_id: main_id,
+            name: main_name,
+            icon: main_icon,
+            color: main_color,
+            read_count,
+            total_count,
+            percentage: if total_read > 0 {
+                (read_count as f64 / total_read as f64) * 100.0
+            } else {
+                0.0
+            },
+            subcategories,
+        });
+    }
+
+    // Sort by read_count descending
+    result.sort_by(|a, b| b.read_count.cmp(&a.read_count));
+
+    Ok(result)
 }
 
 fn get_bias_stats(
@@ -312,6 +373,8 @@ pub struct BlindSpot {
     pub severity: String, // "low", "medium", "high"
     pub available_count: i64,
     pub read_count: i64,
+    pub main_category: Option<String>,      // For subcategory blind spots
+    pub main_category_color: Option<String>, // Color from main category
 }
 
 /// Detect blind spots in reading habits
@@ -334,19 +397,25 @@ pub fn get_blind_spots(state: State<AppState>) -> Result<Vec<BlindSpot>, String>
 fn detect_category_blind_spots(
     db: &std::sync::MutexGuard<crate::db::Database>,
 ) -> Result<Vec<BlindSpot>, String> {
+    // Detect blind spots at SUBCATEGORY level (level 1) for granular analysis
+    // Include main category info for context
     let mut stmt = db
         .conn()
         .prepare(
             r#"
             SELECT
-                s.name,
-                s.icon,
+                sub.name,
+                sub.icon,
+                main.name as main_name,
+                main.color as main_color,
                 COUNT(DISTINCT f.id) FILTER (WHERE f.read_at IS NOT NULL) as read_count,
                 COUNT(DISTINCT f.id) as total_count
-            FROM sephiroth s
-            LEFT JOIN fnord_sephiroth fs ON fs.sephiroth_id = s.id
+            FROM sephiroth sub
+            JOIN sephiroth main ON main.id = sub.parent_id
+            LEFT JOIN fnord_sephiroth fs ON fs.sephiroth_id = sub.id
             LEFT JOIN fnords f ON f.id = fs.fnord_id
-            GROUP BY s.id
+            WHERE sub.level = 1
+            GROUP BY sub.id
             HAVING total_count > 5  -- Only consider categories with enough articles
             ORDER BY (CAST(read_count AS REAL) / NULLIF(total_count, 0)) ASC
             "#,
@@ -357,8 +426,10 @@ fn detect_category_blind_spots(
         .query_map([], |row| {
             let name: String = row.get(0)?;
             let icon: Option<String> = row.get(1)?;
-            let read_count: i64 = row.get(2)?;
-            let total_count: i64 = row.get(3)?;
+            let main_name: String = row.get(2)?;
+            let main_color: Option<String> = row.get(3)?;
+            let read_count: i64 = row.get(4)?;
+            let total_count: i64 = row.get(5)?;
 
             let read_ratio = if total_count > 0 {
                 read_count as f64 / total_count as f64
@@ -386,6 +457,8 @@ fn detect_category_blind_spots(
                 severity: severity.to_string(),
                 available_count: total_count,
                 read_count,
+                main_category: Some(main_name),
+                main_category_color: main_color,
             }))
         })
         .map_err(|e| e.to_string())?
@@ -435,6 +508,8 @@ fn detect_bias_blind_spots(
                     severity: if bias < -1.0 { "high" } else { "medium" }.to_string(),
                     available_count: right_count,
                     read_count: 0,
+                    main_category: None,
+                    main_category_color: None,
                 });
             }
         } else if bias > 0.5 {
@@ -459,6 +534,8 @@ fn detect_bias_blind_spots(
                     severity: if bias > 1.0 { "high" } else { "medium" }.to_string(),
                     available_count: left_count,
                     read_count: 0,
+                    main_category: None,
+                    main_category_color: None,
                 });
             }
         }

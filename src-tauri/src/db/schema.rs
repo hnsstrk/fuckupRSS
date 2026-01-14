@@ -358,30 +358,241 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
-    // Migration 11: Update sephiroth icons from emojis to Font Awesome classes
-    // Check if icons still contain emojis (check for 'fa-' prefix absence)
-    let needs_icon_migration: bool = conn
-        .prepare("SELECT COUNT(*) FROM sephiroth WHERE icon NOT LIKE 'fa-%' AND icon IS NOT NULL")?
+    // Migration 11: Add parent_id and level columns to sephiroth for hierarchical categories
+    let has_parent_id: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('sephiroth') WHERE name = 'parent_id'")?
+        .query_row([], |row| row.get(0))?;
+
+    // Check if migration data restructuring is complete (main category "Wissen & Technologie" exists)
+    let migration_complete: bool = conn
+        .prepare("SELECT COUNT(*) FROM sephiroth WHERE id = 1 AND name LIKE '%&%'")?
         .query_row([], |row| row.get::<_, i64>(0).map(|c| c > 0))?;
 
-    if needs_icon_migration {
+    // Check if sephiroth.name has UNIQUE constraint (needs to be removed for hierarchical categories)
+    let has_unique_name: bool = {
+        let schema: String = conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='sephiroth'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or_default();
+        schema.contains("name TEXT NOT NULL UNIQUE")
+    };
+
+    // Migration 11a: Remove UNIQUE constraint from sephiroth.name
+    // This is needed because subcategories have the same names as some main categories
+    if has_unique_name && has_parent_id {
+        conn.execute("PRAGMA foreign_keys = OFF", [])?;
+
         conn.execute_batch(
             r#"
-            UPDATE sephiroth SET icon = 'fa-solid fa-microchip' WHERE name = 'Technik';
-            UPDATE sephiroth SET icon = 'fa-solid fa-landmark' WHERE name = 'Politik';
-            UPDATE sephiroth SET icon = 'fa-solid fa-chart-line' WHERE name = 'Wirtschaft';
-            UPDATE sephiroth SET icon = 'fa-solid fa-flask' WHERE name = 'Wissenschaft';
-            UPDATE sephiroth SET icon = 'fa-solid fa-masks-theater' WHERE name = 'Kultur';
-            UPDATE sephiroth SET icon = 'fa-solid fa-futbol' WHERE name = 'Sport';
-            UPDATE sephiroth SET icon = 'fa-solid fa-users' WHERE name = 'Gesellschaft';
-            UPDATE sephiroth SET icon = 'fa-solid fa-leaf' WHERE name = 'Umwelt';
-            UPDATE sephiroth SET icon = 'fa-solid fa-shield-halved' WHERE name = 'Sicherheit';
-            UPDATE sephiroth SET icon = 'fa-solid fa-heart-pulse' WHERE name = 'Gesundheit';
-            UPDATE sephiroth SET icon = 'fa-solid fa-medal' WHERE name = 'Verteidigung';
-            UPDATE sephiroth SET icon = 'fa-solid fa-bolt' WHERE name = 'Energie';
-            UPDATE sephiroth SET icon = 'fa-solid fa-scale-balanced' WHERE name = 'Recht';
+            -- Create new table without UNIQUE constraint on name
+            CREATE TABLE sephiroth_new (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                color TEXT,
+                icon TEXT,
+                article_count INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                parent_id INTEGER REFERENCES sephiroth(id) ON DELETE CASCADE,
+                level INTEGER DEFAULT 0
+            );
+
+            -- Copy data
+            INSERT INTO sephiroth_new SELECT * FROM sephiroth;
+
+            -- Drop old table
+            DROP TABLE sephiroth;
+
+            -- Rename new table
+            ALTER TABLE sephiroth_new RENAME TO sephiroth;
+
+            -- Recreate indexes
+            CREATE INDEX idx_sephiroth_parent ON sephiroth(parent_id);
+            CREATE INDEX idx_sephiroth_level ON sephiroth(level);
             "#,
         )?;
+
+        conn.execute("PRAGMA foreign_keys = ON", [])?;
+    }
+
+    if !has_parent_id {
+        // Temporarily disable foreign key constraints for this migration
+        conn.execute("PRAGMA foreign_keys = OFF", [])?;
+
+        conn.execute_batch(
+            r#"
+            ALTER TABLE sephiroth ADD COLUMN parent_id INTEGER REFERENCES sephiroth(id) ON DELETE CASCADE;
+            ALTER TABLE sephiroth ADD COLUMN level INTEGER DEFAULT 0;
+            "#,
+        )?;
+
+        // Migration: Convert old flat categories (IDs 1-13) to new hierarchical structure
+        // Old structure: Technik(1), Politik(2), Wirtschaft(3), Wissenschaft(4), Kultur(5),
+        //                Sport(6), Gesellschaft(7), Umwelt(8), Sicherheit(9), Gesundheit(10),
+        //                Verteidigung(11), Energie(12), Recht(13)
+        // New structure: 6 main categories (IDs 1-6) + 13 subcategories (IDs 101-602)
+
+        // Step 1: Map old category IDs to new subcategory IDs in fnord_sephiroth
+        // This preserves all article-category associations
+        conn.execute_batch(
+            r#"
+            UPDATE fnord_sephiroth SET sephiroth_id = 101 WHERE sephiroth_id = 1;  -- Technik -> 101
+            UPDATE fnord_sephiroth SET sephiroth_id = 201 WHERE sephiroth_id = 2;  -- Politik -> 201
+            UPDATE fnord_sephiroth SET sephiroth_id = 301 WHERE sephiroth_id = 3;  -- Wirtschaft -> 301
+            UPDATE fnord_sephiroth SET sephiroth_id = 102 WHERE sephiroth_id = 4;  -- Wissenschaft -> 102
+            UPDATE fnord_sephiroth SET sephiroth_id = 601 WHERE sephiroth_id = 5;  -- Kultur -> 601
+            UPDATE fnord_sephiroth SET sephiroth_id = 602 WHERE sephiroth_id = 6;  -- Sport -> 602
+            UPDATE fnord_sephiroth SET sephiroth_id = 202 WHERE sephiroth_id = 7;  -- Gesellschaft -> 202
+            UPDATE fnord_sephiroth SET sephiroth_id = 401 WHERE sephiroth_id = 8;  -- Umwelt -> 401
+            UPDATE fnord_sephiroth SET sephiroth_id = 501 WHERE sephiroth_id = 9;  -- Sicherheit -> 501
+            UPDATE fnord_sephiroth SET sephiroth_id = 402 WHERE sephiroth_id = 10; -- Gesundheit -> 402
+            UPDATE fnord_sephiroth SET sephiroth_id = 502 WHERE sephiroth_id = 11; -- Verteidigung -> 502
+            UPDATE fnord_sephiroth SET sephiroth_id = 302 WHERE sephiroth_id = 12; -- Energie -> 302
+            UPDATE fnord_sephiroth SET sephiroth_id = 203 WHERE sephiroth_id = 13; -- Recht -> 203
+            "#,
+        )?;
+
+        // Step 2: Also update immanentize_sephiroth associations
+        conn.execute_batch(
+            r#"
+            UPDATE immanentize_sephiroth SET sephiroth_id = 101 WHERE sephiroth_id = 1;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 201 WHERE sephiroth_id = 2;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 301 WHERE sephiroth_id = 3;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 102 WHERE sephiroth_id = 4;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 601 WHERE sephiroth_id = 5;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 602 WHERE sephiroth_id = 6;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 202 WHERE sephiroth_id = 7;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 401 WHERE sephiroth_id = 8;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 501 WHERE sephiroth_id = 9;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 402 WHERE sephiroth_id = 10;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 502 WHERE sephiroth_id = 11;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 302 WHERE sephiroth_id = 12;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 203 WHERE sephiroth_id = 13;
+            "#,
+        )?;
+
+        // Step 3: Delete old categories
+        conn.execute("DELETE FROM sephiroth WHERE id BETWEEN 1 AND 13", [])?;
+
+        // Step 4: Insert new main categories (level 0)
+        conn.execute_batch(
+            r#"
+            INSERT INTO sephiroth (id, name, parent_id, level, icon, color) VALUES
+                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip', 'var(--accent-info)'),
+                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark', 'var(--accent-error)'),
+                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line', 'var(--accent-warning)'),
+                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf', 'var(--accent-success)'),
+                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved', 'var(--accent-secondary)'),
+                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater', 'var(--accent-primary)');
+            "#,
+        )?;
+
+        // Step 5: Insert new subcategories (level 1)
+        conn.execute_batch(
+            r#"
+            INSERT INTO sephiroth (id, name, parent_id, level, icon) VALUES
+                (101, 'Technik', 1, 1, 'fa-solid fa-microchip'),
+                (102, 'Wissenschaft', 1, 1, 'fa-solid fa-flask'),
+                (201, 'Politik', 2, 1, 'fa-solid fa-landmark'),
+                (202, 'Gesellschaft', 2, 1, 'fa-solid fa-users'),
+                (203, 'Recht', 2, 1, 'fa-solid fa-scale-balanced'),
+                (301, 'Wirtschaft', 3, 1, 'fa-solid fa-chart-line'),
+                (302, 'Energie', 3, 1, 'fa-solid fa-bolt'),
+                (401, 'Umwelt', 4, 1, 'fa-solid fa-leaf'),
+                (402, 'Gesundheit', 4, 1, 'fa-solid fa-heart-pulse'),
+                (501, 'Sicherheit', 5, 1, 'fa-solid fa-shield-halved'),
+                (502, 'Verteidigung', 5, 1, 'fa-solid fa-medal'),
+                (601, 'Kultur', 6, 1, 'fa-solid fa-masks-theater'),
+                (602, 'Sport', 6, 1, 'fa-solid fa-futbol');
+            "#,
+        )?;
+
+        // Re-enable foreign key constraints
+        conn.execute("PRAGMA foreign_keys = ON", [])?;
+    } else if !migration_complete {
+        // Columns exist but data restructuring not complete (e.g., previous migration attempt failed)
+        // Temporarily disable foreign key constraints for this migration
+        conn.execute("PRAGMA foreign_keys = OFF", [])?;
+
+        // Step 1: Map old category IDs to new subcategory IDs in fnord_sephiroth
+        conn.execute_batch(
+            r#"
+            UPDATE fnord_sephiroth SET sephiroth_id = 101 WHERE sephiroth_id = 1;  -- Technik -> 101
+            UPDATE fnord_sephiroth SET sephiroth_id = 201 WHERE sephiroth_id = 2;  -- Politik -> 201
+            UPDATE fnord_sephiroth SET sephiroth_id = 301 WHERE sephiroth_id = 3;  -- Wirtschaft -> 301
+            UPDATE fnord_sephiroth SET sephiroth_id = 102 WHERE sephiroth_id = 4;  -- Wissenschaft -> 102
+            UPDATE fnord_sephiroth SET sephiroth_id = 601 WHERE sephiroth_id = 5;  -- Kultur -> 601
+            UPDATE fnord_sephiroth SET sephiroth_id = 602 WHERE sephiroth_id = 6;  -- Sport -> 602
+            UPDATE fnord_sephiroth SET sephiroth_id = 202 WHERE sephiroth_id = 7;  -- Gesellschaft -> 202
+            UPDATE fnord_sephiroth SET sephiroth_id = 401 WHERE sephiroth_id = 8;  -- Umwelt -> 401
+            UPDATE fnord_sephiroth SET sephiroth_id = 501 WHERE sephiroth_id = 9;  -- Sicherheit -> 501
+            UPDATE fnord_sephiroth SET sephiroth_id = 402 WHERE sephiroth_id = 10; -- Gesundheit -> 402
+            UPDATE fnord_sephiroth SET sephiroth_id = 502 WHERE sephiroth_id = 11; -- Verteidigung -> 502
+            UPDATE fnord_sephiroth SET sephiroth_id = 302 WHERE sephiroth_id = 12; -- Energie -> 302
+            UPDATE fnord_sephiroth SET sephiroth_id = 203 WHERE sephiroth_id = 13; -- Recht -> 203
+            "#,
+        )?;
+
+        // Step 2: Also update immanentize_sephiroth associations
+        conn.execute_batch(
+            r#"
+            UPDATE immanentize_sephiroth SET sephiroth_id = 101 WHERE sephiroth_id = 1;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 201 WHERE sephiroth_id = 2;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 301 WHERE sephiroth_id = 3;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 102 WHERE sephiroth_id = 4;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 601 WHERE sephiroth_id = 5;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 602 WHERE sephiroth_id = 6;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 202 WHERE sephiroth_id = 7;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 401 WHERE sephiroth_id = 8;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 501 WHERE sephiroth_id = 9;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 402 WHERE sephiroth_id = 10;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 502 WHERE sephiroth_id = 11;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 302 WHERE sephiroth_id = 12;
+            UPDATE immanentize_sephiroth SET sephiroth_id = 203 WHERE sephiroth_id = 13;
+            "#,
+        )?;
+
+        // Step 3: Delete old categories
+        conn.execute("DELETE FROM sephiroth WHERE id BETWEEN 1 AND 13", [])?;
+
+        // Step 4: Insert new main categories (level 0)
+        conn.execute_batch(
+            r#"
+            INSERT INTO sephiroth (id, name, parent_id, level, icon, color) VALUES
+                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip', 'var(--accent-info)'),
+                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark', 'var(--accent-error)'),
+                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line', 'var(--accent-warning)'),
+                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf', 'var(--accent-success)'),
+                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved', 'var(--accent-secondary)'),
+                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater', 'var(--accent-primary)');
+            "#,
+        )?;
+
+        // Step 5: Insert new subcategories (level 1)
+        conn.execute_batch(
+            r#"
+            INSERT INTO sephiroth (id, name, parent_id, level, icon) VALUES
+                (101, 'Technik', 1, 1, 'fa-solid fa-microchip'),
+                (102, 'Wissenschaft', 1, 1, 'fa-solid fa-flask'),
+                (201, 'Politik', 2, 1, 'fa-solid fa-landmark'),
+                (202, 'Gesellschaft', 2, 1, 'fa-solid fa-users'),
+                (203, 'Recht', 2, 1, 'fa-solid fa-scale-balanced'),
+                (301, 'Wirtschaft', 3, 1, 'fa-solid fa-chart-line'),
+                (302, 'Energie', 3, 1, 'fa-solid fa-bolt'),
+                (401, 'Umwelt', 4, 1, 'fa-solid fa-leaf'),
+                (402, 'Gesundheit', 4, 1, 'fa-solid fa-heart-pulse'),
+                (501, 'Sicherheit', 5, 1, 'fa-solid fa-shield-halved'),
+                (502, 'Verteidigung', 5, 1, 'fa-solid fa-medal'),
+                (601, 'Kultur', 6, 1, 'fa-solid fa-masks-theater'),
+                (602, 'Sport', 6, 1, 'fa-solid fa-futbol');
+            "#,
+        )?;
+
+        // Re-enable foreign key constraints
+        conn.execute("PRAGMA foreign_keys = ON", [])?;
     }
 
     Ok(())
@@ -501,17 +712,23 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         );
 
         -- ============================================================
-        -- SEPHIROTH (Kategorien)
+        -- SEPHIROTH (Kategorien - Hierarchisch)
+        -- level 0 = Hauptkategorie (6), level 1 = Unterkategorie (13)
         -- ============================================================
         CREATE TABLE IF NOT EXISTS sephiroth (
             id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            parent_id INTEGER REFERENCES sephiroth(id) ON DELETE CASCADE,
+            level INTEGER DEFAULT 0,
             description TEXT,
             color TEXT,
             icon TEXT,
             article_count INTEGER DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- Note: idx_sephiroth_parent and idx_sephiroth_level are created in migrations
+        -- because existing databases may not have these columns yet
 
         -- ============================================================
         -- IMMANENTIZE_CLUSTERS (Themen-Cluster)
@@ -681,28 +898,58 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         -- Note: Immanentize Network indexes are created in migrations
         -- because existing databases may not have these columns yet
 
-        -- ============================================================
-        -- DEFAULT SEPHIROTH (Kategorien)
-        -- ============================================================
-        INSERT OR IGNORE INTO sephiroth (name, icon, color) VALUES
-            ('Technik', 'fa-solid fa-microchip', '#3B82F6'),
-            ('Politik', 'fa-solid fa-landmark', '#EF4444'),
-            ('Wirtschaft', 'fa-solid fa-chart-line', '#10B981'),
-            ('Wissenschaft', 'fa-solid fa-flask', '#8B5CF6'),
-            ('Kultur', 'fa-solid fa-masks-theater', '#F59E0B'),
-            ('Sport', 'fa-solid fa-futbol', '#06B6D4'),
-            ('Gesellschaft', 'fa-solid fa-users', '#EC4899'),
-            ('Umwelt', 'fa-solid fa-leaf', '#22C55E'),
-            ('Sicherheit', 'fa-solid fa-shield-halved', '#6366F1'),
-            ('Gesundheit', 'fa-solid fa-heart-pulse', '#F43F5E'),
-            ('Verteidigung', 'fa-solid fa-medal', '#78716C'),
-            ('Energie', 'fa-solid fa-bolt', '#FBBF24'),
-            ('Recht', 'fa-solid fa-scale-balanced', '#7C3AED');
+        -- Note: Default sephiroth categories are inserted after migrations
+        -- to ensure parent_id and level columns exist
         "#,
     )?;
 
     // Run migrations for existing databases
     run_migrations(conn)?;
+
+    // Create sephiroth indexes (after migrations ensure columns exist)
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_sephiroth_parent ON sephiroth(parent_id);
+        CREATE INDEX IF NOT EXISTS idx_sephiroth_level ON sephiroth(level);
+        "#,
+    )?;
+
+    // Insert default sephiroth categories (only if main category 1 doesn't exist)
+    // This runs AFTER migrations, so parent_id and level columns exist
+    let has_main_categories: bool = conn
+        .prepare("SELECT COUNT(*) FROM sephiroth WHERE id = 1 AND level = 0")?
+        .query_row([], |row| row.get::<_, i64>(0).map(|c| c > 0))?;
+
+    if !has_main_categories {
+        conn.execute_batch(
+            r#"
+            -- Hauptkategorien (level 0) - für Visualisierung & Farben
+            INSERT OR IGNORE INTO sephiroth (id, name, parent_id, level, icon, color) VALUES
+                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip', 'var(--accent-info)'),
+                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark', 'var(--accent-error)'),
+                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line', 'var(--accent-warning)'),
+                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf', 'var(--accent-success)'),
+                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved', 'var(--accent-secondary)'),
+                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater', 'var(--accent-primary)');
+
+            -- Unterkategorien (level 1) - für KI-Klassifizierung & Blind Spots
+            INSERT OR IGNORE INTO sephiroth (id, name, parent_id, level, icon) VALUES
+                (101, 'Technik', 1, 1, 'fa-solid fa-microchip'),
+                (102, 'Wissenschaft', 1, 1, 'fa-solid fa-flask'),
+                (201, 'Politik', 2, 1, 'fa-solid fa-landmark'),
+                (202, 'Gesellschaft', 2, 1, 'fa-solid fa-users'),
+                (203, 'Recht', 2, 1, 'fa-solid fa-scale-balanced'),
+                (301, 'Wirtschaft', 3, 1, 'fa-solid fa-chart-line'),
+                (302, 'Energie', 3, 1, 'fa-solid fa-bolt'),
+                (401, 'Umwelt', 4, 1, 'fa-solid fa-leaf'),
+                (402, 'Gesundheit', 4, 1, 'fa-solid fa-heart-pulse'),
+                (501, 'Sicherheit', 5, 1, 'fa-solid fa-shield-halved'),
+                (502, 'Verteidigung', 5, 1, 'fa-solid fa-medal'),
+                (601, 'Kultur', 6, 1, 'fa-solid fa-masks-theater'),
+                (602, 'Sport', 6, 1, 'fa-solid fa-futbol');
+            "#,
+        )?;
+    }
 
     Ok(())
 }
