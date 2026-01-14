@@ -121,7 +121,7 @@
                   <tr>
                     <td class="category-cell">
                       {#if cat.icon}
-                        <span class="category-icon">{cat.icon}</span>
+                        <i class="{cat.icon} category-icon"></i>
                       {/if}
                       <span class="category-name" style="--cat-color: {cat.color || '#6366F1'}">{cat.name}</span>
                     </td>

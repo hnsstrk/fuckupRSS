@@ -638,11 +638,7 @@
               <div class="categories-list">
                 {#each keywordCategories as cat (cat.sephiroth_id)}
                   <div class="category-item" style="--cat-color: {cat.color || '#6366F1'}">
-                    {#if cat.icon}
-                      <span class="category-icon">{cat.icon}</span>
-                    {:else}
-                      <i class="category-icon fa-solid fa-folder"></i>
-                    {/if}
+                    <i class="{cat.icon || 'fa-solid fa-folder'} category-icon"></i>
                     <span class="category-name">{cat.name}</span>
                     <span class="category-weight {getWeightClass(cat.weight)}">{(cat.weight * 100).toFixed(0)}%</span>
                   </div>

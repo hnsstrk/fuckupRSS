@@ -219,7 +219,7 @@
               <div class="category-bar-row">
                 <div class="category-label">
                   {#if cat.icon}
-                    <span class="category-icon">{cat.icon}</span>
+                    <i class="{cat.icon} category-icon"></i>
                   {/if}
                   <span class="category-name">{cat.name}</span>
                 </div>

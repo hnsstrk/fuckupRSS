@@ -398,7 +398,7 @@
                     class="category-badge"
                     style="background-color: {cat.color || 'var(--bg-overlay)'}; color: {cat.color ? 'white' : 'var(--text-primary)'}"
                   >
-                    {#if cat.icon}<span class="badge-icon">{cat.icon}</span>{/if}
+                    {#if cat.icon}<i class="{cat.icon} badge-icon"></i>{/if}
                     {cat.name}
                   </span>
                 {/each}

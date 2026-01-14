@@ -339,7 +339,7 @@
           >
             <span class="feed-name">
               {#if category.icon}
-                <span class="category-icon">{category.icon}</span>
+                <i class="{category.icon} category-icon"></i>
               {/if}
               {category.name}
             </span>

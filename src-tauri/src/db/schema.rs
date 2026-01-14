@@ -358,6 +358,32 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 11: Update sephiroth icons from emojis to Font Awesome classes
+    // Check if icons still contain emojis (check for 'fa-' prefix absence)
+    let needs_icon_migration: bool = conn
+        .prepare("SELECT COUNT(*) FROM sephiroth WHERE icon NOT LIKE 'fa-%' AND icon IS NOT NULL")?
+        .query_row([], |row| row.get::<_, i64>(0).map(|c| c > 0))?;
+
+    if needs_icon_migration {
+        conn.execute_batch(
+            r#"
+            UPDATE sephiroth SET icon = 'fa-solid fa-microchip' WHERE name = 'Technik';
+            UPDATE sephiroth SET icon = 'fa-solid fa-landmark' WHERE name = 'Politik';
+            UPDATE sephiroth SET icon = 'fa-solid fa-chart-line' WHERE name = 'Wirtschaft';
+            UPDATE sephiroth SET icon = 'fa-solid fa-flask' WHERE name = 'Wissenschaft';
+            UPDATE sephiroth SET icon = 'fa-solid fa-masks-theater' WHERE name = 'Kultur';
+            UPDATE sephiroth SET icon = 'fa-solid fa-futbol' WHERE name = 'Sport';
+            UPDATE sephiroth SET icon = 'fa-solid fa-users' WHERE name = 'Gesellschaft';
+            UPDATE sephiroth SET icon = 'fa-solid fa-leaf' WHERE name = 'Umwelt';
+            UPDATE sephiroth SET icon = 'fa-solid fa-shield-halved' WHERE name = 'Sicherheit';
+            UPDATE sephiroth SET icon = 'fa-solid fa-heart-pulse' WHERE name = 'Gesundheit';
+            UPDATE sephiroth SET icon = 'fa-solid fa-medal' WHERE name = 'Verteidigung';
+            UPDATE sephiroth SET icon = 'fa-solid fa-bolt' WHERE name = 'Energie';
+            UPDATE sephiroth SET icon = 'fa-solid fa-scale-balanced' WHERE name = 'Recht';
+            "#,
+        )?;
+    }
+
     Ok(())
 }
 
@@ -659,19 +685,19 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         -- DEFAULT SEPHIROTH (Kategorien)
         -- ============================================================
         INSERT OR IGNORE INTO sephiroth (name, icon, color) VALUES
-            ('Technik', '💻', '#3B82F6'),
-            ('Politik', '🏛️', '#EF4444'),
-            ('Wirtschaft', '📈', '#10B981'),
-            ('Wissenschaft', '🔬', '#8B5CF6'),
-            ('Kultur', '🎭', '#F59E0B'),
-            ('Sport', '⚽', '#06B6D4'),
-            ('Gesellschaft', '👥', '#EC4899'),
-            ('Umwelt', '🌍', '#22C55E'),
-            ('Sicherheit', '🔒', '#6366F1'),
-            ('Gesundheit', '🏥', '#F43F5E'),
-            ('Verteidigung', '🎖️', '#78716C'),
-            ('Energie', '⚡', '#FBBF24'),
-            ('Recht', '⚖️', '#7C3AED');
+            ('Technik', 'fa-solid fa-microchip', '#3B82F6'),
+            ('Politik', 'fa-solid fa-landmark', '#EF4444'),
+            ('Wirtschaft', 'fa-solid fa-chart-line', '#10B981'),
+            ('Wissenschaft', 'fa-solid fa-flask', '#8B5CF6'),
+            ('Kultur', 'fa-solid fa-masks-theater', '#F59E0B'),
+            ('Sport', 'fa-solid fa-futbol', '#06B6D4'),
+            ('Gesellschaft', 'fa-solid fa-users', '#EC4899'),
+            ('Umwelt', 'fa-solid fa-leaf', '#22C55E'),
+            ('Sicherheit', 'fa-solid fa-shield-halved', '#6366F1'),
+            ('Gesundheit', 'fa-solid fa-heart-pulse', '#F43F5E'),
+            ('Verteidigung', 'fa-solid fa-medal', '#78716C'),
+            ('Energie', 'fa-solid fa-bolt', '#FBBF24'),
+            ('Recht', 'fa-solid fa-scale-balanced', '#7C3AED');
         "#,
     )?;
 
