@@ -329,23 +329,27 @@
     {:else}
       <!-- Sephiroth (Categories) List - Only main categories (level 0) -->
       {#each appState.sephiroth.filter(c => c.level === 0) as category (category.id)}
-        {#if category.article_count > 0}
-          <div
-            class="feed-item sephiroth-item {appState.selectedSephirothId === category.id ? 'active' : ''}"
-            onclick={() => handleSelectSephiroth(category.id)}
-            onkeydown={(e) => e.key === 'Enter' && handleSelectSephiroth(category.id)}
-            role="button"
-            tabindex="0"
-            style="--category-color: {category.color || 'var(--accent-primary)'}"
-          >
-            <span class="feed-name">
-              {#if category.icon}
-                <i class="{category.icon} category-icon"></i>
-              {/if}
-              {category.name}
-            </span>
-          </div>
-        {/if}
+        {@const subcategoryCount = appState.sephiroth
+          .filter(c => c.parent_id === category.id)
+          .reduce((sum, c) => sum + c.article_count, 0)}
+        <div
+          class="feed-item sephiroth-item {appState.selectedSephirothId === category.id ? 'active' : ''}"
+          onclick={() => handleSelectSephiroth(category.id)}
+          onkeydown={(e) => e.key === 'Enter' && handleSelectSephiroth(category.id)}
+          role="button"
+          tabindex="0"
+          style="--category-color: {category.color || 'var(--accent-primary)'}"
+        >
+          <span class="feed-name">
+            {#if category.icon}
+              <i class="{category.icon} category-icon"></i>
+            {/if}
+            {category.name}
+          </span>
+          {#if subcategoryCount > 0}
+            <span class="category-count">{subcategoryCount}</span>
+          {/if}
+        </div>
       {/each}
     {/if}
   </div>
@@ -645,6 +649,14 @@
     margin-right: 0.375rem;
     text-align: center;
     display: inline-block;
+  }
+
+  .category-count {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    background-color: var(--bg-overlay);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
   }
 
   .empty-state {

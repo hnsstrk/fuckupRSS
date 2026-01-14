@@ -494,17 +494,21 @@ pub fn get_fnord_stats(state: State<AppState>) -> Result<FnordStats, String> {
         )
         .unwrap_or(0);
 
-    // By category - count revisions for articles in each category
+    // By category - count revisions for articles in each subcategory (level 1)
+    // Articles are only assigned to subcategories, so we filter by level = 1
+    // and get the color from the parent (main) category
     let mut stmt_cat = db
         .conn()
         .prepare(
             r#"
-            SELECT s.id, s.name, s.icon, s.color,
+            SELECT s.id, s.name, s.icon, COALESCE(m.color, s.color),
                    COUNT(DISTINCT r.id) as revision_count,
                    COUNT(DISTINCT r.fnord_id) as article_count
             FROM sephiroth s
+            LEFT JOIN sephiroth m ON m.id = s.parent_id
             LEFT JOIN fnord_sephiroth fs ON fs.sephiroth_id = s.id
             LEFT JOIN fnord_revisions r ON r.fnord_id = fs.fnord_id
+            WHERE s.level = 1
             GROUP BY s.id
             ORDER BY revision_count DESC
             "#,

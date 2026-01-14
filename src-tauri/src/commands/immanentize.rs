@@ -189,7 +189,7 @@ pub fn get_keyword_neighbors(
     Ok(neighbors)
 }
 
-/// Get categories associated with a keyword
+/// Get categories associated with a keyword (subcategories with parent color)
 #[tauri::command]
 pub fn get_keyword_categories(
     state: State<AppState>,
@@ -201,9 +201,10 @@ pub fn get_keyword_categories(
         .conn()
         .prepare(
             r#"
-            SELECT s.id, s.name, s.icon, s.color, ims.weight, ims.article_count
+            SELECT s.id, s.name, s.icon, COALESCE(m.color, s.color), ims.weight, ims.article_count
             FROM immanentize_sephiroth ims
             JOIN sephiroth s ON s.id = ims.sephiroth_id
+            LEFT JOIN sephiroth m ON m.id = s.parent_id
             WHERE ims.immanentize_id = ?
             ORDER BY ims.weight DESC
             "#,
