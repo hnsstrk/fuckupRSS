@@ -272,6 +272,8 @@ export interface KeywordCategory {
   color: string | null;
   weight: number;
   article_count: number;
+  parent_id: number | null;
+  parent_name: string | null;
 }
 
 export interface TrendingKeyword {

@@ -628,19 +628,36 @@
             </span>
           </div>
 
-          <!-- Categories -->
+          <!-- Categories grouped by main category -->
           {#if keywordCategories.length > 0}
+            {@const groupedCategories = keywordCategories.reduce((acc, cat) => {
+              const parentName = cat.parent_name || 'Sonstige';
+              if (!acc[parentName]) {
+                acc[parentName] = { color: cat.color, categories: [] };
+              }
+              acc[parentName].categories.push(cat);
+              return acc;
+            }, {} as Record<string, { color: string | null, categories: typeof keywordCategories }>)}
             <div class="detail-section">
               <h4 class="section-title">
                 <Tooltip termKey="sephiroth">{$_('network.categories')}</Tooltip>
                 <span class="help-icon" title={$_('network.categoriesHelp')}>?</span>
               </h4>
-              <div class="categories-list">
-                {#each keywordCategories as cat (cat.sephiroth_id)}
-                  <div class="category-item" style="--cat-color: {cat.color || '#6366F1'}">
-                    <i class="{cat.icon || 'fa-solid fa-folder'} category-icon"></i>
-                    <span class="category-name">{cat.name}</span>
-                    <span class="category-weight {getWeightClass(cat.weight)}">{(cat.weight * 100).toFixed(0)}%</span>
+              <div class="categories-grouped">
+                {#each Object.entries(groupedCategories) as [parentName, group] (parentName)}
+                  <div class="category-group" style="--cat-color: {group.color || '#6366F1'}">
+                    <div class="category-group-header">
+                      <span class="category-group-name">{parentName}</span>
+                    </div>
+                    <div class="category-group-items">
+                      {#each group.categories as cat (cat.sephiroth_id)}
+                        <div class="category-subitem">
+                          <i class="{cat.icon || 'fa-solid fa-folder'} category-icon"></i>
+                          <span class="category-name">{cat.name}</span>
+                          <span class="category-weight {getWeightClass(cat.weight)}">{(cat.weight * 100).toFixed(0)}%</span>
+                        </div>
+                      {/each}
+                    </div>
                   </div>
                 {/each}
               </div>
@@ -1328,6 +1345,58 @@
   .category-weight.weight-low {
     background-color: var(--bg-overlay);
     color: var(--text-muted);
+  }
+
+  /* Grouped Categories */
+  .categories-grouped {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .category-group {
+    border-left: 3px solid var(--cat-color);
+    padding-left: 0.75rem;
+  }
+
+  .category-group-header {
+    margin-bottom: 0.5rem;
+  }
+
+  .category-group-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--cat-color);
+  }
+
+  .category-group-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .category-subitem {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background-color: color-mix(in srgb, var(--cat-color) 10%, var(--bg-surface));
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+  }
+
+  .category-subitem .category-icon {
+    font-size: 0.6875rem;
+    opacity: 0.8;
+  }
+
+  .category-subitem .category-name {
+    font-size: 0.75rem;
+  }
+
+  .category-subitem .category-weight {
+    font-size: 0.5625rem;
+    padding: 0.0625rem 0.1875rem;
   }
 
   /* No Selection State */

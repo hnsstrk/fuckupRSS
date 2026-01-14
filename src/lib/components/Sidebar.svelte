@@ -25,6 +25,7 @@
   let newFeedUrl = $state("");
   let sidebarMode = $state<'pentacles' | 'sephiroth'>('pentacles');
   let searchInput = $state("");
+  let expandedCategoryId = $state<number | null>(null);
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   let unlisten: UnlistenFn | null = null;
   let unlistenArticlesReset: UnlistenFn | null = null;
@@ -327,27 +328,61 @@
         </div>
       {/if}
     {:else}
-      <!-- Sephiroth (Categories) List - Only main categories (level 0) -->
+      <!-- Sephiroth (Categories) List - Main categories (level 0) with expandable subcategories -->
       {#each appState.sephiroth.filter(c => c.level === 0) as category (category.id)}
-        {@const subcategoryCount = appState.sephiroth
-          .filter(c => c.parent_id === category.id)
-          .reduce((sum, c) => sum + c.article_count, 0)}
-        <div
-          class="feed-item sephiroth-item {appState.selectedSephirothId === category.id ? 'active' : ''}"
-          onclick={() => handleSelectSephiroth(category.id)}
-          onkeydown={(e) => e.key === 'Enter' && handleSelectSephiroth(category.id)}
-          role="button"
-          tabindex="0"
-          style="--category-color: {category.color || 'var(--accent-primary)'}"
-        >
-          <span class="feed-name">
-            {#if category.icon}
-              <i class="{category.icon} category-icon"></i>
-            {/if}
-            {category.name}
-          </span>
-          {#if subcategoryCount > 0}
-            <span class="category-count">{subcategoryCount}</span>
+        {@const subcategories = appState.sephiroth.filter(c => c.parent_id === category.id)}
+        {@const subcategoryCount = subcategories.reduce((sum, c) => sum + c.article_count, 0)}
+        {@const isExpanded = expandedCategoryId === category.id}
+        <div class="sephiroth-group" style="--category-color: {category.color || 'var(--accent-primary)'}">
+          <div class="sephiroth-header">
+            <button
+              class="expand-btn"
+              onclick={() => expandedCategoryId = isExpanded ? null : category.id}
+              aria-expanded={isExpanded}
+              aria-label={isExpanded ? 'Collapse' : 'Expand'}
+            >
+              <i class="fa-solid fa-chevron-right expand-chevron {isExpanded ? 'rotated' : ''}"></i>
+            </button>
+            <div
+              class="feed-item sephiroth-item {appState.selectedSephirothId === category.id ? 'active' : ''}"
+              onclick={() => handleSelectSephiroth(category.id)}
+              onkeydown={(e) => e.key === 'Enter' && handleSelectSephiroth(category.id)}
+              role="button"
+              tabindex="0"
+            >
+              <span class="feed-name">
+                {#if category.icon}
+                  <i class="{category.icon} category-icon"></i>
+                {/if}
+                {category.name}
+              </span>
+              {#if subcategoryCount > 0}
+                <span class="category-count">{subcategoryCount}</span>
+              {/if}
+            </div>
+          </div>
+          {#if isExpanded && subcategories.length > 0}
+            <div class="subcategory-list">
+              {#each subcategories as sub (sub.id)}
+                <div
+                  class="feed-item subcategory-item {appState.selectedSephirothId === sub.id ? 'active' : ''}"
+                  onclick={() => handleSelectSephiroth(sub.id)}
+                  onkeydown={(e) => e.key === 'Enter' && handleSelectSephiroth(sub.id)}
+                  role="button"
+                  tabindex="0"
+                >
+                  <span class="feed-name">
+                    {#if sub.icon}
+                      <i class="{sub.icon} subcategory-icon"></i>
+                    {/if}
+                    {sub.name}
+                  </span>
+                  {#if sub.article_count > 0}
+                    <span class="category-count small">{sub.article_count}</span>
+                  {/if}
+                </div>
+              {/each}
+            </div>
           {/if}
         </div>
       {/each}
@@ -657,6 +692,85 @@
     background-color: var(--bg-overlay);
     padding: 0.125rem 0.375rem;
     border-radius: 0.25rem;
+  }
+
+  .category-count.small {
+    font-size: 0.625rem;
+    padding: 0.0625rem 0.25rem;
+  }
+
+  /* Expandable Sephiroth Groups */
+  .sephiroth-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sephiroth-header {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .expand-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .expand-btn:hover {
+    color: var(--text-primary);
+  }
+
+  .expand-chevron {
+    font-size: 0.625rem;
+    transition: transform 0.2s ease;
+  }
+
+  .expand-chevron.rotated {
+    transform: rotate(90deg);
+  }
+
+  .sephiroth-header .sephiroth-item {
+    flex: 1;
+    border-left: none;
+    border-radius: 0;
+  }
+
+  .subcategory-list {
+    padding-left: 1.5rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .subcategory-item {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.5rem;
+    border-left: 2px solid color-mix(in srgb, var(--category-color) 40%, transparent);
+    margin-left: 0.5rem;
+  }
+
+  .subcategory-item:hover {
+    background-color: var(--bg-overlay);
+  }
+
+  .subcategory-item.active {
+    border-left-color: var(--category-color);
+    background-color: var(--bg-overlay);
+  }
+
+  .subcategory-icon {
+    width: 1rem;
+    margin-right: 0.25rem;
+    text-align: center;
+    display: inline-block;
+    font-size: 0.6875rem;
+    opacity: 0.8;
   }
 
   .empty-state {
