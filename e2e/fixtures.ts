@@ -61,15 +61,48 @@ export const mockOllamaStatus = {
   has_recommended_embedding: true,
 };
 
+export const mockUnprocessedCount = {
+  total: 5,
+  with_content: 3,
+};
+
+export const mockSyncResponse = {
+  success: true,
+  total_new: 5,
+  total_updated: 2,
+  results: [
+    {
+      pentacle_id: 1,
+      pentacle_title: 'Test Feed',
+      new_articles: 5,
+      updated_articles: 2,
+      full_text_fetched: 5,
+      error: null,
+    },
+  ],
+};
+
 // Script to inject Tauri mocks into the page
 export const tauriMockScript = `
   // Track event listeners for cleanup
   const eventListeners = new Map();
   let listenerId = 0;
 
+  // Track invoke calls for testing
+  window.__INVOKE_CALLS__ = [];
+
+  // Mutable state for dynamic testing
+  window.__MOCK_STATE__ = {
+    unprocessedCount: { total: 0, with_content: 0 },
+    syncCallCount: 0,
+  };
+
   window.__TAURI_INTERNALS__ = {
     invoke: async (cmd, args) => {
       console.log('Mocked invoke:', cmd, args);
+      // Track all invoke calls
+      window.__INVOKE_CALLS__.push({ cmd, args, timestamp: Date.now() });
+
       const mocks = {
         'get_pentacles': ${JSON.stringify(mockPentacles)},
         'get_fnords': ${JSON.stringify(mockFnords)},
@@ -77,10 +110,15 @@ export const tauriMockScript = `
         'get_settings': ${JSON.stringify(mockSettings)},
         'get_setting': null,
         'check_ollama': ${JSON.stringify(mockOllamaStatus)},
-        'get_unprocessed_count': { without_summary: 0, without_analysis: 0, with_content: 0 },
+        'get_unprocessed_count': () => window.__MOCK_STATE__.unprocessedCount,
         'get_changed_fnords': [],
         'reset_all_changes': undefined,
-        'sync_all_feeds': { success: true, total_new: 0, total_updated: 0, results: [] },
+        'sync_all_feeds': () => {
+          // After sync, simulate new unprocessed articles
+          window.__MOCK_STATE__.syncCallCount++;
+          window.__MOCK_STATE__.unprocessedCount = { total: 5, with_content: 3 };
+          return ${JSON.stringify(mockSyncResponse)};
+        },
         'add_pentacle': ${JSON.stringify(mockPentacles[0])},
         'delete_pentacle': undefined,
         'update_fnord_status': undefined,
@@ -91,8 +129,10 @@ export const tauriMockScript = `
         'set_prompts': undefined,
         'calculate_keyword_quality_scores': { updated_count: 0, avg_score: 0, low_quality_count: 0 },
         'ensure_models_loaded': undefined,
+        'get_system_theme': 'dark',
       };
-      return mocks[cmd] ?? undefined;
+      const result = mocks[cmd];
+      return typeof result === 'function' ? result() : (result ?? undefined);
     },
     transformCallback: (callback, once) => {
       const id = listenerId++;

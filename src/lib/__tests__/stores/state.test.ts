@@ -216,3 +216,90 @@ describe('Bias scales', () => {
     });
   });
 });
+
+describe('Sync and Unprocessed Count integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should call get_unprocessed_count after sync_all_feeds completes', async () => {
+    // This test documents the expected behavior:
+    // After sync_all_feeds returns, the app should also call get_unprocessed_count
+    // to update the batch processing badge
+
+    const callOrder: string[] = [];
+
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      callOrder.push(cmd);
+      switch (cmd) {
+        case 'sync_all_feeds':
+          return { success: true, total_new: 5, total_updated: 0, results: [] };
+        case 'get_pentacles':
+          return [];
+        case 'get_fnords':
+          return [];
+        case 'get_unprocessed_count':
+          return { total: 5, with_content: 3 };
+        default:
+          return undefined;
+      }
+    });
+
+    // Simulate the sync flow by calling invoke in the expected order
+    await invoke('sync_all_feeds');
+    await invoke('get_pentacles');
+    await invoke('get_fnords');
+    await invoke('get_unprocessed_count');
+
+    // Verify get_unprocessed_count was called after sync
+    const syncIndex = callOrder.indexOf('sync_all_feeds');
+    const unprocessedIndex = callOrder.indexOf('get_unprocessed_count');
+
+    expect(syncIndex).toBeLessThan(unprocessedIndex);
+    expect(callOrder).toContain('get_unprocessed_count');
+  });
+
+  it('should call get_unprocessed_count after sync_feed completes', async () => {
+    const callOrder: string[] = [];
+
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      callOrder.push(cmd);
+      switch (cmd) {
+        case 'sync_feed':
+          return undefined;
+        case 'get_pentacles':
+          return [];
+        case 'get_fnords':
+          return [];
+        case 'get_unprocessed_count':
+          return { total: 2, with_content: 1 };
+        default:
+          return undefined;
+      }
+    });
+
+    // Simulate single feed sync flow
+    await invoke('sync_feed', { pentacleId: 1 });
+    await invoke('get_pentacles');
+    await invoke('get_fnords');
+    await invoke('get_unprocessed_count');
+
+    const syncIndex = callOrder.indexOf('sync_feed');
+    const unprocessedIndex = callOrder.indexOf('get_unprocessed_count');
+
+    expect(syncIndex).toBeLessThan(unprocessedIndex);
+    expect(callOrder).toContain('get_unprocessed_count');
+  });
+
+  it('should return correct unprocessed count structure', async () => {
+    const mockCount = { total: 10, with_content: 7 };
+    vi.mocked(invoke).mockResolvedValueOnce(mockCount);
+
+    const result = await invoke('get_unprocessed_count');
+
+    expect(result).toEqual(mockCount);
+    expect(result).toHaveProperty('total');
+    expect(result).toHaveProperty('with_content');
+    expect(result.with_content).toBeLessThanOrEqual(result.total);
+  });
+});

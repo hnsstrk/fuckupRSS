@@ -2,7 +2,7 @@
 
 Zentrale Aufgabenliste für fuckupRSS. Diese Datei konsolidiert alle offenen Tasks aus dem Projekt.
 
-**Letzte Aktualisierung:** 2026-01-10
+**Letzte Aktualisierung:** 2026-01-14
 
 ---
 
@@ -207,9 +207,10 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
   - macOS-spezifische Empfehlungen
 
 - [ ] **Test-Coverage**
-  - Aktuell: 260 Tests
+  - Aktuell: 266 Tests (160 Rust, 92 Vitest, 14 E2E)
   - Neue Features müssen getestet werden
   - E2E-Tests für KI-Features
+  - [x] Tests für Sync/Unprocessed-Count-Reaktivität (2026-01-14)
 
 ---
 

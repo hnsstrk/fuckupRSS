@@ -362,6 +362,8 @@ class AppState {
       await this.loadFnords(
         this.selectedPentacleId ? { pentacle_id: this.selectedPentacleId } : undefined
       );
+      // Update unprocessed count for batch processing button
+      await this.loadUnprocessedCount();
 
       return result;
     } catch (e) {
@@ -388,6 +390,8 @@ class AppState {
           this.selectedPentacleId ? { pentacle_id: this.selectedPentacleId } : undefined
         );
       }
+      // Update unprocessed count for batch processing button
+      await this.loadUnprocessedCount();
     } catch (e) {
       this.error = String(e);
       log.error("Failed to sync feed:", e);
