@@ -26,14 +26,20 @@
   async function loadData() {
     loading = true;
     try {
-      const [statsData, fnordsData] = await Promise.all([
-        appState.getFnordStats(),
-        appState.loadChangedFnords().then(() => appState.changedFnords),
-      ]);
+      console.log('[FnordView] Loading stats...');
+      const statsData = await appState.getFnordStats();
+      console.log('[FnordView] Stats loaded:', statsData);
       stats = statsData;
+
+      console.log('[FnordView] Loading changed fnords...');
+      await appState.loadChangedFnords();
       changedFnords = appState.changedFnords;
+      console.log('[FnordView] Changed fnords loaded:', changedFnords.length);
+    } catch (e) {
+      console.error('[FnordView] Error loading data:', e);
     } finally {
       loading = false;
+      console.log('[FnordView] Loading complete, loading =', loading);
     }
   }
 
@@ -110,7 +116,7 @@
             <Tooltip termKey="sephiroth">{$_('fnordView.byCategory') || 'Nach Kategorie'}</Tooltip>
           </h3>
           <div class="category-cards">
-            {#each stats.by_category.filter((c) => c.revision_count > 0) as cat (cat.id)}
+            {#each stats.by_category.filter((c) => c.revision_count > 0) as cat (cat.sephiroth_id)}
               {@const barWidth = (cat.revision_count / maxRevisions) * 100}
               <div class="category-card" style="--cat-color: {cat.color || '#6366F1'}">
                 <div class="card-header">
