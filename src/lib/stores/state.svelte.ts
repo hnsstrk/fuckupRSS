@@ -229,9 +229,15 @@ class AppState {
       this.error = null;
       await invoke("delete_pentacle", { id });
       this.pentacles = this.pentacles.filter((p) => p.id !== id);
+      // Remove fnords from the deleted feed from local state
+      this.fnords = this.fnords.filter((f) => f.pentacle_id !== id);
+      // Remove from changedFnords as well
+      this.changedFnords = this.changedFnords.filter((f) => f.pentacle_id !== id);
       if (this.selectedPentacleId === id) {
         this.selectedPentacleId = null;
       }
+      // Update unprocessed count (deleted articles are no longer pending)
+      await this.loadUnprocessedCount();
     } catch (e) {
       this.error = String(e);
       console.error("Failed to delete pentacle:", e);
@@ -415,6 +421,8 @@ class AppState {
         if (fnord) {
           fnord.content_full = result.content;
         }
+        // Update unprocessed count (article now has content and can be analyzed)
+        await this.loadUnprocessedCount();
       }
 
       return result;
@@ -438,13 +446,20 @@ class AppState {
       });
 
       // Update local state for successful fetches
+      let anySuccess = false;
       for (const result of results) {
         if (result.success && result.content) {
           const fnord = this.fnords.find((f) => f.id === result.fnord_id);
           if (fnord) {
             fnord.content_full = result.content;
           }
+          anySuccess = true;
         }
+      }
+
+      // Update unprocessed count if any articles now have content
+      if (anySuccess) {
+        await this.loadUnprocessedCount();
       }
 
       return results;
@@ -869,6 +884,8 @@ class AppState {
           fnord.sachlichkeit = result.analysis.sachlichkeit;
           fnord.processed_at = new Date().toISOString();
         }
+        // Update unprocessed count (article is now processed)
+        await this.loadUnprocessedCount();
       }
 
       return result;

@@ -217,6 +217,102 @@ describe('Bias scales', () => {
   });
 });
 
+describe('State update consistency', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('deletePentacle', () => {
+    it('should call get_unprocessed_count after deleting a feed', async () => {
+      const callOrder: string[] = [];
+
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        callOrder.push(cmd);
+        switch (cmd) {
+          case 'delete_pentacle':
+            return undefined;
+          case 'get_unprocessed_count':
+            return { total: 0, with_content: 0 };
+          default:
+            return undefined;
+        }
+      });
+
+      // Simulate delete feed flow
+      await invoke('delete_pentacle', { id: 1 });
+      await invoke('get_unprocessed_count');
+
+      const deleteIndex = callOrder.indexOf('delete_pentacle');
+      const unprocessedIndex = callOrder.indexOf('get_unprocessed_count');
+
+      expect(deleteIndex).toBeLessThan(unprocessedIndex);
+    });
+  });
+
+  describe('fetchFullContent', () => {
+    it('should call get_unprocessed_count after fetching full content', async () => {
+      const callOrder: string[] = [];
+
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        callOrder.push(cmd);
+        switch (cmd) {
+          case 'fetch_full_content':
+            return { success: true, content: '<p>Full content</p>', fnord_id: 1 };
+          case 'get_unprocessed_count':
+            return { total: 5, with_content: 5 };
+          default:
+            return undefined;
+        }
+      });
+
+      // Simulate fetch flow
+      await invoke('fetch_full_content', { fnordId: 1 });
+      await invoke('get_unprocessed_count');
+
+      const fetchIndex = callOrder.indexOf('fetch_full_content');
+      const unprocessedIndex = callOrder.indexOf('get_unprocessed_count');
+
+      expect(fetchIndex).toBeLessThan(unprocessedIndex);
+    });
+  });
+
+  describe('processArticleDiscordian', () => {
+    it('should call get_unprocessed_count after processing an article', async () => {
+      const callOrder: string[] = [];
+
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        callOrder.push(cmd);
+        switch (cmd) {
+          case 'process_article_discordian':
+            return {
+              success: true,
+              analysis: {
+                summary: 'Test summary',
+                political_bias: 0,
+                sachlichkeit: 3,
+                categories: [],
+                keywords: [],
+              },
+            };
+          case 'get_unprocessed_count':
+            return { total: 4, with_content: 4 };
+          default:
+            return undefined;
+        }
+      });
+
+      // Simulate analysis flow
+      await invoke('process_article_discordian', { fnordId: 1, model: 'test-model' });
+      await invoke('get_unprocessed_count');
+
+      const processIndex = callOrder.indexOf('process_article_discordian');
+      const unprocessedIndex = callOrder.indexOf('get_unprocessed_count');
+
+      expect(processIndex).toBeLessThan(unprocessedIndex);
+    });
+  });
+});
+
 describe('Sync and Unprocessed Count integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();

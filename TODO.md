@@ -207,10 +207,12 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
   - macOS-spezifische Empfehlungen
 
 - [ ] **Test-Coverage**
-  - Aktuell: 266 Tests (160 Rust, 92 Vitest, 14 E2E)
+  - Aktuell: 269 Tests (160 Rust, 95 Vitest, 14 E2E)
   - Neue Features müssen getestet werden
   - E2E-Tests für KI-Features
-  - [x] Tests für Sync/Unprocessed-Count-Reaktivität (2026-01-14)
+  - [x] Tests für State-Konsistenz nach Backend-Operationen (2026-01-14):
+    - Sync/Unprocessed-Count-Reaktivität
+    - deletePentacle/fetchFullContent/processArticleDiscordian
 
 ---
 

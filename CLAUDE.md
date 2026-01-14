@@ -95,9 +95,9 @@ cargo tarpaulin --manifest-path src-tauri/Cargo.toml
 | Bereich | Anzahl Tests | Tool |
 |---------|-------------|------|
 | Rust Backend | 160 Tests | `cargo test` |
-| Frontend (Vitest) | 92 Tests | `npm run test` |
+| Frontend (Vitest) | 95 Tests | `npm run test` |
 | E2E (Playwright) | 14 Tests | `npm run test:e2e` |
-| **Gesamt** | **266 Tests** | |
+| **Gesamt** | **269 Tests** | |
 
 ### Test-Struktur
 
