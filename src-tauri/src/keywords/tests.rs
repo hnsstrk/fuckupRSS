@@ -176,3 +176,60 @@ fn test_max_keywords_respected() {
         keywords.len()
     );
 }
+
+#[test]
+fn test_find_canonical_keyword_countries() {
+    // Test country adjective → country name normalization
+    assert_eq!(find_canonical_keyword("russian"), Some("Russland"));
+    assert_eq!(find_canonical_keyword("russia"), Some("Russland"));
+    assert_eq!(find_canonical_keyword("moscow"), Some("Russland"));
+    assert_eq!(find_canonical_keyword("kreml"), Some("Russland"));
+
+    assert_eq!(find_canonical_keyword("ukrainian"), Some("Ukraine"));
+    assert_eq!(find_canonical_keyword("kyiv"), Some("Ukraine"));
+    assert_eq!(find_canonical_keyword("kiev"), Some("Ukraine"));
+
+    assert_eq!(find_canonical_keyword("european"), Some("Europäische Union"));
+    assert_eq!(find_canonical_keyword("eu"), Some("Europäische Union"));
+    assert_eq!(find_canonical_keyword("brüssel"), Some("Europäische Union"));
+
+    assert_eq!(find_canonical_keyword("british"), Some("Großbritannien"));
+    assert_eq!(find_canonical_keyword("scotland"), Some("Großbritannien"));
+    assert_eq!(find_canonical_keyword("london"), Some("Großbritannien"));
+
+    assert_eq!(find_canonical_keyword("french"), Some("Frankreich"));
+    assert_eq!(find_canonical_keyword("paris"), Some("Frankreich"));
+
+    assert_eq!(find_canonical_keyword("iranian"), Some("Iran"));
+    assert_eq!(find_canonical_keyword("teheran"), Some("Iran"));
+
+    assert_eq!(find_canonical_keyword("american"), Some("Vereinigte Staaten"));
+    assert_eq!(find_canonical_keyword("usa"), Some("Vereinigte Staaten"));
+    assert_eq!(find_canonical_keyword("washington"), Some("Vereinigte Staaten"));
+}
+
+#[test]
+fn test_find_canonical_keyword_topics() {
+    // Test topic normalization
+    assert_eq!(find_canonical_keyword("military"), Some("Sicherheit"));
+    assert_eq!(find_canonical_keyword("security"), Some("Sicherheit"));
+    assert_eq!(find_canonical_keyword("defense"), Some("Sicherheit"));
+
+    assert_eq!(find_canonical_keyword("economy"), Some("Wirtschaft"));
+    assert_eq!(find_canonical_keyword("economic"), Some("Wirtschaft"));
+
+    assert_eq!(find_canonical_keyword("migration"), Some("Migration"));
+    assert_eq!(find_canonical_keyword("refugees"), Some("Migration"));
+    assert_eq!(find_canonical_keyword("asylum"), Some("Migration"));
+
+    assert_eq!(find_canonical_keyword("climate change"), Some("Klimawandel"));
+    assert_eq!(find_canonical_keyword("global warming"), Some("Klimawandel"));
+}
+
+#[test]
+fn test_find_canonical_keyword_no_match() {
+    // Test that non-matching keywords return None
+    assert_eq!(find_canonical_keyword("bitcoin"), None);
+    assert_eq!(find_canonical_keyword("fußball"), None);
+    assert_eq!(find_canonical_keyword("apple"), None);
+}
