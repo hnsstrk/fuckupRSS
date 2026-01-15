@@ -43,6 +43,7 @@ pub struct KeywordCategory {
     pub article_count: i64,
     pub parent_id: Option<i64>,
     pub parent_name: Option<String>,
+    pub parent_icon: Option<String>,
 }
 
 /// Keyword cluster (for future clustering feature)
@@ -204,7 +205,7 @@ pub fn get_keyword_categories(
         .prepare(
             r#"
             SELECT s.id, s.name, s.icon, COALESCE(m.color, s.color), ims.weight, ims.article_count,
-                   s.parent_id, m.name as parent_name
+                   s.parent_id, m.name as parent_name, m.icon as parent_icon
             FROM immanentize_sephiroth ims
             JOIN sephiroth s ON s.id = ims.sephiroth_id
             LEFT JOIN sephiroth m ON m.id = s.parent_id
@@ -225,6 +226,7 @@ pub fn get_keyword_categories(
                 article_count: row.get(5)?,
                 parent_id: row.get(6)?,
                 parent_name: row.get(7)?,
+                parent_icon: row.get(8)?,
             })
         })
         .map_err(|e| e.to_string())?

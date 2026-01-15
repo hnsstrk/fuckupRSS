@@ -54,7 +54,6 @@
   const hasIndicators = $derived(
     showIndicators && (
       categories.length > 0 ||
-      revision_count > 0 ||
       quality_score !== null ||
       (political_bias !== null && political_bias !== 0)
     )
@@ -83,6 +82,11 @@
         {:else if published_at}
           <span>{formatRelativeDate(published_at, currentLocale)}</span>
         {/if}
+        {#if revision_count > 0}
+          <span class="revision-badge" title="Revisionen">
+            <i class="fa-solid fa-pen-to-square"></i>{revision_count}
+          </span>
+        {/if}
       </div>
       {#if hasIndicators}
         <div class="article-indicators">
@@ -94,11 +98,6 @@
                   style="background-color: {cat.color || 'var(--text-muted)'}"
                 ></span>
               {/each}
-            </span>
-          {/if}
-          {#if revision_count > 0}
-            <span class="revision-count">
-              <i class="fa-solid fa-pen-to-square"></i>{revision_count}
             </span>
           {/if}
           {#if quality_score}
@@ -201,6 +200,23 @@
     color: var(--accent-warning);
   }
 
+  .revision-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.375rem;
+    background-color: var(--fnord-color);
+    color: var(--bg-base);
+    border-radius: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    margin-left: 0.25rem;
+  }
+
+  .revision-badge i {
+    font-size: 0.625rem;
+  }
+
   .article-indicators {
     display: flex;
     align-items: center;
@@ -241,8 +257,4 @@
     display: inline-block;
   }
 
-  .revision-count {
-    color: var(--accent-secondary);
-    font-size: 0.7rem;
-  }
 </style>

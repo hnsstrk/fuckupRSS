@@ -198,6 +198,7 @@
           <p>{$_("mindfuck.profile.noData")}</p>
         </div>
       {:else}
+        {@const maxRead = Math.max(...readingProfile.by_category.map(c => c.read_count), 1)}
         <!-- Profile Overview -->
         <div class="section">
           <h3>{$_("mindfuck.profile.title")}</h3>
@@ -223,62 +224,71 @@
           </div>
         </div>
 
-        <!-- Category Distribution - Expandable Main Categories -->
+        <!-- Category Distribution - Card Layout (like FnordView) -->
         <div class="section">
           <h3>{$_("mindfuck.categories.title")}</h3>
-          <div class="category-bars">
+          <div class="category-cards">
             {#each readingProfile.by_category as cat (cat.sephiroth_id)}
-              <div class="category-group {expandedCategoryId === cat.sephiroth_id ? 'expanded' : ''}">
-                <button
-                  class="category-bar-row category-expandable"
-                  onclick={() => toggleCategoryExpand(cat.sephiroth_id)}
-                  style="--category-color: {cat.color || 'var(--accent-primary)'}"
-                >
-                  <div class="category-label">
+              {@const barWidth = (cat.read_count / maxRead) * 100}
+              {@const isExpanded = expandedCategoryId === cat.sephiroth_id}
+              <button
+                class="category-card {isExpanded ? 'expanded' : ''}"
+                style="--cat-color: {cat.color || '#6366F1'}"
+                onclick={() => toggleCategoryExpand(cat.sephiroth_id)}
+              >
+                <div class="card-header">
+                  <div class="card-icon-wrapper">
                     {#if cat.icon}
-                      <i class="{cat.icon} category-icon"></i>
+                      <i class="{cat.icon}"></i>
+                    {:else}
+                      <i class="fa-solid fa-folder"></i>
                     {/if}
-                    <span class="category-name">{cat.name}</span>
-                    <i class="expand-icon fa-solid {expandedCategoryId === cat.sephiroth_id ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
                   </div>
-                  <div class="bar-container">
-                    <div class="bar-background">
-                      <div
-                        class="bar-fill read"
-                        style="width: {cat.percentage}%; background-color: {cat.color || 'var(--accent-primary)'}"
-                      ></div>
-                    </div>
-                    <span class="bar-value">{cat.read_count} / {cat.total_count}</span>
+                  <span class="card-title">{cat.name}</span>
+                  <i class="fa-solid fa-chevron-down expand-icon {isExpanded ? 'rotated' : ''}"></i>
+                </div>
+                <div class="card-stats">
+                  <div class="stat-row">
+                    <span class="stat-label">{$_("mindfuck.categories.read") || 'Gelesen'}</span>
+                    <span class="stat-value">{cat.read_count}</span>
                   </div>
-                </button>
+                  <div class="progress-bar">
+                    <div class="progress-fill" style="width: {barWidth}%"></div>
+                  </div>
+                  <div class="stat-row secondary">
+                    <span class="stat-label">{$_("mindfuck.categories.available") || 'Verfügbar'}</span>
+                    <span class="stat-value">{cat.total_count}</span>
+                  </div>
+                </div>
 
-                {#if expandedCategoryId === cat.sephiroth_id && cat.subcategories && cat.subcategories.length > 0}
-                  <div class="subcategories-list">
+                <!-- Subcategories (expanded view) -->
+                {#if isExpanded && cat.subcategories && cat.subcategories.length > 0}
+                  <div class="subcategories">
                     {#each cat.subcategories as sub (sub.sephiroth_id)}
-                      <div class="subcategory-bar-row">
-                        <div class="category-label subcategory-label">
+                      <div class="subcategory-item">
+                        <div class="subcategory-info">
                           {#if sub.icon}
-                            <i class="{sub.icon} category-icon subcategory-icon"></i>
+                            <i class="{sub.icon} subcategory-icon"></i>
                           {/if}
-                          <span class="category-name">{sub.name}</span>
-                        </div>
-                        <div class="bar-container">
-                          <div class="bar-background">
-                            <div
-                              class="bar-fill read subcategory-bar"
-                              style="width: {sub.percentage}%; background-color: {cat.color || 'var(--accent-primary)'}"
-                            ></div>
-                          </div>
-                          <span class="bar-value">{sub.read_count} / {sub.total_count}</span>
+                          <span class="subcategory-name">{sub.name}</span>
                           {#if sub.percentage < 30 && sub.total_count > 5}
-                            <span class="warning-indicator" title={$_("mindfuck.blindSpots.lowReadRate")}>⚠️</span>
+                            <span class="warning-badge" title={$_("mindfuck.blindSpots.lowReadRate")}>!</span>
                           {/if}
+                        </div>
+                        <div class="subcategory-stats">
+                          <span class="subcategory-count" title="{$_('mindfuck.categories.read') || 'Gelesen'}">
+                            {sub.read_count}
+                          </span>
+                          <span class="subcategory-divider">/</span>
+                          <span class="subcategory-count" title="{$_('mindfuck.categories.available') || 'Verfügbar'}">
+                            {sub.total_count}
+                          </span>
                         </div>
                       </div>
                     {/each}
                   </div>
                 {/if}
-              </div>
+              </button>
             {/each}
           </div>
         </div>
@@ -565,135 +575,187 @@
     color: var(--text-muted);
   }
 
-  /* Category Bars - Expandable */
-  .category-bars {
+  /* Category Cards (matching FnordView) */
+  .category-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  .category-card {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 15%, var(--bg-default)) 0%, var(--bg-default) 100%);
+    border: 1px solid color-mix(in srgb, var(--cat-color) 30%, transparent);
+    border-radius: 0.625rem;
+    padding: 1rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+  }
+
+  .category-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--cat-color) 20%, transparent);
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.875rem;
+  }
+
+  .card-icon-wrapper {
+    width: 2.25rem;
+    height: 2.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--cat-color), color-mix(in srgb, var(--cat-color) 70%, black));
+    border-radius: 0.5rem;
+    color: white;
+    font-size: 1rem;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--cat-color) 40%, transparent);
+  }
+
+  .card-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-stats {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.375rem;
   }
 
-  .category-group {
-    border: 1px solid var(--border-default);
-    border-radius: 0.5rem;
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .stat-row.secondary {
+    margin-top: 0.25rem;
+  }
+
+  .stat-row.secondary .stat-label,
+  .stat-row.secondary .stat-value {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .progress-bar {
+    height: 6px;
+    background-color: color-mix(in srgb, var(--cat-color) 20%, transparent);
+    border-radius: 3px;
     overflow: hidden;
-    transition: all 0.2s;
   }
 
-  .category-group.expanded {
-    border-color: var(--category-color, var(--accent-primary));
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cat-color), color-mix(in srgb, var(--cat-color) 80%, white));
+    border-radius: 3px;
+    transition: width 0.3s ease;
   }
 
-  .category-bar-row {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    width: 100%;
-    text-align: left;
-  }
-
-  .category-expandable {
-    padding: 0.75rem 1rem;
-    background: var(--bg-overlay);
-    border: none;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    border-left: 3px solid var(--category-color, var(--accent-primary));
-  }
-
-  .category-expandable:hover {
-    background-color: var(--bg-muted);
-  }
-
-  .category-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 180px;
+  /* Category Card expanded state */
+  .category-card.expanded {
+    grid-column: 1 / -1;
   }
 
   .expand-icon {
     font-size: 0.75rem;
     color: var(--text-muted);
-    margin-left: auto;
-    transition: transform 0.2s;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
   }
 
-  .category-icon {
-    font-size: 1rem;
-    width: 1.25rem;
-    text-align: center;
-  }
-
-  .category-name {
-    font-size: 0.875rem;
-    color: var(--text-primary);
+  .expand-icon.rotated {
+    transform: rotate(180deg);
   }
 
   /* Subcategories */
-  .subcategories-list {
-    padding: 0.5rem 0;
-    background-color: var(--bg-surface);
-    border-top: 1px solid var(--border-default);
+  .subcategories {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid color-mix(in srgb, var(--cat-color) 20%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
-  .subcategory-bar-row {
+  .subcategory-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background-color: color-mix(in srgb, var(--cat-color) 8%, transparent);
+    border-radius: 0.375rem;
+  }
+
+  .subcategory-info {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.5rem 1rem 0.5rem 2rem;
-  }
-
-  .subcategory-label {
-    min-width: 150px;
+    gap: 0.5rem;
+    min-width: 0;
+    flex: 1;
   }
 
   .subcategory-icon {
-    font-size: 0.875rem;
+    font-size: 0.75rem;
+    color: var(--cat-color);
+    flex-shrink: 0;
   }
 
-  .subcategory-bar {
-    opacity: 0.7;
+  .subcategory-name {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .warning-indicator {
-    font-size: 0.875rem;
-    margin-left: 0.5rem;
+  .warning-badge {
+    font-size: 0.625rem;
+    width: 1rem;
+    height: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--accent-warning);
+    color: var(--bg-base);
+    border-radius: 50%;
+    font-weight: 700;
+    flex-shrink: 0;
   }
 
-  .bar-container {
-    flex: 1;
+  .subcategory-stats {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-  }
-
-  .bar-background {
-    flex: 1;
-    height: 8px;
-    background-color: var(--bg-overlay);
-    border-radius: 4px;
-    overflow: hidden;
-  }
-
-  .bar-fill {
-    height: 100%;
-    border-radius: 4px;
-    transition: width 0.3s ease;
-  }
-
-  .bar-fill.read {
-    opacity: 0.8;
-  }
-
-  .bar-fill.sachlichkeit {
-    background-color: var(--ctp-teal);
-  }
-
-  .bar-value {
-    min-width: 80px;
-    text-align: right;
+    gap: 0.25rem;
     font-size: 0.75rem;
     color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .subcategory-count {
+    font-weight: 500;
+  }
+
+  .subcategory-divider {
+    color: var(--text-faint);
+  }
+
+  /* Bias Distribution - using bar styles */
+  .bar-fill.sachlichkeit {
+    background-color: var(--ctp-teal);
   }
 
   /* Bias Distribution */
