@@ -422,6 +422,179 @@ pub fn analyze_article_statistical(
 }
 
 // ============================================================
+// BATCH STATISTICAL ANALYSIS
+// ============================================================
+
+/// Result of batch statistical analysis
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BatchStatisticalResult {
+    pub processed: usize,
+    pub total: usize,
+    pub errors: Vec<String>,
+}
+
+/// Count unprocessed articles (no LLM analysis yet) that have full content
+#[tauri::command]
+pub fn get_unprocessed_statistical_count(state: State<AppState>) -> Result<i64, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let count: i64 = db
+        .conn()
+        .query_row(
+            r#"
+            SELECT COUNT(*)
+            FROM fnords
+            WHERE processed_at IS NULL
+              AND content_full IS NOT NULL
+              AND content_full != ''
+            "#,
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(count)
+}
+
+/// Run statistical analysis on all unprocessed articles
+/// Extracts keywords and categories using TF-IDF and word matching
+#[tauri::command]
+pub fn process_statistical_batch(
+    state: State<AppState>,
+    limit: Option<i64>,
+) -> Result<BatchStatisticalResult, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Load bias weights once
+    let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
+
+    // Load user stopwords once
+    let user_stopwords = load_user_stopwords(db.conn()).unwrap_or_default();
+
+    // Get unprocessed articles with full content
+    let limit_val = limit.unwrap_or(1000);
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT id, COALESCE(content_full, '') as content
+            FROM fnords
+            WHERE processed_at IS NULL
+              AND content_full IS NOT NULL
+              AND content_full != ''
+            ORDER BY published_at DESC
+            LIMIT ?
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let articles: Vec<(i64, String)> = stmt
+        .query_map([limit_val], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let total = articles.len();
+    let mut processed = 0;
+    let mut errors = Vec::new();
+
+    // Create extractors
+    let extractor = TfIdfExtractor::new().with_max_keywords(10);
+    let matcher = CategoryMatcher::new().with_max_categories(3);
+
+    for (fnord_id, content) in articles {
+        if content.is_empty() {
+            continue;
+        }
+
+        // Extract keywords
+        let keywords = extractor.extract_simple_with_stopwords(&content, &user_stopwords);
+
+        // Match categories
+        let categories = matcher.score_categories(&content, Some(&bias));
+
+        // Store keywords with source='statistical'
+        for kc in keywords.iter().take(10) {
+            let adjusted_score = bias.apply_to_keyword(&kc.term, kc.score);
+            if adjusted_score < 0.05 {
+                continue; // Skip very low scoring keywords
+            }
+
+            // Get or create keyword
+            let keyword_id: i64 = db
+                .conn()
+                .query_row(
+                    "SELECT id FROM immanentize WHERE name = ?",
+                    [&kc.term],
+                    |row| row.get(0),
+                )
+                .or_else(|_| {
+                    db.conn().execute(
+                        "INSERT INTO immanentize (name, count, article_count, first_seen, last_used) VALUES (?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                        [&kc.term],
+                    )?;
+                    Ok::<i64, rusqlite::Error>(db.conn().last_insert_rowid())
+                })
+                .unwrap_or(0);
+
+            if keyword_id > 0 {
+                // Insert with source='statistical', only if not already present
+                let _ = db.conn().execute(
+                    "INSERT OR IGNORE INTO fnord_immanentize (fnord_id, immanentize_id, source, confidence)
+                     VALUES (?, ?, 'statistical', ?)",
+                    params![fnord_id, keyword_id, adjusted_score.min(1.0)],
+                );
+
+                // Update article_count
+                let _ = db.conn().execute(
+                    "UPDATE immanentize SET
+                        article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?),
+                        last_used = CURRENT_TIMESTAMP
+                     WHERE id = ?",
+                    params![keyword_id, keyword_id],
+                );
+            }
+        }
+
+        // Store categories with source='statistical' (only subcategories, level=1)
+        for cs in categories.iter().take(3) {
+            if cs.confidence < 0.3 {
+                continue; // Skip low-confidence categories
+            }
+
+            // Check if this is a subcategory (level=1)
+            let is_subcategory: bool = db
+                .conn()
+                .query_row(
+                    "SELECT level = 1 FROM sephiroth WHERE id = ?",
+                    [cs.sephiroth_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(false);
+
+            if !is_subcategory {
+                continue;
+            }
+
+            // Insert with source='ai' (statistical categories use same source as AI for now)
+            let _ = db.conn().execute(
+                "INSERT OR IGNORE INTO fnord_sephiroth (fnord_id, sephiroth_id, source, confidence, assigned_at)
+                 VALUES (?, ?, 'ai', ?, CURRENT_TIMESTAMP)",
+                params![fnord_id, cs.sephiroth_id, cs.confidence],
+            );
+        }
+
+        processed += 1;
+    }
+
+    Ok(BatchStatisticalResult {
+        processed,
+        total,
+        errors,
+    })
+}
+
+// ============================================================
 // BIAS LEARNING
 // ============================================================
 

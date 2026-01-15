@@ -204,6 +204,8 @@ pub fn run() {
             commands::article_analysis::add_article_category,
             commands::article_analysis::remove_article_category,
             commands::article_analysis::analyze_article_statistical,
+            commands::article_analysis::get_unprocessed_statistical_count,
+            commands::article_analysis::process_statistical_batch,
             commands::article_analysis::record_correction,
             commands::article_analysis::get_bias_stats,
             // Stopword Management

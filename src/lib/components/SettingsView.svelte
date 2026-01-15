@@ -685,6 +685,30 @@
     }
   }
 
+  async function handleStatisticalAnalysis() {
+    maintenanceRunning = "statistical";
+    maintenanceResult = null;
+    try {
+      // Get count first
+      const count = await invoke<number>("get_unprocessed_statistical_count");
+      if (count === 0) {
+        maintenanceResult = $_("settings.maintenance.noUnprocessedArticles");
+        return;
+      }
+      // Run statistical analysis
+      const result = await invoke<{
+        processed: number;
+        total: number;
+        errors: string[];
+      }>("process_statistical_batch", { limit: 1000 });
+      maintenanceResult = `${result.processed} ${$_("settings.maintenance.articlesAnalyzed")}`;
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    } finally {
+      maintenanceRunning = null;
+    }
+  }
+
   function showPruneConfirmation() {
     confirmAction = "prune";
   }
@@ -2030,6 +2054,27 @@
             {maintenanceRunning === "embeddings"
               ? $_("settings.maintenance.running")
               : $_("settings.maintenance.generateEmbeddings")}
+          </button>
+        </div>
+
+        <div class="maintenance-action">
+          <div class="action-info">
+            <span class="action-title"
+              >{$_("settings.maintenance.statisticalAnalysis")}</span
+            >
+            <p class="action-desc">
+              {$_("settings.maintenance.statisticalAnalysisDesc")}
+            </p>
+          </div>
+          <button
+            type="button"
+            class="btn-action"
+            onclick={handleStatisticalAnalysis}
+            disabled={maintenanceRunning !== null}
+          >
+            {maintenanceRunning === "statistical"
+              ? $_("settings.maintenance.running")
+              : $_("settings.maintenance.statisticalAnalysis")}
           </button>
         </div>
 
