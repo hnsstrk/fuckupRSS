@@ -20,6 +20,7 @@ pub mod similarity;
 pub mod types;
 
 // Re-export types for backward compatibility with existing tests and code
+#[allow(unused_imports)]
 pub use types::{
     // Status & Model Types
     OllamaStatus,

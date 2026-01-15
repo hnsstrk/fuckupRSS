@@ -1,3 +1,4 @@
+use crate::text_analysis::STOPWORDS;
 use keyword_extraction::rake::{Rake, RakeParams};
 use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
@@ -38,62 +39,9 @@ pub enum Language {
     English,
 }
 
-static STOPWORDS_DE: Lazy<HashSet<String>> = Lazy::new(|| {
-    include_str!("stopwords_de.txt")
-        .lines()
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .map(|s| s.to_lowercase())
-        .collect()
-});
-
-static STOPWORDS_EN: Lazy<HashSet<String>> = Lazy::new(|| {
-    include_str!("stopwords_en.txt")
-        .lines()
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .map(|s| s.to_lowercase())
-        .collect()
-});
-
-static NEWS_STOPWORDS: Lazy<HashSet<String>> = Lazy::new(|| {
-    [
-        "bericht",
-        "sagt",
-        "laut",
-        "unterdessen",
-        "heute",
-        "gestern",
-        "video",
-        "update",
-        "interview",
-        "kommentar",
-        "mehr",
-        "neue",
-        "ersten",
-        "lesen",
-        "artikel",
-        "news",
-        "uhr",
-        "foto",
-        "quelle",
-        "dpa",
-        "afp",
-        "reuters",
-        "report",
-        "says",
-        "according",
-        "today",
-        "yesterday",
-        "comment",
-        "read",
-        "article",
-        "source",
-        "photo",
-        "breaking",
-        "exclusive",
-    ]
-    .iter()
-    .map(|s| s.to_string())
-    .collect()
+/// Unified stopwords from central text_analysis module (converted to owned Strings for RAKE/YAKE)
+static UNIFIED_STOPWORDS: Lazy<HashSet<String>> = Lazy::new(|| {
+    STOPWORDS.iter().map(|s| s.to_string()).collect()
 });
 
 static ORG_SUFFIXES: Lazy<Vec<&str>> = Lazy::new(|| {
@@ -170,11 +118,9 @@ impl KeywordExtractor {
         }
     }
 
-    fn get_stopwords(lang: Language) -> &'static HashSet<String> {
-        match lang {
-            Language::German => &STOPWORDS_DE,
-            Language::English => &STOPWORDS_EN,
-        }
+    fn get_stopwords(_lang: Language) -> &'static HashSet<String> {
+        // Use unified stopwords for all languages (includes DE, EN, HTML, and news terms)
+        &UNIFIED_STOPWORDS
     }
 
     pub fn extract(&self, title: &str, content: &str) -> Vec<ExtractedKeyword> {
@@ -284,8 +230,7 @@ impl KeywordExtractor {
         for cap in cap_pattern.captures_iter(text) {
             let phrase = cap.get(1).unwrap().as_str().to_string();
             if phrase.len() >= 3
-                && !STOPWORDS_DE.contains(&phrase.to_lowercase())
-                && !STOPWORDS_EN.contains(&phrase.to_lowercase())
+                && !UNIFIED_STOPWORDS.contains(&phrase.to_lowercase())
             {
                 let kw_type = self.classify_entity(&phrase);
                 if kw_type != KeywordType::Concept {
@@ -344,7 +289,8 @@ impl KeywordExtractor {
         if text.len() < 2 || text.len() > 50 {
             return false;
         }
-        if NEWS_STOPWORDS.contains(&lower) {
+        // Check against unified stopwords (includes news, HTML, DE, EN)
+        if stopwords.contains(&lower) {
             return false;
         }
 

@@ -8,7 +8,7 @@ use crate::db::Database;
 use crate::embeddings::{cosine_similarity_from_blobs, embedding_to_blob};
 use crate::ollama::OllamaClient;
 use futures::future::join_all;
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -108,17 +108,13 @@ fn save_embedding_and_dequeue(
 
     // Insert into vec0 virtual table for fast similarity search
     // Use REPLACE to handle re-embeddings (e.g., after model change)
-    db.conn()
-        .execute(
-            "INSERT OR REPLACE INTO vec_immanentize (immanentize_id, embedding) VALUES (?1, ?2)",
-            rusqlite::params![keyword_id, blob],
-        )
-        .map_err(|e| {
-            // Log but don't fail - main embedding table is the source of truth
-            warn!("Failed to update vec_immanentize: {}", e);
-            e.to_string()
-        })
-        .ok();
+    // Vec table is optional - main embedding table is the source of truth
+    if let Err(e) = db.conn().execute(
+        "INSERT OR REPLACE INTO vec_immanentize (immanentize_id, embedding) VALUES (?1, ?2)",
+        rusqlite::params![keyword_id, blob],
+    ) {
+        warn!("Failed to update vec_immanentize: {}", e);
+    }
 
     // Remove from queue
     db.conn()
@@ -301,11 +297,13 @@ pub fn calculate_pending_quality_scores(db: &Arc<Mutex<Database>>, limit: i64) -
                 .min(1.0)
                 .max(0.0);
 
-            conn.execute(
+            if let Err(e) = conn.execute(
                 "UPDATE immanentize SET quality_score = ?1, quality_calculated_at = datetime('now') WHERE id = ?2",
                 rusqlite::params![quality, keyword_id],
-            )
-            .ok();
+            ) {
+                trace!("Failed to update quality score for keyword {}: {}", keyword_id, e);
+                continue;
+            }
 
             updated += 1;
         }
@@ -461,13 +459,15 @@ pub fn calculate_neighbor_similarities(db: &Arc<Mutex<Database>>, limit: i64) ->
                 cosine_similarity_from_blobs(&blob_a, &blob_b),
                 calculate_combined_weight_for_pair(conn, id_a, id_b),
             ) {
-                conn.execute(
+                if let Err(e) = conn.execute(
                     r#"UPDATE immanentize_neighbors
                        SET embedding_similarity = ?1, combined_weight = ?2
                        WHERE immanentize_id_a = ?3 AND immanentize_id_b = ?4"#,
                     rusqlite::params![sim, combined, id_a, id_b],
-                )
-                .ok();
+                ) {
+                    trace!("Failed to update neighbor similarity {} <-> {}: {}", id_a, id_b, e);
+                    continue;
+                }
                 updated += 1;
             }
         }

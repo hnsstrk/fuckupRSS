@@ -7,7 +7,7 @@ use rusqlite::Connection;
 use std::collections::HashSet;
 use std::sync::LazyLock;
 
-/// Combined German, English, and HTML/technical stopwords
+/// Combined German, English, HTML/technical, and news stopwords
 pub static STOPWORDS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     let mut words = HashSet::new();
 
@@ -23,6 +23,11 @@ pub static STOPWORDS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
 
     // HTML/technical stopwords
     for word in HTML_STOPWORDS {
+        words.insert(*word);
+    }
+
+    // News-specific stopwords
+    for word in NEWS_STOPWORDS {
         words.insert(*word);
     }
 
@@ -185,6 +190,20 @@ static HTML_STOPWORDS: &[&str] = &[
     // Common tracking/analytics terms
     "tracking", "analytics", "pixel", "beacon", "tag", "gtm", "ga", "utm", "source",
     "medium", "campaign", "term", "cookie", "session", "storage", "local", "cache",
+];
+
+/// News-specific stopwords (journalistic terms, news agencies, common filler words)
+static NEWS_STOPWORDS: &[&str] = &[
+    // German news terms
+    "bericht", "sagt", "laut", "unterdessen", "heute", "gestern", "video", "update",
+    "interview", "kommentar", "mehr", "neue", "ersten", "lesen", "artikel", "news",
+    "uhr", "foto", "quelle", "dpa", "afp", "reuters", "aktualisiert", "redaktion",
+    "meldung", "nachricht", "pressemitteilung", "mitteilung", "stellungnahme",
+    // English news terms
+    "report", "says", "according", "today", "yesterday", "comment", "read", "article",
+    "source", "photo", "breaking", "exclusive", "update", "live", "developing",
+    "correspondent", "reporter", "editor", "editorial", "opinion", "analysis",
+    "wire", "ap", "upi", "featured", "trending", "viral", "latest",
 ];
 
 // ============================================================

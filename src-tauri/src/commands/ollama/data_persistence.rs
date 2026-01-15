@@ -5,7 +5,7 @@ use crate::db::Database;
 use crate::embeddings::embedding_to_blob;
 use crate::ollama::OllamaClient;
 use crate::{find_canonical_keyword_with_db, normalize_keyword, split_compound_keyword};
-use log::{debug, warn};
+use log::{debug, trace, warn};
 use rusqlite::Connection;
 
 use super::types::{CategoryWithSource, KeywordWithSource};
@@ -39,8 +39,10 @@ pub fn save_article_categories_with_source(
 ) -> Vec<String> {
     let mut saved = Vec::new();
 
-    conn.execute("DELETE FROM fnord_sephiroth WHERE fnord_id = ?", [fnord_id])
-        .ok();
+    // Clear existing categories before re-inserting
+    if let Err(e) = conn.execute("DELETE FROM fnord_sephiroth WHERE fnord_id = ?", [fnord_id]) {
+        warn!("Failed to clear categories for fnord {}: {}", fnord_id, e);
+    }
 
     for cat in categories {
         if let Ok(sephiroth_id) = conn.query_row::<i64, _, _>(
@@ -48,19 +50,22 @@ pub fn save_article_categories_with_source(
             [&cat.name],
             |row| row.get(0),
         ) {
-            conn.execute(
+            if let Err(e) = conn.execute(
                 r#"INSERT OR IGNORE INTO fnord_sephiroth
                    (fnord_id, sephiroth_id, confidence, source, assigned_at)
                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)"#,
                 rusqlite::params![fnord_id, sephiroth_id, cat.confidence, &cat.source],
-            )
-            .ok();
+            ) {
+                warn!("Failed to save category {} for fnord {}: {}", cat.name, fnord_id, e);
+                continue;
+            }
 
-            conn.execute(
+            if let Err(e) = conn.execute(
                 "UPDATE sephiroth SET article_count = (SELECT COUNT(*) FROM fnord_sephiroth WHERE sephiroth_id = ?) WHERE id = ?",
                 rusqlite::params![sephiroth_id, sephiroth_id],
-            )
-            .ok();
+            ) {
+                trace!("Failed to update category article count: {}", e);
+            }
 
             saved.push(cat.name.clone());
         }
@@ -115,11 +120,13 @@ pub fn save_article_keywords_with_source(
             .collect()
     };
 
-    conn.execute(
+    // Clear existing keywords before re-inserting
+    if let Err(e) = conn.execute(
         "DELETE FROM fnord_immanentize WHERE fnord_id = ?",
         [fnord_id],
-    )
-    .ok();
+    ) {
+        warn!("Failed to clear keywords for fnord {}: {}", fnord_id, e);
+    }
 
     // Expand compound keywords (e.g., "Trump-Zölle" → ["Trump-Zölle", "Trump", "Zölle"])
     let expanded_keywords: Vec<KeywordWithSource> = keywords
@@ -163,32 +170,31 @@ pub fn save_article_keywords_with_source(
 
         if is_new_for_article {
             if existing_id.is_some() {
-                conn.execute(
+                if let Err(e) = conn.execute(
                     r#"UPDATE immanentize SET
                            count = count + 1,
                            article_count = article_count + 1,
                            last_used = CURRENT_TIMESTAMP
                        WHERE LOWER(name) = LOWER(?1)"#,
                     [store_keyword],
-                )
-                .ok();
-            } else {
-                conn.execute(
-                    r#"INSERT INTO immanentize (name, count, article_count, first_seen, last_used, is_canonical)
-                       VALUES (?1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, TRUE)"#,
-                    [store_keyword],
-                )
-                .ok();
-            }
-        } else {
-            conn.execute(
-                r#"UPDATE immanentize SET
-                       count = count + 1,
-                       last_used = CURRENT_TIMESTAMP
-                   WHERE LOWER(name) = LOWER(?1)"#,
+                ) {
+                    warn!("Failed to update keyword '{}': {}", store_keyword, e);
+                }
+            } else if let Err(e) = conn.execute(
+                r#"INSERT INTO immanentize (name, count, article_count, first_seen, last_used, is_canonical)
+                   VALUES (?1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, TRUE)"#,
                 [store_keyword],
-            )
-            .ok();
+            ) {
+                warn!("Failed to insert keyword '{}': {}", store_keyword, e);
+            }
+        } else if let Err(e) = conn.execute(
+            r#"UPDATE immanentize SET
+                   count = count + 1,
+                   last_used = CURRENT_TIMESTAMP
+               WHERE LOWER(name) = LOWER(?1)"#,
+            [store_keyword],
+        ) {
+            trace!("Failed to update keyword count for '{}': {}", store_keyword, e);
         }
 
         if let Ok(tag_id) = conn.query_row::<i64, _, _>(
@@ -196,20 +202,23 @@ pub fn save_article_keywords_with_source(
             [store_keyword],
             |row| row.get(0),
         ) {
-            conn.execute(
+            if let Err(e) = conn.execute(
                 "INSERT OR IGNORE INTO fnord_immanentize (fnord_id, immanentize_id, source, confidence) VALUES (?, ?, ?, ?)",
                 rusqlite::params![fnord_id, tag_id, kw.source_str(), kw.confidence],
-            )
-            .ok();
+            ) {
+                warn!("Failed to link keyword {} to fnord {}: {}", tag_id, fnord_id, e);
+                continue;
+            }
 
             if let Some(date) = article_date {
-                conn.execute(
+                if let Err(e) = conn.execute(
                     r#"INSERT INTO immanentize_daily (immanentize_id, date, count)
                        VALUES (?1, ?2, 1)
                        ON CONFLICT(immanentize_id, date) DO UPDATE SET count = count + 1"#,
                     rusqlite::params![tag_id, date],
-                )
-                .ok();
+                ) {
+                    trace!("Failed to update daily stats for keyword {}: {}", tag_id, e);
+                }
             }
 
             if is_new_keyword {
@@ -223,12 +232,13 @@ pub fn save_article_keywords_with_source(
 
     // Queue new keywords for embedding generation
     for keyword_id in &new_keyword_ids {
-        conn.execute(
+        if let Err(e) = conn.execute(
             r#"INSERT OR IGNORE INTO embedding_queue (immanentize_id, priority, queued_at)
                VALUES (?1, 0, CURRENT_TIMESTAMP)"#,
             [keyword_id],
-        )
-        .ok();
+        ) {
+            trace!("Failed to queue keyword {} for embedding: {}", keyword_id, e);
+        }
     }
 
     // Update keyword-category associations
@@ -239,7 +249,7 @@ pub fn save_article_keywords_with_source(
                 [cat_name],
                 |row| row.get(0),
             ) {
-                conn.execute(
+                if let Err(e) = conn.execute(
                     r#"INSERT INTO immanentize_sephiroth
                        (immanentize_id, sephiroth_id, weight, article_count, first_seen, updated_at)
                        VALUES (?1, ?2, 1.0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -247,8 +257,9 @@ pub fn save_article_keywords_with_source(
                            article_count = article_count + 1,
                            updated_at = CURRENT_TIMESTAMP"#,
                     rusqlite::params![tag_id, sephiroth_id],
-                )
-                .ok();
+                ) {
+                    trace!("Failed to update keyword-category association: {}", e);
+                }
             }
         }
     }
@@ -262,7 +273,7 @@ pub fn save_article_keywords_with_source(
                 (tag_ids[j], tag_ids[i])
             };
 
-            conn.execute(
+            if let Err(e) = conn.execute(
                 r#"INSERT INTO immanentize_neighbors
                    (immanentize_id_a, immanentize_id_b, cooccurrence, first_seen, last_seen)
                    VALUES (?1, ?2, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -270,8 +281,9 @@ pub fn save_article_keywords_with_source(
                        cooccurrence = cooccurrence + 1,
                        last_seen = CURRENT_TIMESTAMP"#,
                 rusqlite::params![id_a, id_b],
-            )
-            .ok();
+            ) {
+                trace!("Failed to update keyword co-occurrence: {}", e);
+            }
         }
     }
 
@@ -281,7 +293,7 @@ pub fn save_article_keywords_with_source(
 /// Recalculate keyword weights after saving
 pub fn recalculate_keyword_weights(conn: &Connection, tag_ids: &[i64]) {
     for tag_id in tag_ids {
-        conn.execute(
+        if let Err(e) = conn.execute(
             r#"UPDATE immanentize_sephiroth
                SET weight = CAST(article_count AS REAL) / (
                    SELECT MAX(article_count) FROM immanentize_sephiroth
@@ -289,11 +301,12 @@ pub fn recalculate_keyword_weights(conn: &Connection, tag_ids: &[i64]) {
                )
                WHERE immanentize_id = ?1"#,
             [tag_id],
-        )
-        .ok();
+        ) {
+            trace!("Failed to recalculate weight for keyword {}: {}", tag_id, e);
+        }
     }
 
-    conn.execute(
+    if let Err(e) = conn.execute(
         r#"UPDATE immanentize_neighbors
            SET combined_weight = CAST(cooccurrence AS REAL) / (
                SELECT MAX(cooccurrence) FROM immanentize_neighbors
@@ -301,8 +314,9 @@ pub fn recalculate_keyword_weights(conn: &Connection, tag_ids: &[i64]) {
            WHERE immanentize_id_a IN (SELECT value FROM json_each(?1))
               OR immanentize_id_b IN (SELECT value FROM json_each(?1))"#,
         [serde_json::to_string(&tag_ids).unwrap_or_default()],
-    )
-    .ok();
+    ) {
+        trace!("Failed to recalculate neighbor weights: {}", e);
+    }
 }
 
 // ============================================================
@@ -323,15 +337,13 @@ pub fn save_article_embedding(
     )
     .map_err(|e| format!("Failed to save article embedding: {}", e))?;
 
-    conn.execute(
+    // Vec table update is optional (used for fast vector search)
+    if let Err(e) = conn.execute(
         "INSERT OR REPLACE INTO vec_fnords (fnord_id, embedding) VALUES (?1, ?2)",
         rusqlite::params![fnord_id, blob],
-    )
-    .map_err(|e| {
+    ) {
         warn!("Failed to update vec_fnords: {}", e);
-        e.to_string()
-    })
-    .ok();
+    }
 
     Ok(())
 }
