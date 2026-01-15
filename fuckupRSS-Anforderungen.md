@@ -1027,6 +1027,110 @@ CREATE TABLE operation_mindfuck (
 
 ---
 
+## 6d. Statistische Textanalyse & Bias-Lernen
+
+### 6d.1 Architektur
+
+Parallel zur LLM-basierten Discordian Analysis erfolgt eine statistische Textanalyse:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Artikel-Verarbeitung                        │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Sync → content_raw                                          │
+│  2. Retrieval → content_full                                    │
+│  3. ┌──────────────────────────────────────────────────────┐    │
+│     │ PARALLEL ANALYSE                                      │    │
+│     │ ├─ Statistische Analyse (TF-IDF, Wortfrequenz)       │    │
+│     │ │   → keyword_candidates, category_scores            │    │
+│     │ └─ LLM Discordian Analysis (bestehend)               │    │
+│     │     → keywords, categories, summary                   │    │
+│     └──────────────────────────────────────────────────────┘    │
+│  4. Merge & Scoring                                             │
+│  5. Speicherung mit source='statistical'|'ai'|'manual'          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 6d.2 TF-IDF Keyword-Extraktion
+
+| Komponente | Beschreibung |
+|------------|--------------|
+| Tokenisierung | Unicode-aware Word-Splitting |
+| Stopwords | Deutsch + Englisch (~600 Wörter) |
+| Min-Länge | 2 Zeichen |
+| Max-Keywords | 15 pro Artikel |
+| IDF-Korpus | Aus bestehenden Keywords oder Default 1.0 |
+
+**Modul:** `src-tauri/src/text_analysis/tfidf.rs`
+
+### 6d.3 Kategorie-Matching
+
+13 Unterkategorien mit gewichteten Wortlisten:
+
+| ID | Kategorie | Beispielterme |
+|----|-----------|---------------|
+| 101 | Technik | software, hardware, internet, ki, algorithmus |
+| 102 | Wissenschaft | studie, forschung, experimente, theorie |
+| 201 | Politik | regierung, minister, gesetz, partei, wahl |
+| 202 | Gesellschaft | migration, gesellschaft, sozial, familie |
+| 301 | Wirtschaft | unternehmen, aktie, börse, handel, inflation |
+| 401 | Umwelt | klima, umwelt, emission, nachhaltig |
+| 501 | Sicherheit | cyber, hacker, angriff, sicherheit, terror |
+| 601 | Kultur | museum, künstler, theater, musik, film |
+
+**Modul:** `src-tauri/src/text_analysis/category_matcher.rs`
+
+### 6d.4 Bias-Lernsystem
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Bias-Lernsystem                             │
+├─────────────────────────────────────────────────────────────────┤
+│  bias_weights Tabelle:                                          │
+│  ├─ keyword_boost: {"politik": 1.2, "wirtschaft": 0.8}         │
+│  └─ category_term: {"sicherheit": {"cyber": 2.0}}              │
+│                                                                 │
+│  Lernen aus Korrekturen:                                        │
+│  ├─ User entfernt Keyword → boost -= 0.1                       │
+│  ├─ User fügt Keyword hinzu → boost += 0.1                      │
+│  └─ Gewichtung begrenzt auf 0.1 - 3.0                          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Modul:** `src-tauri/src/text_analysis/bias.rs`
+
+### 6d.5 Datenmodell
+
+| Tabelle/Feld | Änderung |
+|--------------|----------|
+| `fnord_immanentize.source` | TEXT ('ai', 'statistical', 'manual') |
+| `fnord_immanentize.confidence` | REAL (0.0-1.0) |
+| `bias_weights` | Neue Tabelle für Lern-Gewichtungen |
+
+### 6d.6 UI-Komponenten
+
+| Komponente | Funktion |
+|------------|----------|
+| `ArticleKeywords.svelte` | Editierbare Keyword-Chips |
+| `ArticleCategories.svelte` | Editierbare Kategorie-Chips |
+| Source-Badges | Robot/Chart/User Icons |
+| Autocomplete | Existierende Keywords vorschlagen |
+
+### 6d.7 Tauri Commands
+
+| Command | Beschreibung |
+|---------|--------------|
+| `get_article_keywords` | Keywords mit source/confidence |
+| `add_article_keyword` | Manuell hinzufügen |
+| `remove_article_keyword` | Keyword entfernen |
+| `get_article_categories_detailed` | Kategorien mit source |
+| `update_article_categories` | Kategorien setzen |
+| `analyze_article_statistical` | Statistische Analyse |
+| `record_correction` | Korrektur für Bias-Lernen |
+| `get_bias_stats` | Bias-Statistiken |
+
+---
+
 ## 7. Batch-Verarbeitung (Fnord Processing)
 
 ### 7.1 Pipeline-Ablauf

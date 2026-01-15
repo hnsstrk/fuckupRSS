@@ -1,0 +1,456 @@
+//! Article Keywords & Categories Management Commands
+//!
+//! Commands for managing article keywords and categories with source tracking,
+//! statistical analysis, and bias learning.
+
+use crate::text_analysis::{
+    BiasWeights, BiasStats, CategoryMatcher, CorrectionRecord, CorrectionType,
+    TfIdfExtractor, record_correction as bias_record_correction, get_bias_stats as bias_get_stats,
+};
+use crate::AppState;
+use rusqlite::params;
+use serde::{Deserialize, Serialize};
+use tauri::State;
+
+// ============================================================
+// DATA STRUCTURES
+// ============================================================
+
+/// Article keyword with source tracking
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ArticleKeyword {
+    pub id: i64,
+    pub name: String,
+    pub source: String, // 'ai', 'statistical', 'manual'
+    pub confidence: f64,
+}
+
+/// Article category with source tracking
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ArticleCategory {
+    pub sephiroth_id: i64,
+    pub name: String,
+    pub icon: Option<String>,
+    pub color: Option<String>,
+    pub source: String, // 'ai', 'manual'
+    pub confidence: f64,
+    pub parent_id: Option<i64>,
+    pub parent_name: Option<String>,
+    pub parent_color: Option<String>,
+}
+
+/// Statistical analysis result
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StatisticalAnalysis {
+    pub keyword_candidates: Vec<KeywordCandidateResult>,
+    pub category_scores: Vec<CategoryScoreResult>,
+}
+
+/// Keyword candidate from statistical analysis
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct KeywordCandidateResult {
+    pub term: String,
+    pub score: f64,
+    pub frequency: u32,
+}
+
+/// Category score from statistical analysis
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CategoryScoreResult {
+    pub sephiroth_id: i64,
+    pub name: String,
+    pub score: f64,
+    pub confidence: f64,
+    pub matching_terms: Vec<String>,
+}
+
+/// Correction input from frontend
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CorrectionInput {
+    pub fnord_id: i64,
+    pub correction_type: String, // 'keyword_added', 'keyword_removed', 'category_added', 'category_removed'
+    pub old_value: Option<String>,
+    pub new_value: Option<String>,
+}
+
+// ============================================================
+// ARTICLE KEYWORDS
+// ============================================================
+
+/// Get keywords for an article with source information
+#[tauri::command]
+pub fn get_article_keywords(
+    state: State<AppState>,
+    fnord_id: i64,
+) -> Result<Vec<ArticleKeyword>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT
+                i.id,
+                i.name,
+                COALESCE(fi.source, 'ai') as source,
+                COALESCE(fi.confidence, 1.0) as confidence
+            FROM fnord_immanentize fi
+            JOIN immanentize i ON i.id = fi.immanentize_id
+            WHERE fi.fnord_id = ?
+            ORDER BY fi.confidence DESC, i.name ASC
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let keywords = stmt
+        .query_map([fnord_id], |row| {
+            Ok(ArticleKeyword {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                source: row.get(2)?,
+                confidence: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(keywords)
+}
+
+/// Add a keyword to an article (manual)
+#[tauri::command]
+pub fn add_article_keyword(
+    state: State<AppState>,
+    fnord_id: i64,
+    keyword: String,
+) -> Result<ArticleKeyword, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let keyword_normalized = keyword.trim().to_lowercase();
+
+    if keyword_normalized.len() < 2 || keyword_normalized.len() > 100 {
+        return Err("Keyword must be 2-100 characters".to_string());
+    }
+
+    // Get or create the keyword in immanentize table
+    let keyword_id: i64 = db
+        .conn()
+        .query_row(
+            "SELECT id FROM immanentize WHERE name = ?",
+            [&keyword_normalized],
+            |row| row.get(0),
+        )
+        .or_else(|_| {
+            // Create new keyword
+            db.conn().execute(
+                "INSERT INTO immanentize (name, count, article_count, first_seen, last_used) VALUES (?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                [&keyword_normalized],
+            )?;
+            Ok(db.conn().last_insert_rowid())
+        })
+        .map_err(|e: rusqlite::Error| e.to_string())?;
+
+    // Add to article with source='manual'
+    db.conn()
+        .execute(
+            "INSERT OR REPLACE INTO fnord_immanentize (fnord_id, immanentize_id, source, confidence)
+             VALUES (?, ?, 'manual', 1.0)",
+            params![fnord_id, keyword_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    // Update article_count for the keyword
+    db.conn()
+        .execute(
+            "UPDATE immanentize SET
+                article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?),
+                last_used = CURRENT_TIMESTAMP
+             WHERE id = ?",
+            params![keyword_id, keyword_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(ArticleKeyword {
+        id: keyword_id,
+        name: keyword_normalized,
+        source: "manual".to_string(),
+        confidence: 1.0,
+    })
+}
+
+/// Remove a keyword from an article
+#[tauri::command]
+pub fn remove_article_keyword(
+    state: State<AppState>,
+    fnord_id: i64,
+    keyword_id: i64,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    db.conn()
+        .execute(
+            "DELETE FROM fnord_immanentize WHERE fnord_id = ? AND immanentize_id = ?",
+            params![fnord_id, keyword_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    // Update article_count for the keyword
+    db.conn()
+        .execute(
+            "UPDATE immanentize SET
+                article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?)
+             WHERE id = ?",
+            params![keyword_id, keyword_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+// ============================================================
+// ARTICLE CATEGORIES
+// ============================================================
+
+/// Get categories for an article with source information
+#[tauri::command]
+pub fn get_article_categories_detailed(
+    state: State<AppState>,
+    fnord_id: i64,
+) -> Result<Vec<ArticleCategory>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT
+                s.id,
+                s.name,
+                s.icon,
+                COALESCE(s.color, p.color) as color,
+                COALESCE(fs.source, 'ai') as source,
+                COALESCE(fs.confidence, 1.0) as confidence,
+                s.parent_id,
+                p.name as parent_name,
+                p.color as parent_color
+            FROM fnord_sephiroth fs
+            JOIN sephiroth s ON s.id = fs.sephiroth_id
+            LEFT JOIN sephiroth p ON p.id = s.parent_id
+            WHERE fs.fnord_id = ?
+            ORDER BY fs.confidence DESC, s.name ASC
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let categories = stmt
+        .query_map([fnord_id], |row| {
+            Ok(ArticleCategory {
+                sephiroth_id: row.get(0)?,
+                name: row.get(1)?,
+                icon: row.get(2)?,
+                color: row.get(3)?,
+                source: row.get(4)?,
+                confidence: row.get(5)?,
+                parent_id: row.get(6)?,
+                parent_name: row.get(7)?,
+                parent_color: row.get(8)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(categories)
+}
+
+/// Update categories for an article (replaces all categories)
+#[tauri::command]
+pub fn update_article_categories(
+    state: State<AppState>,
+    fnord_id: i64,
+    categories: Vec<i64>,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Remove all existing categories
+    db.conn()
+        .execute("DELETE FROM fnord_sephiroth WHERE fnord_id = ?", [fnord_id])
+        .map_err(|e| e.to_string())?;
+
+    // Add new categories with source='manual'
+    for sephiroth_id in categories {
+        db.conn()
+            .execute(
+                "INSERT INTO fnord_sephiroth (fnord_id, sephiroth_id, source, confidence, assigned_at)
+                 VALUES (?, ?, 'manual', 1.0, CURRENT_TIMESTAMP)",
+                params![fnord_id, sephiroth_id],
+            )
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+/// Add a single category to an article
+#[tauri::command]
+pub fn add_article_category(
+    state: State<AppState>,
+    fnord_id: i64,
+    sephiroth_id: i64,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    db.conn()
+        .execute(
+            "INSERT OR REPLACE INTO fnord_sephiroth (fnord_id, sephiroth_id, source, confidence, assigned_at)
+             VALUES (?, ?, 'manual', 1.0, CURRENT_TIMESTAMP)",
+            params![fnord_id, sephiroth_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+/// Remove a category from an article
+#[tauri::command]
+pub fn remove_article_category(
+    state: State<AppState>,
+    fnord_id: i64,
+    sephiroth_id: i64,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    db.conn()
+        .execute(
+            "DELETE FROM fnord_sephiroth WHERE fnord_id = ? AND sephiroth_id = ?",
+            params![fnord_id, sephiroth_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+// ============================================================
+// STATISTICAL ANALYSIS
+// ============================================================
+
+/// Perform statistical analysis on article text
+#[tauri::command]
+pub fn analyze_article_statistical(
+    state: State<AppState>,
+    fnord_id: i64,
+) -> Result<StatisticalAnalysis, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Get article content
+    let content: String = db
+        .conn()
+        .query_row(
+            "SELECT COALESCE(content_full, content_raw, '') FROM fnords WHERE id = ?",
+            [fnord_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    if content.is_empty() {
+        return Ok(StatisticalAnalysis {
+            keyword_candidates: Vec::new(),
+            category_scores: Vec::new(),
+        });
+    }
+
+    // Load bias weights
+    let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
+
+    // TF-IDF keyword extraction
+    let extractor = TfIdfExtractor::new().with_max_keywords(15);
+    let keyword_candidates: Vec<KeywordCandidateResult> = extractor
+        .extract_simple(&content)
+        .into_iter()
+        .map(|kc| {
+            let adjusted_score = bias.apply_to_keyword(&kc.term, kc.score);
+            KeywordCandidateResult {
+                term: kc.term,
+                score: adjusted_score,
+                frequency: kc.frequency,
+            }
+        })
+        .collect();
+
+    // Category matching
+    let matcher = CategoryMatcher::new().with_max_categories(5);
+    let category_scores: Vec<CategoryScoreResult> = matcher
+        .score_categories(&content, Some(&bias))
+        .into_iter()
+        .map(|cs| CategoryScoreResult {
+            sephiroth_id: cs.sephiroth_id,
+            name: cs.name,
+            score: cs.score,
+            confidence: cs.confidence,
+            matching_terms: cs.matching_terms,
+        })
+        .collect();
+
+    Ok(StatisticalAnalysis {
+        keyword_candidates,
+        category_scores,
+    })
+}
+
+// ============================================================
+// BIAS LEARNING
+// ============================================================
+
+/// Record a user correction for bias learning
+#[tauri::command]
+pub fn record_correction(state: State<AppState>, correction: CorrectionInput) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let correction_type = match correction.correction_type.as_str() {
+        "keyword_added" => CorrectionType::KeywordAdded,
+        "keyword_removed" => CorrectionType::KeywordRemoved,
+        "category_added" => CorrectionType::CategoryAdded,
+        "category_removed" => CorrectionType::CategoryRemoved,
+        _ => return Err(format!("Unknown correction type: {}", correction.correction_type)),
+    };
+
+    let record = CorrectionRecord {
+        fnord_id: correction.fnord_id,
+        correction_type,
+        old_value: correction.old_value,
+        new_value: correction.new_value,
+    };
+
+    bias_record_correction(db.conn(), &record)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+/// Get bias statistics
+#[tauri::command]
+pub fn get_bias_stats(state: State<AppState>) -> Result<BiasStats, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    bias_get_stats(db.conn()).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// TESTS
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_correction_type_parsing() {
+        let input = CorrectionInput {
+            fnord_id: 1,
+            correction_type: "keyword_added".to_string(),
+            old_value: None,
+            new_value: Some("test".to_string()),
+        };
+
+        assert_eq!(input.correction_type, "keyword_added");
+    }
+}

@@ -453,3 +453,58 @@ export interface SemanticSearchResponse {
   query: string;
   results: SearchResult[];
 }
+
+// Article Keywords & Categories (with source tracking)
+export interface ArticleKeyword {
+  id: number;
+  name: string;
+  source: 'ai' | 'statistical' | 'manual';
+  confidence: number;
+}
+
+export interface ArticleCategoryDetailed {
+  sephiroth_id: number;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  source: 'ai' | 'manual';
+  confidence: number;
+  parent_id: number | null;
+  parent_name: string | null;
+  parent_color: string | null;
+}
+
+// Statistical Analysis
+export interface KeywordCandidateResult {
+  term: string;
+  score: number;
+  frequency: number;
+}
+
+export interface CategoryScoreResult {
+  sephiroth_id: number;
+  name: string;
+  score: number;
+  confidence: number;
+  matching_terms: string[];
+}
+
+export interface StatisticalAnalysis {
+  keyword_candidates: KeywordCandidateResult[];
+  category_scores: CategoryScoreResult[];
+}
+
+// Bias Learning
+export interface BiasStats {
+  total_weights: number;
+  total_corrections: number;
+  keyword_boost_count: number;
+  category_term_count: number;
+}
+
+export interface CorrectionInput {
+  fnord_id: number;
+  correction_type: 'keyword_added' | 'keyword_removed' | 'category_added' | 'category_removed';
+  old_value?: string;
+  new_value?: string;
+}

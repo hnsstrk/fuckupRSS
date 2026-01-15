@@ -608,6 +608,47 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 12: Add source and confidence to fnord_immanentize for statistical analysis
+    let has_fi_source: bool = conn
+        .prepare(
+            "SELECT COUNT(*) FROM pragma_table_info('fnord_immanentize') WHERE name = 'source'",
+        )?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_fi_source {
+        conn.execute_batch(
+            r#"
+            ALTER TABLE fnord_immanentize ADD COLUMN source TEXT DEFAULT 'ai' CHECK(source IN ('ai', 'statistical', 'manual'));
+            ALTER TABLE fnord_immanentize ADD COLUMN confidence REAL DEFAULT 1.0;
+            "#,
+        )?;
+    }
+
+    // Create indexes for fnord_immanentize source and confidence
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_fnord_immanentize_source ON fnord_immanentize(source);
+        "#,
+    )?;
+
+    // Migration 13: Create bias_weights table for learning system
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS bias_weights (
+            id INTEGER PRIMARY KEY,
+            weight_type TEXT NOT NULL,  -- 'keyword_boost', 'category_term', 'source_weight'
+            context_key TEXT NOT NULL,  -- Keyword-Name, Kategorie-ID, oder Source-Typ
+            term TEXT,                  -- Bei category_term: das gewichtete Wort
+            weight REAL DEFAULT 1.0,
+            correction_count INTEGER DEFAULT 0,
+            last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_bias_weights_type_context ON bias_weights(weight_type, context_key);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_bias_weights_unique ON bias_weights(weight_type, context_key, COALESCE(term, ''));
+        "#,
+    )?;
+
     Ok(())
 }
 
@@ -843,6 +884,8 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         CREATE TABLE IF NOT EXISTS fnord_immanentize (
             fnord_id INTEGER NOT NULL,
             immanentize_id INTEGER NOT NULL,
+            source TEXT DEFAULT 'ai' CHECK(source IN ('ai', 'statistical', 'manual')),
+            confidence REAL DEFAULT 1.0,
             PRIMARY KEY (fnord_id, immanentize_id),
             FOREIGN KEY (fnord_id) REFERENCES fnords(id) ON DELETE CASCADE,
             FOREIGN KEY (immanentize_id) REFERENCES immanentize(id) ON DELETE CASCADE
@@ -876,6 +919,22 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         );
 
         CREATE INDEX IF NOT EXISTS idx_embedding_queue_priority ON embedding_queue(priority DESC, queued_at ASC);
+
+        -- ============================================================
+        -- BIAS_WEIGHTS (Lerngewichtungen für statistische Analyse)
+        -- ============================================================
+        CREATE TABLE IF NOT EXISTS bias_weights (
+            id INTEGER PRIMARY KEY,
+            weight_type TEXT NOT NULL,  -- 'keyword_boost', 'category_term', 'source_weight'
+            context_key TEXT NOT NULL,  -- Keyword-Name, Kategorie-ID, oder Source-Typ
+            term TEXT,                  -- Bei category_term: das gewichtete Wort
+            weight REAL DEFAULT 1.0,
+            correction_count INTEGER DEFAULT 0,
+            last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_bias_weights_type_context ON bias_weights(weight_type, context_key);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_bias_weights_unique ON bias_weights(weight_type, context_key, COALESCE(term, ''));
 
         -- ============================================================
         -- SETTINGS (Benutzereinstellungen)

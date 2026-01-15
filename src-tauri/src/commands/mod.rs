@@ -1,3 +1,4 @@
+pub mod article_analysis;
 pub mod categories;
 pub mod embedding;
 pub mod fnords;

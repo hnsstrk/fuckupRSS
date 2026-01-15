@@ -8,6 +8,7 @@ mod logging;
 mod ollama;
 mod retrieval;
 mod sync;
+mod text_analysis;
 
 pub use categories::{classify_by_keywords, CategoryClassifier, SEPHIROTH_CATEGORIES};
 pub use embedding_worker::EmbeddingWorker;
@@ -194,6 +195,17 @@ pub fn run() {
             commands::mindfuck::get_blind_spots,
             commands::mindfuck::get_counter_perspectives,
             commands::mindfuck::get_reading_trends,
+            // Article Analysis (Statistical Keywords/Categories)
+            commands::article_analysis::get_article_keywords,
+            commands::article_analysis::add_article_keyword,
+            commands::article_analysis::remove_article_keyword,
+            commands::article_analysis::get_article_categories_detailed,
+            commands::article_analysis::update_article_categories,
+            commands::article_analysis::add_article_category,
+            commands::article_analysis::remove_article_category,
+            commands::article_analysis::analyze_article_statistical,
+            commands::article_analysis::record_correction,
+            commands::article_analysis::get_bias_stats,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

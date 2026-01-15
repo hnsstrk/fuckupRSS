@@ -1,10 +1,12 @@
 <script lang="ts">
   import { _, locale } from 'svelte-i18n';
   import { onMount, onDestroy } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import { appState, toasts, type FnordRevision, type ArticleCategory, type Tag, type SimilarArticle } from "../stores/state.svelte";
+  import type { ArticleKeyword, ArticleCategoryDetailed } from '$lib/types';
   import Tooltip from "./Tooltip.svelte";
   import RevisionView from "./RevisionView.svelte";
-  import { ArticleCard } from "./article";
+  import { ArticleCard, ArticleKeywords, ArticleCategories } from "./article";
 
   let showRevisions = $state(false);
   let revisions = $state<FnordRevision[]>([]);
@@ -13,6 +15,12 @@
   // Categories and Tags
   let categories = $state<ArticleCategory[]>([]);
   let tags = $state<Tag[]>([]);
+
+  // Editable Keywords and Categories (with source tracking)
+  let editingKeywords = $state(false);
+  let editingCategories = $state(false);
+  let articleKeywords = $state<ArticleKeyword[]>([]);
+  let articleCategoriesDetailed = $state<ArticleCategoryDetailed[]>([]);
 
   // Similar Articles
   let similarArticles = $state<SimilarArticle[]>([]);
@@ -36,17 +44,23 @@
       revisions = [];
     }
 
-    // Load categories and tags
+    // Load categories and tags (both old format and new detailed format)
     try {
-      const [cats, tgs] = await Promise.all([
+      const [cats, tgs, kwds, catsDetailed] = await Promise.all([
         appState.getArticleCategories(fnordId),
-        appState.getArticleTags(fnordId)
+        appState.getArticleTags(fnordId),
+        invoke<ArticleKeyword[]>('get_article_keywords', { fnordId }),
+        invoke<ArticleCategoryDetailed[]>('get_article_categories_detailed', { fnordId })
       ]);
       categories = cats;
       tags = tgs;
+      articleKeywords = kwds;
+      articleCategoriesDetailed = catsDetailed;
     } catch {
       categories = [];
       tags = [];
+      articleKeywords = [];
+      articleCategoriesDetailed = [];
     }
 
     // Load similar articles (only if article was processed and has embedding)
@@ -79,6 +93,10 @@
         categories = [];
         tags = [];
         similarArticles = [];
+        articleKeywords = [];
+        articleCategoriesDetailed = [];
+        editingKeywords = false;
+        editingCategories = false;
         lastLoadedFnordId = null;
       }
       return;
@@ -115,6 +133,24 @@
       } catch {
         // Ignore errors during refresh
       }
+    }
+  }
+
+  // Handler for keywords update (called by ArticleKeywords component)
+  async function handleKeywordsUpdate(updatedKeywords: ArticleKeyword[]) {
+    articleKeywords = updatedKeywords;
+    // Also refresh old tags for similar articles display
+    if (appState.selectedFnord) {
+      tags = await appState.getArticleTags(appState.selectedFnord.id);
+    }
+  }
+
+  // Handler for categories update (called by ArticleCategories component)
+  async function handleCategoriesUpdate(updatedCategories: ArticleCategoryDetailed[]) {
+    articleCategoriesDetailed = updatedCategories;
+    // Also refresh old categories for other displays
+    if (appState.selectedFnord) {
+      categories = await appState.getArticleCategories(appState.selectedFnord.id);
     }
   }
 
@@ -365,7 +401,7 @@
             {#if fnord.quality_score !== null}
               <div class="greyface-item">
                 <div class="item-label">{$_('articleView.greyface.quality')}</div>
-                <div class="item-value quality">{#each Array(fnord.quality_score) as _}<i class="fa-solid fa-star"></i>{/each}{#each Array(5 - fnord.quality_score) as _}<i class="fa-regular fa-star"></i>{/each}</div>
+                <div class="item-value quality">{#each Array(fnord.quality_score) as _, i (i)}<i class="fa-solid fa-star"></i>{/each}{#each Array(5 - fnord.quality_score) as _, i (i)}<i class="fa-regular fa-star"></i>{/each}</div>
               </div>
             {/if}
           </div>
@@ -385,44 +421,77 @@
       </div>
     {/if}
 
-    <!-- Sephiroth (Categories) & Immanentize (Tags) -->
-    {#if categories.length > 0 || tags.length > 0}
+    <!-- Sephiroth (Categories) & Immanentize (Keywords) -->
+    {#if articleCategoriesDetailed.length > 0 || articleKeywords.length > 0 || categories.length > 0 || tags.length > 0}
       <div class="meta-section">
         <div class="section-content">
-          {#if categories.length > 0}
+          {#if articleCategoriesDetailed.length > 0 || categories.length > 0}
             <div class="meta-row">
               <div class="meta-label">
                 <Tooltip termKey="sephiroth">{$_('articleView.categories')}</Tooltip>
               </div>
-              <div class="category-badges">
-                {#each categories as cat}
-                  <span
-                    class="category-badge"
-                    style="background-color: {cat.color || 'var(--bg-overlay)'}; color: {cat.color ? 'white' : 'var(--text-primary)'}"
-                  >
-                    {#if cat.icon}<i class="{cat.icon} badge-icon"></i>{/if}
-                    {cat.name}
-                  </span>
-                {/each}
+              <div class="meta-content">
+                {#if articleCategoriesDetailed.length > 0}
+                  <ArticleCategories
+                    fnordId={fnord.id}
+                    categories={articleCategoriesDetailed}
+                    editing={editingCategories}
+                    onUpdate={handleCategoriesUpdate}
+                  />
+                {:else}
+                  <!-- Fallback to old display for articles not yet loaded with detailed info -->
+                  <div class="category-badges">
+                    {#each categories as cat (cat.sephiroth_id)}
+                      <span class="category-badge" style="background-color: {cat.color || 'var(--bg-overlay)'}; color: {cat.color ? 'white' : 'var(--text-primary)'}">
+                        {#if cat.icon}<i class="{cat.icon} badge-icon"></i>{/if}
+                        {cat.name}
+                      </span>
+                    {/each}
+                  </div>
+                {/if}
+                <button
+                  class="edit-toggle"
+                  onclick={() => editingCategories = !editingCategories}
+                  title="Edit categories"
+                  aria-label={editingCategories ? 'Done editing categories' : 'Edit categories'}
+                >
+                  <i class="fa-solid {editingCategories ? 'fa-check' : 'fa-pen'}"></i>
+                </button>
               </div>
             </div>
           {/if}
 
-          {#if tags.length > 0}
+          {#if articleKeywords.length > 0 || tags.length > 0}
             <div class="meta-row">
               <div class="meta-label">
                 <Tooltip termKey="immanentize">{$_('articleView.keywords')}</Tooltip>
               </div>
-              <div class="tag-list">
-                {#each tags as tag}
-                  <button
-                    class="tag-badge clickable"
-                    onclick={() => navigateToKeyword(tag.id)}
-                    title={$_('network.title')}
-                  >
-                    {tag.name}
-                  </button>
-                {/each}
+              <div class="meta-content">
+                {#if articleKeywords.length > 0}
+                  <ArticleKeywords
+                    fnordId={fnord.id}
+                    keywords={articleKeywords}
+                    editing={editingKeywords}
+                    onUpdate={handleKeywordsUpdate}
+                  />
+                {:else}
+                  <!-- Fallback to old display -->
+                  <div class="tag-list">
+                    {#each tags as tag (tag.id)}
+                      <button class="tag-badge clickable" onclick={() => navigateToKeyword(tag.id)} title={$_('network.title')}>
+                        {tag.name}
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
+                <button
+                  class="edit-toggle"
+                  onclick={() => editingKeywords = !editingKeywords}
+                  title="Edit keywords"
+                  aria-label={editingKeywords ? 'Done editing keywords' : 'Edit keywords'}
+                >
+                  <i class="fa-solid {editingKeywords ? 'fa-check' : 'fa-pen'}"></i>
+                </button>
               </div>
             </div>
           {/if}
@@ -700,6 +769,30 @@
     color: var(--text-muted);
     min-width: 5rem;
     padding-top: 0.25rem;
+  }
+
+  .meta-content {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .edit-toggle {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    font-size: 0.75rem;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+  }
+
+  .edit-toggle:hover {
+    opacity: 1;
+    color: var(--accent-primary);
   }
 
   .category-badges {

@@ -519,6 +519,30 @@ struct SimilarArticle {
 }
 ```
 
+### Article Analysis (Statistical Keywords/Categories)
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_article_keywords` | `fnord_id` | `Vec<ArticleKeyword>` | Keywords mit source/confidence |
+| `add_article_keyword` | `fnord_id`, `keyword` | `ArticleKeyword` | Manuell hinzufügen |
+| `remove_article_keyword` | `fnord_id`, `keyword_id` | - | Keyword entfernen |
+| `get_article_categories_detailed` | `fnord_id` | `Vec<ArticleCategory>` | Kategorien mit source/confidence |
+| `update_article_categories` | `fnord_id`, `categories` | - | Kategorien setzen |
+| `add_article_category` | `fnord_id`, `sephiroth_id` | - | Kategorie hinzufügen |
+| `remove_article_category` | `fnord_id`, `sephiroth_id` | - | Kategorie entfernen |
+| `analyze_article_statistical` | `fnord_id` | `StatisticalAnalysis` | Nur statistische Analyse |
+| `record_correction` | `correction` | - | Korrektur für Bias-Lernen |
+| `get_bias_stats` | - | `BiasStats` | Bias-Statistiken |
+
+**ArticleKeyword Struktur:**
+```rust
+struct ArticleKeyword {
+    id: i64,
+    name: String,
+    source: String,      // 'ai', 'statistical', 'manual'
+    confidence: f64,     // 0.0-1.0
+}
+```
+
 ## AI Processing Pipeline
 
 1. **Hagbard's Retrieval** - Fetch full text for ALL new articles (automatic after sync)
@@ -550,6 +574,38 @@ struct SimilarArticle {
 | `content_full` | Volltext der Webseite | Hagbard's Retrieval |
 
 **Wichtig:** Alle KI-Analysen verwenden ausschließlich `content_full`. Artikel ohne Volltext werden nicht analysiert.
+
+### Statistische Textanalyse
+
+Parallel zur LLM-Analyse (Discordian Analysis) erfolgt eine statistische Analyse:
+
+| Analyse | Methode | Output |
+|---------|---------|--------|
+| Keyword-Extraktion | TF-IDF | `keyword_candidates` mit Score |
+| Kategorie-Matching | Wortfrequenz + Wortlisten | `category_scores` |
+
+**Source-Typen:**
+- `ai`: Von Discordian Analysis (LLM) generiert
+- `statistical`: Von TF-IDF/Wortfrequenz erkannt
+- `manual`: Vom Benutzer hinzugefügt
+
+**Relevante Module:**
+- `src-tauri/src/text_analysis/tfidf.rs` - TF-IDF Implementierung
+- `src-tauri/src/text_analysis/category_matcher.rs` - Kategorie-Wortlisten
+- `src-tauri/src/text_analysis/bias.rs` - Bias-Gewichtungen
+- `src-tauri/src/text_analysis/stopwords.rs` - DE/EN Stopwörter
+
+### Bias-Lernsystem
+
+Das System lernt aus Benutzer-Korrekturen:
+
+| Korrektur | Bias-Anpassung |
+|-----------|----------------|
+| Keyword entfernt | `keyword_boost -= 0.1` |
+| Keyword hinzugefügt | `keyword_boost += 0.1` |
+| Kategorie geändert | `category_term_weight` angepasst |
+
+Gewichtungen werden in der `bias_weights` Tabelle gespeichert. Gewichtungen sind auf 0.1-3.0 begrenzt.
 
 ## Ollama Setup
 

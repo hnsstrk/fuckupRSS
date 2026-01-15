@@ -61,7 +61,15 @@
       "quality": "Quellenqualität"
     },
     "similarArticles": "Ähnliche Artikel",
-    "similarity": "Ähnlichkeit"
+    "similarity": "Ähnlichkeit",
+    "addKeyword": "Stichwort hinzufügen...",
+    "addCategory": "Kategorie hinzufügen",
+    "editKeywords": "Stichworte bearbeiten",
+    "editCategories": "Kategorien bearbeiten",
+    "sourceAi": "KI-generiert",
+    "sourceStatistical": "Statistisch erkannt",
+    "sourceManual": "Manuell hinzugefügt",
+    "noCategories": "Keine Kategorien"
   },
   "status": {
     "concealed": "Ungelesen",

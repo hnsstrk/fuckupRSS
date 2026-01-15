@@ -50,6 +50,13 @@ Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
 - KI-Analysen verwenden ausschließlich den Volltext
 - Keine Paywall-Umgehung – nur öffentlich zugängliche Inhalte
 
+### 🧠 Intelligente Kategorisierung
+- **Dual-Analyse:** LLM + statistische Textanalyse (TF-IDF)
+- **Lernfähig:** System verbessert sich durch Benutzer-Korrekturen
+- **Transparent:** Jedes Keyword/Kategorie zeigt Quelle (KI/Statistik/Manuell)
+- **Editierbar:** Keywords und Kategorien manuell anpassen
+- **Bias-Gewichtungen:** Aus Korrekturen gelernte Präferenzen
+
 ### 🎯 Personalisierung (Operation Mindfuck) *– Coming Soon*
 - Definiere deine Interessen
 - Relevanz-Scoring basierend auf Leseverhalten
