@@ -575,18 +575,34 @@ struct ArticleKeyword {
 
 **Wichtig:** Alle KI-Analysen verwenden ausschließlich `content_full`. Artikel ohne Volltext werden nicht analysiert.
 
-### Statistische Textanalyse
+### Statistische Textanalyse (Statistical-First Workflow)
 
-Parallel zur LLM-Analyse (Discordian Analysis) erfolgt eine statistische Analyse:
+Die statistische Analyse läuft **VOR** der LLM-Analyse. Das LLM validiert/korrigiert die statistischen Vorschläge:
+
+```
+1. Statistische Pre-Analyse (TF-IDF + Category Matcher)
+   └─ Bias-Gewichtungen anwenden
+   └─ keyword_candidates, category_scores generieren
+
+2. LLM Qualitätskontrolle (Discordian Analysis)
+   └─ Erhält statistische Ergebnisse als Kontext
+   └─ Validiert/verwirft Vorschläge
+   └─ Gibt rejected_keywords, rejected_categories zurück
+
+3. Bias-Lernen aus Ablehnungen
+   └─ Abgelehnte Keywords: boost -= 0.1
+   └─ Abgelehnte Kategorien: term_weight -= 0.1 für matching_terms
+```
 
 | Analyse | Methode | Output |
 |---------|---------|--------|
 | Keyword-Extraktion | TF-IDF | `keyword_candidates` mit Score |
-| Kategorie-Matching | Wortfrequenz + Wortlisten | `category_scores` |
+| Kategorie-Matching | Wortfrequenz + Wortlisten | `category_scores` mit `matching_terms` |
+| LLM-Validierung | ministral-3 | `rejected_keywords`, `rejected_categories` |
 
 **Source-Typen:**
-- `ai`: Von Discordian Analysis (LLM) generiert
-- `statistical`: Von TF-IDF/Wortfrequenz erkannt
+- `ai`: Von Discordian Analysis (LLM) generiert/validiert
+- `statistical`: Von TF-IDF/Wortfrequenz erkannt (LLM bestätigt)
 - `manual`: Vom Benutzer hinzugefügt
 
 **Relevante Module:**
@@ -594,18 +610,31 @@ Parallel zur LLM-Analyse (Discordian Analysis) erfolgt eine statistische Analyse
 - `src-tauri/src/text_analysis/category_matcher.rs` - Kategorie-Wortlisten
 - `src-tauri/src/text_analysis/bias.rs` - Bias-Gewichtungen
 - `src-tauri/src/text_analysis/stopwords.rs` - DE/EN Stopwörter
+- `src-tauri/src/ollama/mod.rs` - `discordian_analysis_with_stats` Funktion
 
 ### Bias-Lernsystem
 
-Das System lernt aus Benutzer-Korrekturen:
+Das System lernt aus zwei Quellen:
 
+**1. LLM-Ablehnungen (automatisch):**
+| Ablehnung | Bias-Anpassung |
+|-----------|----------------|
+| LLM lehnt Keyword ab | `keyword_boost -= 0.1` |
+| LLM lehnt Kategorie ab | `category_term_weight -= 0.1` für jeden matching_term |
+| LLM lehnt Kategorie ab | `category_boost -= 0.1` allgemein |
+
+**2. Benutzer-Korrekturen (manuell):**
 | Korrektur | Bias-Anpassung |
 |-----------|----------------|
 | Keyword entfernt | `keyword_boost -= 0.1` |
 | Keyword hinzugefügt | `keyword_boost += 0.1` |
-| Kategorie geändert | `category_term_weight` angepasst |
+| Kategorie entfernt | `category_boost -= 0.1` + term_weights |
+| Kategorie hinzugefügt | `category_boost += 0.1` |
 
-Gewichtungen werden in der `bias_weights` Tabelle gespeichert. Gewichtungen sind auf 0.1-3.0 begrenzt.
+Gewichtungen werden in der `bias_weights` Tabelle gespeichert:
+- `weight_type`: `keyword_boost`, `category_term`, `category_boost`
+- Gewichtungen sind auf 0.1-3.0 begrenzt
+- `correction_count` trackt Häufigkeit der Anpassungen
 
 ## Ollama Setup
 
