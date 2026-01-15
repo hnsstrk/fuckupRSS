@@ -37,11 +37,11 @@
   function getSourceLabel(source: ArticleKeyword['source']): string {
     switch (source) {
       case 'ai':
-        return $_('articleKeywords.sourceAI') || 'KI-generiert';
+        return $_('articleView.sourceAi') || 'KI-generiert';
       case 'statistical':
-        return $_('articleKeywords.sourceStatistical') || 'Statistisch';
+        return $_('articleView.sourceStatistical') || 'Statistisch';
       case 'manual':
-        return $_('articleKeywords.sourceManual') || 'Manuell';
+        return $_('articleView.sourceManual') || 'Manuell';
       default:
         return source;
     }
@@ -76,14 +76,13 @@
   }
 
   // Add a keyword to the article
-  async function addKeyword(keywordId: number, keywordName: string) {
+  async function addKeyword(keywordName: string) {
     loading = true;
     try {
-      await invoke('add_article_keyword', {
+      // The Rust command expects the keyword as a string and returns the created/found keyword
+      const newKeyword = await invoke<ArticleKeyword>('add_article_keyword', {
         fnordId,
-        keywordId,
-        source: 'manual',
-        confidence: 1.0,
+        keyword: keywordName,
       });
 
       // Record correction for bias learning
@@ -95,12 +94,6 @@
       await invoke('record_correction', { correction });
 
       // Update local state
-      const newKeyword: ArticleKeyword = {
-        id: keywordId,
-        name: keywordName,
-        source: 'manual',
-        confidence: 1.0,
-      };
       onUpdate([...keywords, newKeyword]);
 
       // Clear search
@@ -220,7 +213,7 @@
             <button
               type="button"
               class="search-result-item"
-              onclick={() => addKeyword(result.id, result.name)}
+              onclick={() => addKeyword(result.name)}
             >
               <span class="result-name">{result.name}</span>
               <span class="result-count">{result.count} {$_('articleKeywords.articles') || 'Artikel'}</span>

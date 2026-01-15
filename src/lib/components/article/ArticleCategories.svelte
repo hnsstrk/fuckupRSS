@@ -81,9 +81,9 @@
   function getSourceLabel(source: ArticleCategoryDetailed['source']): string {
     switch (source) {
       case 'ai':
-        return $_('articleCategories.sourceAI') || 'KI-generiert';
+        return $_('articleView.sourceAi') || 'KI-generiert';
       case 'manual':
-        return $_('articleCategories.sourceManual') || 'Manuell';
+        return $_('articleView.sourceManual') || 'Manuell';
       default:
         return source;
     }

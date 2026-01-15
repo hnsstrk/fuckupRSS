@@ -62,6 +62,19 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Add confidence column to fnord_sephiroth if missing (for consistency with fnord_immanentize)
+    let has_fs_confidence: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('fnord_sephiroth') WHERE name = 'confidence'")?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_fs_confidence {
+        conn.execute_batch(
+            r#"
+            ALTER TABLE fnord_sephiroth ADD COLUMN confidence REAL DEFAULT 1.0;
+            "#,
+        )?;
+    }
+
     // Migration for Immanentize Network
     let has_article_count: bool = conn
         .prepare(
