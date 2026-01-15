@@ -449,10 +449,26 @@
     "changedAt": "Geändert"
   },
   "revisions": {
+    "title": "Revisionen",
+    "contentPanel": "Revisionsinhalt",
     "current": "Aktuell",
     "showChanges": "Änderungen anzeigen",
+    "showWhitespace": "Leerzeichen anzeigen",
+    "changesOnly": "Nur Änderungen",
+    "inlineView": "Inline",
+    "splitView": "Nebeneinander",
+    "prevChange": "Vorherige Änderung",
+    "nextChange": "Nächste Änderung",
+    "changeOf": "Änderung {current} von {total}",
+    "noChanges": "Keine Änderungen in dieser Revision",
     "noContent": "Kein Inhalt verfügbar",
-    "titleChanged": "Titel geändert"
+    "titleChanged": "Titel geändert",
+    "wordsAdded": "{count} hinzugefügt",
+    "wordsRemoved": "{count} entfernt",
+    "wordsModified": "{count} geändert",
+    "words": "Wörter",
+    "modified": "geändert",
+    "statistics": "Statistik"
   },
   "search": {
     "placeholder": "Semantisch suchen...",

@@ -556,6 +556,104 @@ html.solarized-light {
 }
 
 /* ===========================================
+   Diff Highlighting Colors (Theme-aware)
+   =========================================== */
+:root,
+html.mocha,
+html.macchiato,
+html.frappe,
+html.ayu-dark,
+html.ayu-mirage,
+html.gruvbox-dark,
+html.tokyo-night,
+html.tokyo-storm,
+html.solarized-dark {
+  /* Dark theme diff colors */
+  --diff-deleted-bg: rgba(243, 139, 168, 0.25);
+  --diff-added-bg: rgba(166, 227, 161, 0.30);
+  --diff-modified-old-bg: rgba(250, 179, 135, 0.15);
+  --diff-modified-new-bg: rgba(250, 179, 135, 0.35);
+}
+
+html.latte,
+html.ayu-light,
+html.gruvbox-light,
+html.tokyo-day,
+html.solarized-light {
+  /* Light theme diff colors - slightly more saturated for visibility */
+  --diff-deleted-bg: rgba(211, 47, 47, 0.20);
+  --diff-added-bg: rgba(46, 125, 50, 0.20);
+  --diff-modified-old-bg: rgba(230, 81, 0, 0.12);
+  --diff-modified-new-bg: rgba(230, 81, 0, 0.25);
+}
+
+/* Diff styling classes */
+.diff-removed {
+  background-color: var(--diff-deleted-bg);
+  text-decoration: line-through;
+  color: var(--accent-error);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.diff-added {
+  background-color: var(--diff-added-bg);
+  color: var(--accent-success);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.diff-modified {
+  display: inline;
+}
+
+.diff-modified-old {
+  background-color: var(--diff-modified-old-bg);
+  text-decoration: line-through;
+  opacity: 0.7;
+  padding: 0 2px;
+  border-radius: 2px 0 0 2px;
+}
+
+.diff-modified-new {
+  background-color: var(--diff-modified-new-bg);
+  font-weight: 500;
+  padding: 0 2px;
+  border-radius: 0 2px 2px 0;
+}
+
+/* ===========================================
+   Whitespace Visualization
+   =========================================== */
+.ws-char {
+  color: var(--text-faint);
+  opacity: 0.6;
+  font-family: monospace;
+  font-size: 0.9em;
+  user-select: none;
+  pointer-events: none;
+}
+
+.ws-newline {
+  color: var(--accent-info);
+  opacity: 0.4;
+}
+
+.ws-tab {
+  color: var(--accent-warning);
+  opacity: 0.5;
+}
+
+.ws-space {
+  opacity: 0.4;
+}
+
+.ws-nbsp {
+  color: var(--accent-error);
+  opacity: 0.5;
+}
+
+/* ===========================================
    Base Styles
    =========================================== */
 html,

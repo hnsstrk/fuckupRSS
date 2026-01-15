@@ -4,8 +4,10 @@
  */
 
 export interface DiffSegment {
-  type: 'unchanged' | 'added' | 'removed';
+  type: 'unchanged' | 'added' | 'removed' | 'modified';
   text: string;
+  oldText?: string;           // For 'modified' type - what was replaced
+  changeIndex?: number;       // For navigation (1-indexed)
 }
 
 /**
@@ -96,6 +98,45 @@ function buildDiffSegments(
 }
 
 /**
+ * Detect modifications by finding adjacent remove+add pairs and merging them
+ * into a single 'modified' segment. Also assigns changeIndex for navigation.
+ * @param segments - Array of diff segments from buildDiffSegments
+ * @returns New array with merged 'modified' segments and change indices
+ */
+export function detectModifications(segments: DiffSegment[]): DiffSegment[] {
+  const result: DiffSegment[] = [];
+  let changeIndex = 0;
+
+  for (let i = 0; i < segments.length; i++) {
+    const current = segments[i];
+    const next = segments[i + 1];
+
+    // Check for removed immediately followed by added (modification pattern)
+    if (current.type === 'removed' && next && next.type === 'added') {
+      changeIndex++;
+      result.push({
+        type: 'modified',
+        text: next.text,           // The new text
+        oldText: current.text,     // What was replaced
+        changeIndex,
+      });
+      i++; // Skip the next segment since we merged it
+    } else if (current.type === 'unchanged') {
+      result.push({ ...current });
+    } else {
+      // Standalone added or removed
+      changeIndex++;
+      result.push({
+        ...current,
+        changeIndex,
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
  * Compute word-level diff between two text strings
  * @param oldText - The older/previous text (can be HTML)
  * @param newText - The newer/current text (can be HTML)
@@ -131,21 +172,54 @@ export function computeWordDiff(
 }
 
 /**
+ * Options for diffToHtml rendering
+ */
+export interface DiffToHtmlOptions {
+  showWhitespace?: boolean;
+}
+
+/**
  * Convert diff segments to HTML with highlighting classes
  * @param segments - Array of diff segments
+ * @param options - Optional rendering options
  * @returns HTML string with span tags for styling
  */
-export function diffToHtml(segments: DiffSegment[]): string {
+export function diffToHtml(segments: DiffSegment[], options: DiffToHtmlOptions = {}): string {
+  const { showWhitespace = false } = options;
+
   return segments
     .map(seg => {
-      const escaped = escapeHtml(seg.text);
+      // Step 1: Get the raw text
+      let text = seg.text;
+      let oldText = seg.oldText || '';
+
+      // Step 2: If showWhitespace, replace whitespace chars with Unicode symbols BEFORE escaping
+      // This prevents corruption of HTML entities (e.g., &nbsp; -> &·nbsp;)
+      if (showWhitespace) {
+        text = visualizeWhitespace(text);
+        oldText = visualizeWhitespace(oldText);
+      }
+
+      // Step 3: Escape HTML (this won't affect the Unicode symbols)
+      const escaped = escapeHtml(text);
+      const escapedOld = escapeHtml(oldText);
+
+      // Step 4: Wrap Unicode whitespace symbols with styling spans AFTER escaping
+      const finalText = showWhitespace ? wrapWhitespaceChars(escaped) : escaped;
+      const finalOldText = showWhitespace ? wrapWhitespaceChars(escapedOld) : escapedOld;
+
+      const dataChange = seg.changeIndex ? ` data-change="${seg.changeIndex}"` : '';
+
       switch (seg.type) {
         case 'added':
-          return `<span class="diff-added">${escaped}</span>`;
+          return `<span class="diff-added"${dataChange}>${finalText}</span>`;
         case 'removed':
-          return `<span class="diff-removed">${escaped}</span>`;
+          return `<span class="diff-removed"${dataChange}>${finalText}</span>`;
+        case 'modified':
+          // Show both old (strikethrough) and new (highlighted) text
+          return `<span class="diff-modified"${dataChange}><span class="diff-modified-old">${finalOldText}</span><span class="diff-modified-new">${finalText}</span></span>`;
         default:
-          return escaped;
+          return finalText;
       }
     })
     .join('');
@@ -176,10 +250,12 @@ export function hasChanges(segments: DiffSegment[]): boolean {
 export function getDiffStats(segments: DiffSegment[]): {
   addedWords: number;
   removedWords: number;
+  modifiedSegments: number;
   unchangedWords: number;
 } {
   let addedWords = 0;
   let removedWords = 0;
+  let modifiedSegments = 0;
   let unchangedWords = 0;
 
   for (const seg of segments) {
@@ -191,10 +267,44 @@ export function getDiffStats(segments: DiffSegment[]): {
       case 'removed':
         removedWords += wordCount;
         break;
+      case 'modified':
+        modifiedSegments++;
+        // Count the old text as removed words
+        const oldWordCount = (seg.oldText || '').trim().split(/\s+/).filter(w => w.length > 0).length;
+        removedWords += oldWordCount;
+        // Count the new text as added words
+        addedWords += wordCount;
+        break;
       default:
         unchangedWords += wordCount;
     }
   }
 
-  return { addedWords, removedWords, unchangedWords };
+  return { addedWords, removedWords, modifiedSegments, unchangedWords };
+}
+
+/**
+ * Visualize whitespace characters by replacing them with visible symbols
+ * @param text - The text to process
+ * @returns Text with whitespace replaced by visible symbols
+ */
+export function visualizeWhitespace(text: string): string {
+  return text
+    .replace(/\n/g, '\u00B6\n')      // Add pilcrow before newlines
+    .replace(/\t/g, '\u2192')         // Replace tabs with arrows
+    .replace(/ /g, '\u00B7')          // Replace spaces with middle dots
+    .replace(/\u00A0/g, '\u00B0');    // Non-breaking space with degree sign
+}
+
+/**
+ * Wrap whitespace symbols with span tags for styling
+ * @param html - HTML string containing whitespace symbols
+ * @returns HTML with wrapped whitespace symbols
+ */
+export function wrapWhitespaceChars(html: string): string {
+  return html
+    .replace(/\u00B6/g, '<span class="ws-char ws-newline">\u00B6</span>')
+    .replace(/\u2192/g, '<span class="ws-char ws-tab">\u2192</span>')
+    .replace(/\u00B7/g, '<span class="ws-char ws-space">\u00B7</span>')
+    .replace(/\u00B0/g, '<span class="ws-char ws-nbsp">\u00B0</span>');
 }

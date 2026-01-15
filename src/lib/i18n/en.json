@@ -449,10 +449,26 @@
     "changedAt": "Changed"
   },
   "revisions": {
+    "title": "Revisions",
+    "contentPanel": "Revision content",
     "current": "Current",
     "showChanges": "Show changes",
+    "showWhitespace": "Show whitespace",
+    "changesOnly": "Changes only",
+    "inlineView": "Inline",
+    "splitView": "Split",
+    "prevChange": "Previous change",
+    "nextChange": "Next change",
+    "changeOf": "Change {current} of {total}",
+    "noChanges": "No changes in this revision",
     "noContent": "No content available",
-    "titleChanged": "Title changed"
+    "titleChanged": "Title changed",
+    "wordsAdded": "{count} added",
+    "wordsRemoved": "{count} removed",
+    "wordsModified": "{count} modified",
+    "words": "words",
+    "modified": "modified",
+    "statistics": "Statistics"
   },
   "search": {
     "placeholder": "Semantic search...",

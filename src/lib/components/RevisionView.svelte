@@ -1,7 +1,10 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
+  import { _, locale } from 'svelte-i18n';
   import type { Fnord, FnordRevision } from '../stores/state.svelte';
-  import { computeWordDiff, diffToHtml, getDiffStats, type DiffSegment } from '../utils/textDiff';
+  import { computeWordDiff, diffToHtml, getDiffStats, detectModifications, type DiffSegment } from '../utils/textDiff';
+
+  // Browser check for Tauri app (not using SvelteKit's $app/environment)
+  const browser = typeof window !== 'undefined';
 
   interface Props {
     fnord: Fnord;
@@ -13,6 +16,18 @@
   // Which revision is selected (null = current version)
   let selectedRevisionIndex = $state<number | null>(null);
   let showDiff = $state(true);
+
+  // Whitespace visualization preference (persisted to localStorage)
+  let showWhitespace = $state(
+    browser ? localStorage.getItem('fuckup.showWhitespace') === 'true' : false
+  );
+
+  // Persist whitespace preference to localStorage
+  $effect(() => {
+    if (browser) {
+      localStorage.setItem('fuckup.showWhitespace', String(showWhitespace));
+    }
+  });
 
   // Get content for the current article
   function getCurrentContent(): string {
@@ -34,7 +49,7 @@
     return getRevisionContent(revisions[revIndex - 1]);
   }
 
-  // Compute diff segments
+  // Compute diff segments with modification detection
   const diffSegments = $derived.by(() => {
     if (!showDiff || selectedRevisionIndex === null) {
       return [] as DiffSegment[];
@@ -44,19 +59,26 @@
     const oldContent = getRevisionContent(rev);
     const newContent = getNewerContent(selectedRevisionIndex);
 
-    return computeWordDiff(oldContent, newContent);
+    // First compute the basic diff, then detect modifications
+    const basicDiff = computeWordDiff(oldContent, newContent);
+    return detectModifications(basicDiff);
   });
 
-  // Get diff HTML
-  const diffHtml = $derived(diffToHtml(diffSegments));
+  // Get diff HTML with optional whitespace visualization
+  // Note: showWhitespace is passed to diffToHtml to apply visualization BEFORE HTML escaping,
+  // which prevents corruption of HTML entities like &nbsp;
+  const diffHtml = $derived.by(() => {
+    return diffToHtml(diffSegments, { showWhitespace });
+  });
 
   // Get diff stats
   const stats = $derived(getDiffStats(diffSegments));
 
-  // Format date
+  // Format date using user's locale
   function formatDate(dateStr: string): string {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('de-DE', {
+    const currentLocale = $locale || 'de-DE';
+    return date.toLocaleDateString(currentLocale, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -73,15 +95,21 @@
 
 <div class="revision-view">
   <!-- Revision Tabs -->
-  <div class="revision-tabs">
+  <div class="revision-tabs" role="tablist" aria-label={$_('revisions.title') || 'Revisionen'}>
     <button
+      role="tab"
+      aria-selected={selectedRevisionIndex === null}
+      tabindex={selectedRevisionIndex === null ? 0 : -1}
       class="revision-tab {selectedRevisionIndex === null ? 'active' : ''}"
       onclick={() => selectRevision(null)}
     >
       {$_('revisions.current') || 'Aktuell'}
     </button>
-    {#each revisions as rev, i}
+    {#each revisions as rev, i (rev.id)}
       <button
+        role="tab"
+        aria-selected={selectedRevisionIndex === i}
+        tabindex={selectedRevisionIndex === i ? 0 : -1}
         class="revision-tab {selectedRevisionIndex === i ? 'active' : ''}"
         onclick={() => selectRevision(i)}
         title={formatDate(rev.revision_at)}
@@ -95,17 +123,35 @@
   {#if selectedRevisionIndex !== null}
     <div class="revision-controls">
       <label class="diff-toggle">
-        <input type="checkbox" bind:checked={showDiff} />
+        <input
+          type="checkbox"
+          bind:checked={showDiff}
+          aria-label={$_('revisions.showChanges') || 'Änderungen anzeigen'}
+        />
         <span>{$_('revisions.showChanges') || 'Änderungen anzeigen'}</span>
       </label>
 
-      {#if showDiff && (stats.addedWords > 0 || stats.removedWords > 0)}
+      {#if showDiff}
+        <label class="diff-toggle">
+          <input
+            type="checkbox"
+            bind:checked={showWhitespace}
+            aria-label={$_('revisions.showWhitespace') || 'Leerzeichen anzeigen'}
+          />
+          <span>{$_('revisions.showWhitespace') || 'Leerzeichen anzeigen'}</span>
+        </label>
+      {/if}
+
+      {#if showDiff && (stats.addedWords > 0 || stats.removedWords > 0 || stats.modifiedSegments > 0)}
         <div class="diff-stats">
           {#if stats.addedWords > 0}
-            <span class="stat-added">+{stats.addedWords}</span>
+            <span class="stat-added">+{stats.addedWords} {$_('revisions.words') || 'Wörter'}</span>
           {/if}
           {#if stats.removedWords > 0}
-            <span class="stat-removed">-{stats.removedWords}</span>
+            <span class="stat-removed">-{stats.removedWords} {$_('revisions.words') || 'Wörter'}</span>
+          {/if}
+          {#if stats.modifiedSegments > 0}
+            <span class="stat-modified">~{stats.modifiedSegments} {$_('revisions.modified') || 'geändert'}</span>
           {/if}
         </div>
       {/if}
@@ -117,7 +163,7 @@
   {/if}
 
   <!-- Content -->
-  <div class="revision-content">
+  <div class="revision-content" role="tabpanel" aria-label={$_('revisions.contentPanel') || 'Revisionsinhalt'}>
     {#if selectedRevisionIndex === null}
       <!-- Current version -->
       {#if fnord.content_full || fnord.content_raw}
@@ -231,6 +277,10 @@
     color: var(--accent-error);
   }
 
+  .stat-modified {
+    color: var(--accent-warning);
+  }
+
   .revision-date {
     margin-left: auto;
     font-size: 0.75rem;
@@ -248,19 +298,40 @@
     word-wrap: break-word;
   }
 
-  /* Diff highlighting - Textmarker style */
+  /* Diff highlighting - uses global CSS variables from app.css */
   .diff-content :global(.diff-added) {
-    background: linear-gradient(180deg, transparent 50%, rgba(166, 227, 161, 0.4) 50%);
+    background-color: var(--diff-added-bg);
+    color: var(--accent-success);
     padding: 0 2px;
     border-radius: 2px;
   }
 
   .diff-content :global(.diff-removed) {
-    background-color: rgba(243, 139, 168, 0.25);
+    background-color: var(--diff-deleted-bg);
     text-decoration: line-through;
-    color: var(--text-muted);
+    color: var(--accent-error);
     padding: 0 2px;
     border-radius: 2px;
+  }
+
+  /* Modified segments - show both old and new text */
+  .diff-content :global(.diff-modified) {
+    display: inline;
+  }
+
+  .diff-content :global(.diff-modified-old) {
+    background-color: var(--diff-modified-old-bg);
+    text-decoration: line-through;
+    opacity: 0.7;
+    padding: 0 2px;
+    border-radius: 2px 0 0 2px;
+  }
+
+  .diff-content :global(.diff-modified-new) {
+    background-color: var(--diff-modified-new-bg);
+    font-weight: 500;
+    padding: 0 2px;
+    border-radius: 0 2px 2px 0;
   }
 
   .no-content {
@@ -295,14 +366,16 @@
   }
 
   .title-old :global(.diff-removed) {
-    background-color: rgba(243, 139, 168, 0.25);
+    background-color: var(--diff-deleted-bg);
     text-decoration: line-through;
+    color: var(--accent-error);
     padding: 0 4px;
     border-radius: 2px;
   }
 
   .title-new :global(.diff-added) {
-    background: linear-gradient(180deg, transparent 50%, rgba(166, 227, 161, 0.4) 50%);
+    background-color: var(--diff-added-bg);
+    color: var(--accent-success);
     padding: 0 4px;
     border-radius: 2px;
   }
