@@ -113,6 +113,13 @@
     "methodAi": "LLM",
     "methodManual": "Manuell"
   },
+  "articleCategories": {
+    "add": "Kategorie hinzufügen",
+    "remove": "Entfernen",
+    "none": "Keine Kategorien",
+    "confidence": "Konfidenz",
+    "allAssigned": "Alle Kategorien zugewiesen"
+  },
   "keywordTooltips": {
     "extractionMethodsLabel": "Extraktionsmethoden",
     "extractionMethodsNote": "Mehrere Methoden erhöhen das Vertrauen.",
