@@ -1038,7 +1038,7 @@
 
   .similar-chip:hover:not(:disabled) {
     background-color: var(--accent-primary);
-    color: var(--text-primary);
+    color: var(--text-on-accent);
     border-style: solid;
   }
 

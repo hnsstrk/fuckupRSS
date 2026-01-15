@@ -442,6 +442,7 @@
     "similarity": "Semantische Ähnlichkeit",
     "noNeighbors": "Keine verwandten Stichworte gefunden",
     "listTab": "Keywords",
+    "tableTab": "Tabelle",
     "graphTab": "Graph",
     "trendsTab": "Trends",
     "graphLoading": "Graph wird geladen...",

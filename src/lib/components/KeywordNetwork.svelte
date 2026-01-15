@@ -6,6 +6,7 @@
   import Tooltip from './Tooltip.svelte';
   import NetworkGraph from './NetworkGraph.svelte';
   import KeywordTrendChart from './KeywordTrendChart.svelte';
+  import KeywordTable from './KeywordTable.svelte';
   import Tabs, { type Tab } from './Tabs.svelte';
 
   // Type for keyword articles
@@ -51,6 +52,7 @@
   // Tabs definition
   let tabs = $derived<Tab[]>([
     { id: 'list', label: $_('network.listTab') || 'Keywords' },
+    { id: 'table', label: $_('network.tableTab') || 'Tabelle' },
     { id: 'graph', label: $_('network.graphTab') || 'Graph' },
     { id: 'synonyms', label: $_('network.synonymsTab') || 'Synonyme' },
   ]);
@@ -108,64 +110,9 @@
   let renameLoading = $state(false);
   let renameError = $state<string | null>(null);
 
-  // Table view state
-  let viewMode = $state<'list' | 'table'>('list');
-  let sortColumn = $state<'name' | 'article_count' | 'first_seen' | 'last_used'>('article_count');
-  let sortDirection = $state<'asc' | 'desc'>('desc');
-  let minArticleFilter = $state(0);
-  let showFilters = $state(false);
-
   // Similar keywords for detail panel
   let similarKeywords = $state<{ id: number; name: string; similarity: number; cooccurrence: number }[]>([]);
   let similarKeywordsLoading = $state(false);
-
-  // Derived: sorted and filtered keywords for table view
-  let filteredKeywords = $derived(() => {
-    let result = searchInput && searchResults.length > 0 ? searchResults : keywords;
-
-    // Apply min article filter
-    if (minArticleFilter > 0) {
-      result = result.filter(k => k.article_count >= minArticleFilter);
-    }
-
-    return result;
-  });
-
-  let sortedKeywords = $derived(() => {
-    const data = [...filteredKeywords];
-
-    data.sort((a, b) => {
-      let aVal: string | number | null;
-      let bVal: string | number | null;
-
-      switch (sortColumn) {
-        case 'name':
-          aVal = a.name.toLowerCase();
-          bVal = b.name.toLowerCase();
-          break;
-        case 'article_count':
-          aVal = a.article_count;
-          bVal = b.article_count;
-          break;
-        case 'first_seen':
-          aVal = a.first_seen || '';
-          bVal = b.first_seen || '';
-          break;
-        case 'last_used':
-          aVal = a.last_used || '';
-          bVal = b.last_used || '';
-          break;
-        default:
-          return 0;
-      }
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return data;
-  });
 
   // Stable empty graph data to prevent re-renders
   const emptyGraphData: NetworkGraphType = { nodes: [], edges: [] };
@@ -237,8 +184,7 @@
       cooccurringKeywords = cooccurring;
       articlesOffset = articles.length;
       hasMoreArticles = articles.length >= articlesLimit;
-
-      // Load similar keywords (embedding-based)
+      // Load similar keywords after main data is loaded
       loadSimilarKeywords(id);
     } catch (e) {
       error = String(e);
@@ -262,21 +208,6 @@
     } finally {
       similarKeywordsLoading = false;
     }
-  }
-
-  function handleSort(column: 'name' | 'article_count' | 'first_seen' | 'last_used') {
-    if (sortColumn === column) {
-      // Toggle direction
-      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-      sortColumn = column;
-      sortDirection = column === 'name' ? 'asc' : 'desc';
-    }
-  }
-
-  function getSortIcon(column: string): string {
-    if (sortColumn !== column) return 'fa-sort';
-    return sortDirection === 'asc' ? 'fa-sort-up' : 'fa-sort-down';
   }
 
   async function loadMoreArticles() {
@@ -685,201 +616,88 @@
   <!-- Tab Content -->
   {#if activeTab === 'list'}
   <div class="network-content">
-    <!-- Left Panel: Search & Keywords List/Table -->
-    <div class="keywords-panel" class:table-mode={viewMode === 'table'}>
-      <!-- Toolbar: Search + View Toggle + Filters -->
-      <div class="panel-toolbar">
-        <div class="search-box">
-          <input
-            type="text"
-            bind:value={searchInput}
-            oninput={handleSearch}
-            placeholder={$_('network.searchPlaceholder')}
-            class="search-input"
-          />
-          {#if searchInput}
-            <button onclick={clearSearch} class="clear-btn">&times;</button>
-          {/if}
-        </div>
-
-        <div class="toolbar-actions">
-          <!-- Filter Toggle -->
-          <button
-            class="toolbar-btn"
-            class:active={showFilters}
-            onclick={() => showFilters = !showFilters}
-            title={$_('network.filters') || 'Filter'}
-          >
-            <i class="fa-solid fa-filter"></i>
-          </button>
-
-          <!-- View Mode Toggle -->
-          <div class="view-toggle">
-            <button
-              class="toggle-btn"
-              class:active={viewMode === 'list'}
-              onclick={() => viewMode = 'list'}
-              title={$_('network.listView') || 'Liste'}
-            >
-              <i class="fa-solid fa-list"></i>
-            </button>
-            <button
-              class="toggle-btn"
-              class:active={viewMode === 'table'}
-              onclick={() => viewMode = 'table'}
-              title={$_('network.tableView') || 'Tabelle'}
-            >
-              <i class="fa-solid fa-table"></i>
-            </button>
-          </div>
-        </div>
+    <!-- Left Panel: Search & Keywords List -->
+    <div class="keywords-panel">
+      <!-- Search -->
+      <div class="search-box">
+        <input
+          type="text"
+          bind:value={searchInput}
+          oninput={handleSearch}
+          placeholder={$_('network.searchPlaceholder')}
+          class="search-input"
+        />
+        {#if searchInput}
+          <button onclick={clearSearch} class="clear-btn">&times;</button>
+        {/if}
       </div>
 
-      <!-- Filter Bar -->
-      {#if showFilters}
-        <div class="filter-bar">
-          <div class="filter-item">
-            <label class="filter-label">{$_('network.minArticles') || 'Min. Artikel'}:</label>
-            <input
-              type="number"
-              class="filter-input"
-              bind:value={minArticleFilter}
-              min="0"
-              placeholder="0"
-            />
+      <!-- Search Results or Keywords List -->
+      <div class="keywords-list">
+        {#if searchInput && searchResults.length > 0}
+          <div class="list-section">
+            <div class="section-label">{$_('network.searchResults')}</div>
+            {#each searchResults as keyword (keyword.id)}
+              <button
+                class="keyword-item {selectedKeyword?.id === keyword.id ? 'active' : ''}"
+                onclick={() => selectKeywordById(keyword.id)}
+              >
+                <span class="keyword-name">{keyword.name}</span>
+                <span class="keyword-count">{keyword.article_count}</span>
+              </button>
+            {/each}
           </div>
-          <div class="filter-stats">
-            {filteredKeywords.length} / {keywords.length} {$_('network.keywords') || 'Keywords'}
-          </div>
-          {#if minArticleFilter > 0}
-            <button class="filter-clear" onclick={() => minArticleFilter = 0}>
-              <i class="fa-solid fa-xmark"></i>
-              {$_('network.clearFilter') || 'Filter löschen'}
-            </button>
-          {/if}
-        </div>
-      {/if}
-
-      <!-- TABLE VIEW -->
-      {#if viewMode === 'table'}
-        <div class="keywords-table-wrapper">
-          <table class="keywords-table">
-            <thead>
-              <tr>
-                <th class="sortable" onclick={() => handleSort('name')}>
-                  {$_('network.name') || 'Name'}
-                  <i class="fa-solid {getSortIcon('name')} sort-icon"></i>
-                </th>
-                <th class="sortable num" onclick={() => handleSort('article_count')}>
-                  {$_('network.articles') || 'Artikel'}
-                  <i class="fa-solid {getSortIcon('article_count')} sort-icon"></i>
-                </th>
-                <th class="sortable" onclick={() => handleSort('first_seen')}>
-                  {$_('network.firstSeen') || 'Erstellt'}
-                  <i class="fa-solid {getSortIcon('first_seen')} sort-icon"></i>
-                </th>
-                <th class="sortable" onclick={() => handleSort('last_used')}>
-                  {$_('network.lastUsed') || 'Zuletzt'}
-                  <i class="fa-solid {getSortIcon('last_used')} sort-icon"></i>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each sortedKeywords as keyword (keyword.id)}
-                <tr
-                  class="keyword-row"
-                  class:active={selectedKeyword?.id === keyword.id}
+        {:else if searchInput && searchResults.length === 0 && !loading}
+          <div class="empty-search">{$_('network.noResults')}</div>
+        {:else}
+          <!-- Trending Keywords -->
+          {#if trendingKeywords.length > 0}
+            <div class="list-section">
+              <div class="section-label">{$_('network.trending')}</div>
+              {#each trendingKeywords.slice(0, 5) as keyword (keyword.id)}
+                <button
+                  class="keyword-item trending {selectedKeyword?.id === keyword.id ? 'active' : ''}"
                   onclick={() => selectKeywordById(keyword.id)}
                 >
-                  <td class="name-cell">
+                  <span class="keyword-name">
+                    <i class="trend-icon fa-solid fa-caret-up"></i>
                     {keyword.name}
-                    {#if keyword.is_canonical}
-                      <i class="fa-solid fa-crown canonical-icon" title={$_('network.canonical') || 'Kanonisch'}></i>
-                    {/if}
-                  </td>
-                  <td class="num">{keyword.article_count}</td>
-                  <td class="date-cell">{keyword.first_seen ? formatArticleDate(keyword.first_seen) : '-'}</td>
-                  <td class="date-cell">{keyword.last_used ? formatArticleDate(keyword.last_used) : '-'}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-
-          {#if hasMore && !loading && !searchInput}
-            <button onclick={() => loadKeywords(false)} class="load-more table-load-more">
-              {$_('network.loadMore')}
-            </button>
-          {/if}
-        </div>
-
-      <!-- LIST VIEW -->
-      {:else}
-        <div class="keywords-list">
-          {#if searchInput && searchResults.length > 0}
-            <div class="list-section">
-              <div class="section-label">{$_('network.searchResults')}</div>
-              {#each searchResults as keyword (keyword.id)}
-                <button
-                  class="keyword-item {selectedKeyword?.id === keyword.id ? 'active' : ''}"
-                  onclick={() => selectKeywordById(keyword.id)}
-                >
-                  <span class="keyword-name">{keyword.name}</span>
-                  <span class="keyword-count">{keyword.article_count}</span>
+                  </span>
+                  <span class="keyword-count">{keyword.recent_count}</span>
                 </button>
               {/each}
             </div>
-          {:else if searchInput && searchResults.length === 0 && !loading}
-            <div class="empty-search">{$_('network.noResults')}</div>
-          {:else}
-            <!-- Trending Keywords -->
-            {#if trendingKeywords.length > 0 && minArticleFilter === 0}
-              <div class="list-section">
-                <div class="section-label">{$_('network.trending')}</div>
-                {#each trendingKeywords.slice(0, 5) as keyword (keyword.id)}
-                  <button
-                    class="keyword-item trending {selectedKeyword?.id === keyword.id ? 'active' : ''}"
-                    onclick={() => selectKeywordById(keyword.id)}
-                  >
-                    <span class="keyword-name">
-                      <i class="trend-icon fa-solid fa-caret-up"></i>
-                      {keyword.name}
-                    </span>
-                    <span class="keyword-count">{keyword.recent_count}</span>
-                  </button>
-                {/each}
-              </div>
+          {/if}
+
+          <!-- All Keywords -->
+          <div class="list-section">
+            <div class="section-label">{$_('network.allKeywords')}</div>
+            {#each keywords as keyword (keyword.id)}
+              <button
+                class="keyword-item {selectedKeyword?.id === keyword.id ? 'active' : ''}"
+                onclick={() => selectKeywordById(keyword.id)}
+              >
+                <span class="keyword-name">{keyword.name}</span>
+                <span class="keyword-count">{keyword.article_count}</span>
+              </button>
+            {/each}
+
+            {#if hasMore && !loading}
+              <button onclick={() => loadKeywords(false)} class="load-more">
+                {$_('network.loadMore')}
+              </button>
             {/if}
+          </div>
+        {/if}
 
-            <!-- All Keywords (filtered) -->
-            <div class="list-section">
-              <div class="section-label">{$_('network.allKeywords')}</div>
-              {#each filteredKeywords as keyword (keyword.id)}
-                <button
-                  class="keyword-item {selectedKeyword?.id === keyword.id ? 'active' : ''}"
-                  onclick={() => selectKeywordById(keyword.id)}
-                >
-                  <span class="keyword-name">{keyword.name}</span>
-                  <span class="keyword-count">{keyword.article_count}</span>
-                </button>
-              {/each}
+        {#if loading}
+          <div class="loading-indicator">{$_('network.loading')}</div>
+        {/if}
 
-              {#if hasMore && !loading && minArticleFilter === 0}
-                <button onclick={() => loadKeywords(false)} class="load-more">
-                  {$_('network.loadMore')}
-                </button>
-              {/if}
-            </div>
-          {/if}
-        </div>
-      {/if}
-
-      {#if loading}
-        <div class="loading-indicator">{$_('network.loading')}</div>
-      {/if}
-
-      {#if error}
-        <div class="error-message">{error}</div>
-      {/if}
+        {#if error}
+          <div class="error-message">{error}</div>
+        {/if}
+      </div>
     </div>
 
     <!-- Right Panel: Keyword Details -->
@@ -1170,6 +988,11 @@
       {/if}
     </div>
   </div>
+  {:else if activeTab === 'table'}
+  <!-- Table View -->
+  <div class="table-view">
+    <KeywordTable onKeywordSelect={selectKeywordById} />
+  </div>
   {:else if activeTab === 'graph'}
   <!-- Graph View -->
   <div class="graph-view">
@@ -1423,7 +1246,7 @@
     width: 100%;
     height: 100%;
     flex: 1;
-    background-color: var(--bg-default);
+    background-color: var(--bg-base);
   }
 
   .network-header {
@@ -1460,6 +1283,16 @@
   }
 
   /* Graph View */
+  /* Table View */
+  .table-view {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
   .graph-view {
     flex: 1;
     width: 100%;
@@ -1504,242 +1337,6 @@
     display: flex;
     flex-direction: column;
     background-color: var(--bg-surface);
-    min-width: 280px;
-    transition: width 0.2s;
-  }
-
-  .keywords-panel.table-mode {
-    width: 50%;
-    max-width: 600px;
-  }
-
-  /* Panel Toolbar */
-  .panel-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem;
-    border-bottom: 1px solid var(--border-default);
-  }
-
-  .panel-toolbar .search-box {
-    flex: 1;
-    padding: 0;
-    border-bottom: none;
-  }
-
-  .toolbar-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .toolbar-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    background: none;
-    border: 1px solid var(--border-default);
-    border-radius: 0.375rem;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .toolbar-btn:hover {
-    color: var(--text-primary);
-    border-color: var(--accent-primary);
-  }
-
-  .toolbar-btn.active {
-    color: var(--accent-primary);
-    border-color: var(--accent-primary);
-    background-color: rgba(var(--accent-primary-rgb), 0.1);
-  }
-
-  .view-toggle {
-    display: flex;
-    border: 1px solid var(--border-default);
-    border-radius: 0.375rem;
-    overflow: hidden;
-  }
-
-  .toggle-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .toggle-btn:hover {
-    color: var(--text-primary);
-  }
-
-  .toggle-btn.active {
-    color: var(--accent-primary);
-    background-color: rgba(var(--accent-primary-rgb), 0.1);
-  }
-
-  /* Filter Bar */
-  .filter-bar {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.5rem 0.75rem;
-    background-color: var(--bg-overlay);
-    border-bottom: 1px solid var(--border-default);
-    flex-wrap: wrap;
-  }
-
-  .filter-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .filter-label {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    white-space: nowrap;
-  }
-
-  .filter-input {
-    width: 60px;
-    padding: 0.25rem 0.5rem;
-    border: 1px solid var(--border-default);
-    border-radius: 0.25rem;
-    background-color: var(--bg-surface);
-    color: var(--text-primary);
-    font-size: 0.75rem;
-  }
-
-  .filter-stats {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin-left: auto;
-  }
-
-  .filter-clear {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.5rem;
-    background: none;
-    border: 1px solid var(--status-error);
-    border-radius: 0.25rem;
-    color: var(--status-error);
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .filter-clear:hover {
-    background-color: var(--status-error);
-    color: white;
-  }
-
-  /* Table View */
-  .keywords-table-wrapper {
-    flex: 1;
-    overflow: auto;
-  }
-
-  .keywords-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8125rem;
-  }
-
-  .keywords-table thead {
-    position: sticky;
-    top: 0;
-    background-color: var(--bg-surface);
-    z-index: 1;
-  }
-
-  .keywords-table th {
-    padding: 0.5rem 0.75rem;
-    text-align: left;
-    font-weight: 500;
-    color: var(--text-muted);
-    border-bottom: 2px solid var(--border-default);
-    white-space: nowrap;
-  }
-
-  .keywords-table th.sortable {
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .keywords-table th.sortable:hover {
-    color: var(--text-primary);
-  }
-
-  .keywords-table th.num,
-  .keywords-table td.num {
-    text-align: right;
-  }
-
-  .sort-icon {
-    margin-left: 0.25rem;
-    font-size: 0.625rem;
-    opacity: 0.5;
-  }
-
-  .keywords-table th.sortable:hover .sort-icon,
-  .keywords-table th.sortable .sort-icon:global(.fa-sort-up),
-  .keywords-table th.sortable .sort-icon:global(.fa-sort-down) {
-    opacity: 1;
-  }
-
-  .keywords-table td {
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid var(--border-default);
-  }
-
-  .keyword-row {
-    cursor: pointer;
-    transition: background-color 0.15s;
-  }
-
-  .keyword-row:hover {
-    background-color: var(--bg-overlay);
-  }
-
-  .keyword-row.active {
-    background-color: rgba(var(--accent-primary-rgb), 0.1);
-  }
-
-  .name-cell {
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .canonical-icon {
-    font-size: 0.625rem;
-    color: var(--accent-warning);
-    margin-left: 0.25rem;
-  }
-
-  .date-cell {
-    color: var(--text-muted);
-    font-size: 0.75rem;
-  }
-
-  .table-load-more {
-    width: 100%;
-    padding: 0.75rem;
-    margin-top: 0;
   }
 
   .search-box {
@@ -1885,7 +1482,7 @@
   .detail-panel {
     flex: 1;
     overflow-y: auto;
-    background-color: var(--bg-default);
+    background-color: var(--bg-base);
   }
 
   .keyword-detail {
@@ -2055,7 +1652,7 @@
   }
 
   .category-card {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 15%, var(--bg-default)) 0%, var(--bg-default) 100%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 15%, var(--bg-base)) 0%, var(--bg-base) 100%);
     border: 1px solid color-mix(in srgb, var(--cat-color) 30%, transparent);
     border-radius: 0.5rem;
     padding: 0.75rem;
@@ -2245,7 +1842,7 @@
 
   .neighbor-tag:hover {
     background-color: var(--neighbor-color);
-    color: var(--bg-default);
+    color: var(--text-on-accent);
   }
 
   .more-count {
@@ -2417,7 +2014,7 @@
   .action-btn.primary {
     background-color: var(--accent-primary);
     border-color: var(--accent-primary);
-    color: var(--bg-default);
+    color: var(--text-on-accent);
   }
 
   .action-btn.primary:hover:not(:disabled) {
@@ -2514,7 +2111,7 @@
   .merge-btn:hover:not(:disabled) {
     background-color: var(--accent-success);
     border-color: var(--accent-success);
-    color: var(--bg-default);
+    color: var(--text-on-accent);
   }
 
   .merge-btn:disabled {
@@ -2540,7 +2137,7 @@
   .dismiss-btn:hover {
     background-color: var(--accent-error);
     border-color: var(--accent-error);
-    color: var(--bg-default);
+    color: var(--text-on-accent);
   }
 
   .empty-hint {
@@ -2676,7 +2273,7 @@
 
   .replace-btn:hover:not(:disabled) {
     background-color: var(--accent-warning);
-    color: var(--bg-default);
+    color: var(--text-on-accent);
   }
 
   .replace-btn:disabled {

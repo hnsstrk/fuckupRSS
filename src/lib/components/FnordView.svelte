@@ -270,7 +270,7 @@
     width: 100%;
     height: 100%;
     flex: 1;
-    background-color: var(--bg-default);
+    background-color: var(--bg-base);
   }
 
   .fnord-header {
@@ -384,7 +384,7 @@
   }
 
   .category-card {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 15%, var(--bg-default)) 0%, var(--bg-default) 100%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 15%, var(--bg-base)) 0%, var(--bg-base) 100%);
     border: 1px solid color-mix(in srgb, var(--cat-color) 30%, transparent);
     border-radius: 0.625rem;
     padding: 1rem;
@@ -577,7 +577,7 @@
     justify-content: space-between;
     gap: 1rem;
     padding: 0.75rem 1rem;
-    background-color: var(--bg-default);
+    background-color: var(--bg-base);
     border: 1px solid var(--border-default);
     border-radius: 0.5rem;
     transition: background-color 0.15s ease;

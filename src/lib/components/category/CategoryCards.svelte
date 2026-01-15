@@ -184,7 +184,7 @@
   }
 
   .category-card {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 15%, var(--bg-default)) 0%, var(--bg-default) 100%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 15%, var(--bg-base)) 0%, var(--bg-base) 100%);
     border: 1px solid color-mix(in srgb, var(--cat-color) 30%, transparent);
     border-radius: 0.625rem;
     padding: 1rem;
