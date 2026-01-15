@@ -81,11 +81,12 @@ pub fn save_article_keywords_and_network(
     categories_saved: &[String],
     article_date: Option<&str>,
 ) -> (Vec<String>, Vec<i64>) {
+    use crate::keywords::types::KeywordSource;
     let kws_with_source: Vec<KeywordWithSource> = keywords
         .iter()
         .map(|k| KeywordWithSource {
             name: k.clone(),
-            source: "ai".to_string(),
+            source: KeywordSource::Ai,
             confidence: 1.0,
         })
         .collect();
@@ -197,7 +198,7 @@ pub fn save_article_keywords_with_source(
         ) {
             conn.execute(
                 "INSERT OR IGNORE INTO fnord_immanentize (fnord_id, immanentize_id, source, confidence) VALUES (?, ?, ?, ?)",
-                rusqlite::params![fnord_id, tag_id, &kw.source, kw.confidence],
+                rusqlite::params![fnord_id, tag_id, kw.source_str(), kw.confidence],
             )
             .ok();
 

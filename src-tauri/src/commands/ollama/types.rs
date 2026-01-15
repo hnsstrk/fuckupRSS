@@ -88,13 +88,12 @@ pub struct DiscordianResponse {
 // SOURCE TRACKING TYPES
 // ============================================================
 
+// Re-export from central types for backward compatibility
+pub use crate::keywords::types::KeywordWithMetadata;
+
 /// Keyword with source tracking (statistical vs ai)
-#[derive(Debug, Clone)]
-pub struct KeywordWithSource {
-    pub name: String,
-    pub source: String, // 'ai', 'statistical'
-    pub confidence: f64,
-}
+/// DEPRECATED: Use KeywordWithMetadata from keywords::types instead
+pub type KeywordWithSource = KeywordWithMetadata;
 
 /// Category with source tracking (statistical vs ai)
 #[derive(Debug, Clone)]

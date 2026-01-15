@@ -4,6 +4,12 @@ use std::collections::{HashMap, HashSet};
 use whatlang::{detect, Lang};
 use yake_rust::{get_n_best, Config, StopWords};
 
+pub mod types;
+
+pub use types::{
+    ArticleKeywordRef, ExtractedKeywordCandidate, KeywordSource, KeywordWithMetadata,
+};
+
 #[cfg(test)]
 mod tests;
 

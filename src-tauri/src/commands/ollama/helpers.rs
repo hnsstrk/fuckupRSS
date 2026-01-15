@@ -177,20 +177,18 @@ pub fn determine_keyword_sources(
     final_keywords: &[String],
     stat_keywords: &[String],
 ) -> Vec<KeywordWithSource> {
+    use crate::keywords::types::KeywordSource;
+
     let stat_lower: HashSet<String> = stat_keywords.iter().map(|k| k.to_lowercase()).collect();
 
     final_keywords
         .iter()
         .map(|k| {
-            let source = if stat_lower.contains(&k.to_lowercase()) {
-                "statistical"
-            } else {
-                "ai"
-            };
+            let is_statistical = stat_lower.contains(&k.to_lowercase());
             KeywordWithSource {
                 name: k.clone(),
-                source: source.to_string(),
-                confidence: if source == "statistical" { 0.8 } else { 1.0 },
+                source: if is_statistical { KeywordSource::Statistical } else { KeywordSource::Ai },
+                confidence: if is_statistical { 0.8 } else { 1.0 },
             }
         })
         .collect()

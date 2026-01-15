@@ -16,7 +16,9 @@ pub use keywords::{
     extract_keywords, normalize_keyword, normalize_and_dedupe_keywords,
     find_canonical_keyword, find_canonical_keyword_with_db, load_dynamic_synonyms,
     split_compound_keyword, expand_compound_keywords,
-    KeywordExtractor, Language
+    KeywordExtractor, Language,
+    // Unified keyword types
+    KeywordSource, KeywordWithMetadata, ExtractedKeywordCandidate, ArticleKeywordRef,
 };
 pub use logging::LogLevel;
 
