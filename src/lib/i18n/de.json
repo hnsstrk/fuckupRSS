@@ -321,7 +321,16 @@
       "alreadyExists": "Dieses Wort ist bereits ein Stopwort",
       "added": "Stopwort hinzugefügt",
       "removed": "Stopwort entfernt",
-      "cleared": "Alle benutzerdefinierten Stopwörter entfernt"
+      "cleared": "Alle benutzerdefinierten Stopwörter entfernt",
+      "export": "Exportieren",
+      "import": "Importieren",
+      "exporting": "Exportiere...",
+      "importing": "Importiere...",
+      "exportSuccess": "{count} Stopwörter exportiert",
+      "importSuccess": "{imported} importiert, {skipped} übersprungen (von {total})",
+      "importError": "Import fehlgeschlagen: {error}",
+      "exportError": "Export fehlgeschlagen: {error}",
+      "noStopwordsToExport": "Keine benutzerdefinierten Stopwörter zum Exportieren vorhanden"
     }
   },
   "terminology": {

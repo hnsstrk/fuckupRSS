@@ -1,6 +1,8 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
+  import { open, save } from "@tauri-apps/plugin-dialog";
+  import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
   import { toasts } from "../../stores/state.svelte";
 
   // Stopword state
@@ -20,6 +22,12 @@
     total_count: number;
   }
 
+  interface StopwordImportResult {
+    imported: number;
+    skipped: number;
+    total: number;
+  }
+
   let stopwordStats = $state<StopwordStats | null>(null);
   let userStopwords = $state<UserStopword[]>([]);
   let stopwordSearchQuery = $state("");
@@ -27,6 +35,8 @@
   let newStopword = $state("");
   let confirmClearStopwords = $state(false);
   let stopwordLoading = $state(false);
+  let exportLoading = $state(false);
+  let importLoading = $state(false);
 
   export async function init() {
     await Promise.all([loadStopwordStats(), loadUserStopwords()]);
@@ -113,6 +123,93 @@
       stopwordLoading = false;
     }
   }
+
+  async function handleExportStopwords() {
+    if (userStopwords.length === 0) {
+      toasts.add($_("settings.stopwords.noStopwordsToExport"), "warning");
+      return;
+    }
+
+    exportLoading = true;
+    try {
+      const content = await invoke<string>("export_stopwords");
+
+      const filePath = await save({
+        filters: [
+          {
+            name: "JSON",
+            extensions: ["json"],
+          },
+        ],
+        defaultPath: "fuckupRSS-stopwords.json",
+      });
+
+      if (!filePath) {
+        exportLoading = false;
+        return;
+      }
+
+      await writeTextFile(filePath, content);
+      toasts.add(
+        $_("settings.stopwords.exportSuccess", {
+          values: { count: userStopwords.length },
+        }),
+        "success"
+      );
+    } catch (e) {
+      toasts.add(
+        $_("settings.stopwords.exportError", { values: { error: String(e) } }),
+        "error"
+      );
+    } finally {
+      exportLoading = false;
+    }
+  }
+
+  async function handleImportStopwords() {
+    importLoading = true;
+    try {
+      const filePath = await open({
+        multiple: false,
+        filters: [
+          {
+            name: "JSON",
+            extensions: ["json"],
+          },
+        ],
+      });
+
+      if (!filePath) {
+        importLoading = false;
+        return;
+      }
+
+      const content = await readTextFile(filePath as string);
+      const result = await invoke<StopwordImportResult>("import_stopwords", {
+        content,
+      });
+
+      toasts.add(
+        $_("settings.stopwords.importSuccess", {
+          values: {
+            imported: result.imported,
+            skipped: result.skipped,
+            total: result.total,
+          },
+        }),
+        "success"
+      );
+
+      await Promise.all([loadStopwordStats(), loadUserStopwords()]);
+    } catch (e) {
+      toasts.add(
+        $_("settings.stopwords.importError", { values: { error: String(e) } }),
+        "error"
+      );
+    } finally {
+      importLoading = false;
+    }
+  }
 </script>
 
 <!-- Stopwords Editor -->
@@ -191,16 +288,44 @@
 <div class="stopword-list-section">
   <div class="stopword-list-header">
     <h3>{$_("settings.stopwords.userCount")} ({userStopwords.length})</h3>
-    {#if userStopwords.length > 0}
+    <div class="stopword-actions">
       <button
         type="button"
-        class="btn-danger"
-        onclick={() => (confirmClearStopwords = true)}
-        disabled={stopwordLoading}
+        class="btn-secondary-small"
+        onclick={handleImportStopwords}
+        disabled={stopwordLoading || importLoading}
       >
-        {$_("settings.stopwords.clear")}
+        {#if importLoading}
+          {$_("settings.stopwords.importing")}
+        {:else}
+          <i class="fa-solid fa-file-import"></i>
+          {$_("settings.stopwords.import")}
+        {/if}
       </button>
-    {/if}
+      <button
+        type="button"
+        class="btn-secondary-small"
+        onclick={handleExportStopwords}
+        disabled={stopwordLoading || exportLoading || userStopwords.length === 0}
+      >
+        {#if exportLoading}
+          {$_("settings.stopwords.exporting")}
+        {:else}
+          <i class="fa-solid fa-file-export"></i>
+          {$_("settings.stopwords.export")}
+        {/if}
+      </button>
+      {#if userStopwords.length > 0}
+        <button
+          type="button"
+          class="btn-danger"
+          onclick={() => (confirmClearStopwords = true)}
+          disabled={stopwordLoading}
+        >
+          {$_("settings.stopwords.clear")}
+        </button>
+      {/if}
+    </div>
   </div>
 
   {#if userStopwords.length === 0}
@@ -338,6 +463,40 @@
 
   .stopword-list-header h3 {
     margin: 0;
+  }
+
+  .stopword-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .btn-secondary-small {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.25rem;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-secondary-small:hover:not(:disabled) {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+  }
+
+  .btn-secondary-small:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary-small i {
+    font-size: 0.75rem;
   }
 
   .stopword-chips,

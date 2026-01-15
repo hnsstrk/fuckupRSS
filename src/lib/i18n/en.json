@@ -321,7 +321,16 @@
       "alreadyExists": "This word is already a stopword",
       "added": "Stopword added",
       "removed": "Stopword removed",
-      "cleared": "All user-defined stopwords removed"
+      "cleared": "All user-defined stopwords removed",
+      "export": "Export",
+      "import": "Import",
+      "exporting": "Exporting...",
+      "importing": "Importing...",
+      "exportSuccess": "{count} stopwords exported",
+      "importSuccess": "{imported} imported, {skipped} skipped (of {total})",
+      "importError": "Import failed: {error}",
+      "exportError": "Export failed: {error}",
+      "noStopwordsToExport": "No user-defined stopwords to export"
     }
   },
   "terminology": {

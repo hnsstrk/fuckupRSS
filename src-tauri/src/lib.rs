@@ -245,6 +245,8 @@ pub fn run() {
             commands::stopwords::is_stopword_check,
             commands::stopwords::search_stopwords,
             commands::stopwords::clear_user_stopwords,
+            commands::stopwords::export_stopwords,
+            commands::stopwords::import_stopwords,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

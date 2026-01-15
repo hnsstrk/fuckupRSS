@@ -227,3 +227,87 @@ pub fn clear_user_stopwords(state: State<AppState>) -> Result<i64, String> {
 
     Ok(deleted as i64)
 }
+
+// ============================================================
+// BACKUP / RESTORE
+// ============================================================
+
+/// Stopword backup format
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StopwordBackup {
+    pub stopwords: Vec<String>,
+    pub exported_at: String,
+}
+
+/// Result of stopword import
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StopwordImportResult {
+    pub imported: i64,
+    pub skipped: i64,
+    pub total: i64,
+}
+
+/// Export user stopwords to JSON format
+#[tauri::command]
+pub fn export_stopwords(state: State<AppState>) -> Result<String, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn()
+        .prepare("SELECT word FROM user_stopwords ORDER BY word ASC")
+        .map_err(|e| e.to_string())?;
+
+    let stopwords: Vec<String> = stmt
+        .query_map([], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let backup = StopwordBackup {
+        stopwords,
+        exported_at: chrono::Utc::now().to_rfc3339(),
+    };
+
+    serde_json::to_string_pretty(&backup).map_err(|e| e.to_string())
+}
+
+/// Import user stopwords from JSON format
+#[tauri::command]
+pub fn import_stopwords(
+    state: State<AppState>,
+    content: String,
+) -> Result<StopwordImportResult, String> {
+    let backup: StopwordBackup =
+        serde_json::from_str(&content).map_err(|e| format!("Invalid JSON format: {}", e))?;
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut imported = 0i64;
+    let mut skipped = 0i64;
+    let total = backup.stopwords.len() as i64;
+
+    for word in backup.stopwords {
+        let word_trimmed = word.trim().to_lowercase();
+        if word_trimmed.is_empty() || word_trimmed.len() < 2 {
+            skipped += 1;
+            continue;
+        }
+
+        // Skip if already a builtin stopword
+        if STOPWORDS.contains(word_trimmed.as_str()) {
+            skipped += 1;
+            continue;
+        }
+
+        match add_user_stopword(db.conn(), &word_trimmed) {
+            Ok(_) => imported += 1,
+            Err(_) => skipped += 1, // Already exists
+        }
+    }
+
+    Ok(StopwordImportResult {
+        imported,
+        skipped,
+        total,
+    })
+}
