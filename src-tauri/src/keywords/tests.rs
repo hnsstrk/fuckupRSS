@@ -228,13 +228,13 @@ fn test_find_canonical_keyword_topics() {
 
 #[test]
 fn test_find_canonical_keyword_persons() {
-    // Test prominent persons normalization
-    assert_eq!(find_canonical_keyword("donald trump"), Some("Trump"));
-    assert_eq!(find_canonical_keyword("trump"), Some("Trump"));
-    assert_eq!(find_canonical_keyword("joe biden"), Some("Biden"));
-    assert_eq!(find_canonical_keyword("wladimir putin"), Some("Putin"));
-    assert_eq!(find_canonical_keyword("olaf scholz"), Some("Scholz"));
-    assert_eq!(find_canonical_keyword("bundeskanzler scholz"), Some("Scholz"));
+    // Test prominent persons normalization (full names as canonical)
+    assert_eq!(find_canonical_keyword("trump"), Some("Donald Trump"));
+    assert_eq!(find_canonical_keyword("präsident trump"), Some("Donald Trump"));
+    assert_eq!(find_canonical_keyword("biden"), Some("Joe Biden"));
+    assert_eq!(find_canonical_keyword("putin"), Some("Wladimir Putin"));
+    assert_eq!(find_canonical_keyword("scholz"), Some("Olaf Scholz"));
+    assert_eq!(find_canonical_keyword("bundeskanzler scholz"), Some("Olaf Scholz"));
 }
 
 #[test]

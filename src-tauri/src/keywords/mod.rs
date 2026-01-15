@@ -1092,22 +1092,22 @@ static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(
             "Demonstranten",
             vec!["demonstrant", "demonstranten", "protestierende", "protestierenden"],
         ),
-        // === Prominente Personen ===
+        // === Prominente Personen (vollständige Namen) ===
         (
-            "Trump",
-            vec!["donald trump", "trump", "trumps", "donald j. trump", "ex-präsident trump"],
+            "Donald Trump",
+            vec!["trump", "trumps", "donald j. trump", "ex-präsident trump", "präsident trump"],
         ),
         (
-            "Biden",
-            vec!["joe biden", "biden", "bidens", "präsident biden", "us-präsident biden"],
+            "Joe Biden",
+            vec!["biden", "bidens", "präsident biden", "us-präsident biden"],
         ),
         (
-            "Putin",
-            vec!["wladimir putin", "putin", "putins", "präsident putin", "russlands präsident"],
+            "Wladimir Putin",
+            vec!["putin", "putins", "präsident putin", "russlands präsident"],
         ),
         (
-            "Scholz",
-            vec!["olaf scholz", "scholz", "bundeskanzler scholz", "kanzler scholz"],
+            "Olaf Scholz",
+            vec!["scholz", "bundeskanzler scholz", "kanzler scholz"],
         ),
     ]
 });
