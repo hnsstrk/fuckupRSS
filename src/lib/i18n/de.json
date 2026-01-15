@@ -232,6 +232,27 @@
       "ollamaUnavailable": "Ollama nicht verfügbar - Analyse kann nicht gestartet werden",
       "reanalyzeComplete": "Analyse abgeschlossen: {succeeded} erfolgreich, {failed} fehlgeschlagen",
       "reanalyzeCancelled": "Analyse abgebrochen"
+    },
+    "stopwords": {
+      "title": "Stopwörter",
+      "description": "Verwalten Sie Wörter, die bei der Keyword-Extraktion ignoriert werden sollen",
+      "builtinCount": "Eingebaute Stopwörter",
+      "userCount": "Benutzerdefinierte Stopwörter",
+      "totalCount": "Gesamt",
+      "addStopword": "Stopwort hinzufügen...",
+      "add": "Hinzufügen",
+      "remove": "Entfernen",
+      "clear": "Alle löschen",
+      "confirmClear": "Wirklich alle benutzerdefinierten Stopwörter löschen?",
+      "search": "Stopwörter suchen...",
+      "noResults": "Keine Stopwörter gefunden",
+      "isBuiltin": "Eingebaut",
+      "isUser": "Benutzer",
+      "minLength": "Stopwort muss mindestens 2 Zeichen haben",
+      "alreadyExists": "Dieses Wort ist bereits ein Stopwort",
+      "added": "Stopwort hinzugefügt",
+      "removed": "Stopwort entfernt",
+      "cleared": "Alle benutzerdefinierten Stopwörter entfernt"
     }
   },
   "terminology": {

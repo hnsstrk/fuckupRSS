@@ -14,3 +14,7 @@ mod bias;
 pub use tfidf::{TfIdfExtractor, CorpusStats};
 pub use category_matcher::CategoryMatcher;
 pub use bias::{BiasWeights, CorrectionRecord, CorrectionType, BiasStats, record_correction, get_bias_stats};
+pub use stopwords::{
+    STOPWORDS, load_user_stopwords, add_user_stopword, remove_user_stopword,
+    get_all_stopwords, get_stopword_stats, StopwordStats, is_stopword,
+};

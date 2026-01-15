@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::stopwords::STOPWORDS;
+use std::collections::HashSet;
 
 /// A keyword candidate with its TF-IDF score
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -149,11 +150,17 @@ impl TfIdfExtractor {
 
     /// Tokenize text into words
     fn tokenize(&self, text: &str) -> Vec<String> {
+        self.tokenize_with_stopwords(text, None)
+    }
+
+    /// Tokenize text into words, filtering additional user-defined stopwords
+    fn tokenize_with_stopwords(&self, text: &str, user_stopwords: Option<&HashSet<String>>) -> Vec<String> {
         text.unicode_words()
             .map(|w| w.to_lowercase())
             .filter(|w| {
                 w.len() >= self.min_word_length
                     && !STOPWORDS.contains(w.as_str())
+                    && !user_stopwords.map_or(false, |sw| sw.contains(w))
                     && w.chars().all(|c| c.is_alphabetic())
             })
             .collect()
@@ -254,6 +261,94 @@ impl TfIdfExtractor {
             Some(stats) if stats.is_meaningful() => self.extract(text, stats),
             _ => self.extract_simple(text),
         }
+    }
+
+    /// Extract keywords with user-defined stopwords
+    pub fn extract_with_stopwords(
+        &self,
+        text: &str,
+        corpus_stats: &CorpusStats,
+        user_stopwords: &HashSet<String>,
+    ) -> Vec<KeywordCandidate> {
+        let tokens = self.tokenize_with_stopwords(text, Some(user_stopwords));
+        if tokens.is_empty() {
+            return Vec::new();
+        }
+
+        let term_freqs = self.calculate_tf(&tokens);
+
+        let mut candidates: Vec<KeywordCandidate> = term_freqs
+            .into_iter()
+            .map(|(term, (frequency, tf))| {
+                let idf = corpus_stats.idf(&term);
+                let score = tf * idf;
+                KeywordCandidate {
+                    term,
+                    score,
+                    frequency,
+                    tf,
+                    idf,
+                }
+            })
+            .filter(|c| c.score >= self.min_score)
+            .collect();
+
+        candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        candidates.truncate(self.max_keywords);
+        candidates
+    }
+
+    /// Smart extraction with user stopwords
+    pub fn extract_smart_with_stopwords(
+        &self,
+        text: &str,
+        corpus_stats: Option<&CorpusStats>,
+        user_stopwords: &HashSet<String>,
+    ) -> Vec<KeywordCandidate> {
+        match corpus_stats {
+            Some(stats) if stats.is_meaningful() => {
+                self.extract_with_stopwords(text, stats, user_stopwords)
+            }
+            _ => self.extract_simple_with_stopwords(text, user_stopwords),
+        }
+    }
+
+    /// Simple extraction with user stopwords (no corpus stats)
+    pub fn extract_simple_with_stopwords(
+        &self,
+        text: &str,
+        user_stopwords: &HashSet<String>,
+    ) -> Vec<KeywordCandidate> {
+        let tokens = self.tokenize_with_stopwords(text, Some(user_stopwords));
+        if tokens.is_empty() {
+            return Vec::new();
+        }
+
+        let term_freqs = self.calculate_tf(&tokens);
+
+        let mut candidates: Vec<KeywordCandidate> = term_freqs
+            .into_iter()
+            .map(|(term, (frequency, tf))| {
+                let score = tf * (frequency as f64).ln().max(1.0);
+                KeywordCandidate {
+                    term,
+                    score,
+                    frequency,
+                    tf,
+                    idf: 1.0,
+                }
+            })
+            .filter(|c| c.frequency >= 2)
+            .collect();
+
+        candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        candidates.truncate(self.max_keywords);
+        candidates
+    }
+
+    /// Get tokens with user stopwords filtered (useful for corpus building)
+    pub fn get_tokens_with_stopwords(&self, text: &str, user_stopwords: &HashSet<String>) -> Vec<String> {
+        self.tokenize_with_stopwords(text, Some(user_stopwords))
     }
 }
 

@@ -675,6 +675,19 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 15: Create user_stopwords table for user-defined stopwords
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS user_stopwords (
+            id INTEGER PRIMARY KEY,
+            word TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            added_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_user_stopwords_word ON user_stopwords(word);
+        "#,
+    )?;
+
     Ok(())
 }
 

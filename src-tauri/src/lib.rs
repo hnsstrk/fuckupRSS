@@ -206,6 +206,15 @@ pub fn run() {
             commands::article_analysis::analyze_article_statistical,
             commands::article_analysis::record_correction,
             commands::article_analysis::get_bias_stats,
+            // Stopword Management
+            commands::stopwords::get_user_stopwords,
+            commands::stopwords::add_stopword,
+            commands::stopwords::add_stopwords_batch,
+            commands::stopwords::remove_stopword,
+            commands::stopwords::get_stopwords_stats,
+            commands::stopwords::is_stopword_check,
+            commands::stopwords::search_stopwords,
+            commands::stopwords::clear_user_stopwords,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

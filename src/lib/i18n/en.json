@@ -232,6 +232,27 @@
       "ollamaUnavailable": "Ollama not available - cannot start analysis",
       "reanalyzeComplete": "Analysis complete: {succeeded} succeeded, {failed} failed",
       "reanalyzeCancelled": "Analysis cancelled"
+    },
+    "stopwords": {
+      "title": "Stopwords",
+      "description": "Manage words that should be ignored during keyword extraction",
+      "builtinCount": "Built-in stopwords",
+      "userCount": "User-defined stopwords",
+      "totalCount": "Total",
+      "addStopword": "Add stopword...",
+      "add": "Add",
+      "remove": "Remove",
+      "clear": "Clear all",
+      "confirmClear": "Really delete all user-defined stopwords?",
+      "search": "Search stopwords...",
+      "noResults": "No stopwords found",
+      "isBuiltin": "Built-in",
+      "isUser": "User",
+      "minLength": "Stopword must be at least 2 characters",
+      "alreadyExists": "This word is already a stopword",
+      "added": "Stopword added",
+      "removed": "Stopword removed",
+      "cleared": "All user-defined stopwords removed"
     }
   },
   "terminology": {

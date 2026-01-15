@@ -10,6 +10,7 @@ pub mod pentacles;
 pub mod profiles;
 pub mod retrieval;
 pub mod settings;
+pub mod stopwords;
 pub mod sync;
 pub mod tags;
 

@@ -6,6 +6,7 @@
 use crate::text_analysis::{
     BiasWeights, BiasStats, CategoryMatcher, CorrectionRecord, CorrectionType,
     TfIdfExtractor, record_correction as bias_record_correction, get_bias_stats as bias_get_stats,
+    load_user_stopwords,
 };
 use crate::AppState;
 use rusqlite::params;
@@ -382,10 +383,13 @@ pub fn analyze_article_statistical(
     // Load bias weights
     let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
 
-    // TF-IDF keyword extraction
+    // Load user stopwords
+    let user_stopwords = load_user_stopwords(db.conn()).unwrap_or_default();
+
+    // TF-IDF keyword extraction with user stopwords
     let extractor = TfIdfExtractor::new().with_max_keywords(15);
     let keyword_candidates: Vec<KeywordCandidateResult> = extractor
-        .extract_simple(&content)
+        .extract_simple_with_stopwords(&content, &user_stopwords)
         .into_iter()
         .map(|kc| {
             let adjusted_score = bias.apply_to_keyword(&kc.term, kc.score);
