@@ -54,11 +54,11 @@
   function getSourceLabel(source: ArticleKeyword['source']): string {
     switch (source) {
       case 'ai':
-        return $_('articleView.sourceAi') || 'KI-generiert';
+        return $_('keywordTooltips.sourceAi') || $_('articleView.sourceAi') || 'KI-generiert';
       case 'statistical':
-        return $_('articleView.sourceStatistical') || 'Statistisch';
+        return $_('keywordTooltips.sourceStatistical') || $_('articleView.sourceStatistical') || 'Statistisch';
       case 'manual':
-        return $_('articleView.sourceManual') || 'Manuell';
+        return $_('keywordTooltips.sourceManual') || $_('articleView.sourceManual') || 'Manuell';
       default:
         return source;
     }
@@ -85,16 +85,16 @@
   function getTypeLabel(type: KeywordType | undefined): string {
     switch (type) {
       case 'person':
-        return $_('articleKeywords.typePerson') || 'Person';
+        return $_('keywordTooltips.typePerson') || $_('articleKeywords.typePerson') || 'Person';
       case 'organization':
-        return $_('articleKeywords.typeOrganization') || 'Organisation';
+        return $_('keywordTooltips.typeOrganization') || $_('articleKeywords.typeOrganization') || 'Organisation';
       case 'location':
-        return $_('articleKeywords.typeLocation') || 'Ort';
+        return $_('keywordTooltips.typeLocation') || $_('articleKeywords.typeLocation') || 'Ort';
       case 'acronym':
-        return $_('articleKeywords.typeAcronym') || 'Akronym';
+        return $_('keywordTooltips.typeAcronym') || $_('articleKeywords.typeAcronym') || 'Akronym';
       case 'concept':
       default:
-        return $_('articleKeywords.typeConcept') || 'Konzept';
+        return $_('keywordTooltips.typeConcept') || $_('articleKeywords.typeConcept') || 'Konzept';
     }
   }
 
@@ -391,7 +391,7 @@
           class:editable={editing}
           class:multi-confirmed={isMultiConfirmed(keyword)}
           class:is-expanded={expandedKeywordId === keyword.id}
-          title={getMethodLabels(keyword.extraction_methods)}
+          title={`${$_('keywordTooltips.extractionMethodsLabel') || 'Extraktionsmethoden'}: ${getMethodLabels(keyword.extraction_methods)} | ${$_('keywordTooltips.extractionMethodsNote') || 'Mehrere Methoden erhöhen das Vertrauen.'}`}
         >
           <!-- Keyword Type Icon -->
           <i
@@ -404,7 +404,7 @@
             type="button"
             class="keyword-name"
             onclick={() => navigateToKeyword(keyword.id)}
-            title={$_('network.title') || 'Im Netzwerk anzeigen'}
+            title={$_('keywordTooltips.openNetwork') || $_('network.title') || 'Im Netzwerk anzeigen'}
             disabled={editing}
           >
             {keyword.name}
@@ -418,21 +418,30 @@
 
           <!-- Multi-Source Badge -->
           {#if isMultiConfirmed(keyword)}
-            <span class="multi-badge" title={$_('articleKeywords.multiConfirmed') || 'Mehrfach bestätigt'}>
+            <span
+              class="multi-badge"
+              title={$_('keywordTooltips.multiConfirmed') || $_('articleKeywords.multiConfirmed') || 'Mehrfach bestätigt'}
+            >
               <i class="fa-solid fa-check-double"></i>
             </span>
           {/if}
 
           <!-- Confidence -->
           {#if keyword.confidence < 1.0}
-            <span class="keyword-confidence" title={$_('articleKeywords.confidence') || 'Konfidenz'}>
+            <span
+              class="keyword-confidence"
+              title={`${$_('keywordTooltips.confidenceLabel') || $_('articleKeywords.confidence') || 'Konfidenz'}: ${Math.round(keyword.confidence * 100)}% | ${$_('keywordTooltips.confidenceNote') || 'Schätzung der Relevanz für den Artikel.'}`}
+            >
               {Math.round(keyword.confidence * 100)}%
             </span>
           {/if}
 
           <!-- Quality Score Bar -->
           {#if keyword.quality_score !== undefined && keyword.quality_score !== null}
-            <div class="quality-bar" title={`Qualität: ${Math.round(keyword.quality_score * 100)}%`}>
+            <div
+              class="quality-bar"
+              title={`${$_('keywordTooltips.qualityLabel') || 'Qualität'}: ${Math.round(keyword.quality_score * 100)}% | ${$_('keywordTooltips.qualityNote') || 'Bewertung aus Nutzung und Vernetzung.'}`}
+            >
               <div
                 class="quality-fill"
                 style="width: {keyword.quality_score * 100}%; background-color: {getQualityColor(keyword.quality_score)}"
@@ -448,7 +457,7 @@
               class:active={expandedKeywordId === keyword.id}
               onclick={() => toggleKeywordExpand(keyword.id)}
               disabled={loadingNeighbors && expandedKeywordId === keyword.id}
-              title={$_('articleKeywords.showNeighbors') || 'Ähnliche Keywords anzeigen'}
+              title={$_('keywordTooltips.showNeighbors') || $_('articleKeywords.showNeighbors') || 'Ähnliche Keywords anzeigen'}
               aria-label={$_('articleKeywords.showNeighbors') || 'Ähnliche Keywords anzeigen'}
             >
               {#if loadingNeighbors && expandedKeywordId === keyword.id}
@@ -466,7 +475,7 @@
               class="remove-btn"
               onclick={() => removeKeyword(keyword)}
               disabled={loading}
-              title={$_('articleKeywords.remove') || 'Entfernen'}
+              title={$_('keywordTooltips.remove') || $_('articleKeywords.remove') || 'Entfernen'}
               aria-label={$_('articleKeywords.remove') || 'Entfernen'}
             >
               <i class="fa-solid fa-xmark"></i>
@@ -489,7 +498,7 @@
                     class="neighbor-chip"
                     onclick={() => addKeywordById(neighbor.id, neighbor.name)}
                     disabled={loading}
-                    title={`${$_('articleKeywords.similarity') || 'Ähnlichkeit'}: ${Math.round(neighbor.similarity * 100)}% | ${$_('articleKeywords.cooccurrence') || 'Kookkurrenz'}: ${neighbor.cooccurrence}`}
+                    title={`${$_('keywordTooltips.similarityLabel') || $_('articleKeywords.similarity') || 'Ähnlichkeit'}: ${Math.round(neighbor.similarity * 100)}% (${$_('keywordTooltips.similarityNote') || 'Semantische Nähe (Embedding).'}) | ${$_('keywordTooltips.cooccurrenceLabel') || $_('articleKeywords.cooccurrence') || 'Kookkurrenz'}: ${neighbor.cooccurrence} (${$_('keywordTooltips.cooccurrenceNote') || 'Gemeinsame Artikelanzahl.'})`}
                   >
                     <i class="fa-solid fa-plus"></i>
                     {neighbor.name}
@@ -532,13 +541,16 @@
             onclick={() => addKeyword(suggestion.term)}
             disabled={loading}
             title={semanticScore !== undefined
-              ? `TF-IDF: ${Math.round(suggestion.score * 100)}% | ${$_('articleKeywords.semanticScore') || 'Semantik'}: ${Math.round(semanticScore * 100)}%`
-              : `Score: ${Math.round(suggestion.score * 100)}%`}
+              ? `${$_('keywordTooltips.tfidfLabel') || 'TF-IDF'}: ${Math.round(suggestion.score * 100)}% (${$_('keywordTooltips.tfidfNote') || 'Statistischer Relevanz-Score.'}) | ${$_('keywordTooltips.semanticLabel') || $_('articleKeywords.semanticScore') || 'Semantik'}: ${Math.round(semanticScore * 100)}% (${$_('keywordTooltips.semanticNote') || 'Embedding-Score zum Artikel.'})`
+              : `${$_('keywordTooltips.tfidfLabel') || 'TF-IDF'}: ${Math.round(suggestion.score * 100)}% (${$_('keywordTooltips.tfidfNote') || 'Statistischer Relevanz-Score.'})`}
           >
             <i class="fa-solid fa-plus"></i>
             {suggestion.term}
             {#if semanticScore !== undefined && semanticScore > 0}
-              <span class="semantic-badge" title={$_('articleKeywords.semanticScore') || 'Semantische Ähnlichkeit'}>
+              <span
+                class="semantic-badge"
+                title={`${$_('keywordTooltips.semanticLabel') || $_('articleKeywords.semanticScore') || 'Semantische Ähnlichkeit'}: ${Math.round(semanticScore * 100)}% | ${$_('keywordTooltips.semanticNote') || 'Embedding-Score zum Artikel.'}`}
+              >
                 <i class="fa-solid fa-brain"></i>
                 {Math.round(semanticScore * 100)}%
               </span>
@@ -563,7 +575,7 @@
             class="similar-chip"
             onclick={() => addKeywordById(similar.id, similar.name)}
             disabled={loading}
-            title={`${$_('articleKeywords.similarity') || 'Ähnlichkeit'}: ${Math.round(similar.similarity * 100)}%`}
+            title={`${$_('keywordTooltips.similarityLabel') || $_('articleKeywords.similarity') || 'Ähnlichkeit'}: ${Math.round(similar.similarity * 100)}% (${$_('keywordTooltips.similarityNote') || 'Semantische Nähe (Embedding).'})`}
           >
             <i class="fa-solid fa-plus"></i>
             {similar.name}
