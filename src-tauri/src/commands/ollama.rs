@@ -2,7 +2,7 @@ use crate::commands::settings::get_embedding_model_from_db;
 use crate::embedding_worker;
 use crate::embeddings::embedding_to_blob;
 use crate::ollama::{
-    BiasAnalysis, DiscordianAnalysis, DiscordianAnalysisWithRejections, OllamaClient, OllamaError,
+    BiasAnalysis, DiscordianAnalysis, OllamaClient, OllamaError,
     DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
     RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale, DEFAULT_NUM_CTX,
 };

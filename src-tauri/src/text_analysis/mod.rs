@@ -10,7 +10,7 @@ mod tfidf;
 mod category_matcher;
 mod bias;
 
-pub use stopwords::STOPWORDS;
-pub use tfidf::{TfIdfExtractor, KeywordCandidate, CorpusStats};
-pub use category_matcher::{CategoryMatcher, CategoryScore, WeightedTerm};
+// Only export what's actually used by other modules
+pub use tfidf::TfIdfExtractor;
+pub use category_matcher::CategoryMatcher;
 pub use bias::{BiasWeights, CorrectionRecord, CorrectionType, BiasStats, record_correction, get_bias_stats};

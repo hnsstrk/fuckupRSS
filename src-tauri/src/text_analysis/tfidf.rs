@@ -23,7 +23,8 @@ pub struct KeywordCandidate {
     pub idf: f64,
 }
 
-/// Corpus statistics for IDF calculation
+/// Corpus statistics for IDF calculation (for future corpus-wide TF-IDF)
+#[allow(dead_code)]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CorpusStats {
     /// Total number of documents in the corpus
@@ -32,6 +33,7 @@ pub struct CorpusStats {
     pub document_frequencies: HashMap<String, u64>,
 }
 
+#[allow(dead_code)]
 impl CorpusStats {
     pub fn new() -> Self {
         Self::default()
@@ -62,7 +64,8 @@ pub struct TfIdfExtractor {
     pub min_word_length: usize,
     /// Maximum number of keywords to return
     pub max_keywords: usize,
-    /// Minimum TF-IDF score threshold
+    /// Minimum TF-IDF score threshold (for future use with corpus-wide TF-IDF)
+    #[allow(dead_code)]
     pub min_score: f64,
 }
 
@@ -82,6 +85,7 @@ impl TfIdfExtractor {
     }
 
     /// Configure minimum word length
+    #[allow(dead_code)]
     pub fn with_min_word_length(mut self, len: usize) -> Self {
         self.min_word_length = len;
         self
@@ -122,7 +126,8 @@ impl TfIdfExtractor {
             .collect()
     }
 
-    /// Extract keywords using TF-IDF with corpus statistics
+    /// Extract keywords using TF-IDF with corpus statistics (for future corpus-wide TF-IDF)
+    #[allow(dead_code)]
     pub fn extract(&self, text: &str, corpus_stats: &CorpusStats) -> Vec<KeywordCandidate> {
         let tokens = self.tokenize(text);
         if tokens.is_empty() {
@@ -190,6 +195,7 @@ impl TfIdfExtractor {
     }
 
     /// Get tokens from text (useful for corpus building)
+    #[allow(dead_code)]
     pub fn get_tokens(&self, text: &str) -> Vec<String> {
         self.tokenize(text)
     }

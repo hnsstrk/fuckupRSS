@@ -36,7 +36,8 @@ pub struct CorrectionRecord {
     pub category_id: Option<i64>,
 }
 
-/// Weight types stored in the database
+/// Weight types stored in the database (for future use)
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WeightType {
     /// Boost/penalty for specific keywords
@@ -47,6 +48,7 @@ pub enum WeightType {
     SourceWeight,
 }
 
+#[allow(dead_code)]
 impl WeightType {
     fn as_str(&self) -> &'static str {
         match self {
@@ -125,6 +127,7 @@ impl BiasWeights {
     }
 
     /// Get source weight factor (default: 1.0)
+    #[allow(dead_code)]
     pub fn get_source_weight(&self, source: &str) -> f64 {
         self.source_weights.get(source).copied().unwrap_or(1.0)
     }
@@ -134,7 +137,8 @@ impl BiasWeights {
         base_score * self.get_keyword_boost(keyword)
     }
 
-    /// Apply category-term weight to a score
+    /// Apply category-term weight to a score (for future use)
+    #[allow(dead_code)]
     pub fn apply_to_category(&self, category_id: i64, term: &str, base_score: f64) -> f64 {
         base_score * self.get_category_term_weight(category_id, term)
     }

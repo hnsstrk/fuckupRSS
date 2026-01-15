@@ -413,6 +413,8 @@ impl OllamaClient {
     }
 
     /// Full Discordian Analysis: Summary + Bias + Categories + Keywords in one call
+    /// Note: Prefer discordian_analysis_with_stats for the statistical-first workflow
+    #[allow(dead_code)]
     pub async fn discordian_analysis(
         &self,
         model: &str,

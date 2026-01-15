@@ -208,6 +208,7 @@ impl CategoryMatcher {
     }
 
     /// Configure minimum score threshold
+    #[allow(dead_code)]
     pub fn with_min_score(mut self, score: f64) -> Self {
         self.min_score = score;
         self
@@ -295,11 +296,13 @@ impl CategoryMatcher {
     }
 
     /// Get all available category IDs
+    #[allow(dead_code)]
     pub fn get_category_ids() -> Vec<i64> {
         CATEGORY_TERMS.keys().copied().collect()
     }
 
     /// Get category name by ID
+    #[allow(dead_code)]
     pub fn get_category_name(id: i64) -> Option<&'static str> {
         CATEGORY_TERMS.get(&id).map(|(name, _)| *name)
     }
