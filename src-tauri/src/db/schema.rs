@@ -1130,7 +1130,30 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             ('profile'),('warning'),('online'),('open'),('close'),('next'),('view'),
             ('please'),('enable'),
             -- News agency abbreviations (often not useful as keywords)
-            ('following'),('dies');
+            ('following'),('dies'),
+            -- HTML/CMS/Technical terms (from article markup)
+            ('testid'),('noopener'),('schema'),('speakable'),('paragraph'),
+            ('component'),('rich'),('byline'),('teaser'),('subheadline'),
+            ('related'),('contributors'),('trademarks'),('published'),
+            ('feature'),('manual'),('list'),('flag'),('range'),('play'),
+            -- Photo agencies and photographer names
+            ('imago'),('scanpix'),('jutrczenka'),('kalaene'),('nietfeld'),('kastner'),
+            -- German generic words (missing from original list)
+            ('thema'),('zur'),('zum'),('sowie'),('dabei'),('deutlich'),
+            ('gehört'),('gelten'),('innerhalb'),('insgesamt'),('kündigte'),
+            ('mitten'),('nichts'),('nochmal'),('oben'),('seinem'),('verschiedene'),
+            ('voraus'),('vorzeitig'),('weiterhin'),('würden'),('wolle'),
+            ('wichtigste'),('zehn'),('ihren'),('ihn'),('fürs'),('blieb'),('kennen'),
+            -- English generic words (missing from original list)
+            ('year'),('waiting'),('treated'),('country'),('according'),
+            ('yet'),('worst'),('women'),('woman'),('winter'),('willing'),
+            ('white'),('week'),('weather'),('ward'),('wants'),('waited'),
+            ('today'),('support'),('summer'),('run'),('reportedly'),('ranked'),
+            ('quote'),('points'),('player'),('played'),('place'),('need'),
+            ('month'),('live'),('likely'),('like'),('increase'),('highest'),
+            ('harm'),('hand'),('excited'),('due'),('died'),('couple'),
+            ('costs'),('cost'),('books'),('book'),('anyone'),('announced'),
+            ('alright'),('agreed');
             "#,
         )?;
     }
