@@ -14,6 +14,40 @@ use serde::{Deserialize, Serialize};
 use tauri::{Emitter, State};
 
 // ============================================================
+// HELPER FUNCTIONS
+// ============================================================
+
+/// Capitalize keyword for proper noun form (German style)
+/// Single words get capitalized first letter, multi-word phrases get each word capitalized
+fn capitalize_keyword(keyword: &str) -> String {
+    let trimmed = keyword.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    // If it's all uppercase (acronym), keep it
+    if trimmed.chars().all(|c| c.is_uppercase() || !c.is_alphabetic()) {
+        return trimmed.to_string();
+    }
+
+    // Capitalize first letter of each word
+    trimmed
+        .split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => {
+                    let first_upper: String = first.to_uppercase().collect();
+                    first_upper + chars.as_str()
+                }
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+// ============================================================
 // DATA STRUCTURES
 // ============================================================
 
@@ -133,6 +167,7 @@ pub fn get_article_keywords(
 }
 
 /// Add a keyword to an article (manual)
+/// Uses the learning system: checks SYNONYM_GROUPS, then existing keywords (case-insensitive)
 #[tauri::command]
 pub fn add_article_keyword(
     state: State<AppState>,
@@ -140,27 +175,42 @@ pub fn add_article_keyword(
     keyword: String,
 ) -> Result<ArticleKeyword, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let keyword_normalized = keyword.trim().to_lowercase();
+    let keyword_trimmed = keyword.trim();
 
-    if keyword_normalized.len() < 2 || keyword_normalized.len() > 100 {
+    if keyword_trimmed.len() < 2 || keyword_trimmed.len() > 100 {
         return Err("Keyword must be 2-100 characters".to_string());
     }
 
-    // Get or create the keyword in immanentize table
-    let keyword_id: i64 = db
+    // Step 1: Check SYNONYM_GROUPS for canonical form
+    let keyword_name = find_canonical_keyword(keyword_trimmed)
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| keyword_trimmed.to_string());
+
+    // Step 2: Try to find existing keyword (learning from existing data)
+    // Priority: exact match > case-insensitive match
+    let (keyword_id, final_name): (i64, String) = db
         .conn()
         .query_row(
-            "SELECT id FROM immanentize WHERE name = ?",
-            [&keyword_normalized],
-            |row| row.get(0),
+            "SELECT id, name FROM immanentize WHERE name = ?",
+            [&keyword_name],
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .or_else(|_| {
-            // Create new keyword
+            // Try case-insensitive match
+            db.conn().query_row(
+                "SELECT id, name FROM immanentize WHERE LOWER(name) = LOWER(?) LIMIT 1",
+                [&keyword_name],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+        })
+        .or_else(|_| {
+            // Create new keyword with proper capitalization
+            let normalized_name = capitalize_keyword(&keyword_name);
             db.conn().execute(
                 "INSERT INTO immanentize (name, count, article_count, first_seen, last_used) VALUES (?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-                [&keyword_normalized],
+                [&normalized_name],
             )?;
-            Ok(db.conn().last_insert_rowid())
+            Ok::<(i64, String), rusqlite::Error>((db.conn().last_insert_rowid(), normalized_name))
         })
         .map_err(|e: rusqlite::Error| e.to_string())?;
 
@@ -186,7 +236,7 @@ pub fn add_article_keyword(
 
     Ok(ArticleKeyword {
         id: keyword_id,
-        name: keyword_normalized,
+        name: final_name,
         source: "manual".to_string(),
         confidence: 1.0,
     })
@@ -546,24 +596,37 @@ pub async fn process_statistical_batch(
                 continue; // Skip very low scoring keywords
             }
 
-            // Normalize keyword to canonical form if available
+            // Step 1: Normalize keyword to canonical form if available in SYNONYM_GROUPS
             // e.g., "european" -> "Europäische Union", "russian" -> "Russland"
             let keyword_name = find_canonical_keyword(&kc.term)
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| kc.term.clone());
 
-            // Get or create keyword
+            // Step 2: Try to find existing keyword (learning from existing data)
+            // Priority: exact match > case-insensitive match > similar embedding
             let keyword_id: i64 = db
                 .conn()
                 .query_row(
+                    // First try exact match
                     "SELECT id FROM immanentize WHERE name = ?",
                     [&keyword_name],
                     |row| row.get(0),
                 )
                 .or_else(|_| {
+                    // Try case-insensitive match - prefer the existing capitalized version
+                    db.conn().query_row(
+                        "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?) ORDER BY name = name COLLATE NOCASE DESC LIMIT 1",
+                        [&keyword_name],
+                        |row| row.get(0),
+                    )
+                })
+                .or_else(|_| {
+                    // No match found - create new keyword with proper capitalization
+                    // Capitalize first letter of each word for German nouns
+                    let normalized_name = capitalize_keyword(&keyword_name);
                     db.conn().execute(
                         "INSERT INTO immanentize (name, count, article_count, first_seen, last_used) VALUES (?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-                        [&keyword_name],
+                        [&normalized_name],
                     )?;
                     Ok::<i64, rusqlite::Error>(db.conn().last_insert_rowid())
                 })

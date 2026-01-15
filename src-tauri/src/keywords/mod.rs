@@ -931,6 +931,89 @@ static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(
                 "bern", "zürich", "zurich", "genf", "geneva",
             ],
         ),
+        (
+            "Dänemark",
+            vec![
+                "denmark", "danish", "dänisch", "dänische", "dänischen",
+                "kopenhagen", "copenhagen",
+            ],
+        ),
+        (
+            "Griechenland",
+            vec![
+                "greece", "greek", "griechisch", "griechische", "griechischen",
+                "athen", "athens",
+            ],
+        ),
+        (
+            "Ungarn",
+            vec![
+                "hungary", "hungarian", "ungarisch", "ungarische", "ungarischen",
+                "budapest", "orban", "orbán",
+            ],
+        ),
+        (
+            "Schweden",
+            vec![
+                "sweden", "swedish", "schwedisch", "schwedische", "schwedischen",
+                "stockholm",
+            ],
+        ),
+        (
+            "Norwegen",
+            vec![
+                "norway", "norwegian", "norwegisch", "norwegische", "norwegischen",
+                "oslo",
+            ],
+        ),
+        (
+            "Finnland",
+            vec![
+                "finland", "finnish", "finnisch", "finnische", "finnischen",
+                "helsinki",
+            ],
+        ),
+        (
+            "Belgien",
+            vec![
+                "belgium", "belgian", "belgisch", "belgische", "belgischen",
+            ],
+        ),
+        (
+            "Portugal",
+            vec![
+                "portuguese", "portugiesisch", "portugiesische", "portugiesischen",
+                "lissabon", "lisbon",
+            ],
+        ),
+        (
+            "Tschechien",
+            vec![
+                "czech", "tschechisch", "tschechische", "tschechischen",
+                "prag", "prague",
+            ],
+        ),
+        (
+            "Rumänien",
+            vec![
+                "romania", "romanian", "rumänisch", "rumänische", "rumänischen",
+                "bukarest", "bucharest",
+            ],
+        ),
+        (
+            "Serbien",
+            vec![
+                "serbia", "serbian", "serbisch", "serbische", "serbischen",
+                "belgrad", "belgrade",
+            ],
+        ),
+        (
+            "Kroatien",
+            vec![
+                "croatia", "croatian", "kroatisch", "kroatische", "kroatischen",
+                "zagreb",
+            ],
+        ),
         // === Themen ===
         (
             "Klimawandel",
@@ -963,6 +1046,47 @@ static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(
                 "security", "sicherheitspolitik", "verteidigung", "defense", "defence",
                 "militär", "military", "streitkräfte", "armed forces",
             ],
+        ),
+        // === Deutsche Konzepte mit Deklinationsformen ===
+        (
+            "Minderjährige",
+            vec!["minderjährige", "minderjährigen", "minderjähriger"],
+        ),
+        (
+            "Flüchtlinge",
+            vec!["flüchtling", "flüchtlingen", "geflüchtete", "geflüchteten"],
+        ),
+        (
+            "Jugendliche",
+            vec!["jugendliche", "jugendlichen", "jugendlicher"],
+        ),
+        (
+            "Proteste",
+            vec!["protest", "proteste", "protesten", "protests", "demonstration", "demonstrationen"],
+        ),
+        (
+            "Sanktionen",
+            vec!["sanktion", "sanktionen", "sanctions"],
+        ),
+        (
+            "Wahlen",
+            vec!["wahl", "wahlen", "election", "elections"],
+        ),
+        (
+            "Regierung",
+            vec!["regierung", "regierungen", "government", "governments"],
+        ),
+        (
+            "Opposition",
+            vec!["opposition", "oppositionelle", "oppositionellen"],
+        ),
+        (
+            "Soldaten",
+            vec!["soldat", "soldaten", "soldier", "soldiers", "troops"],
+        ),
+        (
+            "Demonstranten",
+            vec!["demonstrant", "demonstranten", "protestierende", "protestierenden"],
         ),
     ]
 });
