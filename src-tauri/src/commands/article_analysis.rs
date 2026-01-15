@@ -11,7 +11,7 @@ use crate::text_analysis::{
 use crate::AppState;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{Emitter, State};
 
 // ============================================================
 // DATA STRUCTURES
@@ -456,11 +456,23 @@ pub fn get_unprocessed_statistical_count(state: State<AppState>) -> Result<i64, 
     Ok(count)
 }
 
+/// Progress event for statistical analysis
+#[derive(Debug, Serialize, Clone)]
+pub struct StatisticalProgress {
+    pub current: i64,
+    pub total: i64,
+    pub fnord_id: i64,
+    pub title: String,
+    pub success: bool,
+    pub error: Option<String>,
+}
+
 /// Run statistical analysis on all unprocessed articles
 /// Extracts keywords and categories using TF-IDF and word matching
 #[tauri::command]
-pub fn process_statistical_batch(
-    state: State<AppState>,
+pub async fn process_statistical_batch(
+    window: tauri::Window,
+    state: State<'_, AppState>,
     limit: Option<i64>,
 ) -> Result<BatchStatisticalResult, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -471,13 +483,13 @@ pub fn process_statistical_batch(
     // Load user stopwords once
     let user_stopwords = load_user_stopwords(db.conn()).unwrap_or_default();
 
-    // Get unprocessed articles with full content
-    let limit_val = limit.unwrap_or(1000);
+    // Get unprocessed articles with full content (including title for progress)
+    let limit_val = limit.unwrap_or(10000);
     let mut stmt = db
         .conn()
         .prepare(
             r#"
-            SELECT id, COALESCE(content_full, '') as content
+            SELECT id, title, COALESCE(content_full, '') as content
             FROM fnords
             WHERE processed_at IS NULL
               AND content_full IS NOT NULL
@@ -488,21 +500,31 @@ pub fn process_statistical_batch(
         )
         .map_err(|e| e.to_string())?;
 
-    let articles: Vec<(i64, String)> = stmt
-        .query_map([limit_val], |row| Ok((row.get(0)?, row.get(1)?)))
+    let articles: Vec<(i64, String, String)> = stmt
+        .query_map([limit_val], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    let total = articles.len();
-    let mut processed = 0;
+    let total = articles.len() as i64;
+    let mut processed = 0usize;
     let mut errors = Vec::new();
+
+    // Emit initial progress
+    let _ = window.emit("statistical-progress", StatisticalProgress {
+        current: 0,
+        total,
+        fnord_id: 0,
+        title: "Starting...".to_string(),
+        success: true,
+        error: None,
+    });
 
     // Create extractors
     let extractor = TfIdfExtractor::new().with_max_keywords(10);
     let matcher = CategoryMatcher::new().with_max_categories(3);
 
-    for (fnord_id, content) in articles {
+    for (idx, (fnord_id, title, content)) in articles.into_iter().enumerate() {
         if content.is_empty() {
             continue;
         }
@@ -585,11 +607,31 @@ pub fn process_statistical_batch(
         }
 
         processed += 1;
+
+        // Emit progress every article (fast enough for statistical analysis)
+        let _ = window.emit("statistical-progress", StatisticalProgress {
+            current: (idx + 1) as i64,
+            total,
+            fnord_id,
+            title: title.clone(),
+            success: true,
+            error: None,
+        });
     }
+
+    // Emit completion
+    let _ = window.emit("statistical-progress", StatisticalProgress {
+        current: total,
+        total,
+        fnord_id: 0,
+        title: "Complete".to_string(),
+        success: true,
+        error: None,
+    });
 
     Ok(BatchStatisticalResult {
         processed,
-        total,
+        total: total as usize,
         errors,
     })
 }

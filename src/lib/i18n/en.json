@@ -201,6 +201,7 @@
       "statisticalAnalysisDesc": "Extract keywords and categories using TF-IDF for unprocessed articles",
       "noUnprocessedArticles": "No unprocessed articles found",
       "articlesAnalyzed": "articles statistically analyzed",
+      "analyzing": "Statistical analysis running...",
       "running": "Running...",
       "done": "Done",
       "result": "Result",

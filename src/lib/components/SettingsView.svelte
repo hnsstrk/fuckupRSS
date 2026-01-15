@@ -160,6 +160,11 @@
   let reanalyzeResult = $state<BatchResult | null>(null);
   let progressUnlisten: UnlistenFn | null = null;
 
+  // Statistical analysis progress state
+  let statisticalProgress = $state<BatchProgress | null>(null);
+  let statisticalRunning = $state(false);
+  let statisticalUnlisten: UnlistenFn | null = null;
+
   // OPML Import state
   let opmlPreview = $state<OpmlFeedPreview[]>([]);
   let opmlContent = $state<string | null>(null);
@@ -688,24 +693,53 @@
   async function handleStatisticalAnalysis() {
     maintenanceRunning = "statistical";
     maintenanceResult = null;
+    statisticalProgress = null;
+
     try {
       // Get count first
       const count = await invoke<number>("get_unprocessed_statistical_count");
       if (count === 0) {
         maintenanceResult = $_("settings.maintenance.noUnprocessedArticles");
+        maintenanceRunning = null;
         return;
       }
+
+      // Set up progress tracking
+      statisticalRunning = true;
+      statisticalProgress = {
+        current: 0,
+        total: count,
+        fnord_id: 0,
+        title: $_("batch.starting"),
+        success: true,
+        error: null,
+      };
+
+      // Listen for progress events
+      statisticalUnlisten = await listen<BatchProgress>(
+        "statistical-progress",
+        (event) => {
+          statisticalProgress = { ...event.payload };
+        },
+      );
+
       // Run statistical analysis
       const result = await invoke<{
         processed: number;
         total: number;
         errors: string[];
-      }>("process_statistical_batch", { limit: 1000 });
+      }>("process_statistical_batch", { limit: 10000 });
+
       maintenanceResult = `${result.processed} ${$_("settings.maintenance.articlesAnalyzed")}`;
     } catch (e) {
       maintenanceResult = `Error: ${e}`;
     } finally {
       maintenanceRunning = null;
+      statisticalRunning = false;
+      if (statisticalUnlisten) {
+        statisticalUnlisten();
+        statisticalUnlisten = null;
+      }
     }
   }
 
@@ -2066,17 +2100,48 @@
               {$_("settings.maintenance.statisticalAnalysisDesc")}
             </p>
           </div>
-          <button
-            type="button"
-            class="btn-action"
-            onclick={handleStatisticalAnalysis}
-            disabled={maintenanceRunning !== null}
-          >
-            {maintenanceRunning === "statistical"
-              ? $_("settings.maintenance.running")
-              : $_("settings.maintenance.statisticalAnalysis")}
-          </button>
+          {#if !statisticalRunning}
+            <button
+              type="button"
+              class="btn-action"
+              onclick={handleStatisticalAnalysis}
+              disabled={maintenanceRunning !== null}
+            >
+              {$_("settings.maintenance.statisticalAnalysis")}
+            </button>
+          {/if}
         </div>
+
+        {#if statisticalRunning && statisticalProgress}
+          <div class="reanalyze-progress">
+            <div class="progress-header">
+              <span class="progress-label"
+                >{$_("settings.maintenance.analyzing")}</span
+              >
+            </div>
+            <div class="progress-bar">
+              <div
+                class="progress-fill"
+                style="width: {statisticalProgress.total > 0
+                  ? (statisticalProgress.current / statisticalProgress.total) * 100
+                  : 0}%"
+              ></div>
+            </div>
+            <div class="progress-details">
+              <span class="progress-count">
+                {statisticalProgress.current} / {statisticalProgress.total}
+              </span>
+              <span class="progress-title" title={statisticalProgress.title}>
+                {statisticalProgress.title.length > 40
+                  ? statisticalProgress.title.slice(0, 40) + "..."
+                  : statisticalProgress.title}
+              </span>
+            </div>
+            {#if !statisticalProgress.success && statisticalProgress.error}
+              <div class="progress-error">{statisticalProgress.error}</div>
+            {/if}
+          </div>
+        {/if}
 
         <div class="maintenance-action">
           <div class="action-info">
