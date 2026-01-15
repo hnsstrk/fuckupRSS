@@ -1,5 +1,5 @@
 use crate::embeddings::{blob_to_embedding, cosine_similarity};
-use crate::{find_canonical_keyword, normalize_keyword, AppState};
+use crate::{find_canonical_keyword_with_db, normalize_keyword, AppState};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -922,12 +922,12 @@ pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, Str
     let mut affected_articles = 0i64;
 
     for (id, name) in &keywords {
-        if let Some(canonical) = find_canonical_keyword(name) {
+        if let Some(canonical) = find_canonical_keyword_with_db(name) {
             if canonical.to_lowercase() != name.to_lowercase() {
                 let canonical_id: Option<i64> = conn
                     .query_row(
                         "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?)",
-                        [canonical],
+                        [&canonical],
                         |row| row.get(0),
                     )
                     .ok();

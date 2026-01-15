@@ -858,7 +858,7 @@ static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(
         (
             "Iran",
             vec![
-                "iranian", "iranisch", "iranischen", "iranischer",
+                "iranian", "iranisch", "iranische", "iranischen", "iranischer",
                 "teheran", "tehran", "persisch", "persian",
                 // Common variations
                 "irans", "der iran", "im iran", "iran-krise", "iran-konflikt",
@@ -1142,4 +1142,226 @@ pub fn get_all_synonyms(keyword: &str) -> Vec<&'static str> {
     }
 
     vec![]
+}
+
+// ============================================================
+// DYNAMIC SYNONYMS FROM DATABASE
+// ============================================================
+
+use rusqlite::Connection;
+use std::sync::RwLock;
+
+/// Cached dynamic synonyms loaded from the database
+/// Maps variant name (lowercase) → canonical name
+static DYNAMIC_SYNONYMS: Lazy<RwLock<HashMap<String, String>>> = Lazy::new(|| {
+    RwLock::new(HashMap::new())
+});
+
+/// Load synonyms from database (canonical_id relationships)
+/// Call this on startup and after merging keywords
+pub fn load_dynamic_synonyms(conn: &Connection) -> Result<usize, String> {
+    // Load all keyword pairs where canonical_id is set
+    // This means: variant (name) → canonical (canonical's name)
+    let mut stmt = conn
+        .prepare(
+            r#"SELECT v.name, c.name
+               FROM immanentize v
+               JOIN immanentize c ON v.canonical_id = c.id
+               WHERE v.canonical_id IS NOT NULL"#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let pairs: Vec<(String, String)> = stmt
+        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let count = pairs.len();
+
+    // Update the cache
+    let mut cache = DYNAMIC_SYNONYMS
+        .write()
+        .map_err(|e| format!("Lock error: {}", e))?;
+
+    cache.clear();
+    for (variant, canonical) in pairs {
+        cache.insert(variant.to_lowercase(), canonical);
+    }
+
+    Ok(count)
+}
+
+/// Find canonical keyword using both static SYNONYM_GROUPS and dynamic DB synonyms
+/// Prefers dynamic synonyms (more recent/specific) over static ones
+pub fn find_canonical_keyword_with_db(keyword: &str) -> Option<String> {
+    let lower = keyword.to_lowercase();
+
+    // First check dynamic synonyms from database (higher priority)
+    if let Ok(cache) = DYNAMIC_SYNONYMS.read() {
+        if let Some(canonical) = cache.get(&lower) {
+            return Some(canonical.clone());
+        }
+    }
+
+    // Fall back to static SYNONYM_GROUPS
+    find_canonical_keyword(keyword).map(|s| s.to_string())
+}
+
+/// Get all known synonyms for a keyword (static + dynamic)
+pub fn get_all_synonyms_with_db(keyword: &str) -> Vec<String> {
+    let lower = keyword.to_lowercase();
+    let mut result: Vec<String> = Vec::new();
+
+    // Get static synonyms
+    let static_synonyms = get_all_synonyms(keyword);
+    for s in static_synonyms {
+        result.push(s.to_string());
+    }
+
+    // Get dynamic synonyms from cache
+    if let Ok(cache) = DYNAMIC_SYNONYMS.read() {
+        // Find all variants that map to the same canonical
+        let canonical = cache.get(&lower).cloned();
+        let check_canonical = canonical.as_ref().map(|s| s.to_lowercase()).unwrap_or(lower.clone());
+
+        for (variant, canon) in cache.iter() {
+            if canon.to_lowercase() == check_canonical && !result.contains(&variant.to_string()) {
+                result.push(variant.clone());
+            }
+        }
+    }
+
+    result
+}
+
+/// Clear the dynamic synonyms cache
+pub fn clear_dynamic_synonyms_cache() {
+    if let Ok(mut cache) = DYNAMIC_SYNONYMS.write() {
+        cache.clear();
+    }
+}
+
+// ============================================================
+// COMPOUND KEYWORD SPLITTING
+// ============================================================
+
+/// Words that should not be split from compounds (particles, prepositions)
+static COMPOUND_IGNORE_PARTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    [
+        "und", "oder", "für", "mit", "von", "zu", "bei", "auf", "in", "an",
+        "and", "or", "for", "with", "from", "to", "at", "on", "in",
+        "der", "die", "das", "den", "dem", "des",
+        "the", "a", "an",
+        "-", "",
+    ]
+    .iter()
+    .copied()
+    .collect()
+});
+
+/// Keywords that are valid as single parts after splitting
+static VALID_COMPOUND_PARTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    [
+        // Politicians (last names)
+        "trump", "biden", "putin", "scholz", "merkel", "macron", "erdogan",
+        "merz", "habeck", "lindner", "weidel", "söder", "laschet",
+        // Parties and organizations
+        "cdu", "csu", "spd", "fdp", "afd", "grüne", "linke",
+        "nato", "eu", "un", "usa", "bnd", "cia", "fbi",
+        // Countries
+        "ukraine", "russland", "china", "iran", "israel", "gaza",
+        // Common topic words
+        "klima", "energie", "migration", "wirtschaft", "politik",
+        "krieg", "krise", "deal", "streit", "konflikt", "reform",
+        "zölle", "sanktionen", "abkommen", "gipfel", "verhandlungen",
+    ]
+    .iter()
+    .copied()
+    .collect()
+});
+
+/// Split compound keyword into components
+/// e.g., "Trump-Zölle" → ["Trump", "Zölle"]
+/// e.g., "CDU-CSU-Fraktion" → ["CDU", "CSU", "Fraktion"]
+pub fn split_compound_keyword(keyword: &str) -> Vec<String> {
+    // Only split if contains hyphen
+    if !keyword.contains('-') {
+        return vec![keyword.to_string()];
+    }
+
+    let parts: Vec<&str> = keyword.split('-').collect();
+
+    // Don't split single hyphen or too many parts
+    if parts.len() < 2 || parts.len() > 4 {
+        return vec![keyword.to_string()];
+    }
+
+    // Filter out ignored parts and validate remaining ones
+    let valid_parts: Vec<String> = parts
+        .iter()
+        .map(|p| p.trim())
+        .filter(|p| {
+            let lower = p.to_lowercase();
+            // Must be at least 2 chars and not an ignored particle
+            p.len() >= 2 && !COMPOUND_IGNORE_PARTS.contains(lower.as_str())
+        })
+        .map(|p| {
+            // Capitalize first letter for proper nouns, keep acronyms uppercase
+            if p.chars().all(|c| c.is_uppercase() || !c.is_alphabetic()) {
+                p.to_string() // Acronym, keep as is
+            } else {
+                // Capitalize first letter
+                let mut chars = p.chars();
+                match chars.next() {
+                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                    None => String::new(),
+                }
+            }
+        })
+        .collect();
+
+    // If only one valid part remains, include original compound
+    if valid_parts.len() <= 1 {
+        return vec![keyword.to_string()];
+    }
+
+    // Check if at least one part is meaningful (known keyword or capitalized)
+    let has_meaningful_part = valid_parts.iter().any(|p| {
+        let lower = p.to_lowercase();
+        VALID_COMPOUND_PARTS.contains(lower.as_str())
+            || p.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+    });
+
+    if !has_meaningful_part {
+        return vec![keyword.to_string()];
+    }
+
+    // Return both the original compound AND the split parts
+    let mut result = vec![keyword.to_string()];
+    for part in valid_parts {
+        if !result.iter().any(|r| r.to_lowercase() == part.to_lowercase()) {
+            result.push(part);
+        }
+    }
+
+    result
+}
+
+/// Expand a list of keywords by splitting compounds
+/// Returns original keywords plus their split components
+pub fn expand_compound_keywords(keywords: &[String]) -> Vec<String> {
+    let mut result: Vec<String> = Vec::new();
+    let mut seen = HashSet::new();
+
+    for kw in keywords {
+        for part in split_compound_keyword(kw) {
+            let lower = part.to_lowercase();
+            if seen.insert(lower) {
+                result.push(part);
+            }
+        }
+    }
+
+    result
 }

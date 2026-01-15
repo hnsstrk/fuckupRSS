@@ -8,7 +8,7 @@ use crate::ollama::{
 };
 use crate::text_analysis::{BiasWeights, TfIdfExtractor, CategoryMatcher, CorpusStats, record_correction, CorrectionRecord, CorrectionType};
 use crate::db::Database;
-use crate::{extract_keywords, classify_by_keywords, normalize_keyword, find_canonical_keyword, SEPHIROTH_CATEGORIES};
+use crate::{extract_keywords, classify_by_keywords, normalize_keyword, find_canonical_keyword_with_db, split_compound_keyword, SEPHIROTH_CATEGORIES};
 use crate::AppState;
 use log::{debug, info, warn};
 use std::sync::atomic::Ordering;
@@ -267,14 +267,33 @@ fn save_article_keywords_with_source(
     conn.execute("DELETE FROM fnord_immanentize WHERE fnord_id = ?", [fnord_id])
         .ok();
 
-    for kw in keywords {
+    // Expand compound keywords (e.g., "Trump-Zölle" → ["Trump-Zölle", "Trump", "Zölle"])
+    let expanded_keywords: Vec<KeywordWithSource> = keywords
+        .iter()
+        .flat_map(|kw| {
+            let split_parts = split_compound_keyword(&kw.name);
+            let original_name = kw.name.clone();
+            split_parts.into_iter().map(move |part| KeywordWithSource {
+                // Reduce confidence for split parts (the original compound has full confidence)
+                confidence: if part != original_name {
+                    kw.confidence * 0.8
+                } else {
+                    kw.confidence
+                },
+                name: part,
+                source: kw.source.clone(),
+            })
+        })
+        .collect();
+
+    for kw in &expanded_keywords {
         let keyword = match normalize_keyword(&kw.name) {
             Some(k) => k,
             None => continue,
         };
 
-        let canonical = find_canonical_keyword(&keyword);
-        let store_keyword = canonical.unwrap_or(&keyword);
+        let canonical = find_canonical_keyword_with_db(&keyword);
+        let store_keyword = canonical.as_deref().unwrap_or(&keyword);
 
         let existing_id: Option<i64> = conn
             .query_row(
@@ -1364,12 +1383,19 @@ struct BatchArticle {
     previous_error: Option<String>,
 }
 
+/// Shared context for batch processing - loaded once before processing starts
+struct BatchContext {
+    bias_weights: BiasWeights,
+    corpus_stats: Option<CorpusStats>,
+}
+
 async fn process_single_article(
     client: &OllamaClient,
     state: &AppState,
     model: &str,
     locale: &str,
     article: BatchArticle,
+    batch_context: &std::sync::Arc<BatchContext>,
 ) -> (bool, Option<String>) {
     let fnord_id = article.fnord_id;
     let title = article.title.clone();
@@ -1379,16 +1405,100 @@ async fn process_single_article(
         return (false, Some("No content".to_string()));
     }
 
+    // === STATISTICAL PRE-ANALYSIS (same as process_article_discordian) ===
+    let text_for_analysis = format!("{} {}", title, content);
+
+    // TF-IDF keyword extraction with bias weights
+    let extractor = TfIdfExtractor::new().with_max_keywords(30);
+    let mut keyword_candidates: Vec<(String, f64)> = extractor
+        .extract_smart(&text_for_analysis, batch_context.corpus_stats.as_ref())
+        .into_iter()
+        .map(|kc| {
+            let adjusted_score = batch_context.bias_weights.apply_to_keyword(&kc.term, kc.score);
+            (kc.term, adjusted_score)
+        })
+        .collect();
+
+    keyword_candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    keyword_candidates.truncate(15);
+    let stat_keywords: Vec<String> = keyword_candidates.into_iter().map(|(term, _)| term).collect();
+
+    // Extract tokens for corpus stats update
+    let document_tokens = extractor.get_tokens(&text_for_analysis);
+
+    // Category matching with bias
+    let matcher = CategoryMatcher::new().with_max_categories(5);
+    let stat_categories: Vec<(String, f64)> = matcher
+        .score_categories(&text_for_analysis, Some(&batch_context.bias_weights))
+        .into_iter()
+        .map(|cs| (cs.name.clone(), cs.confidence))
+        .collect();
+
+    // Local extraction fallback
     let local_keywords = extract_keywords(&title, &content, 10);
     let local_categories = classify_by_keywords(&local_keywords);
 
+    // === LLM ANALYSIS WITH STATISTICAL CONTEXT ===
     let analysis_result = client
-        .discordian_analysis_with_retry(model, &title, &content, locale, article.previous_error.as_deref())
+        .discordian_analysis_with_stats(
+            model,
+            &title,
+            &content,
+            locale,
+            &stat_keywords,
+            &stat_categories,
+        )
         .await;
 
     match analysis_result {
-        Ok(analysis) => {
-            // Save analysis to DB (hold lock briefly)
+        Ok(analysis_with_rejections) => {
+            // === LEARN FROM LLM REJECTIONS ===
+            {
+                let db = match state.db.lock() {
+                    Ok(db) => db,
+                    Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
+                };
+
+                // Record rejected keywords for bias learning
+                for rejected_kw in &analysis_with_rejections.rejected_keywords {
+                    let _ = record_correction(db.conn(), &CorrectionRecord {
+                        fnord_id,
+                        correction_type: CorrectionType::KeywordRemoved,
+                        old_value: Some(rejected_kw.clone()),
+                        new_value: None,
+                        matching_terms: vec![],
+                        category_id: None,
+                    });
+                }
+
+                // Record rejected categories for bias learning
+                for rejected_cat in &analysis_with_rejections.rejected_categories {
+                    let cat_id: Option<i64> = db.conn()
+                        .query_row(
+                            "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?1)",
+                            [rejected_cat],
+                            |row| row.get(0),
+                        )
+                        .ok();
+
+                    if let Some(cat_id) = cat_id {
+                        let matching_terms: Vec<String> = stat_keywords.iter().take(5).cloned().collect();
+                        let _ = record_correction(db.conn(), &CorrectionRecord {
+                            fnord_id,
+                            correction_type: CorrectionType::CategoryRemoved,
+                            old_value: Some(rejected_cat.clone()),
+                            new_value: None,
+                            matching_terms,
+                            category_id: Some(cat_id),
+                        });
+                    }
+                }
+            }
+
+            // Convert to regular analysis
+            let analysis: DiscordianAnalysis = analysis_with_rejections.clone().into();
+
+            // Save analysis to DB
             {
                 let db = match state.db.lock() {
                     Ok(db) => db,
@@ -1416,17 +1526,27 @@ async fn process_single_article(
                     return (false, Some(format!("DB update failed: {}", e)));
                 }
 
+                // Merge and determine sources (statistical vs ai)
                 let merged_categories = validate_and_merge_categories(&analysis.categories, local_categories);
-                let categories_saved = save_article_categories(db.conn(), fnord_id, &merged_categories);
+                let categories_with_source = determine_category_sources(&merged_categories, &stat_categories);
+                let categories_saved = save_article_categories_with_source(db.conn(), fnord_id, &categories_with_source);
 
-                let merged_keywords = merge_keywords(&analysis.keywords, local_keywords, 15);
-                let (_tags_saved, _tag_ids) = save_article_keywords_and_network(
+                let merged_keywords = merge_keywords(&analysis.keywords, local_keywords.clone(), 15);
+                let keywords_with_source = determine_keyword_sources(&merged_keywords, &stat_keywords);
+                let (_tags_saved, tag_ids) = save_article_keywords_with_source(
                     db.conn(),
                     fnord_id,
-                    &merged_keywords,
+                    &keywords_with_source,
                     &categories_saved,
                     article.article_date.as_deref(),
                 );
+
+                recalculate_keyword_weights(db.conn(), &tag_ids);
+
+                // Update corpus stats
+                if let Err(e) = CorpusStats::update_db_with_document(db.conn(), &document_tokens) {
+                    debug!("Failed to update corpus stats: {}", e);
+                }
             }
 
             // Generate article embedding (async, after DB lock is released)
@@ -1437,7 +1557,6 @@ async fn process_single_article(
                 &title,
                 &content,
             ).await {
-                // Log warning but don't fail - embedding is optional
                 debug!("Failed to generate embedding for article {}: {}", fnord_id, e);
             }
 
@@ -1448,10 +1567,9 @@ async fn process_single_article(
                 Ok(db) => db,
                 Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
             };
-            
+
             let new_attempts = article.attempts + 1;
 
-            // Mark as hopeless after 3 failed attempts (allows 1x, 1.5x, 2x context retries)
             let (error_msg, is_hopeless) = match &e {
                 OllamaError::JsonParseError { message, .. } => {
                     if new_attempts >= 3 {
@@ -1478,16 +1596,20 @@ async fn process_single_article(
                 rusqlite::params![new_attempts, &error_msg, is_hopeless, fnord_id],
             );
 
-            if !local_categories.is_empty() || !local_keywords.is_empty() {
-                let categories_saved = save_article_categories(db.conn(), fnord_id, &local_categories);
-                let _ = save_article_keywords_and_network(
-                    db.conn(),
-                    fnord_id,
-                    &local_keywords,
-                    &categories_saved,
-                    article.article_date.as_deref(),
-                );
-            }
+            // Fallback: Use statistical + local extraction
+            let combined_keywords: Vec<String> = stat_keywords.into_iter()
+                .chain(local_keywords.into_iter())
+                .take(15)
+                .collect();
+
+            let categories_saved = save_article_categories(db.conn(), fnord_id, &local_categories);
+            let _ = save_article_keywords_and_network(
+                db.conn(),
+                fnord_id,
+                &combined_keywords,
+                &categories_saved,
+                article.article_date.as_deref(),
+            );
 
             let status_msg = if is_hopeless {
                 format!("Marked hopeless: {}", error_msg)
@@ -1512,6 +1634,14 @@ pub async fn process_batch(
     let concurrency = get_ai_concurrency(&state);
     
     info!("Starting batch processing with concurrency: {}", concurrency);
+
+    // Load shared context ONCE before batch processing starts
+    let batch_context = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
+        let corpus_stats = CorpusStats::load_from_db(db.conn()).ok();
+        BatchContext { bias_weights, corpus_stats }
+    };
 
     let (articles, num_ctx): (Vec<BatchArticle>, u32) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -1580,6 +1710,9 @@ pub async fn process_batch(
     // Create stream for parallel processing
     let stream = stream::iter(articles.into_iter().enumerate());
     
+    // Make batch_context accessible in async closures via Arc
+    let batch_context = std::sync::Arc::new(batch_context);
+
     let results = stream.map(|(idx, article)| {
         let title = article.title.clone();
         let fnord_id = article.fnord_id;
@@ -1587,7 +1720,8 @@ pub async fn process_batch(
         let locale = locale.clone();
         let state = state.clone();
         let window = window.clone();
-        
+        let batch_context = batch_context.clone();
+
         async move {
             if state.batch_cancel.load(Ordering::SeqCst) {
                 return (idx, title, fnord_id, false, Some("Cancelled".to_string()));
@@ -1610,7 +1744,7 @@ pub async fn process_batch(
 
             let client = OllamaClient::with_context(None, adjusted_num_ctx);
 
-            let (success, error) = process_single_article(&client, &state, &model, &locale, article).await;
+            let (success, error) = process_single_article(&client, &state, &model, &locale, article, &batch_context).await;
             
             // Emit progress immediately
              let _ = window.emit("batch-progress", BatchProgress {

@@ -12,7 +12,12 @@ mod text_analysis;
 
 pub use categories::{classify_by_keywords, CategoryClassifier, SEPHIROTH_CATEGORIES};
 pub use embedding_worker::EmbeddingWorker;
-pub use keywords::{extract_keywords, normalize_keyword, normalize_and_dedupe_keywords, find_canonical_keyword, KeywordExtractor, Language};
+pub use keywords::{
+    extract_keywords, normalize_keyword, normalize_and_dedupe_keywords,
+    find_canonical_keyword, find_canonical_keyword_with_db, load_dynamic_synonyms,
+    split_compound_keyword, expand_compound_keywords,
+    KeywordExtractor, Language
+};
 pub use logging::LogLevel;
 
 use db::Database;
@@ -56,6 +61,16 @@ pub fn run() {
             let db = Arc::new(Mutex::new(db));
             let embedding_worker = Arc::new(EmbeddingWorker::new());
             let batch_running = Arc::new(AtomicBool::new(false));
+
+            // Load dynamic synonyms from database
+            {
+                let db_guard = db.lock().expect("DB lock failed");
+                if let Ok(count) = keywords::load_dynamic_synonyms(db_guard.conn()) {
+                    if count > 0 {
+                        info!("Loaded {} dynamic synonyms from database", count);
+                    }
+                }
+            }
 
             // Queue existing keywords without embeddings for processing
             if let Ok(queued) = embedding_worker::queue_keywords_without_embeddings(&db) {

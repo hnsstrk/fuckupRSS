@@ -8,7 +8,7 @@ use crate::text_analysis::{
     TfIdfExtractor, record_correction as bias_record_correction, get_bias_stats as bias_get_stats,
     load_user_stopwords,
 };
-use crate::{find_canonical_keyword, AppState};
+use crate::{find_canonical_keyword_with_db, AppState};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, State};
@@ -181,9 +181,8 @@ pub fn add_article_keyword(
         return Err("Keyword must be 2-100 characters".to_string());
     }
 
-    // Step 1: Check SYNONYM_GROUPS for canonical form
-    let keyword_name = find_canonical_keyword(keyword_trimmed)
-        .map(|s| s.to_string())
+    // Step 1: Check SYNONYM_GROUPS and dynamic DB synonyms for canonical form
+    let keyword_name = find_canonical_keyword_with_db(keyword_trimmed)
         .unwrap_or_else(|| keyword_trimmed.to_string());
 
     // Step 2: Try to find existing keyword (learning from existing data)
@@ -234,6 +233,19 @@ pub fn add_article_keyword(
         )
         .map_err(|e| e.to_string())?;
 
+    // Record correction for bias learning - user added this keyword
+    let _ = bias_record_correction(
+        db.conn(),
+        &CorrectionRecord {
+            fnord_id,
+            correction_type: CorrectionType::KeywordAdded,
+            old_value: None,
+            new_value: Some(final_name.clone()),
+            matching_terms: Vec::new(),
+            category_id: None,
+        },
+    );
+
     Ok(ArticleKeyword {
         id: keyword_id,
         name: final_name,
@@ -251,6 +263,12 @@ pub fn remove_article_keyword(
 ) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
+    // Get keyword name before deleting for bias learning
+    let keyword_name: Option<String> = db
+        .conn()
+        .query_row("SELECT name FROM immanentize WHERE id = ?", [keyword_id], |row| row.get(0))
+        .ok();
+
     db.conn()
         .execute(
             "DELETE FROM fnord_immanentize WHERE fnord_id = ? AND immanentize_id = ?",
@@ -267,6 +285,21 @@ pub fn remove_article_keyword(
             params![keyword_id, keyword_id],
         )
         .map_err(|e| e.to_string())?;
+
+    // Record correction for bias learning - user removed this keyword
+    if let Some(name) = keyword_name {
+        let _ = bias_record_correction(
+            db.conn(),
+            &CorrectionRecord {
+                fnord_id,
+                correction_type: CorrectionType::KeywordRemoved,
+                old_value: Some(name),
+                new_value: None,
+                matching_terms: Vec::new(),
+                category_id: None,
+            },
+        );
+    }
 
     Ok(())
 }
@@ -371,6 +404,12 @@ pub fn add_article_category(
 ) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
+    // Get category name for bias learning
+    let category_name: String = db
+        .conn()
+        .query_row("SELECT name FROM sephiroth WHERE id = ?", [sephiroth_id], |row| row.get(0))
+        .unwrap_or_else(|_| sephiroth_id.to_string());
+
     db.conn()
         .execute(
             "INSERT OR REPLACE INTO fnord_sephiroth (fnord_id, sephiroth_id, source, confidence, assigned_at)
@@ -378,6 +417,19 @@ pub fn add_article_category(
             params![fnord_id, sephiroth_id],
         )
         .map_err(|e| e.to_string())?;
+
+    // Record correction for bias learning
+    let _ = bias_record_correction(
+        db.conn(),
+        &CorrectionRecord {
+            fnord_id,
+            correction_type: CorrectionType::CategoryAdded,
+            old_value: None,
+            new_value: Some(category_name),
+            matching_terms: Vec::new(),
+            category_id: Some(sephiroth_id),
+        },
+    );
 
     Ok(())
 }
@@ -391,12 +443,31 @@ pub fn remove_article_category(
 ) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
+    // Get category name for bias learning
+    let category_name: String = db
+        .conn()
+        .query_row("SELECT name FROM sephiroth WHERE id = ?", [sephiroth_id], |row| row.get(0))
+        .unwrap_or_else(|_| sephiroth_id.to_string());
+
     db.conn()
         .execute(
             "DELETE FROM fnord_sephiroth WHERE fnord_id = ? AND sephiroth_id = ?",
             params![fnord_id, sephiroth_id],
         )
         .map_err(|e| e.to_string())?;
+
+    // Record correction for bias learning
+    let _ = bias_record_correction(
+        db.conn(),
+        &CorrectionRecord {
+            fnord_id,
+            correction_type: CorrectionType::CategoryRemoved,
+            old_value: Some(category_name),
+            new_value: None,
+            matching_terms: Vec::new(),
+            category_id: Some(sephiroth_id),
+        },
+    );
 
     Ok(())
 }
@@ -443,9 +514,8 @@ pub fn analyze_article_statistical(
         .into_iter()
         .map(|kc| {
             let adjusted_score = bias.apply_to_keyword(&kc.term, kc.score);
-            // Normalize to canonical form if available
-            let term = find_canonical_keyword(&kc.term)
-                .map(|s| s.to_string())
+            // Normalize to canonical form if available (static + dynamic synonyms)
+            let term = find_canonical_keyword_with_db(&kc.term)
                 .unwrap_or(kc.term);
             KeywordCandidateResult {
                 term,
@@ -596,10 +666,9 @@ pub async fn process_statistical_batch(
                 continue; // Skip very low scoring keywords
             }
 
-            // Step 1: Normalize keyword to canonical form if available in SYNONYM_GROUPS
+            // Step 1: Normalize keyword to canonical form if available (static + DB synonyms)
             // e.g., "european" -> "Europäische Union", "russian" -> "Russland"
-            let keyword_name = find_canonical_keyword(&kc.term)
-                .map(|s| s.to_string())
+            let keyword_name = find_canonical_keyword_with_db(&kc.term)
                 .unwrap_or_else(|| kc.term.clone());
 
             // Step 2: Try to find existing keyword (learning from existing data)
