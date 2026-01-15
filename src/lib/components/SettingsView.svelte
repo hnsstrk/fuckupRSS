@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
+  import { appState } from "../stores/state.svelte";
   import Tabs, { type Tab } from "./Tabs.svelte";
   import SettingsGeneral from "./settings/SettingsGeneral.svelte";
   import SettingsOllama from "./settings/SettingsOllama.svelte";
@@ -21,6 +22,11 @@
   // Ollama status for child components
   let ollamaAvailable = $state(false);
 
+  async function refreshOllamaStatus() {
+    const status = await appState.checkOllama();
+    ollamaAvailable = status.available;
+  }
+
   // Tabs definition
   let tabs = $derived<Tab[]>([
     { id: "general", label: $_("settings.title") },
@@ -30,11 +36,18 @@
     { id: "maintenance", label: $_("settings.maintenance.title") },
   ]);
 
-  function handleTabChange(tabId: string) {
+  async function handleTabChange(tabId: string) {
     if (tabId === "maintenance") {
       settingsMaintenanceRef?.init();
     } else if (tabId === "stopwords") {
       settingsStopwordsRef?.init();
+    } else if (tabId === "prompts") {
+      await tick();
+      await settingsPromptsRef?.init();
+    } else if (tabId === "ollama") {
+      await tick();
+      await settingsOllamaRef?.init();
+      await refreshOllamaStatus();
     }
   }
 
@@ -51,11 +64,11 @@
 
     // Initialize Ollama settings and get status
     await settingsOllamaRef?.init();
-    const status = settingsOllamaRef?.getOllamaStatus();
-    ollamaAvailable = status?.available ?? false;
+    await refreshOllamaStatus();
 
     // Initialize prompts
     await settingsPromptsRef?.init();
+    await refreshOllamaStatus();
   });
 </script>
 
