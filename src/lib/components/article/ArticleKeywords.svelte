@@ -27,6 +27,15 @@
   let similarKeywords = $state<{ id: number; name: string; similarity: number }[]>([]);
   let loadingSimilar = $state(false);
 
+  // Expanded keyword neighbors (for get_similar_keywords)
+  let expandedKeywordId = $state<number | null>(null);
+  let expandedNeighbors = $state<{ id: number; name: string; similarity: number; cooccurrence: number }[]>([]);
+  let loadingNeighbors = $state(false);
+
+  // Semantic scores for suggestions
+  let semanticScores = $state<Map<string, number>>(new Map());
+  let loadingSemanticScores = $state(false);
+
   // Get source icon class
   function getSourceIcon(source: ArticleKeyword['source']): string {
     switch (source) {
@@ -187,6 +196,66 @@
     }
   }
 
+  // Toggle expanded state for a keyword to show its neighbors
+  async function toggleKeywordExpand(keywordId: number) {
+    if (expandedKeywordId === keywordId) {
+      // Collapse
+      expandedKeywordId = null;
+      expandedNeighbors = [];
+      return;
+    }
+
+    // Expand and load neighbors
+    expandedKeywordId = keywordId;
+    loadingNeighbors = true;
+    try {
+      const neighbors = await invoke<{ id: number; name: string; similarity: number; cooccurrence: number }[]>(
+        'get_similar_keywords',
+        { keywordId, limit: 5 }
+      );
+      // Filter out already assigned keywords
+      const existingIds = new Set(keywords.map(k => k.id));
+      expandedNeighbors = neighbors.filter(n => !existingIds.has(n.id));
+    } catch (e) {
+      console.error('Failed to load keyword neighbors:', e);
+      expandedNeighbors = [];
+    } finally {
+      loadingNeighbors = false;
+    }
+  }
+
+  // Load semantic scores for suggestions
+  async function loadSemanticScores() {
+    if (suggestedKeywords.length === 0 || loadingSemanticScores) return;
+    loadingSemanticScores = true;
+    try {
+      const keywordTerms = suggestedKeywords.map(s => s.term);
+      const scores = await invoke<{ keyword: string; semantic_score: number; combined_score: number }[]>(
+        'score_keywords_semantically',
+        { fnordId, keywords: keywordTerms, semanticWeight: 0.4 }
+      );
+      // Update the map
+      const newScores = new Map<string, number>();
+      for (const score of scores) {
+        newScores.set(score.keyword.toLowerCase(), score.semantic_score);
+      }
+      semanticScores = newScores;
+
+      // Re-sort suggestions by combined relevance (base score + semantic)
+      suggestedKeywords = [...suggestedKeywords].sort((a, b) => {
+        const aSemanticScore = semanticScores.get(a.term.toLowerCase()) ?? 0;
+        const bSemanticScore = semanticScores.get(b.term.toLowerCase()) ?? 0;
+        const aCombined = a.score * 0.6 + aSemanticScore * 0.4;
+        const bCombined = b.score * 0.6 + bSemanticScore * 0.4;
+        return bCombined - aCombined;
+      });
+    } catch (e) {
+      console.error('Failed to load semantic scores:', e);
+    } finally {
+      loadingSemanticScores = false;
+    }
+  }
+
   // Add a keyword to the article
   async function addKeyword(keywordName: string) {
     loading = true;
@@ -266,6 +335,17 @@
     if (editing) {
       loadSuggestions();
       loadSimilarFromNetwork();
+    } else {
+      // Reset expanded state when leaving edit mode
+      expandedKeywordId = null;
+      expandedNeighbors = [];
+    }
+  });
+
+  // Load semantic scores after suggestions are loaded
+  $effect(() => {
+    if (suggestedKeywords.length > 0 && semanticScores.size === 0) {
+      loadSemanticScores();
     }
   });
 
@@ -305,71 +385,124 @@
   <!-- Keywords List -->
   <div class="keywords-list">
     {#each keywords as keyword (keyword.id)}
-      <div
-        class="keyword-chip"
-        class:editable={editing}
-        class:multi-confirmed={isMultiConfirmed(keyword)}
-        title={getMethodLabels(keyword.extraction_methods)}
-      >
-        <!-- Keyword Type Icon -->
-        <i
-          class="type-icon {getTypeIcon(keyword.keyword_type)}"
-          title={getTypeLabel(keyword.keyword_type)}
-        ></i>
-
-        <!-- Keyword Name -->
-        <button
-          type="button"
-          class="keyword-name"
-          onclick={() => navigateToKeyword(keyword.id)}
-          title={$_('network.title') || 'Im Netzwerk anzeigen'}
-          disabled={editing}
+      <div class="keyword-wrapper" class:expanded={expandedKeywordId === keyword.id}>
+        <div
+          class="keyword-chip"
+          class:editable={editing}
+          class:multi-confirmed={isMultiConfirmed(keyword)}
+          class:is-expanded={expandedKeywordId === keyword.id}
+          title={getMethodLabels(keyword.extraction_methods)}
         >
-          {keyword.name}
-        </button>
+          <!-- Keyword Type Icon -->
+          <i
+            class="type-icon {getTypeIcon(keyword.keyword_type)}"
+            title={getTypeLabel(keyword.keyword_type)}
+          ></i>
 
-        <!-- Source Icon -->
-        <i
-          class="source-icon {getSourceIcon(keyword.source)}"
-          title={getSourceLabel(keyword.source)}
-        ></i>
-
-        <!-- Multi-Source Badge -->
-        {#if isMultiConfirmed(keyword)}
-          <span class="multi-badge" title={$_('articleKeywords.multiConfirmed') || 'Mehrfach bestätigt'}>
-            <i class="fa-solid fa-check-double"></i>
-          </span>
-        {/if}
-
-        <!-- Confidence -->
-        {#if keyword.confidence < 1.0}
-          <span class="keyword-confidence" title={$_('articleKeywords.confidence') || 'Konfidenz'}>
-            {Math.round(keyword.confidence * 100)}%
-          </span>
-        {/if}
-
-        <!-- Quality Score Bar -->
-        {#if keyword.quality_score !== undefined && keyword.quality_score !== null}
-          <div class="quality-bar" title={`Qualität: ${Math.round(keyword.quality_score * 100)}%`}>
-            <div
-              class="quality-fill"
-              style="width: {keyword.quality_score * 100}%; background-color: {getQualityColor(keyword.quality_score)}"
-            ></div>
-          </div>
-        {/if}
-
-        <!-- Remove Button (Edit Mode) -->
-        {#if editing}
+          <!-- Keyword Name -->
           <button
             type="button"
-            class="remove-btn"
-            onclick={() => removeKeyword(keyword)}
-            disabled={loading}
-            title={$_('articleKeywords.remove') || 'Entfernen'}
-            aria-label={$_('articleKeywords.remove') || 'Entfernen'}
+            class="keyword-name"
+            onclick={() => navigateToKeyword(keyword.id)}
+            title={$_('network.title') || 'Im Netzwerk anzeigen'}
+            disabled={editing}
           >
-            <i class="fa-solid fa-xmark"></i>
+            {keyword.name}
           </button>
+
+          <!-- Source Icon -->
+          <i
+            class="source-icon {getSourceIcon(keyword.source)}"
+            title={getSourceLabel(keyword.source)}
+          ></i>
+
+          <!-- Multi-Source Badge -->
+          {#if isMultiConfirmed(keyword)}
+            <span class="multi-badge" title={$_('articleKeywords.multiConfirmed') || 'Mehrfach bestätigt'}>
+              <i class="fa-solid fa-check-double"></i>
+            </span>
+          {/if}
+
+          <!-- Confidence -->
+          {#if keyword.confidence < 1.0}
+            <span class="keyword-confidence" title={$_('articleKeywords.confidence') || 'Konfidenz'}>
+              {Math.round(keyword.confidence * 100)}%
+            </span>
+          {/if}
+
+          <!-- Quality Score Bar -->
+          {#if keyword.quality_score !== undefined && keyword.quality_score !== null}
+            <div class="quality-bar" title={`Qualität: ${Math.round(keyword.quality_score * 100)}%`}>
+              <div
+                class="quality-fill"
+                style="width: {keyword.quality_score * 100}%; background-color: {getQualityColor(keyword.quality_score)}"
+              ></div>
+            </div>
+          {/if}
+
+          <!-- Expand Button (Edit Mode) - Show similar keywords -->
+          {#if editing}
+            <button
+              type="button"
+              class="expand-btn"
+              class:active={expandedKeywordId === keyword.id}
+              onclick={() => toggleKeywordExpand(keyword.id)}
+              disabled={loadingNeighbors && expandedKeywordId === keyword.id}
+              title={$_('articleKeywords.showNeighbors') || 'Ähnliche Keywords anzeigen'}
+              aria-label={$_('articleKeywords.showNeighbors') || 'Ähnliche Keywords anzeigen'}
+            >
+              {#if loadingNeighbors && expandedKeywordId === keyword.id}
+                <i class="fa-solid fa-spinner fa-spin"></i>
+              {:else}
+                <i class="fa-solid fa-{expandedKeywordId === keyword.id ? 'chevron-up' : 'chevron-down'}"></i>
+              {/if}
+            </button>
+          {/if}
+
+          <!-- Remove Button (Edit Mode) -->
+          {#if editing}
+            <button
+              type="button"
+              class="remove-btn"
+              onclick={() => removeKeyword(keyword)}
+              disabled={loading}
+              title={$_('articleKeywords.remove') || 'Entfernen'}
+              aria-label={$_('articleKeywords.remove') || 'Entfernen'}
+            >
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          {/if}
+        </div>
+
+        <!-- Expanded Neighbors Panel -->
+        {#if expandedKeywordId === keyword.id && editing}
+          <div class="neighbors-panel">
+            {#if loadingNeighbors}
+              <span class="neighbors-loading">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+              </span>
+            {:else if expandedNeighbors.length > 0}
+              <div class="neighbors-list">
+                {#each expandedNeighbors as neighbor}
+                  <button
+                    type="button"
+                    class="neighbor-chip"
+                    onclick={() => addKeywordById(neighbor.id, neighbor.name)}
+                    disabled={loading}
+                    title={`${$_('articleKeywords.similarity') || 'Ähnlichkeit'}: ${Math.round(neighbor.similarity * 100)}% | ${$_('articleKeywords.cooccurrence') || 'Kookkurrenz'}: ${neighbor.cooccurrence}`}
+                  >
+                    <i class="fa-solid fa-plus"></i>
+                    {neighbor.name}
+                    {#if neighbor.similarity > 0}
+                      <span class="neighbor-score">{Math.round(neighbor.similarity * 100)}%</span>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            {:else}
+              <span class="no-neighbors">{$_('articleKeywords.noNeighbors') || 'Keine ähnlichen Keywords'}</span>
+            {/if}
+          </div>
         {/if}
       </div>
     {/each}
@@ -385,18 +518,31 @@
       <span class="suggestions-label">
         <i class="fa-solid fa-lightbulb"></i>
         {$_('articleKeywords.suggestions') || 'Vorschläge'}:
+        {#if loadingSemanticScores}
+          <i class="fa-solid fa-spinner fa-spin semantic-loading"></i>
+        {/if}
       </span>
       <div class="suggestions-list">
         {#each suggestedKeywords as suggestion}
+          {@const semanticScore = semanticScores.get(suggestion.term.toLowerCase())}
           <button
             type="button"
             class="suggestion-chip"
+            class:has-semantic={semanticScore !== undefined && semanticScore > 0}
             onclick={() => addKeyword(suggestion.term)}
             disabled={loading}
-            title={`Score: ${Math.round(suggestion.score * 100)}%`}
+            title={semanticScore !== undefined
+              ? `TF-IDF: ${Math.round(suggestion.score * 100)}% | ${$_('articleKeywords.semanticScore') || 'Semantik'}: ${Math.round(semanticScore * 100)}%`
+              : `Score: ${Math.round(suggestion.score * 100)}%`}
           >
             <i class="fa-solid fa-plus"></i>
             {suggestion.term}
+            {#if semanticScore !== undefined && semanticScore > 0}
+              <span class="semantic-badge" title={$_('articleKeywords.semanticScore') || 'Semantische Ähnlichkeit'}>
+                <i class="fa-solid fa-brain"></i>
+                {Math.round(semanticScore * 100)}%
+              </span>
+            {/if}
           </button>
         {/each}
       </div>
@@ -497,7 +643,17 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    align-items: center;
+    align-items: flex-start;
+  }
+
+  .keyword-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .keyword-wrapper.expanded {
+    flex-basis: 100%;
   }
 
   .keyword-chip {
@@ -644,6 +800,108 @@
     font-size: 0.5625rem;
   }
 
+  /* Expand Button */
+  .expand-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.125rem;
+    height: 1.125rem;
+    background: none;
+    border: none;
+    border-radius: 0.25rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .expand-btn:hover:not(:disabled) {
+    color: var(--accent-primary);
+    background-color: rgba(var(--accent-primary-rgb), 0.1);
+  }
+
+  .expand-btn.active {
+    color: var(--accent-primary);
+  }
+
+  .expand-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .expand-btn i {
+    font-size: 0.5rem;
+  }
+
+  .keyword-chip.is-expanded {
+    border-color: var(--accent-primary);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  /* Neighbors Panel */
+  .neighbors-panel {
+    padding: 0.375rem 0.5rem;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--accent-primary);
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+  }
+
+  .neighbors-loading {
+    font-size: 0.75rem;
+    color: var(--accent-primary);
+  }
+
+  .neighbors-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .neighbor-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.375rem;
+    background-color: var(--bg-overlay);
+    border: 1px dashed var(--accent-secondary);
+    border-radius: 0.75rem;
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .neighbor-chip:hover:not(:disabled) {
+    background-color: var(--accent-secondary);
+    color: var(--text-primary);
+    border-style: solid;
+  }
+
+  .neighbor-chip:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .neighbor-chip i {
+    font-size: 0.5rem;
+  }
+
+  .neighbor-score {
+    font-size: 0.5625rem;
+    padding: 0.0625rem 0.1875rem;
+    background-color: var(--bg-surface);
+    border-radius: 0.375rem;
+    color: var(--text-muted);
+  }
+
+  .no-neighbors {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
   .no-keywords {
     font-size: 0.8125rem;
     color: var(--text-muted);
@@ -707,6 +965,31 @@
 
   .suggestion-chip i {
     font-size: 0.625rem;
+  }
+
+  .suggestion-chip.has-semantic {
+    border-color: var(--accent-success);
+  }
+
+  .semantic-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    font-size: 0.5625rem;
+    padding: 0.0625rem 0.25rem;
+    background-color: var(--bg-surface);
+    border-radius: 0.5rem;
+    color: var(--accent-success);
+  }
+
+  .semantic-badge i {
+    font-size: 0.5rem;
+  }
+
+  .semantic-loading {
+    font-size: 0.625rem;
+    margin-left: 0.25rem;
+    color: var(--accent-info);
   }
 
   /* Similar Keywords from Network Section */
