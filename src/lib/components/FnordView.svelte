@@ -5,6 +5,7 @@
   import { appState, type Fnord, type FnordStats, type CategoryRevisionStats, type SourceRevisionStats } from '../stores/state.svelte';
   import Tooltip from './Tooltip.svelte';
   import Tabs, { type Tab } from './Tabs.svelte';
+  import { ArticleItemCompact } from './article';
 
   let stats = $state<FnordStats | null>(null);
   let changedFnords = $state<Fnord[]>([]);
@@ -51,28 +52,6 @@
     window.dispatchEvent(new CustomEvent('navigate-to-article', { detail: { articleId: id } }));
   }
 
-  function formatDate(dateStr: string | null): string {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('de-DE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  }
-
-  function getStatusIconClass(status: string): string {
-    switch (status) {
-      case 'concealed':
-        return 'fa-solid fa-eye-slash';
-      case 'illuminated':
-        return 'fa-solid fa-check';
-      case 'golden_apple':
-        return 'fa-solid fa-apple-whole';
-      default:
-        return '';
-    }
-  }
 
   async function toggleCategory(categoryId: number) {
     if (expandedCategoryId === categoryId) {
@@ -264,30 +243,18 @@
         {:else}
           <div class="articles-list">
             {#each changedFnords as fnord (fnord.id)}
-              <button
-                class="article-item {selectedFnordId === fnord.id ? 'active' : ''}"
+              <ArticleItemCompact
+                id={fnord.id}
+                title={fnord.title}
+                status={fnord.status}
+                pentacle_title={fnord.pentacle_title}
+                changed_at={fnord.changed_at}
+                revision_count={fnord.revision_count}
+                categories={fnord.categories}
+                active={selectedFnordId === fnord.id}
+                showIndicators={false}
                 onclick={() => selectFnord(fnord.id)}
-              >
-                <div class="article-status" title={fnord.status}>
-                  <i class={getStatusIconClass(fnord.status)}></i>
-                </div>
-                <div class="article-info">
-                  <span class="article-title">{fnord.title}</span>
-                  <span class="article-meta">
-                    {#if fnord.pentacle_title}
-                      <span class="article-source">{fnord.pentacle_title}</span>
-                    {/if}
-                    {#if fnord.changed_at}
-                      <span class="article-changed">
-                        {$_('fnordView.changedAt') || 'Geändert'}: {formatDate(fnord.changed_at)}
-                      </span>
-                    {/if}
-                    <span class="article-revisions">
-                      {fnord.revision_count} {$_('fnordView.revisions') || 'Revisionen'}
-                    </span>
-                  </span>
-                </div>
-              </button>
+              />
             {/each}
           </div>
         {/if}
@@ -714,76 +681,5 @@
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-  }
-
-  .article-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    padding: 0.75rem;
-    background-color: var(--bg-surface);
-    border: none;
-    border-radius: 0.375rem;
-    cursor: pointer;
-    text-align: left;
-    transition: background-color 0.15s;
-    width: 100%;
-  }
-
-  .article-item:hover {
-    background-color: var(--bg-overlay);
-  }
-
-  .article-item.active {
-    background-color: var(--bg-overlay);
-    border-left: 3px solid var(--accent-primary);
-  }
-
-  .article-status {
-    font-size: 1rem;
-    flex-shrink: 0;
-    width: 1.5rem;
-  }
-
-  .article-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    min-width: 0;
-    flex: 1;
-  }
-
-  .article-title {
-    font-size: 0.9375rem;
-    color: var(--text-primary);
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .article-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-
-  .article-source {
-    max-width: 150px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .article-changed {
-    color: var(--accent-warning);
-  }
-
-  .article-revisions {
-    background-color: var(--bg-overlay);
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
   }
 </style>

@@ -9,6 +9,7 @@
     ReadingTrend,
   } from "../types";
   import Tabs, { type Tab } from "./Tabs.svelte";
+  import { ArticleCard } from "./article";
 
   // Tab state
   let activeTab = $state<string>("overview");
@@ -380,35 +381,22 @@
           <p class="section-description">{$_("mindfuck.counterPerspectives.description")}</p>
           <div class="recommendations-list">
             {#each counterPerspectives as article (article.fnord_id)}
-              <div class="recommendation-item">
-                <div class="recommendation-content">
-                  <h4 class="recommendation-title">{article.title}</h4>
-                  <div class="recommendation-meta">
-                    {#if article.pentacle_title}
-                      <span class="recommendation-source">{article.pentacle_title}</span>
-                    {/if}
-                    {#if article.published_at}
-                      <span class="recommendation-date">{formatDate(article.published_at)}</span>
-                    {/if}
-                    {#if article.political_bias !== null}
-                      <span
-                        class="recommendation-bias"
-                        style="color: {getBiasColor(article.political_bias)}"
-                      >
-                        {getBiasLabel(article.political_bias)}
-                      </span>
-                    {/if}
-                  </div>
-                  <p class="recommendation-reason">{article.reason}</p>
-                </div>
-                <button
-                  type="button"
-                  class="btn-read"
-                  onclick={() => handleReadArticle(article.fnord_id)}
-                >
-                  {$_("mindfuck.counterPerspectives.readArticle")}
-                </button>
-              </div>
+              <ArticleCard
+                fnord_id={article.fnord_id}
+                title={article.title}
+                pentacle_title={article.pentacle_title}
+                published_at={article.published_at}
+                political_bias={article.political_bias}
+                reason={article.reason}
+                showBias={true}
+                showReason={true}
+                showAction={true}
+                showCategories={false}
+                showTags={false}
+                actionLabel={$_("mindfuck.counterPerspectives.readArticle")}
+                onclick={() => handleReadArticle(article.fnord_id)}
+                onaction={() => handleReadArticle(article.fnord_id)}
+              />
             {/each}
           </div>
         </div>
@@ -807,70 +795,6 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-  }
-
-  .recommendation-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 1rem;
-    background-color: var(--bg-overlay);
-    border-radius: 0.5rem;
-    border: 1px solid var(--border-default);
-  }
-
-  .recommendation-content {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .recommendation-title {
-    margin: 0 0 0.5rem 0;
-    font-size: 1rem;
-    font-weight: 500;
-    color: var(--text-primary);
-  }
-
-  .recommendation-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-bottom: 0.5rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-
-  .recommendation-source {
-    color: var(--accent-secondary);
-  }
-
-  .recommendation-bias {
-    font-weight: 500;
-  }
-
-  .recommendation-reason {
-    margin: 0;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    font-style: italic;
-  }
-
-  .btn-read {
-    padding: 0.5rem 1rem;
-    border: 1px solid var(--accent-primary);
-    border-radius: 0.375rem;
-    background: none;
-    color: var(--accent-primary);
-    font-size: 0.875rem;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.2s;
-  }
-
-  .btn-read:hover {
-    background-color: var(--accent-primary);
-    color: var(--text-on-accent);
   }
 
   /* Trends */

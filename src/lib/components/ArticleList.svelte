@@ -2,6 +2,7 @@
   import { _, locale } from 'svelte-i18n';
   import { appState } from "../stores/state.svelte";
   import Tooltip from "./Tooltip.svelte";
+  import { ArticleItemCompact, ArticleItemSearch } from "./article";
   import type { SearchResult } from "../types";
 
   let listContainer: HTMLDivElement;
@@ -19,77 +20,12 @@
     }
   }
 
-  function getStatusIconClass(status: string): string {
-    switch (status) {
-      case "concealed": return "fa-solid fa-eye-slash";
-      case "illuminated": return "fa-solid fa-check";
-      case "golden_apple": return "fa-solid fa-apple-whole";
-      default: return "fa-solid fa-check";
-    }
-  }
-
-  function formatDate(dateStr: string | null): string {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    const currentLocale = $locale || 'de';
-    const isGerman = currentLocale.startsWith('de');
-
-    if (diffMins < 60) {
-      return isGerman ? `vor ${diffMins} Min` : `${diffMins} min ago`;
-    } else if (diffHours < 24) {
-      return isGerman ? `vor ${diffHours} Std` : `${diffHours}h ago`;
-    } else if (diffDays < 7) {
-      return isGerman ? `vor ${diffDays} Tagen` : `${diffDays}d ago`;
-    } else {
-      return date.toLocaleDateString(isGerman ? "de-DE" : "en-US", {
-        day: "numeric",
-        month: "short",
-      });
-    }
-  }
-
-
-  function getBiasIndicatorClass(bias: number): string {
-    switch (bias) {
-      case -2: return "fa-solid fa-angles-left";
-      case -1: return "fa-solid fa-angle-left";
-      case 0: return "fa-solid fa-circle";
-      case 1: return "fa-solid fa-angle-right";
-      case 2: return "fa-solid fa-angles-right";
-      default: return "fa-solid fa-circle";
-    }
-  }
-
-  function getBiasLabel(bias: number): string {
-    const currentLocale = $locale || 'de';
-    const isGerman = currentLocale.startsWith('de');
-    switch (bias) {
-      case -2: return isGerman ? "Stark links" : "Strong left";
-      case -1: return isGerman ? "Leicht links" : "Lean left";
-      case 0: return isGerman ? "Neutral" : "Neutral";
-      case 1: return isGerman ? "Leicht rechts" : "Lean right";
-      case 2: return isGerman ? "Stark rechts" : "Strong right";
-      default: return "";
-    }
-  }
-
   function handleSelectFnord(id: number) {
     appState.selectFnord(id);
   }
 
   function handleSelectSearchResult(result: SearchResult) {
-    // Select the article from search result
     appState.selectFnord(result.fnord_id);
-  }
-
-  function formatSimilarity(similarity: number): string {
-    return `${Math.round(similarity * 100)}%`;
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -138,27 +74,16 @@
     {#if isSearchMode}
       <!-- Search Results -->
       {#each appState.searchResults as result (result.fnord_id)}
-        <button
-          class="article-item search-result {appState.selectedFnordId === result.fnord_id ? 'active' : ''}"
+        <ArticleItemSearch
+          fnord_id={result.fnord_id}
+          title={result.title}
+          pentacle_title={result.pentacle_title}
+          published_at={result.published_at}
+          similarity={result.similarity}
+          summary={result.summary}
+          active={appState.selectedFnordId === result.fnord_id}
           onclick={() => handleSelectSearchResult(result)}
-        >
-          <div class="article-row">
-            <div class="search-similarity" title={$_('search.similarity')}>
-              {formatSimilarity(result.similarity)}
-            </div>
-            <div class="article-content">
-              <h3 class="article-title">{result.title}</h3>
-              <div class="article-meta">
-                <span class="source">{result.pentacle_title || "Unknown"}</span>
-                <span class="separator">·</span>
-                <span>{formatDate(result.published_at)}</span>
-              </div>
-              {#if result.summary}
-                <p class="search-summary">{result.summary.slice(0, 120)}{result.summary.length > 120 ? '...' : ''}</p>
-              {/if}
-            </div>
-          </div>
-        </button>
+        />
       {/each}
 
       {#if appState.searchResults.length === 0 && !appState.searching && appState.searchQuery}
@@ -176,78 +101,48 @@
     {:else}
       <!-- Normal Article List -->
       {#each appState.fnords as fnord (fnord.id)}
-      <button
-        class="article-item {appState.selectedFnordId === fnord.id ? 'active' : ''}"
-        onclick={() => handleSelectFnord(fnord.id)}
-      >
-        <div class="article-row">
-          <i class="status-icon {getStatusIconClass(fnord.status)} status-{fnord.status}"></i>
-          <div class="article-content">
-            <h3 class="article-title {fnord.status === 'concealed' ? 'unread' : ''}">{fnord.title}</h3>
-            <div class="article-meta">
-              <span class="source">{fnord.pentacle_title || "Unknown"}</span>
-              <span class="separator">·</span>
-              <span>{formatDate(fnord.published_at)}</span>
-            </div>
-            {#if fnord.quality_score || fnord.categories.length > 0 || fnord.revision_count > 0}
-              <div class="article-indicators">
-                {#if fnord.categories.length > 0}
-                  <span class="category-dots" title={fnord.categories.map(c => c.name).join(', ')}>
-                    {#each fnord.categories.slice(0, 3) as cat (cat.name)}
-                      <span class="category-dot" style="background-color: {cat.color || 'var(--text-muted)'}"></span>
-                    {/each}
-                  </span>
-                {/if}
-                {#if fnord.revision_count > 0}
-                  <span class="revision-count" title="{$_('articleView.changes.revisions')}: {fnord.revision_count}">
-                    <i class="fa-solid fa-pen-to-square"></i>{fnord.revision_count}
-                  </span>
-                {/if}
-                {#if fnord.quality_score}
-                  <span class="quality" title={$_('articleView.greyface.quality')}>
-                    {#each Array(fnord.quality_score) as _}<i class="fa-solid fa-star"></i>{/each}{#each Array(5 - fnord.quality_score) as _}<i class="fa-regular fa-star"></i>{/each}
-                  </span>
-                {/if}
-                {#if fnord.political_bias !== null && fnord.political_bias !== 0}
-                  <span class="bias bias-{fnord.political_bias < 0 ? 'left' : 'right'}" title="{getBiasLabel(fnord.political_bias)}">
-                    <i class={getBiasIndicatorClass(fnord.political_bias)}></i>
-                  </span>
-                {/if}
-              </div>
-            {/if}
-          </div>
+        <ArticleItemCompact
+          id={fnord.id}
+          title={fnord.title}
+          status={fnord.status}
+          pentacle_title={fnord.pentacle_title}
+          published_at={fnord.published_at}
+          categories={fnord.categories}
+          revision_count={fnord.revision_count}
+          quality_score={fnord.quality_score}
+          political_bias={fnord.political_bias}
+          active={appState.selectedFnordId === fnord.id}
+          onclick={() => handleSelectFnord(fnord.id)}
+        />
+      {/each}
+
+      {#if appState.loadingMore}
+        <div class="loading-more">
+          <i class="loading-spinner fa-solid fa-rotate fa-spin"></i>
+          {$locale?.startsWith('de') ? 'Lade mehr...' : 'Loading more...'}
         </div>
-      </button>
-    {/each}
+      {:else if appState.hasMoreFnords && appState.fnords.length > 0}
+        <div class="load-more-hint">
+          {$locale?.startsWith('de') ? 'Scrolle für mehr' : 'Scroll for more'}
+        </div>
+      {/if}
 
-    {#if appState.loadingMore}
-      <div class="loading-more">
-        <i class="loading-spinner fa-solid fa-rotate fa-spin"></i>
-        {$locale?.startsWith('de') ? 'Lade mehr...' : 'Loading more...'}
-      </div>
-    {:else if appState.hasMoreFnords && appState.fnords.length > 0}
-      <div class="load-more-hint">
-        {$locale?.startsWith('de') ? 'Scrolle für mehr' : 'Scroll for more'}
-      </div>
-    {/if}
+      {#if appState.fnords.length === 0 && !appState.loading}
+        <div class="empty-state">
+          {$_('articleList.noArticles')}<br />
+          {#if appState.pentacles.length === 0}
+            <Tooltip termKey="pentacle">{$_('sidebar.addFeed')}</Tooltip>
+          {:else}
+            {$_('articleList.selectFeed')}
+          {/if}
+        </div>
+      {/if}
 
-    {#if appState.fnords.length === 0 && !appState.loading}
-      <div class="empty-state">
-        {$_('articleList.noArticles')}<br />
-        {#if appState.pentacles.length === 0}
-          <Tooltip termKey="pentacle">{$_('sidebar.addFeed')}</Tooltip>
-        {:else}
-          {$_('articleList.selectFeed')}
-        {/if}
-      </div>
-    {/if}
-
-    {#if appState.loading}
-      <div class="empty-state">{$_('articleList.loading')}</div>
-    {/if}
+      {#if appState.loading}
+        <div class="empty-state">{$_('articleList.loading')}</div>
+      {/if}
     {/if}
   </div>
-
 </div>
 
 <style>
@@ -285,126 +180,6 @@
     overflow-y: auto;
   }
 
-  .article-item {
-    width: 100%;
-    padding: 1rem;
-    text-align: left;
-    background: none;
-    border: none;
-    border-bottom: 1px solid var(--border-muted);
-    cursor: pointer;
-    transition: background-color 0.2s;
-    color: var(--text-primary);
-  }
-
-  .article-item:hover {
-    background-color: var(--bg-overlay);
-  }
-
-  .article-item.active {
-    background-color: var(--bg-overlay);
-  }
-
-  .article-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-
-  .status-icon {
-    font-size: 1.125rem;
-    margin-top: 0.125rem;
-  }
-
-  .status-concealed { color: var(--fnord-color); }
-  .status-illuminated { color: var(--illuminated-color); }
-  .status-golden_apple { color: var(--golden-apple-color); }
-
-  .article-content {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .article-title {
-    font-size: 0.875rem;
-    font-weight: 500;
-    line-height: 1.4;
-    margin: 0;
-    color: var(--text-secondary);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .article-title.unread {
-    color: var(--text-primary);
-  }
-
-  .article-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-
-  .source {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .separator {
-    color: var(--text-faint);
-  }
-
-  .article-indicators {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.375rem;
-    font-size: 0.75rem;
-  }
-
-  .quality {
-    color: var(--golden-apple-color);
-  }
-
-  .bias {
-    font-size: 0.65rem;
-    padding: 0.1rem 0.25rem;
-    border-radius: 0.2rem;
-    background-color: var(--bg-overlay);
-  }
-
-  .bias-left {
-    color: #89b4fa;
-  }
-
-  .bias-right {
-    color: #f38ba8;
-  }
-
-  .category-dots {
-    display: flex;
-    gap: 0.2rem;
-    align-items: center;
-  }
-
-  .category-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-  }
-
-  .revision-count {
-    color: var(--accent-secondary);
-    font-size: 0.7rem;
-  }
-
   .empty-state {
     padding: 2rem;
     text-align: center;
@@ -438,38 +213,8 @@
     font-size: 0.7rem;
   }
 
-  /* Search Results */
   .search-query {
     color: var(--accent-primary);
     font-style: italic;
-  }
-
-  .search-result {
-    border-left: 3px solid var(--accent-primary);
-  }
-
-  .search-similarity {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 2.5rem;
-    padding: 0.25rem 0.375rem;
-    background-color: var(--accent-primary);
-    color: var(--text-on-accent);
-    border-radius: 0.25rem;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    margin-top: 0.125rem;
-  }
-
-  .search-summary {
-    margin: 0.375rem 0 0 0;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
   }
 </style>

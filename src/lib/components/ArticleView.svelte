@@ -4,6 +4,7 @@
   import { appState, toasts, type FnordRevision, type ArticleCategory, type Tag, type SimilarArticle } from "../stores/state.svelte";
   import Tooltip from "./Tooltip.svelte";
   import RevisionView from "./RevisionView.svelte";
+  import { ArticleCard } from "./article";
 
   let showRevisions = $state(false);
   let revisions = $state<FnordRevision[]>([]);
@@ -238,10 +239,6 @@
     }
   }
 
-  function formatSimilarity(similarity: number): string {
-    return `${Math.round(similarity * 100)}%`;
-  }
-
   function formatShortDate(dateStr: string | null): string {
     if (!dateStr) return "";
     const date = new Date(dateStr);
@@ -459,45 +456,20 @@
             <div class="similar-loading">{$_('articleList.loading')}</div>
           {:else}
             <div class="similar-list">
-              {#each similarArticles as article}
-                <button
-                  class="similar-item"
+              {#each similarArticles as article (article.fnord_id)}
+                <ArticleCard
+                  fnord_id={article.fnord_id}
+                  title={article.title}
+                  pentacle_title={article.pentacle_title}
+                  published_at={article.published_at}
+                  categories={article.categories}
+                  tags={article.tags}
+                  similarity={article.similarity}
+                  showScore={true}
+                  showCategories={true}
+                  showTags={true}
                   onclick={() => navigateToSimilarArticle(article.fnord_id)}
-                >
-                  <div class="similar-main">
-                    <span class="similar-title">{article.title}</span>
-                    <div class="similar-meta-row">
-                      {#if article.pentacle_title}
-                        <span class="similar-source">{article.pentacle_title}</span>
-                      {/if}
-                      {#if article.published_at}
-                        <span class="similar-date">{formatDate(article.published_at)}</span>
-                      {/if}
-                    </div>
-                    {#if article.categories.length > 0 || article.tags.length > 0}
-                      <div class="similar-tags-row">
-                        {#each article.categories as cat}
-                          <span
-                            class="similar-category"
-                            style="background-color: {cat.color || 'var(--bg-overlay)'}"
-                            title={cat.name}
-                          >
-                            {#if cat.icon}<i class="{cat.icon}"></i>{:else}{cat.name}{/if}
-                          </span>
-                        {/each}
-                        {#each article.tags.slice(0, 3) as tag}
-                          <span class="similar-tag">{tag.name}</span>
-                        {/each}
-                        {#if article.tags.length > 3}
-                          <span class="similar-tag-more">+{article.tags.length - 3}</span>
-                        {/if}
-                      </div>
-                    {/if}
-                  </div>
-                  <span class="similar-score" title={$_('articleView.similarity')}>
-                    {formatSimilarity(article.similarity)}
-                  </span>
-                </button>
+                />
               {/each}
             </div>
           {/if}
@@ -793,112 +765,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-  }
-
-  .similar-item {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem;
-    background-color: var(--bg-overlay);
-    border: 1px solid var(--border-default);
-    border-radius: 0.5rem;
-    cursor: pointer;
-    text-align: left;
-    transition: all 0.2s;
-    width: 100%;
-  }
-
-  .similar-item:hover {
-    background-color: var(--bg-hover);
-    border-color: var(--accent-primary);
-  }
-
-  .similar-main {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    min-width: 0;
-    flex: 1;
-  }
-
-  .similar-title {
-    font-size: 0.9375rem;
-    color: var(--text-primary);
-    font-weight: 600;
-    line-height: 1.4;
-  }
-
-  .similar-meta-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.8125rem;
-    color: var(--text-muted);
-  }
-
-  .similar-source {
-    font-weight: 500;
-    color: var(--text-secondary);
-  }
-
-  .similar-date {
-    color: var(--text-muted);
-  }
-
-  .similar-source + .similar-date::before {
-    content: "·";
-    margin-right: 0.5rem;
-  }
-
-  .similar-tags-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.375rem;
-    margin-top: 0.25rem;
-  }
-
-  .similar-category {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 1.5rem;
-    height: 1.5rem;
-    padding: 0.25rem;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    color: white;
-    cursor: help;
-  }
-
-  .similar-tag {
-    display: inline-block;
-    padding: 0.125rem 0.375rem;
-    background-color: var(--bg-base);
-    color: var(--text-secondary);
-    border-radius: 0.25rem;
-    font-size: 0.6875rem;
-  }
-
-  .similar-tag-more {
-    display: inline-block;
-    padding: 0.125rem 0.375rem;
-    color: var(--text-muted);
-    font-size: 0.6875rem;
-  }
-
-  .similar-score {
-    font-size: 0.875rem;
-    font-weight: 700;
-    color: var(--accent-primary);
-    background-color: var(--bg-base);
-    padding: 0.375rem 0.625rem;
-    border-radius: 9999px;
-    white-space: nowrap;
-    flex-shrink: 0;
   }
 
   .content-section {
