@@ -807,6 +807,8 @@ static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(
                 "usa", "us", "united states", "amerika", "america",
                 "american", "amerikanisch", "amerikanischen", "amerikanischer",
                 "washington", "white house", "weißes haus",
+                // German declension forms
+                "vereinigten staaten", "vereinigter staaten", "staaten",
             ],
         ),
         (
@@ -858,6 +860,8 @@ static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(
             vec![
                 "iranian", "iranisch", "iranischen", "iranischer",
                 "teheran", "tehran", "persisch", "persian",
+                // Common variations
+                "irans", "der iran", "im iran", "iran-krise", "iran-konflikt",
             ],
         ),
         (
@@ -1087,6 +1091,23 @@ static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(
         (
             "Demonstranten",
             vec!["demonstrant", "demonstranten", "protestierende", "protestierenden"],
+        ),
+        // === Prominente Personen ===
+        (
+            "Trump",
+            vec!["donald trump", "trump", "trumps", "donald j. trump", "ex-präsident trump"],
+        ),
+        (
+            "Biden",
+            vec!["joe biden", "biden", "bidens", "präsident biden", "us-präsident biden"],
+        ),
+        (
+            "Putin",
+            vec!["wladimir putin", "putin", "putins", "präsident putin", "russlands präsident"],
+        ),
+        (
+            "Scholz",
+            vec!["olaf scholz", "scholz", "bundeskanzler scholz", "kanzler scholz"],
         ),
     ]
 });

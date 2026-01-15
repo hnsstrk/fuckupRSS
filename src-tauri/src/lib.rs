@@ -180,6 +180,8 @@ pub fn run() {
             commands::immanentize::create_keyword,
             commands::immanentize::delete_keyword,
             commands::immanentize::rename_keyword,
+            // Learning System: Auto-merge similar keywords
+            commands::immanentize::auto_merge_similar_keywords,
             // Embedding Queue
             commands::embedding::get_embedding_queue_status,
             commands::embedding::process_embedding_queue_now,

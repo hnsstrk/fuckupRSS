@@ -1823,3 +1823,232 @@ pub fn rename_keyword(state: State<AppState>, id: i64, new_name: String) -> Resu
 
     Ok(new_name)
 }
+
+// ============================================================
+// LEARNING SYSTEM: Auto-merge similar keywords
+// ============================================================
+
+#[derive(Debug, Serialize)]
+pub struct AutoMergeResult {
+    pub checked: i64,
+    pub merged: i64,
+    pub merge_details: Vec<AutoMergeDetail>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AutoMergeDetail {
+    pub source_name: String,
+    pub target_name: String,
+    pub similarity: f64,
+    pub articles_moved: i64,
+}
+
+/// Automatically merge very similar keywords using embedding similarity.
+/// This is the "learning" part of the system - it consolidates the keyword space
+/// by merging new/less-used keywords into established similar ones.
+///
+/// Strategy:
+/// 1. Find keywords with embeddings, ordered by article_count ASC (merge smaller into larger)
+/// 2. For each keyword, find the most similar existing keyword using vec_immanentize
+/// 3. If similarity >= threshold AND the target has more articles, merge source into target
+/// 4. Skip already dismissed pairs
+#[tauri::command]
+pub fn auto_merge_similar_keywords(
+    state: State<AppState>,
+    threshold: Option<f64>,
+    limit: Option<i64>,
+    dry_run: Option<bool>,
+) -> Result<AutoMergeResult, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+    let threshold = threshold.unwrap_or(0.92);
+    let limit = limit.unwrap_or(100);
+    let dry_run = dry_run.unwrap_or(false);
+
+    // Cosine distance = 1 - cosine similarity
+    let max_distance = 1.0 - threshold;
+
+    // Load dismissed pairs to skip
+    let dismissed: std::collections::HashSet<(i64, i64)> = conn
+        .prepare("SELECT keyword_a_id, keyword_b_id FROM dismissed_synonyms")
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Get keywords ordered by article_count ASC (process smaller ones first for merging)
+    // This ensures we merge less-used keywords into more-used ones
+    let keywords: Vec<(i64, String, Vec<u8>, i64)> = conn
+        .prepare(
+            r#"SELECT id, name, embedding, COALESCE(article_count, 0)
+               FROM immanentize
+               WHERE embedding IS NOT NULL
+               ORDER BY article_count ASC
+               LIMIT ?"#,
+        )
+        .map_err(|e| e.to_string())?
+        .query_map([limit * 2], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut checked = 0i64;
+    let mut merged = 0i64;
+    let mut merge_details: Vec<AutoMergeDetail> = Vec::new();
+    let mut merged_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
+
+    for (keyword_id, keyword_name, embedding_blob, article_count) in keywords {
+        if merged >= limit {
+            break;
+        }
+
+        // Skip if already merged
+        if merged_ids.contains(&keyword_id) {
+            continue;
+        }
+
+        checked += 1;
+
+        // Use vec_immanentize KNN search to find nearest neighbor
+        let neighbors: Vec<(i64, String, f64, i64)> = conn
+            .prepare(
+                r#"SELECT v.immanentize_id, i.name, v.distance, COALESCE(i.article_count, 0)
+                   FROM vec_immanentize v
+                   JOIN immanentize i ON i.id = v.immanentize_id
+                   WHERE v.embedding MATCH ?1 AND k = 5
+                   ORDER BY v.distance"#,
+            )
+            .and_then(|mut stmt| {
+                let rows = stmt.query_map([&embedding_blob], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, f64>(2)?, row.get::<_, i64>(3)?))
+                })?;
+                Ok(rows.filter_map(|r| r.ok()).collect::<Vec<_>>())
+            })
+            .unwrap_or_default();
+
+        // Find the best match that satisfies our criteria
+        let neighbor = neighbors.into_iter().find(|(id, _, dist, target_count)| {
+            *id != keyword_id
+            && !merged_ids.contains(id)
+            && *dist <= max_distance
+            && *target_count >= article_count  // Target has same or more articles
+        });
+
+        if let Some((target_id, target_name, distance, _)) = neighbor {
+            let similarity = 1.0 - distance;
+
+            // Check if this pair was dismissed
+            let (min_id, max_id) = if keyword_id < target_id {
+                (keyword_id, target_id)
+            } else {
+                (target_id, keyword_id)
+            };
+
+            if dismissed.contains(&(min_id, max_id)) {
+                continue;
+            }
+
+            // Skip if names are too different in length (probably not synonyms)
+            let len_ratio = keyword_name.len().min(target_name.len()) as f64
+                          / keyword_name.len().max(target_name.len()) as f64;
+            if len_ratio < 0.3 {
+                continue;
+            }
+
+            if dry_run {
+                log::info!(
+                    "Would merge '{}' ({} articles) into '{}' (similarity: {:.3})",
+                    keyword_name, article_count, target_name, similarity
+                );
+                merge_details.push(AutoMergeDetail {
+                    source_name: keyword_name.clone(),
+                    target_name: target_name.clone(),
+                    similarity,
+                    articles_moved: article_count,
+                });
+                merged += 1;
+            } else {
+                // Actually perform the merge
+                match perform_merge(conn, target_id, keyword_id) {
+                    Ok(articles_moved) => {
+                        log::info!(
+                            "Merged '{}' into '{}' (similarity: {:.3}, {} articles moved)",
+                            keyword_name, target_name, similarity, articles_moved
+                        );
+                        merge_details.push(AutoMergeDetail {
+                            source_name: keyword_name.clone(),
+                            target_name: target_name.clone(),
+                            similarity,
+                            articles_moved,
+                        });
+                        merged_ids.insert(keyword_id);
+                        merged += 1;
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to merge '{}' into '{}': {}", keyword_name, target_name, e);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(AutoMergeResult {
+        checked,
+        merged,
+        merge_details,
+    })
+}
+
+/// Internal helper to perform the actual merge operation
+fn perform_merge(conn: &rusqlite::Connection, keep_id: i64, remove_id: i64) -> Result<i64, String> {
+    // Count articles that will be affected
+    let affected: i64 = conn
+        .query_row(
+            "SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?",
+            [remove_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    // Update fnord_immanentize - move articles from source to target
+    // First, delete any that would create duplicates
+    conn.execute(
+        r#"DELETE FROM fnord_immanentize
+           WHERE immanentize_id = ?1
+           AND fnord_id IN (SELECT fnord_id FROM fnord_immanentize WHERE immanentize_id = ?2)"#,
+        params![remove_id, keep_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Then update remaining to point to target
+    conn.execute(
+        "UPDATE fnord_immanentize SET immanentize_id = ?1 WHERE immanentize_id = ?2",
+        params![keep_id, remove_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Update article_count for the target keyword
+    conn.execute(
+        r#"UPDATE immanentize SET
+           article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?1),
+           last_used = CURRENT_TIMESTAMP
+           WHERE id = ?1"#,
+        [keep_id],
+    )
+    .ok();
+
+    // Clean up source keyword's associations
+    conn.execute("DELETE FROM immanentize_neighbors WHERE keyword_id = ? OR neighbor_id = ?", params![remove_id, remove_id]).ok();
+    conn.execute("DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?", [remove_id]).ok();
+    conn.execute("DELETE FROM immanentize_daily WHERE immanentize_id = ?", [remove_id]).ok();
+    conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [remove_id]).ok();
+    conn.execute("DELETE FROM embedding_queue WHERE immanentize_id = ?", [remove_id]).ok();
+    conn.execute("DELETE FROM dismissed_synonyms WHERE keyword_a_id = ? OR keyword_b_id = ?", params![remove_id, remove_id]).ok();
+
+    // Delete the source keyword
+    conn.execute("DELETE FROM immanentize WHERE id = ?", [remove_id])
+        .map_err(|e| e.to_string())?;
+
+    Ok(affected)
+}

@@ -227,6 +227,25 @@ fn test_find_canonical_keyword_topics() {
 }
 
 #[test]
+fn test_find_canonical_keyword_persons() {
+    // Test prominent persons normalization
+    assert_eq!(find_canonical_keyword("donald trump"), Some("Trump"));
+    assert_eq!(find_canonical_keyword("trump"), Some("Trump"));
+    assert_eq!(find_canonical_keyword("joe biden"), Some("Biden"));
+    assert_eq!(find_canonical_keyword("wladimir putin"), Some("Putin"));
+    assert_eq!(find_canonical_keyword("olaf scholz"), Some("Scholz"));
+    assert_eq!(find_canonical_keyword("bundeskanzler scholz"), Some("Scholz"));
+}
+
+#[test]
+fn test_find_canonical_keyword_declensions() {
+    // Test German declension forms
+    assert_eq!(find_canonical_keyword("vereinigten staaten"), Some("Vereinigte Staaten"));
+    assert_eq!(find_canonical_keyword("irans"), Some("Iran"));
+    assert_eq!(find_canonical_keyword("der iran"), Some("Iran"));
+}
+
+#[test]
 fn test_find_canonical_keyword_no_match() {
     // Test that non-matching keywords return None
     assert_eq!(find_canonical_keyword("bitcoin"), None);
