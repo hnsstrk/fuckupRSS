@@ -1179,7 +1179,32 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             -- Official titles
             ('officials'),('officers'),('officer'),('ministry'),
             -- Operation terms
-            ('operation'),('operations');
+            ('operation'),('operations'),
+            -- Generic verbs/participles (Ralph Loop 6-15)
+            ('fährt'),('fliegen'),('gingen'),('gehalten'),('entspricht'),('lernt'),
+            ('festgestellten'),('disagree'),('deliberately'),('freezing'),('vorgesehen'),
+            ('kurzzeitig'),('restriktive'),
+            -- Generic nouns - media/events
+            ('album'),('band'),('concert'),('contest'),('film'),('radio'),
+            ('production'),('programme'),('conversation'),('drama'),
+            -- Generic nouns - buildings/housing
+            ('apartment'),('haus'),('house'),('gebäude'),('wohnung'),('wohnen'),
+            -- Generic nouns - abstract
+            ('anteil'),('budget'),('debate'),('evidence'),('growth'),('inhalte'),
+            ('losses'),('maternity'),('misuse'),('uncertainty'),('zusammenarbeit'),
+            ('entscheidung'),('betriebe'),('betroffene'),('mitglieds'),
+            -- Generic nouns - misc
+            ('actor'),('attendees'),('cloud'),('coach'),('coast'),('dorf'),
+            ('freunde'),('geld'),('helden'),('expert'),
+            -- Generic adjectives
+            ('frische'),('irregulären'),('jähriger'),('katastrophal'),('central'),
+            -- Slang/abbreviations
+            ('bio'),('biz'),('bord'),
+            -- Month names
+            ('december'),
+            -- Other generic
+            ('guard'),('heating'),('lake'),('logging'),('minus'),('schiffe'),
+            ('snow'),('vessels'),('votes'),('vom');
             "#,
         )?;
     }
