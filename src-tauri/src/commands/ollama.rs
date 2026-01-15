@@ -2,9 +2,11 @@ use crate::commands::settings::get_embedding_model_from_db;
 use crate::embedding_worker;
 use crate::embeddings::embedding_to_blob;
 use crate::ollama::{
-    BiasAnalysis, DiscordianAnalysis, OllamaClient, OllamaError, DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
+    BiasAnalysis, DiscordianAnalysis, DiscordianAnalysisWithRejections, OllamaClient, OllamaError,
+    DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
     RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale, DEFAULT_NUM_CTX,
 };
+use crate::text_analysis::{BiasWeights, TfIdfExtractor, CategoryMatcher, record_correction, CorrectionRecord, CorrectionType};
 use crate::db::Database;
 use crate::{extract_keywords, classify_by_keywords, normalize_keyword, find_canonical_keyword, SEPHIROTH_CATEGORIES};
 use crate::AppState;
@@ -895,7 +897,8 @@ pub async fn process_article_discordian(
 ) -> Result<DiscordianResponse, String> {
     let locale = get_locale_from_db(&state);
 
-    let (client, title, content, article_date): (OllamaClient, String, String, Option<String>) = {
+    // Step 1: Load article content and bias weights
+    let (client, title, content, article_date, bias_weights): (OllamaClient, String, String, Option<String>, BiasWeights) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let client = create_ollama_client(&db);
         let (title, content, article_date) = db.conn()
@@ -905,7 +908,8 @@ pub async fn process_article_discordian(
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .map_err(|e| e.to_string())?;
-        (client, title, content, article_date)
+        let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
+        (client, title, content, article_date, bias)
     };
 
     if content.is_empty() {
@@ -919,11 +923,89 @@ pub async fn process_article_discordian(
         });
     }
 
+    // Step 2: Run statistical pre-analysis with bias weights
+    let text_for_analysis = format!("{} {}", title, content);
+
+    // TF-IDF keyword extraction with bias
+    let extractor = TfIdfExtractor::new().with_max_keywords(15);
+    let stat_keywords: Vec<String> = extractor
+        .extract_simple(&text_for_analysis)
+        .into_iter()
+        .map(|kc| {
+            let _adjusted_score = bias_weights.apply_to_keyword(&kc.term, kc.score);
+            kc.term
+        })
+        .collect();
+
+    // Category matching with bias
+    let matcher = CategoryMatcher::new().with_max_categories(5);
+    let stat_categories: Vec<(String, f64)> = matcher
+        .score_categories(&text_for_analysis, Some(&bias_weights))
+        .into_iter()
+        .map(|cs| (cs.name.clone(), cs.confidence))
+        .collect();
+
+    // Fallback local extraction (existing method)
     let local_keywords = extract_keywords(&title, &content, 10);
     let local_categories = classify_by_keywords(&local_keywords);
 
-    match client.discordian_analysis(&model, &title, &content, &locale).await {
-        Ok(analysis) => {
+    // Step 3: Run LLM analysis with statistical context
+    match client.discordian_analysis_with_stats(
+        &model,
+        &title,
+        &content,
+        &locale,
+        &stat_keywords,
+        &stat_categories,
+    ).await {
+        Ok(analysis_with_rejections) => {
+            // Step 4: Learn from LLM rejections (update bias weights)
+            {
+                let db = state.db.lock().map_err(|e| e.to_string())?;
+
+                // Record rejected keywords for bias learning
+                for rejected_kw in &analysis_with_rejections.rejected_keywords {
+                    let _ = record_correction(db.conn(), &CorrectionRecord {
+                        fnord_id,
+                        correction_type: CorrectionType::KeywordRemoved,
+                        old_value: Some(rejected_kw.clone()),
+                        new_value: None,
+                        matching_terms: vec![],
+                        category_id: None,
+                    });
+                }
+
+                // Record rejected categories for bias learning
+                for rejected_cat in &analysis_with_rejections.rejected_categories {
+                    // Find category ID by name from database
+                    let cat_id: Option<i64> = db.conn()
+                        .query_row(
+                            "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?1)",
+                            [rejected_cat],
+                            |row| row.get(0),
+                        )
+                        .ok();
+
+                    if let Some(cat_id) = cat_id {
+                        // Use top stat_keywords as matching terms for this category
+                        let matching_terms: Vec<String> = stat_keywords.iter().take(5).cloned().collect();
+
+                        let _ = record_correction(db.conn(), &CorrectionRecord {
+                            fnord_id,
+                            correction_type: CorrectionType::CategoryRemoved,
+                            old_value: Some(rejected_cat.clone()),
+                            new_value: None,
+                            matching_terms,
+                            category_id: Some(cat_id),
+                        });
+                    }
+                }
+            }
+
+            // Convert to regular analysis for storage
+            let analysis: DiscordianAnalysis = analysis_with_rejections.clone().into();
+
+            // Save to database
             {
                 let db = state.db.lock().map_err(|e| e.to_string())?;
 
@@ -985,13 +1067,20 @@ pub async fn process_article_discordian(
             })
         }
         Err(e) => {
+            // Fallback: Use statistical + local extraction without LLM
             let db = state.db.lock().map_err(|e| e.to_string())?;
+
+            // Merge statistical keywords with local extraction
+            let combined_keywords: Vec<String> = stat_keywords.into_iter()
+                .chain(local_keywords.into_iter())
+                .take(15)
+                .collect();
 
             let categories_saved = save_article_categories(db.conn(), fnord_id, &local_categories);
             let (tags_saved, tag_ids) = save_article_keywords_and_network(
                 db.conn(),
                 fnord_id,
-                &local_keywords,
+                &combined_keywords,
                 &categories_saved,
                 article_date.as_deref(),
             );
@@ -1003,7 +1092,7 @@ pub async fn process_article_discordian(
                 analysis: None,
                 categories_saved,
                 tags_saved,
-                error: Some(format!("LLM failed, used local extraction: {}", e)),
+                error: Some(format!("LLM failed, used statistical + local extraction: {}", e)),
             })
         }
     }

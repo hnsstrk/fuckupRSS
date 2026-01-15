@@ -149,6 +149,45 @@ Rules:
 Title: {title}
 Content: {content}"#;
 
+/// Enhanced Discordian prompt with statistical pre-analysis for quality control
+/// The LLM validates/corrects statistical suggestions rather than generating from scratch
+pub const DEFAULT_DISCORDIAN_PROMPT_WITH_STATS: &str = r#"/no_think
+Analyze this news article. A statistical text analysis has been performed first.
+Your task is to VALIDATE and CORRECT the statistical suggestions.
+
+STATISTICAL PRE-ANALYSIS:
+Keyword candidates (TF-IDF): {stat_keywords}
+Category candidates: {stat_categories}
+
+YOUR TASK:
+1. Review keyword candidates - keep relevant ones, remove generic/irrelevant ones, add max 2 missing important ones
+2. Review category candidates - confirm or correct the category assignment
+3. Provide summary and bias analysis
+
+Respond in {language}. Return ONLY this JSON:
+
+{
+  "political_bias": <-2 to 2>,
+  "sachlichkeit": <0 to 4>,
+  "summary": "<1-2 sentences>",
+  "categories": ["<cat1>", "<cat2>"],
+  "keywords": ["<kw1>", "<kw2>", "<kw3>", "..."],
+  "rejected_keywords": ["<rejected1>", "..."],
+  "rejected_categories": ["<rejected1>", "..."]
+}
+
+Rules:
+- political_bias: -2=strong left, 0=neutral, 2=strong right
+- sachlichkeit: 0=emotional, 2=mixed, 4=objective
+- summary: 1-2 factual sentences in {language}
+- categories: 1-2 from: Technik, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit, Verteidigung, Energie, Recht
+- keywords: keep good statistical suggestions + add max 2 new ones
+- rejected_keywords: list any statistical suggestions you rejected (helps learning)
+- rejected_categories: list any category suggestions you rejected
+
+Title: {title}
+Content: {content}"#;
+
 /// Get language name for prompt based on locale
 pub fn get_language_for_locale(locale: &str) -> &'static str {
     match locale {
@@ -443,6 +482,68 @@ Content: {}"#,
         Ok(raw.into())
     }
 
+    /// Discordian Analysis with statistical pre-analysis context
+    /// The LLM validates and corrects statistical suggestions rather than generating from scratch
+    pub async fn discordian_analysis_with_stats(
+        &self,
+        model: &str,
+        title: &str,
+        content: &str,
+        locale: &str,
+        stat_keywords: &[String],
+        stat_categories: &[(String, f64)], // (category_name, confidence)
+    ) -> Result<DiscordianAnalysisWithRejections, OllamaError> {
+        debug!("Starting Discordian analysis with stats for: {}", truncate_str(title, 60));
+        let language = get_language_for_locale(locale);
+        let truncated_content = content.chars().take(6000).collect::<String>();
+
+        // Format statistical keywords
+        let stat_keywords_str = if stat_keywords.is_empty() {
+            "none".to_string()
+        } else {
+            stat_keywords.join(", ")
+        };
+
+        // Format statistical categories with confidence
+        let stat_categories_str = if stat_categories.is_empty() {
+            "none".to_string()
+        } else {
+            stat_categories
+                .iter()
+                .map(|(name, conf)| format!("{} ({:.0}%)", name, conf * 100.0))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+
+        let prompt = DEFAULT_DISCORDIAN_PROMPT_WITH_STATS
+            .replace("{language}", language)
+            .replace("{title}", title)
+            .replace("{content}", &truncated_content)
+            .replace("{stat_keywords}", &stat_keywords_str)
+            .replace("{stat_categories}", &stat_categories_str);
+
+        // Use JSON mode
+        let response = self.generate(model, &prompt, Some("json".to_string())).await?;
+
+        let raw: RawDiscordianAnalysisWithRejections = serde_json::from_str(&response).map_err(|e| {
+            warn!("JSON parse error: {}. Response: {}", e, truncate_str(&response, 300));
+            OllamaError::JsonParseError {
+                message: e.to_string(),
+                raw_response: response.chars().take(500).collect(),
+            }
+        })?;
+
+        debug!(
+            "Analysis with stats complete: {} categories, {} keywords, {} rejected_kw, {} rejected_cat",
+            raw.categories.len(),
+            raw.keywords.len(),
+            raw.rejected_keywords.len(),
+            raw.rejected_categories.len()
+        );
+
+        Ok(raw.into())
+    }
+
     /// Generate text with Ollama
     async fn generate(&self, model: &str, prompt: &str, format: Option<String>) -> Result<String, OllamaError> {
         let url = format!("{}/api/generate", self.base_url);
@@ -558,6 +659,63 @@ impl From<RawDiscordianAnalysis> for DiscordianAnalysis {
             keywords: raw.keywords,
             political_bias: raw.political_bias.round() as i32,
             sachlichkeit: raw.sachlichkeit.round() as i32,
+        }
+    }
+}
+
+/// Raw Discordian analysis with rejections from LLM (for statistical validation workflow)
+#[derive(Deserialize, Debug)]
+struct RawDiscordianAnalysisWithRejections {
+    #[serde(default)]
+    summary: String,
+    #[serde(default)]
+    categories: Vec<String>,
+    #[serde(default)]
+    keywords: Vec<String>,
+    #[serde(default)]
+    rejected_keywords: Vec<String>,
+    #[serde(default)]
+    rejected_categories: Vec<String>,
+    political_bias: f64,
+    sachlichkeit: f64,
+}
+
+/// Full Discordian analysis with rejection info for bias learning
+#[derive(Serialize, Debug, Clone)]
+pub struct DiscordianAnalysisWithRejections {
+    pub summary: String,
+    pub categories: Vec<String>,
+    pub keywords: Vec<String>,
+    /// Keywords from statistical analysis that LLM rejected (for bias learning)
+    pub rejected_keywords: Vec<String>,
+    /// Categories from statistical analysis that LLM rejected (for bias learning)
+    pub rejected_categories: Vec<String>,
+    pub political_bias: i32,
+    pub sachlichkeit: i32,
+}
+
+impl From<RawDiscordianAnalysisWithRejections> for DiscordianAnalysisWithRejections {
+    fn from(raw: RawDiscordianAnalysisWithRejections) -> Self {
+        Self {
+            summary: raw.summary,
+            categories: raw.categories,
+            keywords: raw.keywords,
+            rejected_keywords: raw.rejected_keywords,
+            rejected_categories: raw.rejected_categories,
+            political_bias: raw.political_bias.round() as i32,
+            sachlichkeit: raw.sachlichkeit.round() as i32,
+        }
+    }
+}
+
+impl From<DiscordianAnalysisWithRejections> for DiscordianAnalysis {
+    fn from(raw: DiscordianAnalysisWithRejections) -> Self {
+        Self {
+            summary: raw.summary,
+            categories: raw.categories,
+            keywords: raw.keywords,
+            political_bias: raw.political_bias,
+            sachlichkeit: raw.sachlichkeit,
         }
     }
 }

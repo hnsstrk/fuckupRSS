@@ -103,6 +103,8 @@
         fnord_id: fnordId,
         correction_type: 'category_added',
         new_value: category.name,
+        category_id: category.id,
+        matching_terms: [], // Manual additions don't have statistical matching terms
       };
       await invoke('record_correction', { correction });
 
@@ -144,10 +146,16 @@
       });
 
       // Record correction for bias learning
+      // Note: matching_terms are not stored with category assignments yet,
+      // so we pass an empty array. The backend will still update the general
+      // category boost weight. For term-level learning, matching_terms would
+      // need to be tracked from the initial statistical analysis.
       const correction: CorrectionInput = {
         fnord_id: fnordId,
         correction_type: 'category_removed',
         old_value: category.name,
+        category_id: category.sephiroth_id,
+        matching_terms: [], // Could be populated if we store this with assignments
       };
       await invoke('record_correction', { correction });
 

@@ -71,6 +71,12 @@ pub struct CorrectionInput {
     pub correction_type: String, // 'keyword_added', 'keyword_removed', 'category_added', 'category_removed'
     pub old_value: Option<String>,
     pub new_value: Option<String>,
+    /// For category corrections: the terms that matched this category (from statistical analysis)
+    #[serde(default)]
+    pub matching_terms: Vec<String>,
+    /// For category corrections: the category ID
+    #[serde(default)]
+    pub category_id: Option<i64>,
 }
 
 // ============================================================
@@ -419,6 +425,8 @@ pub fn record_correction(state: State<AppState>, correction: CorrectionInput) ->
         correction_type,
         old_value: correction.old_value,
         new_value: correction.new_value,
+        matching_terms: correction.matching_terms,
+        category_id: correction.category_id,
     };
 
     bias_record_correction(db.conn(), &record)
@@ -449,8 +457,26 @@ mod tests {
             correction_type: "keyword_added".to_string(),
             old_value: None,
             new_value: Some("test".to_string()),
+            matching_terms: Vec::new(),
+            category_id: None,
         };
 
         assert_eq!(input.correction_type, "keyword_added");
+    }
+
+    #[test]
+    fn test_correction_with_category_data() {
+        let input = CorrectionInput {
+            fnord_id: 1,
+            correction_type: "category_removed".to_string(),
+            old_value: Some("Politik".to_string()),
+            new_value: None,
+            matching_terms: vec!["regierung".to_string(), "minister".to_string()],
+            category_id: Some(201),
+        };
+
+        assert_eq!(input.correction_type, "category_removed");
+        assert_eq!(input.matching_terms.len(), 2);
+        assert_eq!(input.category_id, Some(201));
     }
 }

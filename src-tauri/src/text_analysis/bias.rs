@@ -27,6 +27,13 @@ pub struct CorrectionRecord {
     pub correction_type: CorrectionType,
     pub old_value: Option<String>,
     pub new_value: Option<String>,
+    /// For category corrections: the terms that matched this category
+    /// Used to learn which terms should be down/up-weighted for this category
+    #[serde(default)]
+    pub matching_terms: Vec<String>,
+    /// For category corrections: the category ID
+    #[serde(default)]
+    pub category_id: Option<i64>,
 }
 
 /// Weight types stored in the database
@@ -161,19 +168,59 @@ pub fn record_correction(
             }
         }
         CorrectionType::CategoryRemoved => {
-            // User removed a category -> decrease source weight for that source
-            // Could also adjust category-term weights based on article content
-            if let Some(category_id_str) = &correction.old_value {
-                if let Ok(_category_id) = category_id_str.parse::<i64>() {
-                    // For now, we just increment the correction count
-                    // Future: analyze article text and decrease weights for matching terms
+            // User removed a category -> decrease weights for matching terms
+            if let Some(category_id) = correction.category_id {
+                // Decrease weight for each matching term that led to this category
+                for term in &correction.matching_terms {
+                    adjust_category_term_weight(conn, category_id, term, -WEIGHT_ADJUSTMENT)?;
                 }
+                // Also record a general category correction for stats
+                record_category_correction(conn, category_id, false)?;
             }
         }
         CorrectionType::CategoryAdded => {
-            // User added a category -> could increase term weights
-            // Future: analyze article text and increase weights for matching terms
+            // User added a category -> increase weights for matching terms
+            if let Some(category_id) = correction.category_id {
+                // Increase weight for each matching term
+                for term in &correction.matching_terms {
+                    adjust_category_term_weight(conn, category_id, term, WEIGHT_ADJUSTMENT)?;
+                }
+                // Also record a general category correction for stats
+                record_category_correction(conn, category_id, true)?;
+            }
         }
+    }
+
+    Ok(())
+}
+
+/// Record a category correction for statistics (without term-level adjustment)
+fn record_category_correction(
+    conn: &Connection,
+    category_id: i64,
+    was_added: bool,
+) -> Result<(), rusqlite::Error> {
+    let context_key = format!("cat_{}", category_id);
+    let adjustment = if was_added { WEIGHT_ADJUSTMENT } else { -WEIGHT_ADJUSTMENT };
+
+    // Try to update existing weight
+    let updated = conn.execute(
+        "UPDATE bias_weights
+         SET weight = MAX(?, MIN(?, weight + ?)),
+             correction_count = correction_count + 1,
+             last_updated = CURRENT_TIMESTAMP
+         WHERE weight_type = 'category_boost' AND context_key = ?",
+        params![MIN_WEIGHT, MAX_WEIGHT, adjustment, &context_key],
+    )?;
+
+    // If no existing weight, insert new one
+    if updated == 0 {
+        let new_weight = (1.0 + adjustment).clamp(MIN_WEIGHT, MAX_WEIGHT);
+        conn.execute(
+            "INSERT INTO bias_weights (weight_type, context_key, weight, correction_count, last_updated)
+             VALUES ('category_boost', ?, ?, 1, CURRENT_TIMESTAMP)",
+            params![&context_key, new_weight],
+        )?;
     }
 
     Ok(())
@@ -211,7 +258,6 @@ fn adjust_keyword_boost(
 }
 
 /// Adjust category-term weight
-#[allow(dead_code)]
 fn adjust_category_term_weight(
     conn: &Connection,
     category_id: i64,

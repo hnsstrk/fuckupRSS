@@ -507,4 +507,8 @@ export interface CorrectionInput {
   correction_type: 'keyword_added' | 'keyword_removed' | 'category_added' | 'category_removed';
   old_value?: string;
   new_value?: string;
+  // For category corrections: the terms that matched this category (from statistical analysis)
+  matching_terms?: string[];
+  // For category corrections: the category ID
+  category_id?: number;
 }
