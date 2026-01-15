@@ -1062,5 +1062,78 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         )?;
     }
 
+    // Insert default stopwords for TF-IDF analysis (only if table is empty)
+    let stopword_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM user_stopwords", [], |row| row.get(0))
+        .unwrap_or(0);
+
+    if stopword_count == 0 {
+        conn.execute_batch(
+            r#"
+            INSERT OR IGNORE INTO user_stopwords (word) VALUES
+            -- German generic verbs and auxiliaries
+            ('sei'),('sagt'),('sagte'),('habe'),('kann'),('soll'),('gibt'),('gilt'),('steht'),
+            ('macht'),('heißt'),('hieß'),('sieht'),('kommt'),('kommen'),('gehen'),('geht'),
+            ('bleibt'),('bleiben'),('liegt'),('führen'),('zeigt'),('stellen'),('wissen'),
+            ('findet'),('arbeiten'),('erklärt'),('erklärte'),
+            -- German adverbs and conjunctions
+            ('beim'),('wegen'),('darauf'),('dafür'),('davon'),('derzeit'),('deshalb'),
+            ('gerade'),('ganz'),('fast'),('etwas'),('etwa'),('rund'),('sogar'),('inzwischen'),
+            ('offenbar'),('neben'),('statt'),('trotz'),('zuletzt'),('zurück'),('zwar'),
+            ('weiter'),('weitere'),('besonders'),('bereits'),('wieder'),('bisher'),('künftig'),
+            ('einmal'),('lange'),('damals'),('daran'),
+            -- German pronouns and articles
+            ('allem'),('aller'),('andere'),('anderem'),('anderen'),('mehrere'),('manche'),
+            ('beiden'),('ersten'),
+            -- German nouns (generic)
+            ('mensch'),('menschen'),('jahr'),('jahren'),('zeit'),('woche'),('tage'),('tagen'),
+            ('teil'),('teilen'),('land'),('stadt'),('lage'),('weise'),('rolle'),('ziel'),
+            ('beispiel'),('folge'),('folgen'),
+            -- German numbers
+            ('zwei'),('drei'),('vier'),('fünf'),('sechs'),('milliarden'),('millionen'),
+            ('zweite'),('zweiten'),
+            -- German days and months
+            ('montag'),('mittwoch'),('sonntag'),('januar'),('juni'),('september'),('november'),
+            ('dezember'),('märz'),
+            -- German verb forms (modal, auxiliary)
+            ('worden'),('könnten'),('sollen'),('sollten'),('werde'),('seien'),
+            -- German media/news terms
+            ('nachricht'),('gesendet'),('zufolge'),('bericht'),('angaben'),('zahl'),
+            ('vergangenen'),('weniger'),
+            -- German misc
+            ('viel'),('viele'),('pro'),('selbst'),('ende'),('neu'),('neuen'),('bekommen'),
+            ('machen'),('erhalten'),('geben'),('gegen'),('man'),('prozent'),('uhr'),('fall'),('stand'),
+            -- Broken stems (from disabled stemming experiments)
+            ('tha'),('nich'),('werd'),('wurd'),('hav'),('wer'),('könn'),('sta'),('imm'),
+            ('würd'),('selb'),('mini'),('thre'),('mor'),('fir'),('ers'),('ons'),('las'),
+            -- English generic verbs
+            ('said'),('says'),('told'),('got'),('get'),('made'),('make'),('take'),('want'),
+            ('know'),('think'),('see'),('found'),('walk'),('added'),('called'),('killed'),
+            ('serve'),('set'),('lost'),('win'),('show'),('report'),('work'),('works'),
+            ('consider'),
+            -- English adverbs and conjunctions
+            ('against'),('since'),('without'),('whether'),('never'),('later'),('least'),
+            -- English pronouns and articles
+            ('her'),('his'),('one'),
+            -- English nouns (generic)
+            ('people'),('time'),('day'),('life'),('way'),('world'),('side'),('body'),
+            ('bodies'),('power'),('game'),('father'),('money'),('group'),('parts'),('areas'),
+            ('hours'),('months'),('million'),('education'),('force'),('company'),
+            -- English adjectives
+            ('good'),('little'),('best'),('old'),('new'),('long'),('local'),('social'),
+            ('public'),('real'),('national'),('special'),('clear'),('young'),
+            -- English misc
+            ('and'),('but'),('not'),('there'),('news'),('years'),('part'),('two'),('all'),
+            ('first'),('last'),('back'),('home'),('left'),('system'),('government'),('trade'),
+            -- HTML entities and web terms
+            ('nbsp'),('video'),('videos'),('picture'),('alliance'),('images'),('media'),
+            ('profile'),('warning'),('online'),('open'),('close'),('next'),('view'),
+            ('please'),('enable'),
+            -- News agency abbreviations (often not useful as keywords)
+            ('following'),('dies');
+            "#,
+        )?;
+    }
+
     Ok(())
 }

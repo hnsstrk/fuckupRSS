@@ -7,6 +7,5 @@ https://www.deutschlandfunk.de/nachrichten-100.rss
 https://www.deutschlandfunk.de/politikportal-100.rss
 https://netzpolitik.org/feed/
 https://linuxnews.de/feed/
-
 https://rss.sueddeutsche.de/alles
 https://meduza.io/rss/en/all

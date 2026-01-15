@@ -1,13 +1,15 @@
 //! TF-IDF based keyword extraction
 //!
 //! Extracts keywords from article text using Term Frequency-Inverse Document Frequency.
+//! Includes stemming support for German and English text.
 
+use rust_stemmers::{Algorithm, Stemmer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::stopwords::STOPWORDS;
-use std::collections::HashSet;
 
 /// A keyword candidate with its TF-IDF score
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,6 +121,8 @@ pub struct TfIdfExtractor {
     pub max_keywords: usize,
     /// Minimum TF-IDF score threshold
     pub min_score: f64,
+    /// Whether to apply stemming to words
+    pub use_stemming: bool,
 }
 
 impl Default for TfIdfExtractor {
@@ -127,6 +131,7 @@ impl Default for TfIdfExtractor {
             min_word_length: 3,
             max_keywords: 20,
             min_score: 0.1,
+            use_stemming: false, // Disabled: too aggressive with proper nouns (Iran->ira, Scotland->scotla)
         }
     }
 }
@@ -148,6 +153,40 @@ impl TfIdfExtractor {
         self
     }
 
+    /// Enable or disable stemming
+    pub fn with_stemming(mut self, enabled: bool) -> Self {
+        self.use_stemming = enabled;
+        self
+    }
+
+    /// Apply stemming to a word using both German and English stemmers
+    /// Returns the shorter stem (more aggressive normalization)
+    fn stem_word(&self, word: &str) -> String {
+        if !self.use_stemming {
+            return word.to_string();
+        }
+
+        let de_stemmer = Stemmer::create(Algorithm::German);
+        let en_stemmer = Stemmer::create(Algorithm::English);
+
+        let de_stem = de_stemmer.stem(word);
+        let en_stem = en_stemmer.stem(word);
+
+        // Use the shorter stem (more normalized)
+        // But ensure minimum length of 3
+        let stem = if de_stem.len() <= en_stem.len() && de_stem.len() >= 3 {
+            de_stem.to_string()
+        } else if en_stem.len() >= 3 {
+            en_stem.to_string()
+        } else if de_stem.len() >= 3 {
+            de_stem.to_string()
+        } else {
+            word.to_string() // Keep original if stems are too short
+        };
+
+        stem
+    }
+
     /// Tokenize text into words
     fn tokenize(&self, text: &str) -> Vec<String> {
         self.tokenize_with_stopwords(text, None)
@@ -163,6 +202,7 @@ impl TfIdfExtractor {
                     && !user_stopwords.map_or(false, |sw| sw.contains(w))
                     && w.chars().all(|c| c.is_alphabetic())
             })
+            .map(|w| self.stem_word(&w))
             .collect()
     }
 
@@ -445,6 +485,56 @@ mod tests {
         for kw in &keywords {
             assert!(kw.score > 0.0);
             assert!(kw.idf > 0.0);
+        }
+    }
+
+    #[test]
+    fn test_stemming_german() {
+        let extractor = TfIdfExtractor::new().with_stemming(true);
+
+        // Test German word stemming
+        let stem_iran = extractor.stem_word("iranischen");
+        let stem_iran2 = extractor.stem_word("iranische");
+        let stem_iran3 = extractor.stem_word("iran");
+
+        // All should stem to the same root
+        assert_eq!(stem_iran, stem_iran2, "iranischen and iranische should have same stem");
+        println!("iranischen -> {}, iranische -> {}, iran -> {}", stem_iran, stem_iran2, stem_iran3);
+
+        // Test more German words
+        let stem_deutsch = extractor.stem_word("deutschen");
+        let stem_deutsch2 = extractor.stem_word("deutsche");
+        assert_eq!(stem_deutsch, stem_deutsch2, "deutschen and deutsche should have same stem");
+        println!("deutschen -> {}, deutsche -> {}", stem_deutsch, stem_deutsch2);
+
+        let stem_reg = extractor.stem_word("regierung");
+        let stem_reg2 = extractor.stem_word("regierungen");
+        println!("regierung -> {}, regierungen -> {}", stem_reg, stem_reg2);
+    }
+
+    #[test]
+    fn test_stemming_consolidates_keywords() {
+        let extractor = TfIdfExtractor::new().with_stemming(true).with_max_keywords(10);
+
+        // Text with various forms of the same words
+        let text = "Die iranische Regierung und die iranischen Minister. \
+                    Der iranischer Botschafter traf die deutsche Delegation. \
+                    Die deutschen Diplomaten und der deutsche Minister.";
+
+        let keywords = extractor.extract_simple(text);
+
+        // Print keywords for debugging
+        println!("Keywords with stemming:");
+        for kw in &keywords {
+            println!("  {} (freq: {}, score: {:.2})", kw.term, kw.frequency, kw.score);
+        }
+
+        // With stemming, "iranischen", "iranische", "iranischer" should be consolidated
+        // and have a higher frequency than without stemming
+        let iran_kw = keywords.iter().find(|k| k.term.starts_with("iran"));
+        assert!(iran_kw.is_some(), "Should find iran-related keyword");
+        if let Some(kw) = iran_kw {
+            assert!(kw.frequency >= 3, "Iranian forms should be consolidated, got freq={}", kw.frequency);
         }
     }
 }
