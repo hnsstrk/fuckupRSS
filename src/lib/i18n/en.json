@@ -481,7 +481,22 @@
     "selectedKeyword": "Selected",
     "searchToReplace": "Search keyword to replace...",
     "replace": "Replace",
-    "noKeywordSelected": "First select a keyword in the \"Keywords\" tab to merge it with other keywords."
+    "noKeywordSelected": "First select a keyword in the \"Keywords\" tab to merge it with other keywords.",
+    "linkedArticles": "Linked Articles",
+    "noArticles": "No articles found",
+    "renameKeyword": "Rename",
+    "canonical": "Canonical",
+    "filters": "Filters",
+    "listView": "List View",
+    "tableView": "Table View",
+    "minArticles": "Min. Articles",
+    "clearFilter": "Clear Filter",
+    "name": "Name",
+    "articles": "Articles",
+    "weight": "Weight",
+    "similarKeywords": "Similar Keywords",
+    "embeddingSimilarity": "Embedding Similarity",
+    "noSimilarKeywords": "No similar keywords found"
   },
   "mindfuck": {
     "title": "Operation Mindfuck",
