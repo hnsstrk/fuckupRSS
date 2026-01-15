@@ -27,6 +27,10 @@
     ollamaAvailable = status.available;
   }
 
+  $effect(() => {
+    ollamaAvailable = appState.ollamaStatus.available;
+  });
+
   // Tabs definition
   let tabs = $derived<Tab[]>([
     { id: "general", label: $_("settings.title") },

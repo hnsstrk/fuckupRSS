@@ -3,6 +3,7 @@
   import { appState } from "../stores/state.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount, onDestroy } from "svelte";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
   interface LoadedModel {
     name: string;
@@ -22,6 +23,7 @@
   let hopelessCount = $state(0);
   let failedCount = $state(0);
   let refreshInterval: ReturnType<typeof setInterval> | null = null;
+  let unlistenModels: UnlistenFn | null = null;
 
   function formatVram(bytes: number): string {
     const gb = bytes / (1024 * 1024 * 1024);
@@ -74,16 +76,21 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
     loadStats();
     // Refresh every 10 seconds
     refreshInterval = setInterval(() => {
       loadStats();
     }, 10000);
+
+    unlistenModels = await listen("models-changed", () => {
+      loadStats();
+    });
   });
 
   onDestroy(() => {
     if (refreshInterval) clearInterval(refreshInterval);
+    if (unlistenModels) unlistenModels();
   });
 
   // Derived states
