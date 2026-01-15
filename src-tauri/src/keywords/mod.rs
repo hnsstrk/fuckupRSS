@@ -773,45 +773,197 @@ pub fn normalize_and_dedupe_keywords(keywords: &[String]) -> Vec<String> {
 
 static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(|| {
     vec![
+        // === Technologie ===
         (
             "Künstliche Intelligenz",
             vec![
-                "ki",
-                "ai",
-                "artificial intelligence",
-                "maschinelles lernen",
-                "machine learning",
-                "ml",
+                "ki", "ai", "artificial intelligence", "maschinelles lernen",
+                "machine learning", "ml", "deep learning", "neuronale netze",
             ],
         ),
-        ("Europäische Union", vec!["eu", "european union", "europa"]),
+        // === Internationale Organisationen ===
+        (
+            "Europäische Union",
+            vec![
+                "eu", "european union", "europa", "european", "europäisch",
+                "europäischen", "europäischer", "brüssel", "brussels",
+            ],
+        ),
+        (
+            "NATO",
+            vec![
+                "north atlantic treaty", "atlantisches bündnis", "nato-",
+                "transatlantisch", "transatlantic",
+            ],
+        ),
+        (
+            "Vereinte Nationen",
+            vec!["un", "uno", "united nations", "un-"],
+        ),
+        // === Länder mit Adjektiven ===
         (
             "Vereinigte Staaten",
-            vec!["usa", "us", "united states", "amerika", "america"],
+            vec![
+                "usa", "us", "united states", "amerika", "america",
+                "american", "amerikanisch", "amerikanischen", "amerikanischer",
+                "washington", "white house", "weißes haus",
+            ],
         ),
         (
-            "Bundesrepublik Deutschland",
-            vec!["deutschland", "germany", "brd"],
+            "Deutschland",
+            vec![
+                "germany", "brd", "bundesrepublik", "german", "deutsch",
+                "deutschen", "deutscher", "berlin", "bundestag", "bundesregierung",
+            ],
         ),
+        (
+            "Russland",
+            vec![
+                "russia", "russian", "russisch", "russischen", "russischer",
+                "moskau", "moscow", "kreml", "kremlin", "russische föderation",
+            ],
+        ),
+        (
+            "Ukraine",
+            vec![
+                "ukrainian", "ukrainisch", "ukrainischen", "ukrainischer",
+                "kiew", "kyiv", "kiev", "donbass", "donezk", "luhansk",
+            ],
+        ),
+        (
+            "China",
+            vec![
+                "chinese", "chinesisch", "chinesischen", "chinesischer",
+                "peking", "beijing", "volksrepublik", "prc",
+            ],
+        ),
+        (
+            "Großbritannien",
+            vec![
+                "uk", "united kingdom", "british", "britisch", "britischen",
+                "england", "english", "englisch", "london", "westminster",
+                "scotland", "scottish", "schottland", "schottisch",
+                "wales", "welsh", "walisisch",
+            ],
+        ),
+        (
+            "Frankreich",
+            vec![
+                "france", "french", "französisch", "französischen",
+                "paris", "élysée", "elysee",
+            ],
+        ),
+        (
+            "Iran",
+            vec![
+                "iranian", "iranisch", "iranischen", "iranischer",
+                "teheran", "tehran", "persisch", "persian",
+            ],
+        ),
+        (
+            "Israel",
+            vec![
+                "israeli", "israelisch", "israelischen", "israelischer",
+                "jerusalem", "tel aviv", "netanjahu", "netanyahu",
+            ],
+        ),
+        (
+            "Türkei",
+            vec![
+                "turkey", "turkish", "türkisch", "türkischen",
+                "ankara", "istanbul", "erdogan",
+            ],
+        ),
+        (
+            "Japan",
+            vec![
+                "japanese", "japanisch", "japanischen", "tokio", "tokyo",
+            ],
+        ),
+        (
+            "Indien",
+            vec![
+                "india", "indian", "indisch", "indischen", "neu-delhi", "new delhi",
+            ],
+        ),
+        (
+            "Brasilien",
+            vec![
+                "brazil", "brazilian", "brasilianisch", "brasilianischen",
+                "brasília", "brasilia",
+            ],
+        ),
+        (
+            "Spanien",
+            vec![
+                "spain", "spanish", "spanisch", "spanischen", "madrid",
+            ],
+        ),
+        (
+            "Italien",
+            vec![
+                "italy", "italian", "italienisch", "italienischen", "rom", "rome",
+            ],
+        ),
+        (
+            "Polen",
+            vec![
+                "poland", "polish", "polnisch", "polnischen", "warschau", "warsaw",
+            ],
+        ),
+        (
+            "Niederlande",
+            vec![
+                "netherlands", "dutch", "niederländisch", "holland",
+                "amsterdam", "den haag", "the hague",
+            ],
+        ),
+        (
+            "Österreich",
+            vec![
+                "austria", "austrian", "österreichisch", "österreichischen", "wien", "vienna",
+            ],
+        ),
+        (
+            "Schweiz",
+            vec![
+                "switzerland", "swiss", "schweizerisch", "schweizer",
+                "bern", "zürich", "zurich", "genf", "geneva",
+            ],
+        ),
+        // === Themen ===
         (
             "Klimawandel",
             vec![
-                "klimakrise",
-                "climate change",
-                "global warming",
-                "erderwärmung",
+                "klimakrise", "climate change", "global warming", "erderwärmung",
+                "klimaschutz", "climate protection", "co2", "treibhausgas",
             ],
         ),
         (
             "COVID-19",
-            vec!["corona", "coronavirus", "covid", "pandemie", "pandemic"],
+            vec!["corona", "coronavirus", "covid", "pandemie", "pandemic", "sars-cov-2"],
         ),
         (
-            "Russland",
-            vec!["russia", "moskau", "moscow", "kreml", "kremlin"],
+            "Migration",
+            vec![
+                "migration", "flüchtlinge", "refugees", "asyl", "asylum",
+                "einwanderung", "immigration", "migranten", "migrants",
+            ],
         ),
-        ("Ukraine", vec!["kiew", "kyiv", "kiev"]),
-        ("China", vec!["peking", "beijing", "volksrepublik"]),
+        (
+            "Wirtschaft",
+            vec![
+                "economy", "economic", "ökonomie", "ökonomisch", "wirtschaftlich",
+                "wirtschaftlichen", "konjunktur", "rezession", "recession",
+            ],
+        ),
+        (
+            "Sicherheit",
+            vec![
+                "security", "sicherheitspolitik", "verteidigung", "defense", "defence",
+                "militär", "military", "streitkräfte", "armed forces",
+            ],
+        ),
     ]
 });
 

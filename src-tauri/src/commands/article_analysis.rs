@@ -8,7 +8,7 @@ use crate::text_analysis::{
     TfIdfExtractor, record_correction as bias_record_correction, get_bias_stats as bias_get_stats,
     load_user_stopwords,
 };
-use crate::AppState;
+use crate::{find_canonical_keyword, AppState};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, State};
@@ -393,8 +393,12 @@ pub fn analyze_article_statistical(
         .into_iter()
         .map(|kc| {
             let adjusted_score = bias.apply_to_keyword(&kc.term, kc.score);
+            // Normalize to canonical form if available
+            let term = find_canonical_keyword(&kc.term)
+                .map(|s| s.to_string())
+                .unwrap_or(kc.term);
             KeywordCandidateResult {
-                term: kc.term,
+                term,
                 score: adjusted_score,
                 frequency: kc.frequency,
             }
@@ -542,18 +546,24 @@ pub async fn process_statistical_batch(
                 continue; // Skip very low scoring keywords
             }
 
+            // Normalize keyword to canonical form if available
+            // e.g., "european" -> "Europäische Union", "russian" -> "Russland"
+            let keyword_name = find_canonical_keyword(&kc.term)
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| kc.term.clone());
+
             // Get or create keyword
             let keyword_id: i64 = db
                 .conn()
                 .query_row(
                     "SELECT id FROM immanentize WHERE name = ?",
-                    [&kc.term],
+                    [&keyword_name],
                     |row| row.get(0),
                 )
                 .or_else(|_| {
                     db.conn().execute(
                         "INSERT INTO immanentize (name, count, article_count, first_seen, last_used) VALUES (?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-                        [&kc.term],
+                        [&keyword_name],
                     )?;
                     Ok::<i64, rusqlite::Error>(db.conn().last_insert_rowid())
                 })
