@@ -1,4 +1,45 @@
+use log::info;
 use rusqlite::Connection;
+use serde::Deserialize;
+
+/// Default stopwords embedded at compile time
+const DEFAULT_STOPWORDS_JSON: &str = include_str!("../../data/default_stopwords.json");
+
+/// Structure for parsing the default stopwords JSON file
+#[derive(Debug, Deserialize)]
+struct DefaultStopwordsFile {
+    stopwords: Vec<String>,
+}
+
+/// Restore default stopwords from the embedded JSON file
+///
+/// This function is called during database initialization when the user_stopwords table is empty.
+/// It ensures that a curated list of stopwords is always available, even when the database is
+/// newly created or re-initialized.
+///
+/// Returns the number of stopwords that were restored.
+pub fn restore_default_stopwords(conn: &Connection) -> Result<usize, rusqlite::Error> {
+    let file: DefaultStopwordsFile = serde_json::from_str(DEFAULT_STOPWORDS_JSON)
+        .expect("Failed to parse embedded default_stopwords.json");
+
+    let mut stmt = conn.prepare("INSERT OR IGNORE INTO user_stopwords (word) VALUES (?1)")?;
+    let mut count = 0;
+
+    for word in &file.stopwords {
+        if stmt.execute([word])? > 0 {
+            count += 1;
+        }
+    }
+
+    if count > 0 {
+        info!(
+            "Restored {} default stopwords from embedded JSON file",
+            count
+        );
+    }
+
+    Ok(count)
+}
 
 /// Run migrations for existing databases
 fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
@@ -1062,151 +1103,13 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         )?;
     }
 
-    // Insert default stopwords for TF-IDF analysis (only if table is empty)
+    // Restore default stopwords from embedded JSON file (only if table is empty)
     let stopword_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM user_stopwords", [], |row| row.get(0))
         .unwrap_or(0);
 
     if stopword_count == 0 {
-        conn.execute_batch(
-            r#"
-            INSERT OR IGNORE INTO user_stopwords (word) VALUES
-            -- German generic verbs and auxiliaries
-            ('sei'),('sagt'),('sagte'),('habe'),('kann'),('soll'),('gibt'),('gilt'),('steht'),
-            ('macht'),('heißt'),('hieß'),('sieht'),('kommt'),('kommen'),('gehen'),('geht'),
-            ('bleibt'),('bleiben'),('liegt'),('führen'),('zeigt'),('stellen'),('wissen'),
-            ('findet'),('arbeiten'),('erklärt'),('erklärte'),
-            -- German adverbs and conjunctions
-            ('beim'),('wegen'),('darauf'),('dafür'),('davon'),('derzeit'),('deshalb'),
-            ('gerade'),('ganz'),('fast'),('etwas'),('etwa'),('rund'),('sogar'),('inzwischen'),
-            ('offenbar'),('neben'),('statt'),('trotz'),('zuletzt'),('zurück'),('zwar'),
-            ('weiter'),('weitere'),('besonders'),('bereits'),('wieder'),('bisher'),('künftig'),
-            ('einmal'),('lange'),('damals'),('daran'),
-            -- German pronouns and articles
-            ('allem'),('aller'),('andere'),('anderem'),('anderen'),('mehrere'),('manche'),
-            ('beiden'),('ersten'),
-            -- German nouns (generic)
-            ('mensch'),('menschen'),('jahr'),('jahren'),('zeit'),('woche'),('tage'),('tagen'),
-            ('teil'),('teilen'),('land'),('stadt'),('lage'),('weise'),('rolle'),('ziel'),
-            ('beispiel'),('folge'),('folgen'),
-            -- German numbers
-            ('zwei'),('drei'),('vier'),('fünf'),('sechs'),('milliarden'),('millionen'),
-            ('zweite'),('zweiten'),
-            -- German days and months
-            ('montag'),('mittwoch'),('sonntag'),('januar'),('juni'),('september'),('november'),
-            ('dezember'),('märz'),
-            -- German verb forms (modal, auxiliary)
-            ('worden'),('könnten'),('sollen'),('sollten'),('werde'),('seien'),
-            -- German media/news terms
-            ('nachricht'),('gesendet'),('zufolge'),('bericht'),('angaben'),('zahl'),
-            ('vergangenen'),('weniger'),
-            -- German misc
-            ('viel'),('viele'),('pro'),('selbst'),('ende'),('neu'),('neuen'),('bekommen'),
-            ('machen'),('erhalten'),('geben'),('gegen'),('man'),('prozent'),('uhr'),('fall'),('stand'),
-            -- Broken stems (from disabled stemming experiments)
-            ('tha'),('nich'),('werd'),('wurd'),('hav'),('wer'),('könn'),('sta'),('imm'),
-            ('würd'),('selb'),('mini'),('thre'),('mor'),('fir'),('ers'),('ons'),('las'),
-            -- English generic verbs
-            ('said'),('says'),('told'),('got'),('get'),('made'),('make'),('take'),('want'),
-            ('know'),('think'),('see'),('found'),('walk'),('added'),('called'),('killed'),
-            ('serve'),('set'),('lost'),('win'),('show'),('report'),('work'),('works'),
-            ('consider'),
-            -- English adverbs and conjunctions
-            ('against'),('since'),('without'),('whether'),('never'),('later'),('least'),
-            -- English pronouns and articles
-            ('her'),('his'),('one'),
-            -- English nouns (generic)
-            ('people'),('time'),('day'),('life'),('way'),('world'),('side'),('body'),
-            ('bodies'),('power'),('game'),('father'),('money'),('group'),('parts'),('areas'),
-            ('hours'),('months'),('million'),('education'),('force'),('company'),
-            -- English adjectives
-            ('good'),('little'),('best'),('old'),('new'),('long'),('local'),('social'),
-            ('public'),('real'),('national'),('special'),('clear'),('young'),
-            -- English misc
-            ('and'),('but'),('not'),('there'),('news'),('years'),('part'),('two'),('all'),
-            ('first'),('last'),('back'),('home'),('left'),('system'),('government'),('trade'),
-            -- HTML entities and web terms
-            ('nbsp'),('video'),('videos'),('picture'),('alliance'),('images'),('media'),
-            ('profile'),('warning'),('online'),('open'),('close'),('next'),('view'),
-            ('please'),('enable'),
-            -- News agency abbreviations (often not useful as keywords)
-            ('following'),('dies'),
-            -- HTML/CMS/Technical terms (from article markup)
-            ('testid'),('noopener'),('schema'),('speakable'),('paragraph'),
-            ('component'),('rich'),('byline'),('teaser'),('subheadline'),
-            ('related'),('contributors'),('trademarks'),('published'),
-            ('feature'),('manual'),('list'),('flag'),('range'),('play'),
-            -- Photo agencies and photographer names
-            ('imago'),('scanpix'),('jutrczenka'),('kalaene'),('nietfeld'),('kastner'),
-            -- German generic words (missing from original list)
-            ('thema'),('zur'),('zum'),('sowie'),('dabei'),('deutlich'),
-            ('gehört'),('gelten'),('innerhalb'),('insgesamt'),('kündigte'),
-            ('mitten'),('nichts'),('nochmal'),('oben'),('seinem'),('verschiedene'),
-            ('voraus'),('vorzeitig'),('weiterhin'),('würden'),('wolle'),
-            ('wichtigste'),('zehn'),('ihren'),('ihn'),('fürs'),('blieb'),('kennen'),
-            -- English generic words (missing from original list)
-            ('year'),('waiting'),('treated'),('country'),('according'),
-            ('yet'),('worst'),('women'),('woman'),('winter'),('willing'),
-            ('white'),('week'),('weather'),('ward'),('wants'),('waited'),
-            ('today'),('support'),('summer'),('run'),('reportedly'),('ranked'),
-            ('quote'),('points'),('player'),('played'),('place'),('need'),
-            ('month'),('live'),('likely'),('like'),('increase'),('highest'),
-            ('harm'),('hand'),('excited'),('due'),('died'),('couple'),
-            ('costs'),('cost'),('books'),('book'),('anyone'),('announced'),
-            ('alright'),('agreed'),
-            -- Generic English nouns/verbs (from Ralph Loop analysis)
-            ('minister'),('ship'),('season'),('president'),('patients'),('party'),
-            ('parents'),('leader'),('hospital'),('chief'),('care'),('birth'),('bed'),
-            ('club'),('crew'),('talks'),('sunk'),('teams'),('team'),('soldiers'),
-            ('society'),('song'),('singer'),('search'),('scale'),('process'),
-            ('pressure'),('presenter'),('police'),('phones'),('path'),('nurse'),
-            ('newborns'),('music'),('rain'),('rock'),('route'),
-            -- Generic German words (from Ralph Loop analysis)
-            ('zeichen'),('zahlen'),('wohn'),('verstehen'),('verlag'),('verein'),
-            ('treu'),('treffen'),('tour'),('themen'),('teilnehmer'),('städtischen'),
-            ('stufen'),('studierenden'),('starkes'),('stall'),('staffel'),('sport'),
-            ('spieler'),('soziales'),('sozialer'),('sozial'),('situation'),('schwarz'),
-            ('richtung'),('richtige'),('qualm'),('probleme'),('plätze'),('plan'),
-            ('partnern'),('partei'),('nutzer'),('nutzen'),('monate'),('sau'),('rum'),
-            -- First names (from Ralph Loop analysis)
-            ('peter'),('bella'),('zoe'),('sean'),('matthew'),('olivia'),
-            -- Month names
-            ('january'),
-            -- Medical terms
-            ('pregnant'),('pregnancy'),
-            -- Adjectives
-            ('political'),('politische'),
-            -- Official titles
-            ('officials'),('officers'),('officer'),('ministry'),
-            -- Operation terms
-            ('operation'),('operations'),
-            -- Generic verbs/participles (Ralph Loop 6-15)
-            ('fährt'),('fliegen'),('gingen'),('gehalten'),('entspricht'),('lernt'),
-            ('festgestellten'),('disagree'),('deliberately'),('freezing'),('vorgesehen'),
-            ('kurzzeitig'),('restriktive'),
-            -- Generic nouns - media/events
-            ('album'),('band'),('concert'),('contest'),('film'),('radio'),
-            ('production'),('programme'),('conversation'),('drama'),
-            -- Generic nouns - buildings/housing
-            ('apartment'),('haus'),('house'),('gebäude'),('wohnung'),('wohnen'),
-            -- Generic nouns - abstract
-            ('anteil'),('budget'),('debate'),('evidence'),('growth'),('inhalte'),
-            ('losses'),('maternity'),('misuse'),('uncertainty'),('zusammenarbeit'),
-            ('entscheidung'),('betriebe'),('betroffene'),('mitglieds'),
-            -- Generic nouns - misc
-            ('actor'),('attendees'),('cloud'),('coach'),('coast'),('dorf'),
-            ('freunde'),('geld'),('helden'),('expert'),
-            -- Generic adjectives
-            ('frische'),('irregulären'),('jähriger'),('katastrophal'),('central'),
-            -- Slang/abbreviations
-            ('bio'),('biz'),('bord'),
-            -- Month names
-            ('december'),
-            -- Other generic
-            ('guard'),('heating'),('lake'),('logging'),('minus'),('schiffe'),
-            ('snow'),('vessels'),('votes'),('vom');
-            "#,
-        )?;
+        restore_default_stopwords(conn)?;
     }
 
     Ok(())

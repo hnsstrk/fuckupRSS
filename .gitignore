@@ -26,8 +26,13 @@ Thumbs.db
 # Tauri
 src-tauri/target/
 
-# Database
-data/
+# Database (runtime data directories)
+# Root data directory (used at runtime)
+/data/
+# Tauri data directory - ignore database files only
+src-tauri/data/*.db
+src-tauri/data/*.db-shm
+src-tauri/data/*.db-wal
 
 # npm
 package-lock.json
