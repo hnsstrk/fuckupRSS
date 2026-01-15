@@ -1153,7 +1153,33 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             ('month'),('live'),('likely'),('like'),('increase'),('highest'),
             ('harm'),('hand'),('excited'),('due'),('died'),('couple'),
             ('costs'),('cost'),('books'),('book'),('anyone'),('announced'),
-            ('alright'),('agreed');
+            ('alright'),('agreed'),
+            -- Generic English nouns/verbs (from Ralph Loop analysis)
+            ('minister'),('ship'),('season'),('president'),('patients'),('party'),
+            ('parents'),('leader'),('hospital'),('chief'),('care'),('birth'),('bed'),
+            ('club'),('crew'),('talks'),('sunk'),('teams'),('team'),('soldiers'),
+            ('society'),('song'),('singer'),('search'),('scale'),('process'),
+            ('pressure'),('presenter'),('police'),('phones'),('path'),('nurse'),
+            ('newborns'),('music'),('rain'),('rock'),('route'),
+            -- Generic German words (from Ralph Loop analysis)
+            ('zeichen'),('zahlen'),('wohn'),('verstehen'),('verlag'),('verein'),
+            ('treu'),('treffen'),('tour'),('themen'),('teilnehmer'),('städtischen'),
+            ('stufen'),('studierenden'),('starkes'),('stall'),('staffel'),('sport'),
+            ('spieler'),('soziales'),('sozialer'),('sozial'),('situation'),('schwarz'),
+            ('richtung'),('richtige'),('qualm'),('probleme'),('plätze'),('plan'),
+            ('partnern'),('partei'),('nutzer'),('nutzen'),('monate'),('sau'),('rum'),
+            -- First names (from Ralph Loop analysis)
+            ('peter'),('bella'),('zoe'),('sean'),('matthew'),('olivia'),
+            -- Month names
+            ('january'),
+            -- Medical terms
+            ('pregnant'),('pregnancy'),
+            -- Adjectives
+            ('political'),('politische'),
+            -- Official titles
+            ('officials'),('officers'),('officer'),('ministry'),
+            -- Operation terms
+            ('operation'),('operations');
             "#,
         )?;
     }
