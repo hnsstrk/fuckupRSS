@@ -1695,8 +1695,8 @@
   }
 
   .keywords-table th.sortable:hover .sort-icon,
-  .keywords-table th.sortable .sort-icon.fa-sort-up,
-  .keywords-table th.sortable .sort-icon.fa-sort-down {
+  .keywords-table th.sortable .sort-icon:global(.fa-sort-up),
+  .keywords-table th.sortable .sort-icon:global(.fa-sort-down) {
     opacity: 1;
   }
 

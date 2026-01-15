@@ -689,19 +689,19 @@
     opacity: 0.7;
   }
 
-  .type-icon.fa-user-tie {
+  .type-icon:global(.fa-user-tie) {
     color: var(--accent-info);
   }
 
-  .type-icon.fa-building {
+  .type-icon:global(.fa-building) {
     color: var(--accent-warning);
   }
 
-  .type-icon.fa-location-dot {
+  .type-icon:global(.fa-location-dot) {
     color: var(--status-success);
   }
 
-  .type-icon.fa-font {
+  .type-icon:global(.fa-font) {
     color: var(--accent-primary);
   }
 
@@ -711,15 +711,15 @@
     color: var(--text-muted);
   }
 
-  .source-icon.fa-robot {
+  .source-icon:global(.fa-robot) {
     color: var(--accent-primary);
   }
 
-  .source-icon.fa-chart-line {
+  .source-icon:global(.fa-chart-line) {
     color: var(--accent-info);
   }
 
-  .source-icon.fa-user {
+  .source-icon:global(.fa-user) {
     color: var(--accent-success);
   }
 
