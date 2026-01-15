@@ -85,6 +85,84 @@ pub struct DiscordianResponse {
 }
 
 // ============================================================
+// SOURCE TRACKING STRUCTURES
+// ============================================================
+
+/// Keyword with source tracking (statistical vs ai)
+#[derive(Debug, Clone)]
+pub struct KeywordWithSource {
+    pub name: String,
+    pub source: String, // 'ai', 'statistical'
+    pub confidence: f64,
+}
+
+/// Category with source tracking (statistical vs ai)
+#[derive(Debug, Clone)]
+pub struct CategoryWithSource {
+    pub name: String,
+    pub source: String, // 'ai', 'statistical'
+    pub confidence: f64,
+}
+
+/// Determine source for each keyword by comparing with statistical suggestions
+fn determine_keyword_sources(
+    final_keywords: &[String],
+    stat_keywords: &[String],
+) -> Vec<KeywordWithSource> {
+    let stat_lower: std::collections::HashSet<String> = stat_keywords
+        .iter()
+        .map(|k| k.to_lowercase())
+        .collect();
+
+    final_keywords
+        .iter()
+        .map(|k| {
+            let source = if stat_lower.contains(&k.to_lowercase()) {
+                "statistical"
+            } else {
+                "ai"
+            };
+            KeywordWithSource {
+                name: k.clone(),
+                source: source.to_string(),
+                confidence: if source == "statistical" { 0.8 } else { 1.0 },
+            }
+        })
+        .collect()
+}
+
+/// Determine source for each category by comparing with statistical suggestions
+fn determine_category_sources(
+    final_categories: &[String],
+    stat_categories: &[(String, f64)],
+) -> Vec<CategoryWithSource> {
+    let stat_map: std::collections::HashMap<String, f64> = stat_categories
+        .iter()
+        .map(|(name, conf)| (name.to_lowercase(), *conf))
+        .collect();
+
+    final_categories
+        .iter()
+        .map(|c| {
+            let lower = c.to_lowercase();
+            if let Some(&conf) = stat_map.get(&lower) {
+                CategoryWithSource {
+                    name: c.clone(),
+                    source: "statistical".to_string(),
+                    confidence: conf,
+                }
+            } else {
+                CategoryWithSource {
+                    name: c.clone(),
+                    source: "ai".to_string(),
+                    confidence: 1.0,
+                }
+            }
+        })
+        .collect()
+}
+
+// ============================================================
 // HELPER FUNCTIONS FOR CATEGORY/KEYWORD SAVING
 // ============================================================
 
@@ -94,22 +172,40 @@ fn save_article_categories(
     fnord_id: i64,
     categories: &[String],
 ) -> Vec<String> {
+    // Convert to CategoryWithSource with default 'ai' source
+    let cats_with_source: Vec<CategoryWithSource> = categories
+        .iter()
+        .map(|c| CategoryWithSource {
+            name: c.clone(),
+            source: "ai".to_string(),
+            confidence: 1.0,
+        })
+        .collect();
+    save_article_categories_with_source(conn, fnord_id, &cats_with_source)
+}
+
+/// Save categories with source tracking (statistical vs ai)
+fn save_article_categories_with_source(
+    conn: &rusqlite::Connection,
+    fnord_id: i64,
+    categories: &[CategoryWithSource],
+) -> Vec<String> {
     let mut saved = Vec::new();
 
     conn.execute("DELETE FROM fnord_sephiroth WHERE fnord_id = ?", [fnord_id])
         .ok();
 
-    for cat_name in categories {
+    for cat in categories {
         if let Ok(sephiroth_id) = conn.query_row::<i64, _, _>(
             "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?)",
-            [cat_name],
+            [&cat.name],
             |row| row.get(0),
         ) {
             conn.execute(
                 r#"INSERT OR IGNORE INTO fnord_sephiroth
                    (fnord_id, sephiroth_id, confidence, source, assigned_at)
-                   VALUES (?, ?, 1.0, 'ai', CURRENT_TIMESTAMP)"#,
-                rusqlite::params![fnord_id, sephiroth_id],
+                   VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)"#,
+                rusqlite::params![fnord_id, sephiroth_id, cat.confidence, &cat.source],
             )
             .ok();
 
@@ -119,7 +215,7 @@ fn save_article_categories(
             )
             .ok();
 
-            saved.push(cat_name.clone());
+            saved.push(cat.name.clone());
         }
     }
 
@@ -131,6 +227,26 @@ fn save_article_keywords_and_network(
     conn: &rusqlite::Connection,
     fnord_id: i64,
     keywords: &[String],
+    categories_saved: &[String],
+    article_date: Option<&str>,
+) -> (Vec<String>, Vec<i64>) {
+    // Convert to KeywordWithSource with default 'ai' source
+    let kws_with_source: Vec<KeywordWithSource> = keywords
+        .iter()
+        .map(|k| KeywordWithSource {
+            name: k.clone(),
+            source: "ai".to_string(),
+            confidence: 1.0,
+        })
+        .collect();
+    save_article_keywords_with_source(conn, fnord_id, &kws_with_source, categories_saved, article_date)
+}
+
+/// Save keywords with source tracking (statistical vs ai)
+fn save_article_keywords_with_source(
+    conn: &rusqlite::Connection,
+    fnord_id: i64,
+    keywords: &[KeywordWithSource],
     categories_saved: &[String],
     article_date: Option<&str>,
 ) -> (Vec<String>, Vec<i64>) {
@@ -151,8 +267,8 @@ fn save_article_keywords_and_network(
     conn.execute("DELETE FROM fnord_immanentize WHERE fnord_id = ?", [fnord_id])
         .ok();
 
-    for keyword in keywords {
-        let keyword = match normalize_keyword(keyword) {
+    for kw in keywords {
+        let keyword = match normalize_keyword(&kw.name) {
             Some(k) => k,
             None => continue,
         };
@@ -208,9 +324,10 @@ fn save_article_keywords_and_network(
             [store_keyword],
             |row| row.get(0),
         ) {
+            // Insert with source and confidence tracking
             conn.execute(
-                "INSERT OR IGNORE INTO fnord_immanentize (fnord_id, immanentize_id) VALUES (?, ?)",
-                rusqlite::params![fnord_id, tag_id],
+                "INSERT OR IGNORE INTO fnord_immanentize (fnord_id, immanentize_id, source, confidence) VALUES (?, ?, ?, ?)",
+                rusqlite::params![fnord_id, tag_id, &kw.source, kw.confidence],
             )
             .ok();
 
@@ -1029,14 +1146,19 @@ pub async fn process_article_discordian(
 
             let (categories_saved, tags_saved) = {
                 let db = state.db.lock().map_err(|e| e.to_string())?;
-                let merged_categories = validate_and_merge_categories(&analysis.categories, local_categories);
-                let categories_saved = save_article_categories(db.conn(), fnord_id, &merged_categories);
 
-                let merged_keywords = merge_keywords(&analysis.keywords, local_keywords, 15);
-                let (tags_saved, tag_ids) = save_article_keywords_and_network(
+                // Merge and determine category sources
+                let merged_categories = validate_and_merge_categories(&analysis.categories, local_categories);
+                let categories_with_source = determine_category_sources(&merged_categories, &stat_categories);
+                let categories_saved = save_article_categories_with_source(db.conn(), fnord_id, &categories_with_source);
+
+                // Merge and determine keyword sources
+                let merged_keywords = merge_keywords(&analysis.keywords, local_keywords.clone(), 15);
+                let keywords_with_source = determine_keyword_sources(&merged_keywords, &stat_keywords);
+                let (tags_saved, tag_ids) = save_article_keywords_with_source(
                     db.conn(),
                     fnord_id,
-                    &merged_keywords,
+                    &keywords_with_source,
                     &categories_saved,
                     article_date.as_deref(),
                 );

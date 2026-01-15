@@ -7,6 +7,7 @@
   import Tooltip from "./Tooltip.svelte";
   import RevisionView from "./RevisionView.svelte";
   import { ArticleCard, ArticleKeywords, ArticleCategories } from "./article";
+  import StatisticalPreview from "./article/StatisticalPreview.svelte";
 
   let showRevisions = $state(false);
   let revisions = $state<FnordRevision[]>([]);
@@ -420,6 +421,15 @@
         </div>
       </div>
     {/if}
+
+    <!-- Statistical Preview (before LLM processing) -->
+    <div class="section-content">
+      <StatisticalPreview
+        fnordId={fnord.id}
+        hasContent={!!(fnord.content_full || fnord.content_raw)}
+        isProcessed={!!fnord.processed_at}
+      />
+    </div>
 
     <!-- Sephiroth (Categories) & Immanentize (Keywords) -->
     {#if articleCategoriesDetailed.length > 0 || articleKeywords.length > 0 || categories.length > 0 || tags.length > 0}

@@ -69,7 +69,15 @@
     "sourceAi": "KI-generiert",
     "sourceStatistical": "Statistisch erkannt",
     "sourceManual": "Manuell hinzugefügt",
-    "noCategories": "Keine Kategorien"
+    "noCategories": "Keine Kategorien",
+    "statisticalPreview": "Statistische Voranalyse",
+    "preview": "Vorschau",
+    "analyzing": "Analysiere...",
+    "keywordCandidates": "Keyword-Kandidaten",
+    "categoryScores": "Kategorie-Scores",
+    "matchingTerms": "Passende Begriffe",
+    "noStatisticalData": "Keine statistischen Daten gefunden",
+    "statisticalNote": "Diese Vorschau zeigt die statistische Analyse vor der LLM-Validierung."
   },
   "status": {
     "concealed": "Ungelesen",

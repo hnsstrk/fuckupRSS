@@ -69,7 +69,15 @@
     "sourceAi": "AI-generated",
     "sourceStatistical": "Statistically detected",
     "sourceManual": "Manually added",
-    "noCategories": "No categories"
+    "noCategories": "No categories",
+    "statisticalPreview": "Statistical Pre-Analysis",
+    "preview": "Preview",
+    "analyzing": "Analyzing...",
+    "keywordCandidates": "Keyword Candidates",
+    "categoryScores": "Category Scores",
+    "matchingTerms": "Matching terms",
+    "noStatisticalData": "No statistical data found",
+    "statisticalNote": "This preview shows the statistical analysis before LLM validation."
   },
   "status": {
     "concealed": "Unread",
