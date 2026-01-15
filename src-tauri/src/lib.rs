@@ -19,6 +19,8 @@ pub use keywords::{
     KeywordExtractor, Language,
     // Unified keyword types
     KeywordSource, KeywordWithMetadata, ExtractedKeywordCandidate, ArticleKeywordRef,
+    // Centralized configuration
+    KeywordConfig, keyword_defaults,
 };
 pub use logging::LogLevel;
 

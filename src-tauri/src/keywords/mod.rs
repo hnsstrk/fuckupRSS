@@ -4,8 +4,10 @@ use std::collections::{HashMap, HashSet};
 use whatlang::{detect, Lang};
 use yake_rust::{get_n_best, Config, StopWords};
 
+pub mod config;
 pub mod types;
 
+pub use config::{KeywordConfig, defaults as keyword_defaults};
 pub use types::{
     ArticleKeywordRef, ExtractedKeywordCandidate, KeywordSource, KeywordWithMetadata,
 };
