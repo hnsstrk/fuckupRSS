@@ -5,9 +5,15 @@ use std::collections::{HashMap, HashSet};
 use whatlang::{detect, Lang};
 use yake_rust::{get_n_best, Config, StopWords};
 
+pub mod advanced;
 pub mod config;
 pub mod types;
 
+pub use advanced::{
+    extract_ngrams, extract_textrank, extract_enhanced_entities,
+    filter_by_pos_heuristics, prepare_semantic_candidates, apply_semantic_scores,
+    SemanticCandidate,
+};
 pub use config::{KeywordConfig, defaults as keyword_defaults};
 pub use types::{
     ArticleKeywordRef, ExtractedKeywordCandidate, KeywordSource, KeywordWithMetadata,
@@ -130,11 +136,15 @@ impl KeywordExtractor {
 
         let mut candidates: HashMap<String, ExtractedKeyword> = HashMap::new();
 
+        // === Traditional Methods ===
+
+        // 1. YAKE extraction
         for kw in self.extract_yake(&full_text, lang) {
             let key = kw.text.to_lowercase();
             candidates.entry(key).or_insert(kw);
         }
 
+        // 2. RAKE extraction
         for kw in self.extract_rake(&full_text, stopwords) {
             let key = kw.text.to_lowercase();
             candidates
@@ -148,6 +158,7 @@ impl KeywordExtractor {
                 .or_insert(kw);
         }
 
+        // 3. Basic entity extraction
         for kw in self.extract_entities(&full_text) {
             let key = kw.text.to_lowercase();
             candidates
@@ -159,18 +170,77 @@ impl KeywordExtractor {
                 .or_insert(kw);
         }
 
+        // === Advanced Methods ===
+
+        // 4. N-gram extraction (bigrams/trigrams)
+        for kw in advanced::extract_ngrams(&full_text, lang, self.max_keywords * 2) {
+            let key = kw.text.to_lowercase();
+            candidates
+                .entry(key)
+                .and_modify(|existing| {
+                    // N-grams that match existing keywords boost the score
+                    existing.score = (existing.score + kw.score * 0.5).min(1.0);
+                    if !existing.source.contains("ngram") {
+                        existing.source = format!("{},ngram", existing.source);
+                    }
+                })
+                .or_insert(kw);
+        }
+
+        // 5. TextRank graph-based extraction
+        for kw in advanced::extract_textrank(&full_text, 4, self.max_keywords * 2) {
+            let key = kw.text.to_lowercase();
+            candidates
+                .entry(key)
+                .and_modify(|existing| {
+                    // TextRank confirmation boosts score
+                    existing.score = (existing.score + kw.score * 0.3).min(1.0);
+                    if !existing.source.contains("textrank") {
+                        existing.source = format!("{},textrank", existing.source);
+                    }
+                })
+                .or_insert(kw);
+        }
+
+        // 6. Enhanced Named Entity Recognition
+        for kw in advanced::extract_enhanced_entities(&full_text) {
+            let key = kw.text.to_lowercase();
+            candidates
+                .entry(key)
+                .and_modify(|existing| {
+                    // Enhanced NER boosts score and updates type
+                    existing.score = (existing.score + 0.2).min(1.0);
+                    if existing.keyword_type == KeywordType::Concept {
+                        existing.keyword_type = kw.keyword_type.clone();
+                    }
+                    if !existing.source.contains("enhanced_ner") {
+                        existing.source = format!("{},enhanced_ner", existing.source);
+                    }
+                })
+                .or_insert(kw);
+        }
+
+        // === Boosting & Filtering ===
+
+        // Title boost
         let title_lower = title.to_lowercase();
         for candidate in candidates.values_mut() {
             if title_lower.contains(&candidate.text.to_lowercase()) {
                 candidate.score += 0.25;
+                candidate.score = candidate.score.min(1.0);
             }
         }
 
+        // 7. Apply POS-like filtering to boost noun phrases
         let mut filtered: Vec<ExtractedKeyword> = candidates
             .into_values()
             .filter(|kw| self.is_valid_keyword(&kw.text, stopwords))
             .collect();
 
+        // Apply POS heuristics to boost likely nouns
+        filtered = advanced::filter_by_pos_heuristics(filtered);
+
+        // Sort and diversify
         filtered.sort_by(|a, b| {
             b.score
                 .partial_cmp(&a.score)
@@ -358,6 +428,86 @@ pub fn extract_keywords(title: &str, content: &str, max_keywords: usize) -> Vec<
         .into_iter()
         .map(|kw| kw.text)
         .collect()
+}
+
+/// Extract keywords with full metadata including source and type
+pub fn extract_keywords_with_metadata(
+    title: &str,
+    content: &str,
+    max_keywords: usize,
+) -> Vec<ExtractedKeyword> {
+    let extractor = KeywordExtractor::new(max_keywords);
+    extractor.extract(title, content)
+}
+
+/// Result of semantic keyword extraction
+#[derive(Debug, Clone)]
+pub struct SemanticKeywordResult {
+    pub text: String,
+    pub score: f64,
+    pub keyword_type: KeywordType,
+    pub sources: Vec<String>,
+    pub semantic_score: Option<f64>,
+}
+
+impl From<ExtractedKeyword> for SemanticKeywordResult {
+    fn from(kw: ExtractedKeyword) -> Self {
+        Self {
+            text: kw.text,
+            score: kw.score,
+            keyword_type: kw.keyword_type,
+            sources: kw.source.split(',').map(|s| s.to_string()).collect(),
+            semantic_score: None,
+        }
+    }
+}
+
+/// Extract keywords with optional semantic scoring
+///
+/// If `semantic_scores` is provided, it should be a HashMap from keyword text
+/// to semantic similarity scores (0.0-1.0). The `semantic_weight` parameter
+/// controls how much the semantic score contributes to the final score.
+///
+/// This is useful for KeyBERT-style extraction where you:
+/// 1. Extract candidate keywords with this function
+/// 2. Generate embeddings for each candidate and the full document
+/// 3. Calculate cosine similarity between each candidate and the document
+/// 4. Call this function again with the semantic scores
+pub fn extract_keywords_with_semantic_scoring(
+    title: &str,
+    content: &str,
+    max_keywords: usize,
+    semantic_scores: Option<&HashMap<String, f64>>,
+    semantic_weight: f64,
+) -> Vec<SemanticKeywordResult> {
+    let keywords = extract_keywords_with_metadata(title, content, max_keywords * 2);
+
+    let results: Vec<SemanticKeywordResult> = if let Some(scores) = semantic_scores {
+        let candidates = advanced::prepare_semantic_candidates(&keywords);
+        let scored = advanced::apply_semantic_scores(candidates, scores, semantic_weight);
+
+        scored
+            .into_iter()
+            .map(|kw| {
+                let semantic_score = scores.get(&kw.text).copied();
+                SemanticKeywordResult {
+                    text: kw.text,
+                    score: kw.score,
+                    keyword_type: kw.keyword_type,
+                    sources: kw.source.split(',').map(|s| s.to_string()).collect(),
+                    semantic_score,
+                }
+            })
+            .collect()
+    } else {
+        keywords.into_iter().map(|kw| kw.into()).collect()
+    };
+
+    // Sort and truncate
+    let mut results = results;
+    results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    results.truncate(max_keywords);
+    results
 }
 
 static GARBAGE_PATTERNS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
