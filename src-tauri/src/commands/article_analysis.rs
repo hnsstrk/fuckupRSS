@@ -51,13 +51,101 @@ fn capitalize_keyword(keyword: &str) -> String {
 // DATA STRUCTURES
 // ============================================================
 
-/// Article keyword with source tracking
+/// Keyword type for entity classification
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum KeywordTypeInfo {
+    Concept,
+    Person,
+    Organization,
+    Location,
+    Acronym,
+}
+
+impl Default for KeywordTypeInfo {
+    fn default() -> Self {
+        Self::Concept
+    }
+}
+
+/// Article keyword with source tracking and advanced metadata
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ArticleKeyword {
     pub id: i64,
     pub name: String,
     pub source: String, // 'ai', 'statistical', 'manual'
     pub confidence: f64,
+    // Advanced extraction metadata
+    pub keyword_type: KeywordTypeInfo,
+    pub extraction_methods: Vec<String>,
+    pub quality_score: Option<f64>,
+    pub semantic_score: Option<f64>,
+}
+
+/// Infer keyword type from name patterns
+fn infer_keyword_type(name: &str) -> KeywordTypeInfo {
+    let words: Vec<&str> = name.split_whitespace().collect();
+
+    // Check for acronyms (all uppercase, 2-6 chars)
+    if words.len() == 1 {
+        let word = words[0];
+        if word.len() >= 2 && word.len() <= 6 && word.chars().all(|c| c.is_uppercase() || !c.is_alphabetic()) {
+            return KeywordTypeInfo::Acronym;
+        }
+    }
+
+    // Check for organization patterns
+    let org_indicators = [
+        "gmbh", "ag", "inc", "ltd", "corp", "kg", "e.v.", "se",
+        "ministerium", "ministry", "bundesamt", "behörde", "agency",
+        "bank", "verband", "stiftung", "foundation", "institute", "institut",
+        "universität", "university", "partei", "party",
+    ];
+    let lower = name.to_lowercase();
+    for indicator in org_indicators {
+        if lower.ends_with(indicator) || lower.contains(&format!(" {}", indicator)) {
+            return KeywordTypeInfo::Organization;
+        }
+    }
+
+    // Check for person names (2-3 capitalized words)
+    if (words.len() == 2 || words.len() == 3)
+        && words.iter().all(|w| {
+            w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+                && w.len() >= 2
+                && w.len() <= 15
+                && !org_indicators.iter().any(|ind| w.to_lowercase().contains(ind))
+        })
+    {
+        // Additional check: not a known location or organization prefix
+        let not_location = !["New", "Los", "San", "Las", "Den", "Der", "Die"].contains(&words[0]);
+        if not_location {
+            return KeywordTypeInfo::Person;
+        }
+    }
+
+    // Check for location patterns
+    let location_indicators = [
+        "stadt", "city", "land", "country", "region", "province", "state",
+        "republic", "republik", "kingdom", "königreich",
+    ];
+    for indicator in location_indicators {
+        if lower.contains(indicator) {
+            return KeywordTypeInfo::Location;
+        }
+    }
+
+    KeywordTypeInfo::Concept
+}
+
+/// Infer extraction methods from source
+fn infer_extraction_methods(source: &str) -> Vec<String> {
+    match source {
+        "ai" => vec!["ai".to_string()],
+        "statistical" => vec!["tfidf".to_string(), "yake".to_string(), "rake".to_string()],
+        "manual" => vec!["manual".to_string()],
+        _ => vec![source.to_string()],
+    }
 }
 
 /// Article category with source tracking
@@ -118,7 +206,7 @@ pub struct CorrectionInput {
 // ARTICLE KEYWORDS
 // ============================================================
 
-/// Get keywords for an article with source information and source-weighted confidence
+/// Get keywords for an article with source information, source-weighted confidence, and advanced metadata
 #[tauri::command]
 pub fn get_article_keywords(
     state: State<AppState>,
@@ -137,7 +225,8 @@ pub fn get_article_keywords(
                 i.id,
                 i.name,
                 COALESCE(fi.source, 'ai') as source,
-                COALESCE(fi.confidence, 1.0) as confidence
+                COALESCE(fi.confidence, 1.0) as confidence,
+                i.quality_score
             FROM fnord_immanentize fi
             JOIN immanentize i ON i.id = fi.immanentize_id
             WHERE fi.fnord_id = ?
@@ -148,15 +237,29 @@ pub fn get_article_keywords(
 
     let keywords = stmt
         .query_map([fnord_id], |row| {
+            let name: String = row.get(1)?;
             let source: String = row.get(2)?;
             let base_confidence: f64 = row.get(3)?;
+            let quality_score: Option<f64> = row.get(4)?;
+
             // Apply source weight to confidence
             let weighted_confidence = bias_weights.apply_source_weight(&source, base_confidence);
+
+            // Infer keyword type from name patterns
+            let keyword_type = infer_keyword_type(&name);
+
+            // Infer extraction methods from source
+            let extraction_methods = infer_extraction_methods(&source);
+
             Ok(ArticleKeyword {
                 id: row.get(0)?,
-                name: row.get(1)?,
+                name,
                 source,
                 confidence: weighted_confidence,
+                keyword_type,
+                extraction_methods,
+                quality_score,
+                semantic_score: None, // TODO: Calculate from embeddings if available
             })
         })
         .map_err(|e| e.to_string())?
@@ -246,11 +349,21 @@ pub fn add_article_keyword(
         },
     );
 
+    // Get quality score from DB if available
+    let quality_score: Option<f64> = db
+        .conn()
+        .query_row("SELECT quality_score FROM immanentize WHERE id = ?", [keyword_id], |row| row.get(0))
+        .ok();
+
     Ok(ArticleKeyword {
         id: keyword_id,
-        name: final_name,
+        name: final_name.clone(),
         source: "manual".to_string(),
         confidence: 1.0,
+        keyword_type: infer_keyword_type(&final_name),
+        extraction_methods: vec!["manual".to_string()],
+        quality_score,
+        semantic_score: None,
     })
 }
 
@@ -815,6 +928,237 @@ pub fn record_correction(state: State<AppState>, correction: CorrectionInput) ->
 pub fn get_bias_stats(state: State<AppState>) -> Result<BiasStats, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     bias_get_stats(db.conn()).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// SIMILAR KEYWORDS (from Immanentize Network)
+// ============================================================
+
+/// Similar keyword from the network
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SimilarKeywordInfo {
+    pub id: i64,
+    pub name: String,
+    pub similarity: f64,
+    pub cooccurrence: i64,
+}
+
+/// Get similar keywords for a given keyword from the Immanentize network
+#[tauri::command]
+pub fn get_similar_keywords(
+    state: State<AppState>,
+    keyword_id: i64,
+    limit: Option<i64>,
+) -> Result<Vec<SimilarKeywordInfo>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let limit_val = limit.unwrap_or(5);
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT
+                i.id,
+                i.name,
+                COALESCE(n.embedding_similarity, 0.0) as similarity,
+                COALESCE(n.cooccurrence, 0) as cooccurrence
+            FROM immanentize_neighbors n
+            JOIN immanentize i ON (
+                CASE
+                    WHEN n.immanentize_id_a = ? THEN n.immanentize_id_b = i.id
+                    ELSE n.immanentize_id_a = i.id
+                END
+            )
+            WHERE n.immanentize_id_a = ? OR n.immanentize_id_b = ?
+            ORDER BY n.combined_weight DESC, n.cooccurrence DESC
+            LIMIT ?
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let similar = stmt
+        .query_map(params![keyword_id, keyword_id, keyword_id, limit_val], |row| {
+            Ok(SimilarKeywordInfo {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                similarity: row.get(2)?,
+                cooccurrence: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(similar)
+}
+
+/// Get suggested keywords for an article based on assigned keywords' network
+#[tauri::command]
+pub fn get_keyword_suggestions_from_network(
+    state: State<AppState>,
+    fnord_id: i64,
+    limit: Option<i64>,
+) -> Result<Vec<SimilarKeywordInfo>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let limit_val = limit.unwrap_or(5);
+
+    // Get neighbors of assigned keywords that are not already assigned
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT
+                i.id,
+                i.name,
+                MAX(COALESCE(n.embedding_similarity, 0.0)) as max_similarity,
+                SUM(COALESCE(n.cooccurrence, 0)) as total_cooccurrence
+            FROM fnord_immanentize fi
+            JOIN immanentize_neighbors n ON (
+                n.immanentize_id_a = fi.immanentize_id OR n.immanentize_id_b = fi.immanentize_id
+            )
+            JOIN immanentize i ON (
+                i.id = CASE
+                    WHEN n.immanentize_id_a = fi.immanentize_id THEN n.immanentize_id_b
+                    ELSE n.immanentize_id_a
+                END
+            )
+            WHERE fi.fnord_id = ?
+              AND i.id NOT IN (SELECT immanentize_id FROM fnord_immanentize WHERE fnord_id = ?)
+            GROUP BY i.id, i.name
+            ORDER BY total_cooccurrence DESC, max_similarity DESC
+            LIMIT ?
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let suggestions = stmt
+        .query_map(params![fnord_id, fnord_id, limit_val], |row| {
+            Ok(SimilarKeywordInfo {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                similarity: row.get(2)?,
+                cooccurrence: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(suggestions)
+}
+
+// ============================================================
+// SEMANTIC KEYWORD SCORING
+// ============================================================
+
+/// Result of semantic keyword scoring
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SemanticKeywordScore {
+    pub keyword: String,
+    pub base_score: f64,
+    pub semantic_score: f64,
+    pub combined_score: f64,
+}
+
+/// Calculate semantic scores for keyword candidates using embeddings
+/// This compares keyword embeddings against the article embedding
+#[tauri::command]
+pub async fn score_keywords_semantically(
+    state: State<'_, AppState>,
+    fnord_id: i64,
+    keywords: Vec<String>,
+    semantic_weight: Option<f64>,
+) -> Result<Vec<SemanticKeywordScore>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let weight = semantic_weight.unwrap_or(0.3);
+
+    // Get article embedding
+    let article_embedding: Option<Vec<u8>> = db
+        .conn()
+        .query_row(
+            "SELECT embedding FROM fnords WHERE id = ?",
+            [fnord_id],
+            |row| row.get(0),
+        )
+        .ok();
+
+    if article_embedding.is_none() {
+        // No article embedding, return base scores only
+        return Ok(keywords
+            .into_iter()
+            .map(|kw| SemanticKeywordScore {
+                keyword: kw,
+                base_score: 0.5,
+                semantic_score: 0.0,
+                combined_score: 0.5,
+            })
+            .collect());
+    }
+
+    let article_emb = article_embedding.unwrap();
+
+    // Get keyword embeddings and calculate similarities
+    let mut results = Vec::new();
+    for keyword in keywords {
+        let keyword_embedding: Option<Vec<u8>> = db
+            .conn()
+            .query_row(
+                "SELECT embedding FROM immanentize WHERE name = ? OR LOWER(name) = LOWER(?)",
+                params![&keyword, &keyword],
+                |row| row.get(0),
+            )
+            .ok();
+
+        let semantic_score = if let Some(kw_emb) = keyword_embedding {
+            cosine_similarity_blob(&article_emb, &kw_emb)
+        } else {
+            0.0
+        };
+
+        let base_score = 0.5; // Default base score, could be enhanced
+        let combined = (base_score * (1.0 - weight)) + (semantic_score * weight);
+
+        results.push(SemanticKeywordScore {
+            keyword,
+            base_score,
+            semantic_score,
+            combined_score: combined,
+        });
+    }
+
+    // Sort by combined score descending
+    results.sort_by(|a, b| b.combined_score.partial_cmp(&a.combined_score).unwrap_or(std::cmp::Ordering::Equal));
+
+    Ok(results)
+}
+
+/// Calculate cosine similarity between two embedding blobs
+fn cosine_similarity_blob(a: &[u8], b: &[u8]) -> f64 {
+    // Embeddings are stored as f32 arrays (1024 dimensions for snowflake-arctic-embed2)
+    if a.len() != b.len() || a.len() % 4 != 0 {
+        return 0.0;
+    }
+
+    let dim = a.len() / 4;
+    let mut dot = 0.0f64;
+    let mut norm_a = 0.0f64;
+    let mut norm_b = 0.0f64;
+
+    for i in 0..dim {
+        let offset = i * 4;
+        let val_a = f32::from_le_bytes([a[offset], a[offset + 1], a[offset + 2], a[offset + 3]]) as f64;
+        let val_b = f32::from_le_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]) as f64;
+
+        dot += val_a * val_b;
+        norm_a += val_a * val_a;
+        norm_b += val_b * val_b;
+    }
+
+    if norm_a == 0.0 || norm_b == 0.0 {
+        return 0.0;
+    }
+
+    dot / (norm_a.sqrt() * norm_b.sqrt())
 }
 
 // ============================================================

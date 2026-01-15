@@ -233,6 +233,9 @@ pub fn run() {
             commands::article_analysis::process_statistical_batch,
             commands::article_analysis::record_correction,
             commands::article_analysis::get_bias_stats,
+            commands::article_analysis::get_similar_keywords,
+            commands::article_analysis::get_keyword_suggestions_from_network,
+            commands::article_analysis::score_keywords_semantically,
             // Stopword Management
             commands::stopwords::get_user_stopwords,
             commands::stopwords::add_stopword,

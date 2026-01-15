@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
-  import type { ArticleKeyword, CorrectionInput } from '$lib/types';
+  import type { ArticleKeyword, KeywordType, ExtractionMethod, CorrectionInput } from '$lib/types';
 
   interface Props {
     fnordId: number;
@@ -18,6 +18,14 @@
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   let loading = $state(false);
   let showDropdown = $state(false);
+
+  // Suggested keywords from statistical analysis
+  let suggestedKeywords = $state<{ term: string; score: number }[]>([]);
+  let loadingSuggestions = $state(false);
+
+  // Similar keywords from network
+  let similarKeywords = $state<{ id: number; name: string; similarity: number }[]>([]);
+  let loadingSimilar = $state(false);
 
   // Get source icon class
   function getSourceIcon(source: ArticleKeyword['source']): string {
@@ -47,6 +55,70 @@
     }
   }
 
+  // Get keyword type icon (Font Awesome)
+  function getTypeIcon(type: KeywordType | undefined): string {
+    switch (type) {
+      case 'person':
+        return 'fa-solid fa-user-tie';
+      case 'organization':
+        return 'fa-solid fa-building';
+      case 'location':
+        return 'fa-solid fa-location-dot';
+      case 'acronym':
+        return 'fa-solid fa-font';
+      case 'concept':
+      default:
+        return 'fa-solid fa-lightbulb';
+    }
+  }
+
+  // Get keyword type label
+  function getTypeLabel(type: KeywordType | undefined): string {
+    switch (type) {
+      case 'person':
+        return $_('articleKeywords.typePerson') || 'Person';
+      case 'organization':
+        return $_('articleKeywords.typeOrganization') || 'Organisation';
+      case 'location':
+        return $_('articleKeywords.typeLocation') || 'Ort';
+      case 'acronym':
+        return $_('articleKeywords.typeAcronym') || 'Akronym';
+      case 'concept':
+      default:
+        return $_('articleKeywords.typeConcept') || 'Konzept';
+    }
+  }
+
+  // Get extraction method labels
+  function getMethodLabels(methods: ExtractionMethod[] | undefined): string {
+    if (!methods || methods.length === 0) return '';
+    const labels: Record<string, string> = {
+      'yake': 'YAKE',
+      'rake': 'RAKE',
+      'ngram': 'N-Gram',
+      'textrank': 'TextRank',
+      'entity': 'NER',
+      'enhanced_ner': 'NER+',
+      'tfidf': 'TF-IDF',
+      'ai': 'LLM',
+      'manual': 'Manuell'
+    };
+    return methods.map(m => labels[m] || m).join(', ');
+  }
+
+  // Check if keyword has multiple extraction methods (confirmed by multiple sources)
+  function isMultiConfirmed(keyword: ArticleKeyword): boolean {
+    return (keyword.extraction_methods?.length ?? 0) > 1;
+  }
+
+  // Get quality score color
+  function getQualityColor(score: number | undefined): string {
+    if (score === undefined || score === null) return 'var(--text-muted)';
+    if (score >= 0.7) return 'var(--status-success)';
+    if (score >= 0.4) return 'var(--status-warning)';
+    return 'var(--status-error)';
+  }
+
   // Search for keywords
   async function handleSearch() {
     if (searchTimeout) clearTimeout(searchTimeout);
@@ -66,13 +138,53 @@
         // Filter out keywords already assigned
         const existingIds = new Set(keywords.map((k) => k.id));
         searchResults = results.filter((r) => !existingIds.has(r.id));
-        showDropdown = searchResults.length > 0;
+        showDropdown = searchResults.length > 0 || searchInput.length >= 2;
       } catch (e) {
         console.error('Failed to search keywords:', e);
         searchResults = [];
         showDropdown = false;
       }
     }, 300);
+  }
+
+  // Load suggested keywords from statistical analysis
+  async function loadSuggestions() {
+    if (suggestedKeywords.length > 0 || loadingSuggestions) return;
+    loadingSuggestions = true;
+    try {
+      const analysis = await invoke<{ keyword_candidates: { term: string; score: number }[] }>(
+        'analyze_article_statistical',
+        { fnordId }
+      );
+      // Filter out already assigned keywords
+      const existingNames = new Set(keywords.map(k => k.name.toLowerCase()));
+      suggestedKeywords = analysis.keyword_candidates
+        .filter(k => !existingNames.has(k.term.toLowerCase()))
+        .slice(0, 5);
+    } catch (e) {
+      console.error('Failed to load suggestions:', e);
+    } finally {
+      loadingSuggestions = false;
+    }
+  }
+
+  // Load similar keywords from Immanentize network
+  async function loadSimilarFromNetwork() {
+    if (similarKeywords.length > 0 || loadingSimilar || keywords.length === 0) return;
+    loadingSimilar = true;
+    try {
+      const similar = await invoke<{ id: number; name: string; similarity: number }[]>(
+        'get_keyword_suggestions_from_network',
+        { fnordId, limit: 5 }
+      );
+      // Filter out already assigned keywords
+      const existingIds = new Set(keywords.map(k => k.id));
+      similarKeywords = similar.filter(k => !existingIds.has(k.id));
+    } catch (e) {
+      console.error('Failed to load similar keywords:', e);
+    } finally {
+      loadingSimilar = false;
+    }
   }
 
   // Add a keyword to the article
@@ -95,6 +207,9 @@
 
       // Update local state
       onUpdate([...keywords, newKeyword]);
+
+      // Remove from suggestions if present
+      suggestedKeywords = suggestedKeywords.filter(s => s.term.toLowerCase() !== keywordName.toLowerCase());
 
       // Clear search
       searchInput = '';
@@ -145,6 +260,43 @@
   function navigateToKeyword(keywordId: number) {
     window.dispatchEvent(new CustomEvent('navigate-to-network', { detail: { keywordId } }));
   }
+
+  // Load suggestions when editing mode is enabled
+  $effect(() => {
+    if (editing) {
+      loadSuggestions();
+      loadSimilarFromNetwork();
+    }
+  });
+
+  // Add an existing keyword by ID (for similar keywords from network)
+  async function addKeywordById(keywordId: number, keywordName: string) {
+    loading = true;
+    try {
+      const newKeyword = await invoke<ArticleKeyword>('add_article_keyword', {
+        fnordId,
+        keyword: keywordName,
+      });
+
+      // Record correction for bias learning
+      const correction: CorrectionInput = {
+        fnord_id: fnordId,
+        correction_type: 'keyword_added',
+        new_value: keywordName,
+      };
+      await invoke('record_correction', { correction });
+
+      // Update local state
+      onUpdate([...keywords, newKeyword]);
+
+      // Remove from similar keywords
+      similarKeywords = similarKeywords.filter(s => s.id !== keywordId);
+    } catch (e) {
+      console.error('Failed to add keyword by ID:', e);
+    } finally {
+      loading = false;
+    }
+  }
 </script>
 
 <svelte:window onclick={handleClickOutside} />
@@ -153,8 +305,19 @@
   <!-- Keywords List -->
   <div class="keywords-list">
     {#each keywords as keyword (keyword.id)}
-      <div class="keyword-chip" class:editable={editing}>
-        <i class="source-icon {getSourceIcon(keyword.source)}" title={getSourceLabel(keyword.source)}></i>
+      <div
+        class="keyword-chip"
+        class:editable={editing}
+        class:multi-confirmed={isMultiConfirmed(keyword)}
+        title={getMethodLabels(keyword.extraction_methods)}
+      >
+        <!-- Keyword Type Icon -->
+        <i
+          class="type-icon {getTypeIcon(keyword.keyword_type)}"
+          title={getTypeLabel(keyword.keyword_type)}
+        ></i>
+
+        <!-- Keyword Name -->
         <button
           type="button"
           class="keyword-name"
@@ -164,11 +327,38 @@
         >
           {keyword.name}
         </button>
+
+        <!-- Source Icon -->
+        <i
+          class="source-icon {getSourceIcon(keyword.source)}"
+          title={getSourceLabel(keyword.source)}
+        ></i>
+
+        <!-- Multi-Source Badge -->
+        {#if isMultiConfirmed(keyword)}
+          <span class="multi-badge" title={$_('articleKeywords.multiConfirmed') || 'Mehrfach bestätigt'}>
+            <i class="fa-solid fa-check-double"></i>
+          </span>
+        {/if}
+
+        <!-- Confidence -->
         {#if keyword.confidence < 1.0}
           <span class="keyword-confidence" title={$_('articleKeywords.confidence') || 'Konfidenz'}>
             {Math.round(keyword.confidence * 100)}%
           </span>
         {/if}
+
+        <!-- Quality Score Bar -->
+        {#if keyword.quality_score !== undefined && keyword.quality_score !== null}
+          <div class="quality-bar" title={`Qualität: ${Math.round(keyword.quality_score * 100)}%`}>
+            <div
+              class="quality-fill"
+              style="width: {keyword.quality_score * 100}%; background-color: {getQualityColor(keyword.quality_score)}"
+            ></div>
+          </div>
+        {/if}
+
+        <!-- Remove Button (Edit Mode) -->
         {#if editing}
           <button
             type="button"
@@ -189,6 +379,62 @@
     {/if}
   </div>
 
+  <!-- Suggested Keywords (Edit Mode) -->
+  {#if editing && suggestedKeywords.length > 0}
+    <div class="suggestions-section">
+      <span class="suggestions-label">
+        <i class="fa-solid fa-lightbulb"></i>
+        {$_('articleKeywords.suggestions') || 'Vorschläge'}:
+      </span>
+      <div class="suggestions-list">
+        {#each suggestedKeywords as suggestion}
+          <button
+            type="button"
+            class="suggestion-chip"
+            onclick={() => addKeyword(suggestion.term)}
+            disabled={loading}
+            title={`Score: ${Math.round(suggestion.score * 100)}%`}
+          >
+            <i class="fa-solid fa-plus"></i>
+            {suggestion.term}
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
+  <!-- Similar Keywords from Network (Edit Mode) -->
+  {#if editing && similarKeywords.length > 0}
+    <div class="similar-section">
+      <span class="similar-label">
+        <i class="fa-solid fa-diagram-project"></i>
+        {$_('articleKeywords.fromNetwork') || 'Aus Netzwerk'}:
+      </span>
+      <div class="similar-list">
+        {#each similarKeywords as similar}
+          <button
+            type="button"
+            class="similar-chip"
+            onclick={() => addKeywordById(similar.id, similar.name)}
+            disabled={loading}
+            title={`${$_('articleKeywords.similarity') || 'Ähnlichkeit'}: ${Math.round(similar.similarity * 100)}%`}
+          >
+            <i class="fa-solid fa-plus"></i>
+            {similar.name}
+            <span class="similarity-badge">{Math.round(similar.similarity * 100)}%</span>
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
+  {#if editing && loadingSimilar}
+    <div class="loading-similar">
+      <i class="fa-solid fa-spinner fa-spin"></i>
+      {$_('articleKeywords.loadingNetwork') || 'Lade Netzwerk-Vorschläge...'}
+    </div>
+  {/if}
+
   <!-- Add Keyword Input (Edit Mode Only) -->
   {#if editing}
     <div class="keyword-search-container">
@@ -199,26 +445,41 @@
           class="search-input"
           bind:value={searchInput}
           oninput={handleSearch}
-          placeholder={$_('articleKeywords.searchPlaceholder') || 'Keyword suchen oder hinzufuegen...'}
+          placeholder={$_('articleKeywords.searchPlaceholder') || 'Keyword suchen oder hinzufügen...'}
           disabled={loading}
         />
-        {#if loading}
+        {#if loading || loadingSuggestions}
           <i class="loading-icon fa-solid fa-spinner fa-spin"></i>
         {/if}
       </div>
 
-      {#if showDropdown && searchResults.length > 0}
+      {#if showDropdown}
         <div class="search-dropdown">
-          {#each searchResults as result (result.id)}
+          {#if searchResults.length > 0}
+            {#each searchResults as result (result.id)}
+              <button
+                type="button"
+                class="search-result-item"
+                onclick={() => addKeyword(result.name)}
+              >
+                <span class="result-name">{result.name}</span>
+                <span class="result-count">{result.count} {$_('articleKeywords.articles') || 'Artikel'}</span>
+              </button>
+            {/each}
+          {/if}
+          <!-- Option to create new keyword -->
+          {#if searchInput.trim().length >= 2 && !searchResults.some(r => r.name.toLowerCase() === searchInput.toLowerCase())}
             <button
               type="button"
-              class="search-result-item"
-              onclick={() => addKeyword(result.name)}
+              class="search-result-item create-new"
+              onclick={() => addKeyword(searchInput.trim())}
             >
-              <span class="result-name">{result.name}</span>
-              <span class="result-count">{result.count} {$_('articleKeywords.articles') || 'Artikel'}</span>
+              <span class="result-name">
+                <i class="fa-solid fa-plus"></i>
+                "{searchInput.trim()}" erstellen
+              </span>
             </button>
-          {/each}
+          {/if}
         </div>
       {/if}
     </div>
@@ -259,8 +520,38 @@
     border-color: var(--accent-primary);
   }
 
-  .source-icon {
+  /* Multi-confirmed keywords get a special highlight */
+  .keyword-chip.multi-confirmed {
+    border-color: var(--accent-success);
+    background-color: color-mix(in srgb, var(--accent-success) 10%, var(--bg-overlay));
+  }
+
+  /* Type Icon */
+  .type-icon {
     font-size: 0.625rem;
+    color: var(--text-secondary);
+    opacity: 0.7;
+  }
+
+  .type-icon.fa-user-tie {
+    color: var(--accent-info);
+  }
+
+  .type-icon.fa-building {
+    color: var(--accent-warning);
+  }
+
+  .type-icon.fa-location-dot {
+    color: var(--status-success);
+  }
+
+  .type-icon.fa-font {
+    color: var(--accent-primary);
+  }
+
+  /* Source Icon */
+  .source-icon {
+    font-size: 0.5rem;
     color: var(--text-muted);
   }
 
@@ -273,6 +564,12 @@
   }
 
   .source-icon.fa-user {
+    color: var(--accent-success);
+  }
+
+  /* Multi-Source Badge */
+  .multi-badge {
+    font-size: 0.5rem;
     color: var(--accent-success);
   }
 
@@ -296,19 +593,34 @@
   }
 
   .keyword-confidence {
-    font-size: 0.625rem;
+    font-size: 0.5625rem;
     color: var(--text-muted);
-    padding: 0.0625rem 0.25rem;
+    padding: 0.0625rem 0.1875rem;
     background-color: var(--bg-surface);
-    border-radius: 0.1875rem;
+    border-radius: 0.125rem;
+  }
+
+  /* Quality Score Bar */
+  .quality-bar {
+    width: 1.25rem;
+    height: 0.25rem;
+    background-color: var(--bg-surface);
+    border-radius: 0.125rem;
+    overflow: hidden;
+  }
+
+  .quality-fill {
+    height: 100%;
+    border-radius: 0.125rem;
+    transition: width 0.3s;
   }
 
   .remove-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 1.125rem;
+    height: 1.125rem;
     background: none;
     border: none;
     border-radius: 0.25rem;
@@ -329,13 +641,151 @@
   }
 
   .remove-btn i {
-    font-size: 0.625rem;
+    font-size: 0.5625rem;
   }
 
   .no-keywords {
     font-size: 0.8125rem;
     color: var(--text-muted);
     font-style: italic;
+  }
+
+  /* Suggestions Section */
+  .suggestions-section {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background-color: var(--bg-surface);
+    border-radius: 0.375rem;
+    border: 1px dashed var(--border-default);
+  }
+
+  .suggestions-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .suggestions-label i {
+    color: var(--accent-warning);
+  }
+
+  .suggestions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .suggestion-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1875rem 0.5rem;
+    background-color: var(--bg-overlay);
+    border: 1px dashed var(--accent-info);
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .suggestion-chip:hover:not(:disabled) {
+    background-color: var(--accent-info);
+    color: var(--text-primary);
+    border-style: solid;
+  }
+
+  .suggestion-chip:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .suggestion-chip i {
+    font-size: 0.625rem;
+  }
+
+  /* Similar Keywords from Network Section */
+  .similar-section {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background-color: var(--bg-surface);
+    border-radius: 0.375rem;
+    border: 1px dashed var(--accent-primary);
+  }
+
+  .similar-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .similar-label i {
+    color: var(--accent-primary);
+  }
+
+  .similar-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .similar-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1875rem 0.5rem;
+    background-color: var(--bg-overlay);
+    border: 1px dashed var(--accent-primary);
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .similar-chip:hover:not(:disabled) {
+    background-color: var(--accent-primary);
+    color: var(--text-primary);
+    border-style: solid;
+  }
+
+  .similar-chip:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .similar-chip i {
+    font-size: 0.625rem;
+  }
+
+  .similarity-badge {
+    font-size: 0.625rem;
+    padding: 0.0625rem 0.25rem;
+    background-color: var(--bg-surface);
+    border-radius: 0.5rem;
+    color: var(--text-muted);
+  }
+
+  .loading-similar {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .loading-similar i {
+    color: var(--accent-primary);
   }
 
   /* Search Input */
@@ -426,6 +876,14 @@
 
   .search-result-item:not(:last-child) {
     border-bottom: 1px solid var(--border-default);
+  }
+
+  .search-result-item.create-new {
+    color: var(--accent-primary);
+  }
+
+  .search-result-item.create-new i {
+    margin-right: 0.25rem;
   }
 
   .result-name {

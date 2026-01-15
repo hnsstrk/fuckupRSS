@@ -454,12 +454,23 @@ export interface SemanticSearchResponse {
   results: SearchResult[];
 }
 
+// Keyword types for entity classification
+export type KeywordType = 'concept' | 'person' | 'organization' | 'location' | 'acronym';
+
+// Extraction methods that can contribute to a keyword
+export type ExtractionMethod = 'yake' | 'rake' | 'ngram' | 'textrank' | 'entity' | 'enhanced_ner' | 'tfidf' | 'ai';
+
 // Article Keywords & Categories (with source tracking)
 export interface ArticleKeyword {
   id: number;
   name: string;
   source: 'ai' | 'statistical' | 'manual';
   confidence: number;
+  // New fields for advanced extraction info
+  keyword_type?: KeywordType;
+  extraction_methods?: ExtractionMethod[];
+  quality_score?: number;
+  semantic_score?: number;
 }
 
 export interface ArticleCategoryDetailed {
