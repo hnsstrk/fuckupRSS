@@ -38,6 +38,25 @@
   let prevGraphDataKey = '';
   let mounted = false;
 
+  // Get CSS variable values for Cytoscape (which doesn't support CSS vars)
+  function getCssVar(name: string, fallback: string): string {
+    if (typeof document === 'undefined') return fallback;
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  }
+
+  function getThemeColors() {
+    return {
+      primary: getCssVar('--accent-primary', '#fab387'),
+      primaryHover: getCssVar('--accent-secondary', '#f9e2af'),
+      selected: getCssVar('--golden-apple-color', '#f9e2af'),
+      text: getCssVar('--text-primary', '#cdd6f4'),
+      textOutline: getCssVar('--bg-base', '#1e1e2e'),
+      edge: getCssVar('--text-muted', '#585b70'),
+      edgeSelected: getCssVar('--accent-primary', '#fab387'),
+    };
+  }
+
   function transformData(data: NetworkGraphData): cytoscape.ElementDefinition[] {
     const elements: cytoscape.ElementDefinition[] = [];
 
@@ -91,6 +110,9 @@
       cy = null;
     }
 
+    // Get current theme colors
+    const colors = getThemeColors();
+
     cy = cytoscape({
       container,
       elements: transformData(graphData),
@@ -98,13 +120,13 @@
         {
           selector: 'node',
           style: {
-            'background-color': '#cba6f7',
+            'background-color': colors.primary,
             'label': 'data(label)',
             'width': 'data(size)',
             'height': 'data(size)',
             'font-size': '10px',
-            'color': '#cdd6f4',
-            'text-outline-color': '#1e1e2e',
+            'color': colors.text,
+            'text-outline-color': colors.textOutline,
             'text-outline-width': 2,
             'text-valign': 'bottom',
             'text-margin-y': 5,
@@ -113,16 +135,16 @@
         {
           selector: 'node:selected',
           style: {
-            'background-color': '#f9e2af',
+            'background-color': colors.selected,
             'border-width': 3,
-            'border-color': '#fab387',
+            'border-color': colors.primary,
           },
         },
         {
           selector: 'edge',
           style: {
             'width': 'data(width)',
-            'line-color': '#585b70',
+            'line-color': colors.edge,
             'curve-style': 'bezier',
             'opacity': 0.6,
           },
@@ -130,7 +152,7 @@
         {
           selector: 'edge:selected',
           style: {
-            'line-color': '#f9e2af',
+            'line-color': colors.edgeSelected,
             'opacity': 1,
           },
         },
@@ -160,13 +182,13 @@
 
     // Hover effects
     cy.on('mouseover', 'node', (evt: cytoscape.EventObject) => {
-      evt.target.style('background-color', '#f5c2e7');
+      evt.target.style('background-color', colors.primaryHover);
       container.style.cursor = 'pointer';
     });
 
     cy.on('mouseout', 'node', (evt: cytoscape.EventObject) => {
       if (!evt.target.selected()) {
-        evt.target.style('background-color', '#cba6f7');
+        evt.target.style('background-color', colors.primary);
       }
       container.style.cursor = 'default';
     });
