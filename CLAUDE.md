@@ -408,6 +408,14 @@ The codebase uses terms from the Illuminatus! trilogy:
 - Vector Index: `vec_immanentize` (sqlite-vec virtual table, cosine distance, O(log n) KNN)
 - Artikel: ⏳ Phase 3 - `fnords.embedding` geplant
 
+### Statistische Analyse & Lernsystem
+- `corpus_stats` - Document Frequencies für corpus-weite TF-IDF
+- `bias_weights` - Lern-Gewichtungen (keyword_boost, category_term, source_weight)
+- `fnord_immanentize.source` - 'ai' | 'statistical' | 'manual'
+- `fnord_immanentize.confidence` - 0.0-1.0 Konfidenzwert
+- `fnord_sephiroth.source` - 'ai' | 'manual'
+- `fnord_sephiroth.confidence` - 0.0-1.0 Konfidenzwert
+
 Schema-Definition: `src-tauri/src/db/schema.rs`
 Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
 
@@ -596,14 +604,24 @@ Die statistische Analyse läuft **VOR** der LLM-Analyse. Das LLM validiert/korri
 
 | Analyse | Methode | Output |
 |---------|---------|--------|
-| Keyword-Extraktion | TF-IDF | `keyword_candidates` mit Score |
+| Keyword-Extraktion | TF-IDF + Corpus-Stats | `keyword_candidates` mit Score |
 | Kategorie-Matching | Wortfrequenz + Wortlisten | `category_scores` mit `matching_terms` |
 | LLM-Validierung | ministral-3 | `rejected_keywords`, `rejected_categories` |
 
-**Source-Typen:**
-- `ai`: Von Discordian Analysis (LLM) generiert/validiert
-- `statistical`: Von TF-IDF/Wortfrequenz erkannt (LLM bestätigt)
-- `manual`: Vom Benutzer hinzugefügt
+**Corpus-weite TF-IDF:**
+- `corpus_stats` Tabelle speichert Document Frequencies
+- Bei >= 10 Artikeln wird echte IDF verwendet
+- Davor: Fallback auf einfache TF-Analyse
+- Corpus-Stats werden nach jeder erfolgreichen Analyse aktualisiert
+
+**Source-Typen und Gewichtungen:**
+| Source | Beschreibung | Default-Gewicht |
+|--------|--------------|-----------------|
+| `ai` | Von LLM generiert/validiert | 1.0 |
+| `statistical` | Von TF-IDF/Wortfrequenz | 0.9 |
+| `manual` | Vom Benutzer hinzugefügt | 1.2 |
+
+Die Source-Gewichtungen werden auf die Confidence angewendet (clamp 0.0-1.0).
 
 **Relevante Module:**
 - `src-tauri/src/text_analysis/tfidf.rs` - TF-IDF Implementierung

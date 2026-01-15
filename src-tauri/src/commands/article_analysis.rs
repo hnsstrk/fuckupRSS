@@ -83,13 +83,16 @@ pub struct CorrectionInput {
 // ARTICLE KEYWORDS
 // ============================================================
 
-/// Get keywords for an article with source information
+/// Get keywords for an article with source information and source-weighted confidence
 #[tauri::command]
 pub fn get_article_keywords(
     state: State<AppState>,
     fnord_id: i64,
 ) -> Result<Vec<ArticleKeyword>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Load bias weights to apply source weighting
+    let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
 
     let mut stmt = db
         .conn()
@@ -110,11 +113,15 @@ pub fn get_article_keywords(
 
     let keywords = stmt
         .query_map([fnord_id], |row| {
+            let source: String = row.get(2)?;
+            let base_confidence: f64 = row.get(3)?;
+            // Apply source weight to confidence
+            let weighted_confidence = bias_weights.apply_source_weight(&source, base_confidence);
             Ok(ArticleKeyword {
                 id: row.get(0)?,
                 name: row.get(1)?,
-                source: row.get(2)?,
-                confidence: row.get(3)?,
+                source,
+                confidence: weighted_confidence,
             })
         })
         .map_err(|e| e.to_string())?
@@ -225,6 +232,9 @@ pub fn get_article_categories_detailed(
 ) -> Result<Vec<ArticleCategory>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
+    // Load bias weights to apply source weighting
+    let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
+
     let mut stmt = db
         .conn()
         .prepare(
@@ -250,13 +260,17 @@ pub fn get_article_categories_detailed(
 
     let categories = stmt
         .query_map([fnord_id], |row| {
+            let source: String = row.get(4)?;
+            let base_confidence: f64 = row.get(5)?;
+            // Apply source weight to confidence
+            let weighted_confidence = bias_weights.apply_source_weight(&source, base_confidence);
             Ok(ArticleCategory {
                 sephiroth_id: row.get(0)?,
                 name: row.get(1)?,
                 icon: row.get(2)?,
                 color: row.get(3)?,
-                source: row.get(4)?,
-                confidence: row.get(5)?,
+                source,
+                confidence: weighted_confidence,
                 parent_id: row.get(6)?,
                 parent_name: row.get(7)?,
                 parent_color: row.get(8)?,

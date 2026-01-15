@@ -6,7 +6,7 @@ use crate::ollama::{
     DEFAULT_ANALYSIS_PROMPT, DEFAULT_SUMMARY_PROMPT,
     RECOMMENDED_MAIN_MODEL, RECOMMENDED_EMBEDDING_MODEL, get_language_for_locale, DEFAULT_NUM_CTX,
 };
-use crate::text_analysis::{BiasWeights, TfIdfExtractor, CategoryMatcher, record_correction, CorrectionRecord, CorrectionType};
+use crate::text_analysis::{BiasWeights, TfIdfExtractor, CategoryMatcher, CorpusStats, record_correction, CorrectionRecord, CorrectionType};
 use crate::db::Database;
 use crate::{extract_keywords, classify_by_keywords, normalize_keyword, find_canonical_keyword, SEPHIROTH_CATEGORIES};
 use crate::AppState;
@@ -1014,8 +1014,8 @@ pub async fn process_article_discordian(
 ) -> Result<DiscordianResponse, String> {
     let locale = get_locale_from_db(&state);
 
-    // Step 1: Load article content and bias weights
-    let (client, title, content, article_date, bias_weights): (OllamaClient, String, String, Option<String>, BiasWeights) = {
+    // Step 1: Load article content, bias weights, and corpus stats
+    let (client, title, content, article_date, bias_weights, corpus_stats): (OllamaClient, String, String, Option<String>, BiasWeights, Option<CorpusStats>) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let client = create_ollama_client(&db);
         let (title, content, article_date) = db.conn()
@@ -1026,7 +1026,8 @@ pub async fn process_article_discordian(
             )
             .map_err(|e| e.to_string())?;
         let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
-        (client, title, content, article_date, bias)
+        let corpus = CorpusStats::load_from_db(db.conn()).ok();
+        (client, title, content, article_date, bias, corpus)
     };
 
     if content.is_empty() {
@@ -1040,19 +1041,27 @@ pub async fn process_article_discordian(
         });
     }
 
-    // Step 2: Run statistical pre-analysis with bias weights
+    // Step 2: Run statistical pre-analysis with bias weights and corpus stats
     let text_for_analysis = format!("{} {}", title, content);
 
-    // TF-IDF keyword extraction with bias
-    let extractor = TfIdfExtractor::new().with_max_keywords(15);
-    let stat_keywords: Vec<String> = extractor
-        .extract_simple(&text_for_analysis)
+    // TF-IDF keyword extraction with corpus stats (if available) and bias weights
+    let extractor = TfIdfExtractor::new().with_max_keywords(30); // Get more candidates, then filter by bias
+    let mut keyword_candidates: Vec<(String, f64)> = extractor
+        .extract_smart(&text_for_analysis, corpus_stats.as_ref())
         .into_iter()
         .map(|kc| {
-            let _adjusted_score = bias_weights.apply_to_keyword(&kc.term, kc.score);
-            kc.term
+            let adjusted_score = bias_weights.apply_to_keyword(&kc.term, kc.score);
+            (kc.term, adjusted_score)
         })
         .collect();
+
+    // Sort by bias-adjusted score (descending) and take top 15
+    keyword_candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    keyword_candidates.truncate(15);
+    let stat_keywords: Vec<String> = keyword_candidates.into_iter().map(|(term, _)| term).collect();
+
+    // Extract tokens for corpus stats update
+    let document_tokens = extractor.get_tokens(&text_for_analysis);
 
     // Category matching with bias
     let matcher = CategoryMatcher::new().with_max_categories(5);
@@ -1177,6 +1186,14 @@ pub async fn process_article_discordian(
             ).await {
                 warn!("Failed to generate embedding for article {}: {}", fnord_id, e);
                 // Don't fail the whole operation - embedding is optional
+            }
+
+            // Update corpus stats with document tokens for future TF-IDF improvements
+            {
+                let db = state.db.lock().map_err(|e| e.to_string())?;
+                if let Err(e) = CorpusStats::update_db_with_document(db.conn(), &document_tokens) {
+                    warn!("Failed to update corpus stats: {}", e);
+                }
             }
 
             Ok(DiscordianResponse {

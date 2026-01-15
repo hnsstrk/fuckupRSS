@@ -23,8 +23,7 @@ pub struct KeywordCandidate {
     pub idf: f64,
 }
 
-/// Corpus statistics for IDF calculation (for future corpus-wide TF-IDF)
-#[allow(dead_code)]
+/// Corpus statistics for IDF calculation
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CorpusStats {
     /// Total number of documents in the corpus
@@ -33,28 +32,81 @@ pub struct CorpusStats {
     pub document_frequencies: HashMap<String, u64>,
 }
 
-#[allow(dead_code)]
 impl CorpusStats {
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Load corpus stats from database
+    pub fn load_from_db(conn: &rusqlite::Connection) -> Result<Self, rusqlite::Error> {
+        // Get total document count (articles with content_full)
+        let total_documents: u64 = conn.query_row(
+            "SELECT COUNT(*) FROM fnords WHERE content_full IS NOT NULL AND content_full != ''",
+            [],
+            |row| row.get(0),
+        )?;
+
+        // Load document frequencies
+        let mut stmt = conn.prepare("SELECT term, document_count FROM corpus_stats")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, u64>(1)?,
+            ))
+        })?;
+
+        let mut document_frequencies = HashMap::new();
+        for row in rows {
+            let (term, count) = row?;
+            document_frequencies.insert(term, count);
+        }
+
+        Ok(Self {
+            total_documents,
+            document_frequencies,
+        })
+    }
+
+    /// Update corpus stats in database with terms from a document
+    pub fn update_db_with_document(conn: &rusqlite::Connection, terms: &[String]) -> Result<(), rusqlite::Error> {
+        let unique_terms: std::collections::HashSet<_> = terms.iter().collect();
+
+        for term in unique_terms {
+            let term_lower = term.to_lowercase();
+            conn.execute(
+                "INSERT INTO corpus_stats (term, document_count, last_updated)
+                 VALUES (?1, 1, CURRENT_TIMESTAMP)
+                 ON CONFLICT(term) DO UPDATE SET
+                 document_count = document_count + 1,
+                 last_updated = CURRENT_TIMESTAMP",
+                rusqlite::params![&term_lower],
+            )?;
+        }
+
+        Ok(())
+    }
+
     /// Calculate IDF for a term
     /// Uses smoothed IDF: log((N + 1) / (df + 1)) + 1
     pub fn idf(&self, term: &str) -> f64 {
-        let df = self.document_frequencies.get(term).copied().unwrap_or(0) as f64;
+        let df = self.document_frequencies.get(&term.to_lowercase()).copied().unwrap_or(0) as f64;
         let n = self.total_documents as f64;
         // Smoothed IDF to avoid division by zero and extreme values
         ((n + 1.0) / (df + 1.0)).ln() + 1.0
     }
 
-    /// Update corpus stats with terms from a document
+    /// Update corpus stats with terms from a document (in-memory)
     pub fn add_document(&mut self, terms: &[String]) {
         self.total_documents += 1;
         let unique_terms: std::collections::HashSet<_> = terms.iter().collect();
         for term in unique_terms {
-            *self.document_frequencies.entry(term.clone()).or_insert(0) += 1;
+            *self.document_frequencies.entry(term.to_lowercase()).or_insert(0) += 1;
         }
+    }
+
+    /// Check if corpus has meaningful statistics (at least 10 documents)
+    pub fn is_meaningful(&self) -> bool {
+        self.total_documents >= 10
     }
 }
 
@@ -64,8 +116,7 @@ pub struct TfIdfExtractor {
     pub min_word_length: usize,
     /// Maximum number of keywords to return
     pub max_keywords: usize,
-    /// Minimum TF-IDF score threshold (for future use with corpus-wide TF-IDF)
-    #[allow(dead_code)]
+    /// Minimum TF-IDF score threshold
     pub min_score: f64,
 }
 
@@ -85,7 +136,6 @@ impl TfIdfExtractor {
     }
 
     /// Configure minimum word length
-    #[allow(dead_code)]
     pub fn with_min_word_length(mut self, len: usize) -> Self {
         self.min_word_length = len;
         self
@@ -126,8 +176,7 @@ impl TfIdfExtractor {
             .collect()
     }
 
-    /// Extract keywords using TF-IDF with corpus statistics (for future corpus-wide TF-IDF)
-    #[allow(dead_code)]
+    /// Extract keywords using TF-IDF with corpus statistics
     pub fn extract(&self, text: &str, corpus_stats: &CorpusStats) -> Vec<KeywordCandidate> {
         let tokens = self.tokenize(text);
         if tokens.is_empty() {
@@ -195,9 +244,16 @@ impl TfIdfExtractor {
     }
 
     /// Get tokens from text (useful for corpus building)
-    #[allow(dead_code)]
     pub fn get_tokens(&self, text: &str) -> Vec<String> {
         self.tokenize(text)
+    }
+
+    /// Smart extraction: uses corpus stats if meaningful, otherwise falls back to simple extraction
+    pub fn extract_smart(&self, text: &str, corpus_stats: Option<&CorpusStats>) -> Vec<KeywordCandidate> {
+        match corpus_stats {
+            Some(stats) if stats.is_meaningful() => self.extract(text, stats),
+            _ => self.extract_simple(text),
+        }
     }
 }
 

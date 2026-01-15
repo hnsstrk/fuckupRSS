@@ -51,11 +51,12 @@ Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
 - Keine Paywall-Umgehung – nur öffentlich zugängliche Inhalte
 
 ### 🧠 Intelligente Kategorisierung
-- **Dual-Analyse:** LLM + statistische Textanalyse (TF-IDF)
-- **Lernfähig:** System verbessert sich durch Benutzer-Korrekturen
-- **Transparent:** Jedes Keyword/Kategorie zeigt Quelle (KI/Statistik/Manuell)
+- **Dual-Analyse:** LLM + statistische Textanalyse (TF-IDF mit Corpus-Statistiken)
+- **Lernfähig:** System verbessert sich durch Benutzer-Korrekturen und LLM-Feedback
+- **Transparent:** Jedes Keyword/Kategorie zeigt Quelle (KI/Statistik/Manuell) und Konfidenz
 - **Editierbar:** Keywords und Kategorien manuell anpassen
 - **Bias-Gewichtungen:** Aus Korrekturen gelernte Präferenzen
+- **Source-Gewichtungen:** Manuelle Einträge werden höher gewichtet als statistische
 
 ### 🎯 Personalisierung (Operation Mindfuck) *– Coming Soon*
 - Definiere deine Interessen

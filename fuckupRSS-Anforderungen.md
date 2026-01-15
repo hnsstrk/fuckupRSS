@@ -1105,7 +1105,22 @@ Parallel zur LLM-basierten Discordian Analysis erfolgt eine statistische Textana
 |--------------|----------|
 | `fnord_immanentize.source` | TEXT ('ai', 'statistical', 'manual') |
 | `fnord_immanentize.confidence` | REAL (0.0-1.0) |
-| `bias_weights` | Neue Tabelle für Lern-Gewichtungen |
+| `fnord_sephiroth.source` | TEXT ('ai', 'manual') |
+| `fnord_sephiroth.confidence` | REAL (0.0-1.0) |
+| `bias_weights` | Lern-Gewichtungen (keyword_boost, category_term, source_weight) |
+| `corpus_stats` | Document Frequencies für corpus-weite TF-IDF |
+
+**Source-Gewichtungen (Default-Werte):**
+| Source | Gewicht | Beschreibung |
+|--------|---------|--------------|
+| manual | 1.2 | Manuelle Einträge werden höher gewichtet |
+| ai | 1.0 | LLM-generiert (Baseline) |
+| statistical | 0.9 | Braucht LLM-Validierung |
+
+**Corpus-Stats:**
+- Bei >= 10 Artikeln: Echte IDF aus corpus_stats
+- Davor: Fallback auf einfache TF-Analyse
+- Automatische Aktualisierung nach jeder Analyse
 
 ### 6d.6 UI-Komponenten
 

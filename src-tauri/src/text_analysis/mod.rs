@@ -10,7 +10,7 @@ mod tfidf;
 mod category_matcher;
 mod bias;
 
-// Only export what's actually used by other modules
-pub use tfidf::TfIdfExtractor;
+// Export public API
+pub use tfidf::{TfIdfExtractor, CorpusStats};
 pub use category_matcher::CategoryMatcher;
 pub use bias::{BiasWeights, CorrectionRecord, CorrectionType, BiasStats, record_correction, get_bias_stats};

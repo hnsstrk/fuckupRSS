@@ -126,10 +126,23 @@ impl BiasWeights {
             .unwrap_or(1.0)
     }
 
-    /// Get source weight factor (default: 1.0)
-    #[allow(dead_code)]
+    /// Get source weight factor
+    /// Default weights: manual=1.2 (trusted), ai=1.0 (standard), statistical=0.9 (needs validation)
     pub fn get_source_weight(&self, source: &str) -> f64 {
-        self.source_weights.get(source).copied().unwrap_or(1.0)
+        self.source_weights.get(source).copied().unwrap_or_else(|| {
+            // Default source weights
+            match source {
+                "manual" => 1.2,      // Manual entries are most trusted
+                "ai" => 1.0,          // AI is baseline
+                "statistical" => 0.9, // Statistical needs validation
+                _ => 1.0,
+            }
+        })
+    }
+
+    /// Apply source weight to a confidence score
+    pub fn apply_source_weight(&self, source: &str, base_confidence: f64) -> f64 {
+        (base_confidence * self.get_source_weight(source)).clamp(0.0, 1.0)
     }
 
     /// Apply keyword boost to a score
@@ -137,8 +150,7 @@ impl BiasWeights {
         base_score * self.get_keyword_boost(keyword)
     }
 
-    /// Apply category-term weight to a score (for future use)
-    #[allow(dead_code)]
+    /// Apply category-term weight to a score
     pub fn apply_to_category(&self, category_id: i64, term: &str, base_score: f64) -> f64 {
         base_score * self.get_category_term_weight(category_id, term)
     }

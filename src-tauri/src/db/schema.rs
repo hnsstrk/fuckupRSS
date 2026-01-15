@@ -662,6 +662,19 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 14: Create corpus_stats table for corpus-wide TF-IDF
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS corpus_stats (
+            term TEXT PRIMARY KEY,
+            document_count INTEGER DEFAULT 1,
+            last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_corpus_stats_count ON corpus_stats(document_count DESC);
+        "#,
+    )?;
+
     Ok(())
 }
 
