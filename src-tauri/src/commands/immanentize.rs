@@ -1780,3 +1780,46 @@ pub fn delete_keyword(state: State<AppState>, id: i64) -> Result<(), String> {
 
     Ok(())
 }
+
+/// Rename a keyword
+#[tauri::command]
+pub fn rename_keyword(state: State<AppState>, id: i64, new_name: String) -> Result<String, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Trim and validate new name
+    let new_name = new_name.trim().to_string();
+    if new_name.len() < 2 {
+        return Err("Der Name muss mindestens 2 Zeichen haben.".to_string());
+    }
+    if new_name.len() > 100 {
+        return Err("Der Name darf maximal 100 Zeichen haben.".to_string());
+    }
+
+    // Check if another keyword with this name already exists (case-insensitive)
+    let existing: Option<i64> = conn
+        .query_row(
+            "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?) AND id != ?",
+            params![&new_name, id],
+            |row| row.get(0),
+        )
+        .ok();
+
+    if existing.is_some() {
+        return Err(format!(
+            "Ein Keyword mit dem Namen '{}' existiert bereits.",
+            new_name
+        ));
+    }
+
+    // Update the name
+    conn.execute(
+        "UPDATE immanentize SET name = ? WHERE id = ?",
+        params![&new_name, id],
+    )
+    .map_err(|e| format!("Fehler beim Umbenennen: {}", e))?;
+
+    log::info!("Keyword {} renamed to '{}'", id, new_name);
+
+    Ok(new_name)
+}

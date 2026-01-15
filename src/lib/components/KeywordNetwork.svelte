@@ -102,6 +102,12 @@
   let createKeywordSuccess = $state<string | null>(null);
   let createKeywordError = $state<string | null>(null);
 
+  // Rename keyword state
+  let isRenaming = $state(false);
+  let renameInput = $state('');
+  let renameLoading = $state(false);
+  let renameError = $state<string | null>(null);
+
   // Stable empty graph data to prevent re-renders
   const emptyGraphData: NetworkGraphType = { nodes: [], edges: [] };
 
@@ -498,6 +504,68 @@
       createKeywordLoading = false;
     }
   }
+
+  function startRename() {
+    if (selectedKeyword) {
+      renameInput = selectedKeyword.name;
+      isRenaming = true;
+      renameError = null;
+    }
+  }
+
+  function cancelRename() {
+    isRenaming = false;
+    renameInput = '';
+    renameError = null;
+  }
+
+  async function handleRename() {
+    if (!selectedKeyword || !renameInput.trim()) return;
+    if (renameInput.trim() === selectedKeyword.name) {
+      cancelRename();
+      return;
+    }
+
+    renameLoading = true;
+    renameError = null;
+
+    try {
+      const newName = await invoke<string>('rename_keyword', {
+        id: selectedKeyword.id,
+        newName: renameInput.trim(),
+      });
+
+      // Update local state
+      selectedKeyword = { ...selectedKeyword, name: newName };
+
+      // Update in keywords list
+      keywords = keywords.map(k =>
+        k.id === selectedKeyword!.id ? { ...k, name: newName } : k
+      );
+
+      // Update in trending if present
+      trendingKeywords = trendingKeywords.map(k =>
+        k.id === selectedKeyword!.id ? { ...k, name: newName } : k
+      );
+
+      isRenaming = false;
+      renameInput = '';
+    } catch (e) {
+      renameError = String(e);
+      console.error('Failed to rename keyword:', e);
+    } finally {
+      renameLoading = false;
+    }
+  }
+
+  function handleRenameKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleRename();
+    } else if (e.key === 'Escape') {
+      cancelRename();
+    }
+  }
 </script>
 
 <div class="keyword-network">
@@ -611,7 +679,52 @@
     <div class="detail-panel">
       {#if selectedKeyword}
         <div class="keyword-detail">
-          <h3 class="detail-title">{selectedKeyword.name}</h3>
+          <div class="detail-title-row">
+            {#if isRenaming}
+              <div class="rename-form">
+                <input
+                  type="text"
+                  class="rename-input"
+                  bind:value={renameInput}
+                  onkeydown={handleRenameKeydown}
+                  disabled={renameLoading}
+                  autofocus
+                />
+                <button
+                  class="rename-btn save"
+                  onclick={handleRename}
+                  disabled={renameLoading || !renameInput.trim()}
+                  title={$_('common.save') || 'Speichern'}
+                >
+                  {#if renameLoading}
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                  {:else}
+                    <i class="fa-solid fa-check"></i>
+                  {/if}
+                </button>
+                <button
+                  class="rename-btn cancel"
+                  onclick={cancelRename}
+                  disabled={renameLoading}
+                  title={$_('common.cancel') || 'Abbrechen'}
+                >
+                  <i class="fa-solid fa-times"></i>
+                </button>
+              </div>
+              {#if renameError}
+                <div class="rename-error">{renameError}</div>
+              {/if}
+            {:else}
+              <h3 class="detail-title">{selectedKeyword.name}</h3>
+              <button
+                class="edit-btn"
+                onclick={startRename}
+                title={$_('network.renameKeyword') || 'Umbenennen'}
+              >
+                <i class="fa-solid fa-pen"></i>
+              </button>
+            {/if}
+          </div>
 
           <div class="detail-meta">
             <span class="meta-item">
@@ -1294,11 +1407,99 @@
     padding: 1.5rem;
   }
 
+  .detail-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
   .detail-title {
     font-size: 1.5rem;
     font-weight: 600;
     color: var(--text-primary);
-    margin: 0 0 1rem 0;
+    margin: 0;
+  }
+
+  .edit-btn {
+    padding: 0.375rem 0.5rem;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 0.25rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .edit-btn:hover {
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    background-color: var(--bg-overlay);
+  }
+
+  .rename-form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+  }
+
+  .rename-input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    border: 2px solid var(--accent-primary);
+    border-radius: 0.375rem;
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .rename-input:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 25%, transparent);
+  }
+
+  .rename-btn {
+    padding: 0.5rem 0.625rem;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.875rem;
+  }
+
+  .rename-btn.save {
+    background-color: var(--accent-success);
+    color: white;
+  }
+
+  .rename-btn.save:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--accent-success) 80%, black);
+  }
+
+  .rename-btn.cancel {
+    background-color: var(--bg-overlay);
+    color: var(--text-muted);
+  }
+
+  .rename-btn.cancel:hover:not(:disabled) {
+    background-color: var(--bg-muted);
+    color: var(--text-primary);
+  }
+
+  .rename-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .rename-error {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: color-mix(in srgb, var(--accent-error) 15%, transparent);
+    border-radius: 0.375rem;
+    color: var(--accent-error);
+    font-size: 0.8125rem;
   }
 
   .detail-meta {

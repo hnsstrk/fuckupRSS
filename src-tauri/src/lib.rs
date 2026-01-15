@@ -178,6 +178,7 @@ pub fn run() {
             // Manual Keyword Management
             commands::immanentize::create_keyword,
             commands::immanentize::delete_keyword,
+            commands::immanentize::rename_keyword,
             // Embedding Queue
             commands::embedding::get_embedding_queue_status,
             commands::embedding::process_embedding_queue_now,
