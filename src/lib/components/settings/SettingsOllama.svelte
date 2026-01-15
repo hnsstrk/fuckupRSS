@@ -1,7 +1,8 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
-  import { emit } from "@tauri-apps/api/event";
+  import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
+  import { onDestroy } from "svelte";
   import { appState, toasts } from "../../stores/state.svelte";
 
   // Ollama state
@@ -26,6 +27,7 @@
   let downloadingModel = $state<string | null>(null);
   let downloadError = $state<string | null>(null);
   let loadingModels = $state(false);
+  let pullUnlisten: UnlistenFn | null = $state(null);
 
   // Hardware Profiles
   interface HardwareProfile {
@@ -69,7 +71,18 @@
     if (savedNumCtx) {
       ollamaNumCtx = parseInt(savedNumCtx) || DEFAULT_NUM_CTX;
     }
+
+    // Listen for model pull completion events
+    pullUnlisten = await listen<string>("model-pull-complete", async () => {
+      await loadOllamaStatus();
+    });
   }
+
+  onDestroy(() => {
+    if (pullUnlisten) {
+      pullUnlisten();
+    }
+  });
 
   export function closeAllDropdowns() {
     mainModelDropdownOpen = false;

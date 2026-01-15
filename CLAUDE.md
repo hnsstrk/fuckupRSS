@@ -684,10 +684,12 @@ ollama serve
 
 ## Data Paths
 
-Datenbank wird im Projektordner gespeichert:
-- **Pfad:** `./data/fuckup.db` (relativ zum Arbeitsverzeichnis)
+Datenbank wird im src-tauri Ordner gespeichert:
+- **Pfad:** `src-tauri/data/fuckup.db`
 - **Format:** SQLite mit WAL-Modus
 - **Hinweis:** `data/` ist in `.gitignore` eingetragen
+
+**Technischer Hintergrund:** Die Datenbank wird relativ zum Arbeitsverzeichnis erstellt (`./data/fuckup.db`). Da Tauri den Rust-Binary aus dem `src-tauri/` Verzeichnis startet, ist der effektive Pfad `src-tauri/data/fuckup.db`.
 
 ## MCP-Server (Claude Code Integration)
 
@@ -704,7 +706,7 @@ Für die Entwicklung mit Claude Code sind folgende MCP-Server konfiguriert:
 
 ### Konfiguration
 
-Die MCP-Server sind in `~/.claude.json` unter `projects["/home/hnsstrk/Repositories/fuckupRSS"].mcpServers` konfiguriert:
+Die MCP-Server sind in `~/.claude.json` unter `projects["<project-path>"].mcpServers` konfiguriert:
 
 ```json
 {
@@ -716,7 +718,7 @@ Die MCP-Server sind in `~/.claude.json` unter `projects["/home/hnsstrk/Repositor
   "sqlite-mcp": {
     "type": "stdio",
     "command": "npx",
-    "args": ["-y", "@anthropic/sqlite-mcp@latest", "/home/hnsstrk/Repositories/fuckupRSS/data/fuckup.db"]
+    "args": ["-y", "@anthropic/sqlite-mcp@latest", "<project-path>/src-tauri/data/fuckup.db"]
   },
   "fetch-mcp": {
     "type": "stdio",
@@ -730,6 +732,8 @@ Die MCP-Server sind in `~/.claude.json` unter `projects["/home/hnsstrk/Repositor
   }
 }
 ```
+
+**Hinweis:** `<project-path>` muss durch den tatsächlichen absoluten Pfad zum Projekt ersetzt werden (z.B. `/Users/username/Repositories/fuckupRSS` auf macOS oder `/home/username/Repositories/fuckupRSS` auf Linux).
 
 ### Anwendungsfälle
 

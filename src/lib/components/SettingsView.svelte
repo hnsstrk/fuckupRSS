@@ -42,9 +42,11 @@
 
   async function handleTabChange(tabId: string) {
     if (tabId === "maintenance") {
-      settingsMaintenanceRef?.init();
+      await tick();
+      await settingsMaintenanceRef?.init();
     } else if (tabId === "stopwords") {
-      settingsStopwordsRef?.init();
+      await tick();
+      await settingsStopwordsRef?.init();
     } else if (tabId === "prompts") {
       await tick();
       await settingsPromptsRef?.init();

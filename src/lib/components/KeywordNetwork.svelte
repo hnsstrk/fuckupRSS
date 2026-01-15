@@ -2,7 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import type { Keyword, KeywordNeighbor, KeywordCategory, TrendingKeyword, NetworkStats, NetworkGraph as NetworkGraphType } from '../stores/state.svelte';
+  import type { Keyword, KeywordNeighbor, KeywordCategory, TrendingKeyword, NetworkStats, NetworkGraph as NetworkGraphType } from '../stores/state.svelte.ts';
   import Tooltip from './Tooltip.svelte';
   import NetworkGraph from './NetworkGraph.svelte';
   import KeywordTrendChart from './KeywordTrendChart.svelte';
