@@ -385,63 +385,101 @@
   <!-- Keywords List -->
   <div class="keywords-list">
     {#each keywords as keyword (keyword.id)}
+      {@const methodLabels = getMethodLabels(keyword.extraction_methods)}
       <div class="keyword-wrapper" class:expanded={expandedKeywordId === keyword.id}>
         <div
           class="keyword-chip"
           class:editable={editing}
           class:multi-confirmed={isMultiConfirmed(keyword)}
           class:is-expanded={expandedKeywordId === keyword.id}
-          title={`${$_('keywordTooltips.extractionMethodsLabel') || 'Extraktionsmethoden'}: ${getMethodLabels(keyword.extraction_methods)} | ${$_('keywordTooltips.extractionMethodsNote') || 'Mehrere Methoden erhöhen das Vertrauen.'}`}
         >
           <!-- Keyword Type Icon -->
-          <i
-            class="type-icon {getTypeIcon(keyword.keyword_type)}"
-            title={getTypeLabel(keyword.keyword_type)}
-          ></i>
+          <i class="type-icon {getTypeIcon(keyword.keyword_type)}"></i>
 
           <!-- Keyword Name -->
-          <button
-            type="button"
-            class="keyword-name"
-            onclick={() => navigateToKeyword(keyword.id)}
-            title={$_('keywordTooltips.openNetwork') || $_('network.title') || 'Im Netzwerk anzeigen'}
-            disabled={editing}
-          >
-            {keyword.name}
-          </button>
+          <div class="keyword-name-wrapper">
+            <button
+              type="button"
+              class="keyword-name"
+              onclick={() => navigateToKeyword(keyword.id)}
+              disabled={editing}
+            >
+              {keyword.name}
+            </button>
+            <div class="keyword-tooltip" role="tooltip">
+              <div class="tooltip-row">
+                <i class="type-icon {getTypeIcon(keyword.keyword_type)}"></i>
+                <span>{getTypeLabel(keyword.keyword_type)}</span>
+              </div>
+              <div class="tooltip-row">
+                <i class="source-icon {getSourceIcon(keyword.source)}"></i>
+                <span>{getSourceLabel(keyword.source)}</span>
+              </div>
+              {#if methodLabels}
+                <div class="tooltip-row">
+                  <i class="fa-solid fa-layer-group"></i>
+                  <span>{$_('keywordTooltips.extractionMethodsLabel') || 'Extraktionsmethoden'}: {methodLabels}</span>
+                  <span class="tooltip-note">{$_('keywordTooltips.extractionMethodsNote') || 'Mehrere Methoden erhöhen das Vertrauen.'}</span>
+                </div>
+              {/if}
+              {#if isMultiConfirmed(keyword)}
+                <div class="tooltip-row">
+                  <i class="fa-solid fa-check-double"></i>
+                  <span>{$_('keywordTooltips.multiConfirmed') || $_('articleKeywords.multiConfirmed') || 'Mehrfach bestätigt'}</span>
+                </div>
+              {/if}
+              {#if keyword.confidence < 1.0}
+                <div class="tooltip-row">
+                  <i class="fa-solid fa-percent"></i>
+                  <span>
+                    {$_('keywordTooltips.confidenceLabel') || $_('articleKeywords.confidence') || 'Konfidenz'}:
+                    {Math.round(keyword.confidence * 100)}%
+                  </span>
+                  <span class="tooltip-note">{$_('keywordTooltips.confidenceNote') || 'Schätzung der Relevanz für den Artikel.'}</span>
+                </div>
+              {/if}
+              {#if keyword.quality_score !== undefined && keyword.quality_score !== null}
+                <div class="tooltip-row">
+                  <i class="fa-solid fa-chart-line"></i>
+                  <span>
+                    {$_('keywordTooltips.qualityLabel') || 'Qualität'}: {Math.round(keyword.quality_score * 100)}%
+                  </span>
+                  <span class="tooltip-note">{$_('keywordTooltips.qualityNote') || 'Bewertung aus Nutzung und Vernetzung.'}</span>
+                  <div class="tooltip-quality-bar">
+                    <div
+                      class="tooltip-quality-fill"
+                      style="width: {keyword.quality_score * 100}%; background-color: {getQualityColor(keyword.quality_score)}"
+                    ></div>
+                  </div>
+                </div>
+              {/if}
+              <div class="tooltip-row">
+                <i class="fa-solid fa-diagram-project"></i>
+                <span>{$_('keywordTooltips.openNetwork') || $_('network.title') || 'Im Netzwerk anzeigen'}</span>
+              </div>
+            </div>
+          </div>
 
           <!-- Source Icon -->
-          <i
-            class="source-icon {getSourceIcon(keyword.source)}"
-            title={getSourceLabel(keyword.source)}
-          ></i>
+          <i class="source-icon {getSourceIcon(keyword.source)}"></i>
 
           <!-- Multi-Source Badge -->
           {#if isMultiConfirmed(keyword)}
-            <span
-              class="multi-badge"
-              title={$_('keywordTooltips.multiConfirmed') || $_('articleKeywords.multiConfirmed') || 'Mehrfach bestätigt'}
-            >
+            <span class="multi-badge">
               <i class="fa-solid fa-check-double"></i>
             </span>
           {/if}
 
           <!-- Confidence -->
           {#if keyword.confidence < 1.0}
-            <span
-              class="keyword-confidence"
-              title={`${$_('keywordTooltips.confidenceLabel') || $_('articleKeywords.confidence') || 'Konfidenz'}: ${Math.round(keyword.confidence * 100)}% | ${$_('keywordTooltips.confidenceNote') || 'Schätzung der Relevanz für den Artikel.'}`}
-            >
+            <span class="keyword-confidence">
               {Math.round(keyword.confidence * 100)}%
             </span>
           {/if}
 
           <!-- Quality Score Bar -->
           {#if keyword.quality_score !== undefined && keyword.quality_score !== null}
-            <div
-              class="quality-bar"
-              title={`${$_('keywordTooltips.qualityLabel') || 'Qualität'}: ${Math.round(keyword.quality_score * 100)}% | ${$_('keywordTooltips.qualityNote') || 'Bewertung aus Nutzung und Vernetzung.'}`}
-            >
+            <div class="quality-bar">
               <div
                 class="quality-fill"
                 style="width: {keyword.quality_score * 100}%; background-color: {getQualityColor(keyword.quality_score)}"
@@ -669,6 +707,7 @@
   }
 
   .keyword-chip {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
@@ -741,6 +780,12 @@
     color: var(--accent-success);
   }
 
+  .keyword-name-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
   .keyword-name {
     background: none;
     border: none;
@@ -760,11 +805,73 @@
     cursor: default;
   }
 
+  .keyword-tooltip {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    min-width: 14rem;
+    max-width: 22rem;
+    padding: 0.5rem 0.625rem;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    color: var(--text-primary);
+    font-size: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  .keyword-name-wrapper:hover .keyword-tooltip,
+  .keyword-name-wrapper:focus-within .keyword-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+
   .keyword-confidence {
     font-size: 0.5625rem;
     color: var(--text-muted);
     padding: 0.0625rem 0.1875rem;
     background-color: var(--bg-surface);
+    border-radius: 0.125rem;
+  }
+
+
+  .tooltip-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.375rem;
+  }
+
+  .tooltip-row i {
+    margin-top: 0.1rem;
+    font-size: 0.625rem;
+    color: var(--text-muted);
+  }
+
+  .tooltip-note {
+    margin-left: 0.25rem;
+    color: var(--text-muted);
+  }
+
+  .tooltip-quality-bar {
+    width: 100%;
+    height: 0.25rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.125rem;
+    overflow: hidden;
+  }
+
+  .tooltip-quality-fill {
+    height: 100%;
     border-radius: 0.125rem;
   }
 
