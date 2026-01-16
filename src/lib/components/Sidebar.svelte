@@ -12,14 +12,16 @@
     onfnord?: () => void;
     onmindfuck?: () => void;
     onarticles?: () => void;
+    onlawoffives?: () => void;
     settingsActive?: boolean;
     networkActive?: boolean;
     fnordActive?: boolean;
     mindfuckActive?: boolean;
     articlesActive?: boolean;
+    lawOfFivesActive?: boolean;
   }
 
-  let { onsettings, onnetwork, onfnord, onmindfuck, onarticles, settingsActive = false, networkActive = false, fnordActive = false, mindfuckActive = false, articlesActive = true }: Props = $props();
+  let { onsettings, onnetwork, onfnord, onmindfuck, onarticles, onlawoffives, settingsActive = false, networkActive = false, fnordActive = false, mindfuckActive = false, articlesActive = true, lawOfFivesActive = false }: Props = $props();
 
   let showAddForm = $state(false);
   let newFeedUrl = $state("");
@@ -225,19 +227,22 @@
       </button>
     </div>
     <p class="tagline">Immanentize the Eschaton</p>
-    <!-- Navigation -->
+    <!-- Navigation: Alle Feeds → Immanentize Network → Operation Mindfuck → Law of Fives → Fnord-Statistiken → Einstellungen -->
     <div class="nav-bar">
       <button onclick={onarticles} class="nav-btn {articlesActive ? 'active' : ''}" title={$_('sidebar.allFeeds')} aria-label={$_('sidebar.allFeeds')}>
         <i class="icon fa-solid fa-newspaper"></i>
-      </button>
-      <button onclick={onfnord} class="nav-btn {fnordActive ? 'active' : ''}" title={$_('fnordView.title')} aria-label={$_('fnordView.title')}>
-        <i class="icon fa-solid fa-clipboard-list"></i>
       </button>
       <button onclick={onnetwork} class="nav-btn {networkActive ? 'active' : ''}" title={$_('network.title')} aria-label={$_('network.title')}>
         <i class="icon fa-solid fa-circle-nodes"></i>
       </button>
       <button onclick={onmindfuck} class="nav-btn {mindfuckActive ? 'active' : ''}" title={$_('mindfuck.title')} aria-label={$_('mindfuck.title')}>
         <i class="icon fa-solid fa-brain"></i>
+      </button>
+      <button onclick={onlawoffives} class="nav-btn {lawOfFivesActive ? 'active' : ''}" title={$_('lawOfFives.title')} aria-label={$_('lawOfFives.title')}>
+        <i class="icon fa-solid fa-star-of-david"></i>
+      </button>
+      <button onclick={onfnord} class="nav-btn {fnordActive ? 'active' : ''}" title={$_('fnordView.title')} aria-label={$_('fnordView.title')}>
+        <i class="icon fa-solid fa-clipboard-list"></i>
       </button>
       <button onclick={onsettings} class="nav-btn {settingsActive ? 'active' : ''}" title={$_('settings.title')} aria-label={$_('settings.title')}>
         <i class="icon fa-solid fa-gear"></i>

@@ -249,6 +249,8 @@ pub fn run() {
             commands::stopwords::clear_user_stopwords,
             commands::stopwords::export_stopwords,
             commands::stopwords::import_stopwords,
+            // Law of Fives (Discordian Dashboard)
+            commands::law_of_fives::get_law_of_fives_stats,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
