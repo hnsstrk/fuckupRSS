@@ -21,6 +21,7 @@ pub struct Keyword {
     pub first_seen: Option<String>,
     pub last_used: Option<String>,
     pub quality_score: Option<f64>,
+    pub keyword_type: String,
 }
 
 /// Keyword neighbor with relationship strength
@@ -93,11 +94,12 @@ fn keyword_from_row(row: &rusqlite::Row) -> Result<Keyword, rusqlite::Error> {
         first_seen: row.get(7)?,
         last_used: row.get(8)?,
         quality_score: row.get(9)?,
+        keyword_type: row.get::<_, Option<String>>(10)?.unwrap_or_else(|| "concept".to_string()),
     })
 }
 
 const KEYWORD_SELECT_COLUMNS: &str =
-    "id, name, count, article_count, cluster_id, is_canonical, canonical_id, first_seen, last_used, quality_score";
+    "id, name, count, article_count, cluster_id, is_canonical, canonical_id, first_seen, last_used, quality_score, keyword_type";
 
 // ============================================================
 // QUERIES
@@ -249,7 +251,7 @@ pub fn get_category_keywords(
     let mut stmt = db
         .conn()
         .prepare(
-            "SELECT i.id, i.name, i.count, i.article_count, i.cluster_id, i.is_canonical, i.canonical_id, i.first_seen, i.last_used, i.quality_score \
+            "SELECT i.id, i.name, i.count, i.article_count, i.cluster_id, i.is_canonical, i.canonical_id, i.first_seen, i.last_used, i.quality_score, i.keyword_type \
              FROM immanentize_sephiroth ims \
              JOIN immanentize i ON i.id = ims.immanentize_id \
              WHERE ims.sephiroth_id = ? \
@@ -2101,4 +2103,84 @@ fn perform_merge(conn: &rusqlite::Connection, keep_id: i64, remove_id: i64) -> R
         .map_err(|e| e.to_string())?;
 
     Ok(affected)
+}
+
+// ============================================================
+// KEYWORD TYPE BATCH UPDATE
+// ============================================================
+
+/// Result of batch updating keyword types
+#[derive(Debug, Serialize)]
+pub struct KeywordTypeUpdateResult {
+    pub total_updated: i64,
+    pub concept_count: i64,
+    pub person_count: i64,
+    pub organization_count: i64,
+    pub location_count: i64,
+    pub acronym_count: i64,
+}
+
+/// Batch update all keyword types using heuristic detection
+/// Re-analyzes all keywords and updates their type based on pattern matching
+#[tauri::command]
+pub fn update_keyword_types(state: State<AppState>) -> Result<KeywordTypeUpdateResult, String> {
+    use super::ollama::helpers::detect_keyword_type;
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Get all keywords
+    let keywords: Vec<(i64, String)> = conn
+        .prepare("SELECT id, name FROM immanentize")
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut total_updated = 0i64;
+    let mut concept_count = 0i64;
+    let mut person_count = 0i64;
+    let mut organization_count = 0i64;
+    let mut location_count = 0i64;
+    let mut acronym_count = 0i64;
+
+    for (id, name) in &keywords {
+        let detected_type = detect_keyword_type(name);
+
+        // Update the keyword type in the database
+        if let Err(e) = conn.execute(
+            "UPDATE immanentize SET keyword_type = ?1 WHERE id = ?2",
+            params![&detected_type, id],
+        ) {
+            warn!("Failed to update keyword type for {}: {}", id, e);
+            continue;
+        }
+
+        total_updated += 1;
+
+        // Count by type
+        match detected_type.as_str() {
+            "concept" => concept_count += 1,
+            "person" => person_count += 1,
+            "organization" => organization_count += 1,
+            "location" => location_count += 1,
+            "acronym" => acronym_count += 1,
+            _ => concept_count += 1,
+        }
+    }
+
+    log::info!(
+        "Keyword types updated: {} total ({} concept, {} person, {} org, {} location, {} acronym)",
+        total_updated, concept_count, person_count, organization_count, location_count, acronym_count
+    );
+
+    Ok(KeywordTypeUpdateResult {
+        total_updated,
+        concept_count,
+        person_count,
+        organization_count,
+        location_count,
+        acronym_count,
+    })
 }

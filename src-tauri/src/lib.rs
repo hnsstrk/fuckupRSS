@@ -205,6 +205,8 @@ pub fn run() {
             commands::immanentize::rename_keyword,
             // Learning System: Auto-merge similar keywords
             commands::immanentize::auto_merge_similar_keywords,
+            // Keyword Type Batch Update
+            commands::immanentize::update_keyword_types,
             // Embedding Queue
             commands::embedding::get_embedding_queue_status,
             commands::embedding::process_embedding_queue_now,

@@ -303,7 +303,10 @@
       "noArticlesToReset": "Keine Artikel zum Zurücksetzen vorhanden",
       "ollamaUnavailable": "Ollama nicht verfügbar - Analyse kann nicht gestartet werden",
       "reanalyzeComplete": "Analyse abgeschlossen: {succeeded} erfolgreich, {failed} fehlgeschlagen",
-      "reanalyzeCancelled": "Analyse abgebrochen"
+      "reanalyzeCancelled": "Analyse abgebrochen",
+      "updateKeywordTypes": "Keyword-Typen aktualisieren",
+      "updateKeywordTypesDesc": "Erkennt und aktualisiert die Typen aller Keywords (Person, Organisation, Ort, Akronym, Konzept)",
+      "keywordTypesUpdated": "{total} Keywords aktualisiert: {concept} Konzepte, {person} Personen, {organization} Organisationen, {location} Orte, {acronym} Akronyme"
     },
     "stopwords": {
       "title": "Stopwörter",
@@ -560,7 +563,17 @@
     "weight": "Gewicht",
     "similarKeywords": "Ähnliche Keywords",
     "embeddingSimilarity": "Embedding-Ähnlichkeit",
-    "noSimilarKeywords": "Keine ähnlichen Keywords gefunden"
+    "noSimilarKeywords": "Keine ähnlichen Keywords gefunden",
+    "type": "Typ",
+    "actions": "Aktionen",
+    "showArticles": "Artikel mit diesem Keyword anzeigen",
+    "keywordType": {
+      "concept": "Konzept",
+      "person": "Person",
+      "organization": "Organisation",
+      "location": "Ort",
+      "acronym": "Akronym"
+    }
   },
   "mindfuck": {
     "title": "Operation Mindfuck",

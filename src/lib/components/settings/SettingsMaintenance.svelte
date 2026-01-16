@@ -297,6 +297,35 @@
       console.error("Failed to cancel reanalyze:", e);
     }
   }
+
+  async function handleUpdateKeywordTypes() {
+    maintenanceRunning = "keywordTypes";
+    maintenanceResult = null;
+    try {
+      const result = await invoke<{
+        total_updated: number;
+        concept_count: number;
+        person_count: number;
+        organization_count: number;
+        location_count: number;
+        acronym_count: number;
+      }>("update_keyword_types");
+      maintenanceResult = $_("settings.maintenance.keywordTypesUpdated", {
+        values: {
+          total: result.total_updated,
+          concept: result.concept_count,
+          person: result.person_count,
+          organization: result.organization_count,
+          location: result.location_count,
+          acronym: result.acronym_count,
+        },
+      });
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    } finally {
+      maintenanceRunning = null;
+    }
+  }
 </script>
 
 <!-- Confirmation Dialog -->
@@ -460,6 +489,23 @@
       {maintenanceRunning === "prune"
         ? $_("settings.maintenance.running")
         : $_("settings.maintenance.pruneLowQuality")}
+    </button>
+  </div>
+
+  <div class="maintenance-action">
+    <div class="action-info">
+      <span class="action-title">{$_("settings.maintenance.updateKeywordTypes")}</span>
+      <p class="action-desc">{$_("settings.maintenance.updateKeywordTypesDesc")}</p>
+    </div>
+    <button
+      type="button"
+      class="btn-action"
+      onclick={handleUpdateKeywordTypes}
+      disabled={maintenanceRunning !== null}
+    >
+      {maintenanceRunning === "keywordTypes"
+        ? $_("settings.maintenance.running")
+        : $_("settings.maintenance.updateKeywordTypes")}
     </button>
   </div>
 </div>
