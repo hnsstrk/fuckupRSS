@@ -26,8 +26,6 @@
 
   // Dropdown open states
   let langDropdownOpen = $state(false);
-  let themeDropdownOpen = $state(false);
-  let lightThemeDropdownOpen = $state(false);
   let logLevelDropdownOpen = $state(false);
 
   // OPML Import state
@@ -79,13 +77,13 @@
     { value: "solarized-light", labelKey: "settings.themes.solarized-light", family: "solarized" },
   ];
 
-  const themeFamilies = [
-    { id: "catppuccin", labelKey: "settings.themeFamily.catppuccin" },
-    { id: "ayu", labelKey: "settings.themeFamily.ayu" },
-    { id: "gruvbox", labelKey: "settings.themeFamily.gruvbox" },
-    { id: "tokyoNight", labelKey: "settings.themeFamily.tokyoNight" },
-    { id: "solarized", labelKey: "settings.themeFamily.solarized" },
-  ];
+  const themeFamilyLabels: Record<string, string> = {
+    catppuccin: "settings.themeFamily.catppuccin",
+    ayu: "settings.themeFamily.ayu",
+    gruvbox: "settings.themeFamily.gruvbox",
+    tokyoNight: "settings.themeFamily.tokyoNight",
+    solarized: "settings.themeFamily.solarized",
+  };
 
   const logLevelOptions: { value: LogLevel; label: string }[] = [
     { value: "error", label: "Error" },
@@ -108,8 +106,6 @@
 
   export function closeAllDropdowns() {
     langDropdownOpen = false;
-    themeDropdownOpen = false;
-    lightThemeDropdownOpen = false;
     logLevelDropdownOpen = false;
   }
 
@@ -141,13 +137,11 @@
 
   function selectDarkTheme(value: DarkTheme) {
     selectedDarkTheme = value;
-    themeDropdownOpen = false;
     settings.darkTheme = value;
   }
 
   function selectLightTheme(value: LightTheme) {
     selectedLightTheme = value;
-    lightThemeDropdownOpen = false;
     settings.lightTheme = value;
   }
 
@@ -159,30 +153,12 @@
 
   function toggleLangDropdown() {
     langDropdownOpen = !langDropdownOpen;
-    themeDropdownOpen = false;
-    lightThemeDropdownOpen = false;
-    logLevelDropdownOpen = false;
-  }
-
-  function toggleThemeDropdown() {
-    themeDropdownOpen = !themeDropdownOpen;
-    langDropdownOpen = false;
-    lightThemeDropdownOpen = false;
-    logLevelDropdownOpen = false;
-  }
-
-  function toggleLightThemeDropdown() {
-    lightThemeDropdownOpen = !lightThemeDropdownOpen;
-    langDropdownOpen = false;
-    themeDropdownOpen = false;
     logLevelDropdownOpen = false;
   }
 
   function toggleLogLevelDropdown() {
     logLevelDropdownOpen = !logLevelDropdownOpen;
     langDropdownOpen = false;
-    themeDropdownOpen = false;
-    lightThemeDropdownOpen = false;
   }
 
   function getLocaleLabelKey(value: string): string {
@@ -196,8 +172,8 @@
     const option = options.find((o) => o.value === value);
     if (!option) return value;
 
-    const family = themeFamilies.find((f) => f.id === option.family);
-    const familyName = family ? $_(family.labelKey) : "";
+    const familyLabelKey = themeFamilyLabels[option.family];
+    const familyName = familyLabelKey ? $_(familyLabelKey) : "";
     const themeName = $_(option.labelKey);
 
     return `${familyName} ${themeName}`;
@@ -353,78 +329,36 @@
   <p class="setting-description">{$_("settings.themeModeDescription")}</p>
 </div>
 
-<!-- Dark Theme Dropdown -->
+<!-- Dark Theme Selection -->
 <div class="setting-group">
   <span class="label">{$_("settings.darkTheme")}</span>
-  <div class="custom-select">
-    <button
-      type="button"
-      class="select-trigger"
-      aria-label={$_("settings.darkTheme")}
-      onclick={toggleThemeDropdown}
-    >
-      <span>{getThemeDisplayName(selectedDarkTheme, darkThemeOptions)}</span>
-      <i class="arrow fa-solid {themeDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
-    </button>
-    {#if themeDropdownOpen}
-      <div class="select-options theme-options">
-        {#each themeFamilies as family (family.id)}
-          {@const familyThemes = darkThemeOptions.filter((t) => t.family === family.id)}
-          {#if familyThemes.length > 0}
-            <div class="theme-family-group">
-              <span class="theme-family-label">{$_(family.labelKey)}</span>
-              {#each familyThemes as option (option.value)}
-                <button
-                  type="button"
-                  class="select-option {selectedDarkTheme === option.value ? 'selected' : ''}"
-                  onclick={() => selectDarkTheme(option.value)}
-                >
-                  {$_(option.labelKey)}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        {/each}
-      </div>
-    {/if}
+  <div class="theme-grid">
+    {#each darkThemeOptions as option (option.value)}
+      <button
+        type="button"
+        class="theme-btn {selectedDarkTheme === option.value ? 'active' : ''}"
+        onclick={() => selectDarkTheme(option.value)}
+      >
+        {getThemeDisplayName(option.value, darkThemeOptions)}
+      </button>
+    {/each}
   </div>
   <p class="setting-description">{$_("settings.darkThemeDescription")}</p>
 </div>
 
-<!-- Light Theme Dropdown -->
+<!-- Light Theme Selection -->
 <div class="setting-group">
   <span class="label">{$_("settings.lightTheme")}</span>
-  <div class="custom-select">
-    <button
-      type="button"
-      class="select-trigger"
-      aria-label={$_("settings.lightTheme")}
-      onclick={toggleLightThemeDropdown}
-    >
-      <span>{getThemeDisplayName(selectedLightTheme, lightThemeOptions)}</span>
-      <i class="arrow fa-solid {lightThemeDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
-    </button>
-    {#if lightThemeDropdownOpen}
-      <div class="select-options theme-options">
-        {#each themeFamilies as family (family.id)}
-          {@const familyThemes = lightThemeOptions.filter((t) => t.family === family.id)}
-          {#if familyThemes.length > 0}
-            <div class="theme-family-group">
-              <span class="theme-family-label">{$_(family.labelKey)}</span>
-              {#each familyThemes as option (option.value)}
-                <button
-                  type="button"
-                  class="select-option {selectedLightTheme === option.value ? 'selected' : ''}"
-                  onclick={() => selectLightTheme(option.value)}
-                >
-                  {$_(option.labelKey)}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        {/each}
-      </div>
-    {/if}
+  <div class="theme-grid">
+    {#each lightThemeOptions as option (option.value)}
+      <button
+        type="button"
+        class="theme-btn {selectedLightTheme === option.value ? 'active' : ''}"
+        onclick={() => selectLightTheme(option.value)}
+      >
+        {getThemeDisplayName(option.value, lightThemeOptions)}
+      </button>
+    {/each}
   </div>
   <p class="setting-description">{$_("settings.lightThemeDescription")}</p>
 </div>
@@ -746,33 +680,34 @@
     border-color: var(--accent-primary);
   }
 
-  /* Theme Family Groups */
-  .theme-options {
-    max-height: 350px;
+  /* Theme Grid */
+  .theme-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
-  .theme-family-group {
-    border-bottom: 1px solid var(--border-muted);
-  }
-
-  .theme-family-group:last-child {
-    border-bottom: none;
-  }
-
-  .theme-family-label {
-    display: block;
+  .theme-btn {
     padding: 0.5rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    background-color: var(--bg-surface);
+    background-color: var(--bg-overlay);
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    color: var(--text-primary);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
   }
 
-  .theme-family-group .select-option {
-    padding-left: 1.25rem;
-    font-size: 0.875rem;
+  .theme-btn:hover {
+    border-color: var(--accent-primary);
+    background-color: var(--bg-muted);
+  }
+
+  .theme-btn.active {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    border-color: var(--accent-primary);
   }
 
   /* Checkbox */
