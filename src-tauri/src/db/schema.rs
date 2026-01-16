@@ -569,13 +569,13 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         // Step 4: Insert new main categories (level 0)
         conn.execute_batch(
             r#"
-            INSERT INTO sephiroth (id, name, parent_id, level, icon, color) VALUES
-                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip', '#22d3ee'),
-                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark', '#ef4444'),
-                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line', '#f97316'),
-                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf', '#22c55e'),
-                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved', '#a855f7'),
-                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater', '#3b82f6');
+            INSERT INTO sephiroth (id, name, parent_id, level, icon) VALUES
+                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip'),
+                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark'),
+                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line'),
+                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf'),
+                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved'),
+                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater');
             "#,
         )?;
 
@@ -650,13 +650,13 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         // Step 4: Insert new main categories (level 0)
         conn.execute_batch(
             r#"
-            INSERT INTO sephiroth (id, name, parent_id, level, icon, color) VALUES
-                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip', '#22d3ee'),
-                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark', '#ef4444'),
-                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line', '#f97316'),
-                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf', '#22c55e'),
-                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved', '#a855f7'),
-                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater', '#3b82f6');
+            INSERT INTO sephiroth (id, name, parent_id, level, icon) VALUES
+                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip'),
+                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark'),
+                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line'),
+                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf'),
+                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved'),
+                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater');
             "#,
         )?;
 
@@ -684,18 +684,8 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.execute("PRAGMA foreign_keys = ON", [])?;
     }
 
-    // Fix main category colors (replace CSS variables with distinct hex colors)
-    // This runs on every startup to ensure correct colors
-    conn.execute_batch(
-        r#"
-        UPDATE sephiroth SET color = '#22d3ee' WHERE id = 1 AND level = 0;
-        UPDATE sephiroth SET color = '#ef4444' WHERE id = 2 AND level = 0;
-        UPDATE sephiroth SET color = '#f97316' WHERE id = 3 AND level = 0;
-        UPDATE sephiroth SET color = '#22c55e' WHERE id = 4 AND level = 0;
-        UPDATE sephiroth SET color = '#a855f7' WHERE id = 5 AND level = 0;
-        UPDATE sephiroth SET color = '#3b82f6' WHERE id = 6 AND level = 0;
-        "#,
-    )?;
+    // Category colors are now managed via CSS variables (--category-1 through --category-6)
+    // No hardcoded colors in the database - the frontend uses getCategoryColorVar() helper
 
     // Migration 12: Add source and confidence to fnord_immanentize for statistical analysis
     let has_fi_source: bool = conn
@@ -1194,14 +1184,14 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
     if !has_main_categories {
         conn.execute_batch(
             r#"
-            -- Hauptkategorien (level 0) - für Visualisierung & Farben
-            INSERT OR IGNORE INTO sephiroth (id, name, parent_id, level, icon, color) VALUES
-                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip', '#22d3ee'),
-                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark', '#ef4444'),
-                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line', '#f97316'),
-                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf', '#22c55e'),
-                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved', '#a855f7'),
-                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater', '#3b82f6');
+            -- Hauptkategorien (level 0) - Farben werden über CSS-Variablen gesteuert
+            INSERT OR IGNORE INTO sephiroth (id, name, parent_id, level, icon) VALUES
+                (1, 'Wissen & Technologie', NULL, 0, 'fa-solid fa-microchip'),
+                (2, 'Politik & Gesellschaft', NULL, 0, 'fa-solid fa-landmark'),
+                (3, 'Wirtschaft', NULL, 0, 'fa-solid fa-chart-line'),
+                (4, 'Umwelt & Gesundheit', NULL, 0, 'fa-solid fa-leaf'),
+                (5, 'Sicherheit', NULL, 0, 'fa-solid fa-shield-halved'),
+                (6, 'Kultur & Leben', NULL, 0, 'fa-solid fa-masks-theater');
 
             -- Unterkategorien (level 1) - für KI-Klassifizierung & Blind Spots
             INSERT OR IGNORE INTO sephiroth (id, name, parent_id, level, icon) VALUES
