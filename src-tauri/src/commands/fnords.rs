@@ -611,3 +611,466 @@ pub fn get_subcategory_stats(
 
     Ok(subcategories)
 }
+
+// ============================================================
+// Extended Fnord Statistics (Plan 4: Fnord-Statistiken Vollausbau)
+// ============================================================
+
+/// Timeline data point for article/revision activity
+#[derive(Debug, Serialize)]
+pub struct TimelineDataPoint {
+    pub date: String,
+    pub articles: i64,
+    pub revisions: i64,
+}
+
+/// Article timeline for a given period
+#[derive(Debug, Serialize)]
+pub struct ArticleTimeline {
+    pub data: Vec<TimelineDataPoint>,
+    pub period_days: i64,
+}
+
+/// Greyface Index - measures bias across the corpus
+#[derive(Debug, Serialize)]
+pub struct GreyfaceIndex {
+    /// Overall index (0-100, where 0 = perfectly balanced, 100 = extreme bias)
+    pub index: f64,
+    /// Average political bias (-2 to +2)
+    pub avg_political_bias: f64,
+    /// Average sachlichkeit (0-4, higher = more factual)
+    pub avg_sachlichkeit: f64,
+    /// Distribution counts
+    pub bias_distribution: BiasDistribution,
+    /// Number of articles with bias data
+    pub articles_with_bias: i64,
+    /// Total articles
+    pub total_articles: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BiasDistribution {
+    pub left_extreme: i64,    // -2
+    pub left_leaning: i64,    // -1
+    pub neutral: i64,         // 0
+    pub right_leaning: i64,   // +1
+    pub right_extreme: i64,   // +2
+}
+
+/// Keyword statistics with trend
+#[derive(Debug, Serialize)]
+pub struct KeywordStats {
+    pub id: i64,
+    pub name: String,
+    pub count: i64,
+    pub trend: f64,  // Percentage change from previous period
+    pub keyword_type: Option<String>,
+}
+
+/// Feed activity statistics
+#[derive(Debug, Serialize)]
+pub struct FeedActivity {
+    pub pentacle_id: i64,
+    pub title: Option<String>,
+    pub articles_total: i64,
+    pub articles_period: i64,
+    pub revisions_period: i64,
+    pub last_sync: Option<String>,
+}
+
+/// Bias heatmap entry (Feed x Bias)
+#[derive(Debug, Serialize)]
+pub struct BiasHeatmapEntry {
+    pub pentacle_id: i64,
+    pub pentacle_title: Option<String>,
+    pub bias_minus_2: i64,
+    pub bias_minus_1: i64,
+    pub bias_0: i64,
+    pub bias_plus_1: i64,
+    pub bias_plus_2: i64,
+    pub avg_bias: f64,
+}
+
+/// Keyword cloud entry
+#[derive(Debug, Serialize)]
+pub struct KeywordCloudEntry {
+    pub id: i64,
+    pub name: String,
+    pub count: i64,
+    pub weight: f64,  // Normalized weight for display (0.0-1.0)
+    pub keyword_type: Option<String>,
+}
+
+/// Get article timeline for a period
+#[tauri::command]
+pub fn get_article_timeline(
+    state: State<AppState>,
+    days: i64,
+) -> Result<ArticleTimeline, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // SQLite doesn't have generate_series by default, use a different approach
+    let mut data = Vec::new();
+
+    // Get articles by date
+    let mut stmt_articles = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT date(published_at) as pub_date, COUNT(*) as count
+            FROM fnords
+            WHERE published_at >= date('now', '-' || ?1 || ' days')
+            GROUP BY date(published_at)
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let articles_by_date: std::collections::HashMap<String, i64> = stmt_articles
+        .query_map([days], |row| Ok((row.get::<_, String>(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Get revisions by date
+    let mut stmt_revisions = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT date(revision_at) as rev_date, COUNT(*) as count
+            FROM fnord_revisions
+            WHERE revision_at >= date('now', '-' || ?1 || ' days')
+            GROUP BY date(revision_at)
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let revisions_by_date: std::collections::HashMap<String, i64> = stmt_revisions
+        .query_map([days], |row| Ok((row.get::<_, String>(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Generate date range
+    for i in 0..days {
+        let date: String = db
+            .conn()
+            .query_row(
+                "SELECT date('now', '-' || ?1 || ' days')",
+                [days - 1 - i],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+
+        data.push(TimelineDataPoint {
+            date: date.clone(),
+            articles: *articles_by_date.get(&date).unwrap_or(&0),
+            revisions: *revisions_by_date.get(&date).unwrap_or(&0),
+        });
+    }
+
+    Ok(ArticleTimeline {
+        data,
+        period_days: days,
+    })
+}
+
+/// Get the Greyface Index (bias metrics)
+#[tauri::command]
+pub fn get_greyface_index(state: State<AppState>) -> Result<GreyfaceIndex, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Get bias distribution
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT
+                political_bias,
+                COUNT(*) as count
+            FROM fnords
+            WHERE political_bias IS NOT NULL
+            GROUP BY political_bias
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let bias_counts: std::collections::HashMap<i32, i64> = stmt
+        .query_map([], |row| Ok((row.get::<_, i32>(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let distribution = BiasDistribution {
+        left_extreme: *bias_counts.get(&-2).unwrap_or(&0),
+        left_leaning: *bias_counts.get(&-1).unwrap_or(&0),
+        neutral: *bias_counts.get(&0).unwrap_or(&0),
+        right_leaning: *bias_counts.get(&1).unwrap_or(&0),
+        right_extreme: *bias_counts.get(&2).unwrap_or(&0),
+    };
+
+    // Get averages
+    let (avg_political_bias, avg_sachlichkeit, articles_with_bias): (f64, f64, i64) = db
+        .conn()
+        .query_row(
+            r#"
+            SELECT
+                COALESCE(AVG(CAST(political_bias AS REAL)), 0.0),
+                COALESCE(AVG(CAST(sachlichkeit AS REAL)), 0.0),
+                COUNT(*)
+            FROM fnords
+            WHERE political_bias IS NOT NULL
+            "#,
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let total_articles: i64 = db
+        .conn()
+        .query_row("SELECT COUNT(*) FROM fnords", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    // Calculate Greyface Index
+    // Formula: combines bias imbalance and lack of neutrality
+    // Lower sachlichkeit increases index, imbalance in left/right increases index
+    let left_total = distribution.left_extreme as f64 * 2.0 + distribution.left_leaning as f64;
+    let right_total = distribution.right_extreme as f64 * 2.0 + distribution.right_leaning as f64;
+    let total = articles_with_bias.max(1) as f64;
+
+    let imbalance = ((left_total - right_total).abs() / total) * 25.0; // 0-50 range
+    let extremism = ((distribution.left_extreme + distribution.right_extreme) as f64 / total) * 25.0; // 0-25 range
+    let unsachlichkeit = ((4.0 - avg_sachlichkeit) / 4.0) * 25.0; // 0-25 range
+
+    let index = (imbalance + extremism + unsachlichkeit).min(100.0);
+
+    Ok(GreyfaceIndex {
+        index,
+        avg_political_bias,
+        avg_sachlichkeit,
+        bias_distribution: distribution,
+        articles_with_bias,
+        total_articles,
+    })
+}
+
+/// Get top keywords with trend for a period
+#[tauri::command]
+pub fn get_top_keywords_stats(
+    state: State<AppState>,
+    days: i64,
+    limit: i64,
+) -> Result<Vec<KeywordStats>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Current period counts
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT
+                i.id,
+                i.name,
+                i.keyword_type,
+                COUNT(fi.fnord_id) as count,
+                (
+                    SELECT COUNT(*)
+                    FROM fnord_immanentize fi2
+                    JOIN fnords f2 ON f2.id = fi2.fnord_id
+                    WHERE fi2.keyword_id = i.id
+                    AND f2.published_at >= date('now', '-' || (?1 * 2) || ' days')
+                    AND f2.published_at < date('now', '-' || ?1 || ' days')
+                ) as prev_count
+            FROM immanentize i
+            JOIN fnord_immanentize fi ON fi.keyword_id = i.id
+            JOIN fnords f ON f.id = fi.fnord_id
+            WHERE f.published_at >= date('now', '-' || ?1 || ' days')
+            GROUP BY i.id
+            ORDER BY count DESC
+            LIMIT ?2
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let keywords = stmt
+        .query_map([days, limit], |row| {
+            let count: i64 = row.get(3)?;
+            let prev_count: i64 = row.get(4)?;
+            let trend = if prev_count > 0 {
+                ((count - prev_count) as f64 / prev_count as f64) * 100.0
+            } else if count > 0 {
+                100.0 // New keyword
+            } else {
+                0.0
+            };
+
+            Ok(KeywordStats {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                keyword_type: row.get(2)?,
+                count,
+                trend,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(keywords)
+}
+
+/// Get feed activity for a period
+#[tauri::command]
+pub fn get_feed_activity(
+    state: State<AppState>,
+    days: i64,
+    limit: i64,
+) -> Result<Vec<FeedActivity>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT
+                p.id,
+                p.title,
+                (SELECT COUNT(*) FROM fnords WHERE pentacle_id = p.id) as articles_total,
+                (
+                    SELECT COUNT(*)
+                    FROM fnords
+                    WHERE pentacle_id = p.id
+                    AND published_at >= date('now', '-' || ?1 || ' days')
+                ) as articles_period,
+                (
+                    SELECT COUNT(*)
+                    FROM fnord_revisions r
+                    JOIN fnords f ON f.id = r.fnord_id
+                    WHERE f.pentacle_id = p.id
+                    AND r.revision_at >= date('now', '-' || ?1 || ' days')
+                ) as revisions_period,
+                p.last_sync
+            FROM pentacles p
+            ORDER BY articles_period DESC
+            LIMIT ?2
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let feeds = stmt
+        .query_map([days, limit], |row| {
+            Ok(FeedActivity {
+                pentacle_id: row.get(0)?,
+                title: row.get(1)?,
+                articles_total: row.get(2)?,
+                articles_period: row.get(3)?,
+                revisions_period: row.get(4)?,
+                last_sync: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(feeds)
+}
+
+/// Get bias heatmap (feeds x bias levels)
+#[tauri::command]
+pub fn get_bias_heatmap(state: State<AppState>) -> Result<Vec<BiasHeatmapEntry>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT
+                p.id,
+                p.title,
+                SUM(CASE WHEN f.political_bias = -2 THEN 1 ELSE 0 END) as bias_m2,
+                SUM(CASE WHEN f.political_bias = -1 THEN 1 ELSE 0 END) as bias_m1,
+                SUM(CASE WHEN f.political_bias = 0 THEN 1 ELSE 0 END) as bias_0,
+                SUM(CASE WHEN f.political_bias = 1 THEN 1 ELSE 0 END) as bias_p1,
+                SUM(CASE WHEN f.political_bias = 2 THEN 1 ELSE 0 END) as bias_p2,
+                COALESCE(AVG(CAST(f.political_bias AS REAL)), 0.0) as avg_bias
+            FROM pentacles p
+            LEFT JOIN fnords f ON f.pentacle_id = p.id AND f.political_bias IS NOT NULL
+            GROUP BY p.id
+            HAVING (bias_m2 + bias_m1 + bias_0 + bias_p1 + bias_p2) > 0
+            ORDER BY avg_bias ASC
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let heatmap = stmt
+        .query_map([], |row| {
+            Ok(BiasHeatmapEntry {
+                pentacle_id: row.get(0)?,
+                pentacle_title: row.get(1)?,
+                bias_minus_2: row.get(2)?,
+                bias_minus_1: row.get(3)?,
+                bias_0: row.get(4)?,
+                bias_plus_1: row.get(5)?,
+                bias_plus_2: row.get(6)?,
+                avg_bias: row.get(7)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(heatmap)
+}
+
+/// Get keyword cloud data
+#[tauri::command]
+pub fn get_keyword_cloud(
+    state: State<AppState>,
+    days: i64,
+    limit: i64,
+) -> Result<Vec<KeywordCloudEntry>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"
+            SELECT
+                i.id,
+                i.name,
+                i.keyword_type,
+                COUNT(fi.fnord_id) as count
+            FROM immanentize i
+            JOIN fnord_immanentize fi ON fi.keyword_id = i.id
+            JOIN fnords f ON f.id = fi.fnord_id
+            WHERE f.published_at >= date('now', '-' || ?1 || ' days')
+            GROUP BY i.id
+            ORDER BY count DESC
+            LIMIT ?2
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let keywords: Vec<(i64, String, Option<String>, i64)> = stmt
+        .query_map([days, limit], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Calculate max for normalization
+    let max_count = keywords.iter().map(|(_, _, _, c)| *c).max().unwrap_or(1) as f64;
+
+    let cloud = keywords
+        .into_iter()
+        .map(|(id, name, keyword_type, count)| KeywordCloudEntry {
+            id,
+            name,
+            keyword_type,
+            count,
+            weight: (count as f64 / max_count).powf(0.5), // Square root for better distribution
+        })
+        .collect();
+
+    Ok(cloud)
+}

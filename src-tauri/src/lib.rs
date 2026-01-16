@@ -114,6 +114,13 @@ pub fn run() {
             commands::fnords::reset_all_changes,
             commands::fnords::get_fnord_stats,
             commands::fnords::get_subcategory_stats,
+            // Extended Fnord Statistics (Plan 4)
+            commands::fnords::get_article_timeline,
+            commands::fnords::get_greyface_index,
+            commands::fnords::get_top_keywords_stats,
+            commands::fnords::get_feed_activity,
+            commands::fnords::get_bias_heatmap,
+            commands::fnords::get_keyword_cloud,
             commands::sync::sync_all_feeds,
             commands::sync::sync_feed,
             commands::retrieval::fetch_full_content,
