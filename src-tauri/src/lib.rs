@@ -251,6 +251,12 @@ pub fn run() {
             commands::stopwords::import_stopwords,
             // Law of Fives (Discordian Dashboard)
             commands::law_of_fives::get_law_of_fives_stats,
+            // Keyword Type Detection (Semantic)
+            commands::keyword_type_detection::init_keyword_type_prototypes,
+            commands::keyword_type_detection::generate_keyword_type_prototypes,
+            commands::keyword_type_detection::detect_single_keyword_type,
+            commands::keyword_type_detection::update_keyword_types_hybrid,
+            commands::keyword_type_detection::get_prototype_stats,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
