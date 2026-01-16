@@ -651,6 +651,570 @@ pub fn apply_semantic_scores(
         .collect()
 }
 
+// ============================================================
+// MMR (MAXIMAL MARGINAL RELEVANCE) DIVERSIFICATION
+// ============================================================
+
+/// Configuration for MMR diversification
+#[derive(Debug, Clone)]
+pub struct MmrConfig {
+    /// Lambda parameter balancing relevance vs diversity (0.0-1.0)
+    /// Lower values = more diversity, higher values = more relevance
+    pub lambda: f64,
+    /// Minimum similarity threshold between document and candidate
+    pub min_relevance: f64,
+}
+
+impl Default for MmrConfig {
+    fn default() -> Self {
+        Self {
+            lambda: 0.6, // Balanced between relevance and diversity
+            min_relevance: 0.1,
+        }
+    }
+}
+
+/// Result of MMR diversification with both keyword and embedding
+#[derive(Debug, Clone)]
+pub struct MmrCandidate {
+    pub keyword: ExtractedKeyword,
+    pub embedding: Option<Vec<f32>>,
+    pub mmr_score: f64,
+}
+
+/// Calculate cosine similarity between two embedding vectors
+fn cosine_similarity_f32(a: &[f32], b: &[f32]) -> f64 {
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
+
+    let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+    if norm_a == 0.0 || norm_b == 0.0 {
+        return 0.0;
+    }
+
+    (dot / (norm_a * norm_b)) as f64
+}
+
+/// Apply MMR diversification to a list of keyword candidates with embeddings
+///
+/// MMR formula: MMR = (1 - λ) × sim(candidate, doc) - λ × max(sim(candidate, selected))
+///
+/// This ensures selected keywords are both relevant to the document
+/// and diverse from each other.
+///
+/// # Arguments
+/// * `candidates` - List of candidates with their embeddings and document similarity scores
+/// * `doc_embedding` - The document's embedding vector
+/// * `max_keywords` - Maximum number of keywords to select
+/// * `config` - MMR configuration parameters
+///
+/// # Returns
+/// Diversified list of keywords sorted by MMR score
+pub fn apply_mmr_diversification(
+    candidates: Vec<(ExtractedKeyword, Option<Vec<f32>>)>,
+    doc_embedding: Option<&[f32]>,
+    max_keywords: usize,
+    config: &MmrConfig,
+) -> Vec<MmrCandidate> {
+    if candidates.is_empty() || max_keywords == 0 {
+        return vec![];
+    }
+
+    // Calculate document similarity for each candidate
+    let mut scored_candidates: Vec<MmrCandidate> = candidates
+        .into_iter()
+        .map(|(kw, emb)| {
+            let doc_sim = match (&emb, doc_embedding) {
+                (Some(candidate_emb), Some(doc_emb)) => {
+                    cosine_similarity_f32(candidate_emb, doc_emb)
+                }
+                _ => kw.score, // Fall back to original score if no embeddings
+            };
+            MmrCandidate {
+                keyword: kw,
+                embedding: emb,
+                mmr_score: doc_sim,
+            }
+        })
+        .filter(|c| c.mmr_score >= config.min_relevance)
+        .collect();
+
+    if scored_candidates.is_empty() {
+        return vec![];
+    }
+
+    // Greedy MMR selection
+    let mut selected: Vec<MmrCandidate> = Vec::with_capacity(max_keywords);
+
+    // Select the most relevant candidate first
+    scored_candidates.sort_by(|a, b| {
+        b.mmr_score
+            .partial_cmp(&a.mmr_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    if let Some(first) = scored_candidates.first().cloned() {
+        selected.push(first);
+        scored_candidates.remove(0);
+    }
+
+    // Iteratively select candidates using MMR
+    while selected.len() < max_keywords && !scored_candidates.is_empty() {
+        let mut best_idx = 0;
+        let mut best_mmr = f64::NEG_INFINITY;
+
+        for (idx, candidate) in scored_candidates.iter().enumerate() {
+            // Calculate max similarity to already selected keywords
+            let max_sim_to_selected = selected
+                .iter()
+                .filter_map(|s| {
+                    match (&candidate.embedding, &s.embedding) {
+                        (Some(c_emb), Some(s_emb)) => Some(cosine_similarity_f32(c_emb, s_emb)),
+                        _ => {
+                            // Fall back to text-based similarity using Levenshtein
+                            let dist = levenshtein_distance(
+                                &candidate.keyword.text.to_lowercase(),
+                                &s.keyword.text.to_lowercase(),
+                            );
+                            let max_len = candidate.keyword.text.len().max(s.keyword.text.len());
+                            if max_len == 0 {
+                                Some(0.0)
+                            } else {
+                                Some(1.0 - (dist as f64 / max_len as f64))
+                            }
+                        }
+                    }
+                })
+                .fold(0.0_f64, f64::max);
+
+            // MMR score: balance relevance and diversity
+            let mmr = (1.0 - config.lambda) * candidate.mmr_score
+                - config.lambda * max_sim_to_selected;
+
+            if mmr > best_mmr {
+                best_mmr = mmr;
+                best_idx = idx;
+            }
+        }
+
+        let selected_candidate = scored_candidates.remove(best_idx);
+        selected.push(MmrCandidate {
+            keyword: selected_candidate.keyword,
+            embedding: selected_candidate.embedding,
+            mmr_score: best_mmr,
+        });
+    }
+
+    selected
+}
+
+/// Simplified MMR without embeddings (uses text similarity)
+/// Useful when embeddings are not available
+pub fn apply_mmr_text_based(
+    keywords: Vec<ExtractedKeyword>,
+    max_keywords: usize,
+    lambda: f64,
+) -> Vec<ExtractedKeyword> {
+    if keywords.is_empty() || max_keywords == 0 {
+        return vec![];
+    }
+
+    let candidates: Vec<(ExtractedKeyword, Option<Vec<f32>>)> =
+        keywords.into_iter().map(|kw| (kw, None)).collect();
+
+    let config = MmrConfig {
+        lambda,
+        min_relevance: 0.0, // No filtering for text-based
+    };
+
+    apply_mmr_diversification(candidates, None, max_keywords, &config)
+        .into_iter()
+        .map(|c| c.keyword)
+        .collect()
+}
+
+// ============================================================
+// LEVENSHTEIN DISTANCE FOR TEXT SIMILARITY
+// ============================================================
+
+/// Calculate Levenshtein distance between two strings
+pub fn levenshtein_distance(s1: &str, s2: &str) -> usize {
+    let s1_chars: Vec<char> = s1.chars().collect();
+    let s2_chars: Vec<char> = s2.chars().collect();
+    let m = s1_chars.len();
+    let n = s2_chars.len();
+
+    if m == 0 {
+        return n;
+    }
+    if n == 0 {
+        return m;
+    }
+
+    // Use two rows instead of full matrix for space efficiency
+    let mut prev: Vec<usize> = (0..=n).collect();
+    let mut curr: Vec<usize> = vec![0; n + 1];
+
+    for i in 1..=m {
+        curr[0] = i;
+        for j in 1..=n {
+            let cost = if s1_chars[i - 1] == s2_chars[j - 1] {
+                0
+            } else {
+                1
+            };
+            curr[j] = (prev[j] + 1) // Deletion
+                .min(curr[j - 1] + 1) // Insertion
+                .min(prev[j - 1] + cost); // Substitution
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[n]
+}
+
+/// Check if two keywords are near-duplicates based on Levenshtein distance
+pub fn is_near_duplicate(s1: &str, s2: &str, max_distance: usize) -> bool {
+    // Quick length check: if difference > max_distance, can't be near-duplicate
+    let len_diff = (s1.len() as i64 - s2.len() as i64).unsigned_abs() as usize;
+    if len_diff > max_distance {
+        return false;
+    }
+
+    levenshtein_distance(&s1.to_lowercase(), &s2.to_lowercase()) <= max_distance
+}
+
+// ============================================================
+// TRISUM MULTI-CENTRALITY (Eigenvector + Betweenness)
+// ============================================================
+
+/// Centrality scores from TRISUM analysis
+#[derive(Debug, Clone, Default)]
+pub struct CentralityScores {
+    /// PageRank-style score (already implemented)
+    pub pagerank: f64,
+    /// Eigenvector centrality (global influence)
+    pub eigenvector: f64,
+    /// Betweenness centrality (bridge terms)
+    pub betweenness: f64,
+    /// Combined TRISUM score
+    pub trisum: f64,
+}
+
+/// Configuration for TRISUM scoring
+#[derive(Debug, Clone)]
+pub struct TrisumConfig {
+    /// Weight for PageRank component
+    pub pagerank_weight: f64,
+    /// Weight for Eigenvector centrality
+    pub eigenvector_weight: f64,
+    /// Weight for Betweenness centrality
+    pub betweenness_weight: f64,
+}
+
+impl Default for TrisumConfig {
+    fn default() -> Self {
+        Self {
+            pagerank_weight: 0.4,
+            eigenvector_weight: 0.35,
+            betweenness_weight: 0.25,
+        }
+    }
+}
+
+/// Calculate eigenvector centrality using power iteration
+fn eigenvector_centrality(
+    graph: &HashMap<String, HashMap<String, f64>>,
+    iterations: usize,
+    tolerance: f64,
+) -> HashMap<String, f64> {
+    let nodes: Vec<String> = graph.keys().cloned().collect();
+    let n = nodes.len();
+
+    if n == 0 {
+        return HashMap::new();
+    }
+
+    // Initialize all scores equally
+    let initial = 1.0 / (n as f64).sqrt();
+    let mut scores: HashMap<String, f64> = nodes.iter().map(|n| (n.clone(), initial)).collect();
+
+    for _ in 0..iterations {
+        let mut new_scores: HashMap<String, f64> = HashMap::new();
+
+        for node in &nodes {
+            let mut score = 0.0;
+            // Sum contributions from neighbors
+            if let Some(neighbors) = graph.get(node) {
+                for (neighbor, weight) in neighbors {
+                    if let Some(&neighbor_score) = scores.get(neighbor) {
+                        score += neighbor_score * weight;
+                    }
+                }
+            }
+            new_scores.insert(node.clone(), score);
+        }
+
+        // Normalize
+        let norm: f64 = new_scores.values().map(|v| v * v).sum::<f64>().sqrt();
+        if norm > 0.0 {
+            for score in new_scores.values_mut() {
+                *score /= norm;
+            }
+        }
+
+        // Check convergence
+        let diff: f64 = nodes
+            .iter()
+            .map(|n| {
+                let old = scores.get(n).unwrap_or(&0.0);
+                let new = new_scores.get(n).unwrap_or(&0.0);
+                (old - new).abs()
+            })
+            .sum();
+
+        scores = new_scores;
+
+        if diff < tolerance {
+            break;
+        }
+    }
+
+    // Normalize to 0-1 range
+    let max_score = scores.values().cloned().fold(0.0_f64, f64::max);
+    if max_score > 0.0 {
+        for score in scores.values_mut() {
+            *score /= max_score;
+        }
+    }
+
+    scores
+}
+
+/// Calculate betweenness centrality using Brandes' algorithm (simplified)
+fn betweenness_centrality(graph: &HashMap<String, HashMap<String, f64>>) -> HashMap<String, f64> {
+    let nodes: Vec<String> = graph.keys().cloned().collect();
+    let n = nodes.len();
+
+    if n == 0 {
+        return HashMap::new();
+    }
+
+    let mut betweenness: HashMap<String, f64> = nodes.iter().map(|n| (n.clone(), 0.0)).collect();
+
+    // For each source node
+    for source in &nodes {
+        // BFS to find shortest paths
+        let mut stack: Vec<String> = Vec::new();
+        let mut predecessors: HashMap<String, Vec<String>> = HashMap::new();
+        let mut sigma: HashMap<String, f64> = nodes.iter().map(|n| (n.clone(), 0.0)).collect();
+        let mut dist: HashMap<String, i32> = nodes.iter().map(|n| (n.clone(), -1)).collect();
+
+        sigma.insert(source.clone(), 1.0);
+        dist.insert(source.clone(), 0);
+
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(source.clone());
+
+        while let Some(v) = queue.pop_front() {
+            stack.push(v.clone());
+            let v_dist = *dist.get(&v).unwrap_or(&-1);
+
+            if let Some(neighbors) = graph.get(&v) {
+                for neighbor in neighbors.keys() {
+                    let n_dist = dist.get(neighbor).copied().unwrap_or(-1);
+                    // First visit?
+                    if n_dist < 0 {
+                        queue.push_back(neighbor.clone());
+                        dist.insert(neighbor.clone(), v_dist + 1);
+                    }
+                    // Shortest path?
+                    if dist.get(neighbor).copied().unwrap_or(-1) == v_dist + 1 {
+                        let v_sigma = sigma.get(&v).copied().unwrap_or(0.0);
+                        *sigma.entry(neighbor.clone()).or_insert(0.0) += v_sigma;
+                        predecessors
+                            .entry(neighbor.clone())
+                            .or_default()
+                            .push(v.clone());
+                    }
+                }
+            }
+        }
+
+        // Accumulation
+        let mut delta: HashMap<String, f64> = nodes.iter().map(|n| (n.clone(), 0.0)).collect();
+
+        while let Some(w) = stack.pop() {
+            if let Some(preds) = predecessors.get(&w) {
+                let w_sigma = sigma.get(&w).copied().unwrap_or(1.0);
+                let w_delta = delta.get(&w).copied().unwrap_or(0.0);
+
+                for v in preds {
+                    let v_sigma = sigma.get(v).copied().unwrap_or(1.0);
+                    let contribution = (v_sigma / w_sigma) * (1.0 + w_delta);
+                    *delta.entry(v.clone()).or_insert(0.0) += contribution;
+                }
+            }
+
+            if &w != source {
+                let w_delta = delta.get(&w).copied().unwrap_or(0.0);
+                *betweenness.entry(w.clone()).or_insert(0.0) += w_delta;
+            }
+        }
+    }
+
+    // Normalize (undirected graph, divide by 2)
+    let max_bc = betweenness.values().cloned().fold(0.0_f64, f64::max);
+    if max_bc > 0.0 {
+        for score in betweenness.values_mut() {
+            *score /= max_bc;
+        }
+    }
+
+    betweenness
+}
+
+/// Extract keywords using TRISUM multi-centrality approach
+pub fn extract_textrank_trisum(
+    text: &str,
+    window_size: usize,
+    max_keywords: usize,
+    config: Option<TrisumConfig>,
+) -> Vec<ExtractedKeyword> {
+    let config = config.unwrap_or_default();
+    let words = tokenize_for_textrank(text);
+
+    if words.len() < 3 {
+        return vec![];
+    }
+
+    // Build co-occurrence graph
+    let mut graph: HashMap<String, HashMap<String, f64>> = HashMap::new();
+
+    for window in words.windows(window_size) {
+        for i in 0..window.len() {
+            for j in (i + 1)..window.len() {
+                let word_i = &window[i];
+                let word_j = &window[j];
+
+                *graph
+                    .entry(word_i.clone())
+                    .or_default()
+                    .entry(word_j.clone())
+                    .or_insert(0.0) += 1.0;
+
+                *graph
+                    .entry(word_j.clone())
+                    .or_default()
+                    .entry(word_i.clone())
+                    .or_insert(0.0) += 1.0;
+            }
+        }
+    }
+
+    // Calculate all three centrality measures
+    let pagerank_scores = pagerank(&graph, 0.85, 30);
+    let eigenvector_scores = eigenvector_centrality(&graph, 50, 1e-6);
+    let betweenness_scores = betweenness_centrality(&graph);
+
+    // Combine scores using TRISUM weights
+    let mut keywords: Vec<ExtractedKeyword> = graph
+        .keys()
+        .map(|word| {
+            let pr = pagerank_scores.get(word).copied().unwrap_or(0.0);
+            let ev = eigenvector_scores.get(word).copied().unwrap_or(0.0);
+            let bc = betweenness_scores.get(word).copied().unwrap_or(0.0);
+
+            let trisum_score =
+                config.pagerank_weight * pr
+                + config.eigenvector_weight * ev
+                + config.betweenness_weight * bc;
+
+            ExtractedKeyword {
+                text: word.clone(),
+                score: trisum_score.min(1.0),
+                keyword_type: KeywordType::Concept,
+                source: "trisum".to_string(),
+            }
+        })
+        .collect();
+
+    keywords.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    keywords.truncate(max_keywords);
+    keywords
+}
+
+/// Get detailed centrality scores for analysis
+pub fn get_centrality_scores(
+    text: &str,
+    window_size: usize,
+) -> HashMap<String, CentralityScores> {
+    let words = tokenize_for_textrank(text);
+    let config = TrisumConfig::default();
+
+    if words.len() < 3 {
+        return HashMap::new();
+    }
+
+    // Build co-occurrence graph
+    let mut graph: HashMap<String, HashMap<String, f64>> = HashMap::new();
+
+    for window in words.windows(window_size) {
+        for i in 0..window.len() {
+            for j in (i + 1)..window.len() {
+                let word_i = &window[i];
+                let word_j = &window[j];
+
+                *graph
+                    .entry(word_i.clone())
+                    .or_default()
+                    .entry(word_j.clone())
+                    .or_insert(0.0) += 1.0;
+
+                *graph
+                    .entry(word_j.clone())
+                    .or_default()
+                    .entry(word_i.clone())
+                    .or_insert(0.0) += 1.0;
+            }
+        }
+    }
+
+    let pagerank_scores = pagerank(&graph, 0.85, 30);
+    let eigenvector_scores = eigenvector_centrality(&graph, 50, 1e-6);
+    let betweenness_scores = betweenness_centrality(&graph);
+
+    graph
+        .keys()
+        .map(|word| {
+            let pr = pagerank_scores.get(word).copied().unwrap_or(0.0);
+            let ev = eigenvector_scores.get(word).copied().unwrap_or(0.0);
+            let bc = betweenness_scores.get(word).copied().unwrap_or(0.0);
+            let trisum = config.pagerank_weight * pr
+                + config.eigenvector_weight * ev
+                + config.betweenness_weight * bc;
+
+            (
+                word.clone(),
+                CentralityScores {
+                    pagerank: pr,
+                    eigenvector: ev,
+                    betweenness: bc,
+                    trisum,
+                },
+            )
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -715,5 +1279,243 @@ mod tests {
         let filtered = filter_by_pos_heuristics(keywords);
         // "Bundestag" should pass (capitalized, noun suffix)
         assert!(filtered.iter().any(|k| k.text == "Bundestag"));
+    }
+
+    // ============================================================
+    // MMR DIVERSIFICATION TESTS
+    // ============================================================
+
+    #[test]
+    fn test_levenshtein_distance_identical() {
+        assert_eq!(levenshtein_distance("test", "test"), 0);
+    }
+
+    #[test]
+    fn test_levenshtein_distance_single_edit() {
+        assert_eq!(levenshtein_distance("test", "tests"), 1); // Insertion
+        assert_eq!(levenshtein_distance("tests", "test"), 1); // Deletion
+        assert_eq!(levenshtein_distance("test", "best"), 1); // Substitution
+    }
+
+    #[test]
+    fn test_levenshtein_distance_empty() {
+        assert_eq!(levenshtein_distance("", "test"), 4);
+        assert_eq!(levenshtein_distance("test", ""), 4);
+        assert_eq!(levenshtein_distance("", ""), 0);
+    }
+
+    #[test]
+    fn test_levenshtein_distance_german() {
+        // Test with German characters
+        assert_eq!(levenshtein_distance("Änderung", "Änderungen"), 2);
+        // "Größe" (5 chars) vs "Groesse" (7 chars): ö->oe (2 ops) + ß->ss (2 ops) = 4
+        assert_eq!(levenshtein_distance("Größe", "Groesse"), 4);
+        // Simple German umlaut tests
+        assert_eq!(levenshtein_distance("Häuser", "Hauser"), 1);
+        assert_eq!(levenshtein_distance("Büro", "Buro"), 1);
+    }
+
+    #[test]
+    fn test_is_near_duplicate() {
+        assert!(is_near_duplicate("Trump", "Trumps", 2));
+        assert!(is_near_duplicate("Politik", "Politk", 2)); // Typo
+        assert!(!is_near_duplicate("Berlin", "Washington", 2));
+    }
+
+    #[test]
+    fn test_mmr_text_based_diversifies() {
+        let keywords = vec![
+            ExtractedKeyword {
+                text: "Trump".to_string(),
+                score: 0.9,
+                keyword_type: KeywordType::Person,
+                source: "test".to_string(),
+            },
+            ExtractedKeyword {
+                text: "Trumps".to_string(), // Near-duplicate
+                score: 0.85,
+                keyword_type: KeywordType::Person,
+                source: "test".to_string(),
+            },
+            ExtractedKeyword {
+                text: "Biden".to_string(),
+                score: 0.8,
+                keyword_type: KeywordType::Person,
+                source: "test".to_string(),
+            },
+            ExtractedKeyword {
+                text: "Klimawandel".to_string(),
+                score: 0.75,
+                keyword_type: KeywordType::Concept,
+                source: "test".to_string(),
+            },
+        ];
+
+        let diversified = apply_mmr_text_based(keywords, 3, 0.6);
+
+        // Should select diverse keywords
+        assert_eq!(diversified.len(), 3);
+        // Trump should be first (highest relevance)
+        assert_eq!(diversified[0].text, "Trump");
+        // Trumps should likely be penalized due to similarity to Trump
+        // Either Biden or Klimawandel should appear before Trumps
+    }
+
+    #[test]
+    fn test_mmr_with_embeddings() {
+        // Create some mock embeddings (simple 3D vectors)
+        let doc_emb = vec![1.0f32, 0.0, 0.0];
+        let kw1_emb = vec![0.9f32, 0.1, 0.0]; // Similar to doc
+        let kw2_emb = vec![0.85f32, 0.15, 0.0]; // Also similar to doc
+        let kw3_emb = vec![0.0f32, 0.0, 1.0]; // Orthogonal to doc
+
+        let candidates = vec![
+            (
+                ExtractedKeyword {
+                    text: "keyword1".to_string(),
+                    score: 0.9,
+                    keyword_type: KeywordType::Concept,
+                    source: "test".to_string(),
+                },
+                Some(kw1_emb),
+            ),
+            (
+                ExtractedKeyword {
+                    text: "keyword2".to_string(),
+                    score: 0.85,
+                    keyword_type: KeywordType::Concept,
+                    source: "test".to_string(),
+                },
+                Some(kw2_emb),
+            ),
+            (
+                ExtractedKeyword {
+                    text: "keyword3".to_string(),
+                    score: 0.5, // Lower relevance but different
+                    keyword_type: KeywordType::Concept,
+                    source: "test".to_string(),
+                },
+                Some(kw3_emb),
+            ),
+        ];
+
+        let config = MmrConfig {
+            lambda: 0.6,
+            min_relevance: 0.0,
+        };
+
+        let result = apply_mmr_diversification(candidates, Some(&doc_emb), 3, &config);
+
+        assert_eq!(result.len(), 3);
+        // First should be most relevant
+        assert_eq!(result[0].keyword.text, "keyword1");
+    }
+
+    // ============================================================
+    // TRISUM MULTI-CENTRALITY TESTS
+    // ============================================================
+
+    #[test]
+    fn test_trisum_extraction() {
+        let text = "Machine learning and artificial intelligence are transforming technology. \
+                    Technology companies invest in machine learning. \
+                    Artificial intelligence research advances rapidly. \
+                    Learning systems improve over time.";
+
+        let keywords = extract_textrank_trisum(text, 4, 5, None);
+
+        assert!(!keywords.is_empty());
+        // All keywords should have trisum as source
+        assert!(keywords.iter().all(|k| k.source == "trisum"));
+    }
+
+    #[test]
+    fn test_centrality_scores() {
+        let text = "A connects to B. B connects to C. C connects to D. D connects to A. \
+                    B also connects to D. This forms a network.";
+
+        let scores = get_centrality_scores(text, 4);
+
+        // Should have scores for the key terms
+        assert!(!scores.is_empty());
+
+        // Check that all centrality types are calculated
+        for (_word, score) in &scores {
+            // All scores should be in 0-1 range (normalized)
+            assert!(score.pagerank >= 0.0 && score.pagerank <= 1.0);
+            assert!(score.eigenvector >= 0.0 && score.eigenvector <= 1.0);
+            assert!(score.betweenness >= 0.0 && score.betweenness <= 1.0);
+            assert!(score.trisum >= 0.0 && score.trisum <= 1.0);
+        }
+    }
+
+    #[test]
+    fn test_betweenness_centrality_bridge() {
+        // In a simple A-B-C chain, B should have highest betweenness
+        let mut graph: HashMap<String, HashMap<String, f64>> = HashMap::new();
+        graph.insert("A".to_string(), [("B".to_string(), 1.0)].into_iter().collect());
+        graph.insert("B".to_string(), [("A".to_string(), 1.0), ("C".to_string(), 1.0)].into_iter().collect());
+        graph.insert("C".to_string(), [("B".to_string(), 1.0)].into_iter().collect());
+
+        let bc = betweenness_centrality(&graph);
+
+        // B is the bridge between A and C
+        let b_score = bc.get("B").copied().unwrap_or(0.0);
+        let a_score = bc.get("A").copied().unwrap_or(0.0);
+        let c_score = bc.get("C").copied().unwrap_or(0.0);
+
+        assert!(b_score >= a_score, "Bridge node B should have higher betweenness");
+        assert!(b_score >= c_score, "Bridge node B should have higher betweenness");
+    }
+
+    #[test]
+    fn test_eigenvector_centrality() {
+        // Create a star graph: center connected to all others
+        let mut graph: HashMap<String, HashMap<String, f64>> = HashMap::new();
+        let center = "center".to_string();
+        let periphery = vec!["A", "B", "C", "D"];
+
+        for node in &periphery {
+            graph.insert(
+                node.to_string(),
+                [(center.clone(), 1.0)].into_iter().collect(),
+            );
+        }
+        graph.insert(
+            center.clone(),
+            periphery.iter().map(|n| (n.to_string(), 1.0)).collect(),
+        );
+
+        let ec = eigenvector_centrality(&graph, 50, 1e-6);
+
+        // Center should have highest eigenvector centrality
+        let center_score = ec.get(&center).copied().unwrap_or(0.0);
+
+        for node in &periphery {
+            let node_score = ec.get(*node).copied().unwrap_or(0.0);
+            assert!(
+                center_score >= node_score,
+                "Center should have higher eigenvector centrality"
+            );
+        }
+    }
+
+    #[test]
+    fn test_trisum_config_weights() {
+        let config = TrisumConfig {
+            pagerank_weight: 1.0,
+            eigenvector_weight: 0.0,
+            betweenness_weight: 0.0,
+        };
+
+        let text = "Test text with some words repeated. Words are important. Test again.";
+        let keywords = extract_textrank_trisum(text, 4, 3, Some(config));
+
+        // With only pagerank weight, results should match standard textrank
+        let standard = extract_textrank(text, 4, 3);
+
+        // Both should extract keywords from the same text
+        assert!(!keywords.is_empty());
+        assert!(!standard.is_empty());
     }
 }

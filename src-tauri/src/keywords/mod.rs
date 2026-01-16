@@ -6,6 +6,7 @@ use whatlang::{detect, Lang};
 use yake_rust::{get_n_best, Config, StopWords};
 
 pub mod advanced;
+pub mod clustering;
 pub mod config;
 pub mod types;
 
@@ -13,6 +14,16 @@ pub use advanced::{
     extract_ngrams, extract_textrank, extract_enhanced_entities,
     filter_by_pos_heuristics, prepare_semantic_candidates, apply_semantic_scores,
     SemanticCandidate,
+    // MMR Diversification
+    apply_mmr_diversification, apply_mmr_text_based, MmrConfig, MmrCandidate,
+    // Levenshtein distance utilities
+    levenshtein_distance, is_near_duplicate,
+    // TRISUM Multi-Centrality
+    extract_textrank_trisum, get_centrality_scores, TrisumConfig, CentralityScores,
+};
+pub use clustering::{
+    cluster_articles, get_representatives, transfer_keywords_to_cluster, calculate_savings,
+    ArticleCluster, ArticleForClustering, ClusterConfig, ClusteringResult,
 };
 pub use config::{KeywordConfig, defaults as keyword_defaults};
 pub use types::{
@@ -860,14 +871,98 @@ pub fn normalize_keyword(keyword: &str) -> Option<String> {
 }
 
 pub fn normalize_and_dedupe_keywords(keywords: &[String]) -> Vec<String> {
-    let mut seen = HashSet::new();
+    normalize_and_dedupe_keywords_with_levenshtein(keywords, 2)
+}
+
+/// Normalize and deduplicate keywords using both exact matching and Levenshtein distance
+///
+/// This function:
+/// 1. Normalizes each keyword (filters garbage, validates format)
+/// 2. Removes exact duplicates (case-insensitive)
+/// 3. Removes near-duplicates based on Levenshtein distance
+///
+/// # Arguments
+/// * `keywords` - List of keywords to process
+/// * `max_distance` - Maximum Levenshtein distance for near-duplicate detection
+///                    (recommended: 2 for short keywords, 3 for longer ones)
+///
+/// # Returns
+/// Deduplicated list of keywords, keeping the first occurrence
+pub fn normalize_and_dedupe_keywords_with_levenshtein(
+    keywords: &[String],
+    max_distance: usize,
+) -> Vec<String> {
     let mut result = Vec::new();
 
     for kw in keywords {
         if let Some(normalized) = normalize_keyword(kw) {
-            let key = normalized.to_lowercase();
-            if seen.insert(key) {
+            // Check if this keyword is a near-duplicate of any existing result
+            let is_duplicate = result.iter().any(|existing: &String| {
+                let existing_lower = existing.to_lowercase();
+                let normalized_lower = normalized.to_lowercase();
+
+                // Exact match
+                if existing_lower == normalized_lower {
+                    return true;
+                }
+
+                // Near-duplicate check using Levenshtein distance
+                advanced::is_near_duplicate(&existing_lower, &normalized_lower, max_distance)
+            });
+
+            if !is_duplicate {
                 result.push(normalized);
+            }
+        }
+    }
+
+    result
+}
+
+/// Normalize and deduplicate keywords, keeping the one with higher score
+///
+/// Similar to `normalize_and_dedupe_keywords_with_levenshtein`, but allows
+/// specifying scores for each keyword to keep the higher-scored one.
+///
+/// # Arguments
+/// * `keywords` - List of (keyword, score) tuples
+/// * `max_distance` - Maximum Levenshtein distance for near-duplicate detection
+///
+/// # Returns
+/// Deduplicated list of (keyword, score) tuples
+pub fn normalize_and_dedupe_keywords_with_scores(
+    keywords: &[(String, f64)],
+    max_distance: usize,
+) -> Vec<(String, f64)> {
+    let mut result: Vec<(String, f64)> = Vec::new();
+
+    for (kw, score) in keywords {
+        if let Some(normalized) = normalize_keyword(kw) {
+            let normalized_lower = normalized.to_lowercase();
+
+            // Find if there's a near-duplicate in results
+            let duplicate_idx = result.iter().position(|(existing, _)| {
+                let existing_lower = existing.to_lowercase();
+
+                // Exact match
+                if existing_lower == normalized_lower {
+                    return true;
+                }
+
+                // Near-duplicate check
+                advanced::is_near_duplicate(&existing_lower, &normalized_lower, max_distance)
+            });
+
+            match duplicate_idx {
+                Some(idx) => {
+                    // Keep the one with higher score
+                    if *score > result[idx].1 {
+                        result[idx] = (normalized, *score);
+                    }
+                }
+                None => {
+                    result.push((normalized, *score));
+                }
             }
         }
     }
