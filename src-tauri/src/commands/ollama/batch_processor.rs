@@ -36,6 +36,8 @@ use super::types::{
 struct BatchContext {
     bias_weights: BiasWeights,
     corpus_stats: Option<CorpusStats>,
+    /// Custom discordian prompt (None = use default)
+    discordian_prompt: Option<String>,
 }
 
 /// Configuration for cluster-based batch processing
@@ -307,7 +309,15 @@ async fn process_single_article(
 
     // === LLM ANALYSIS ===
     let analysis_result = client
-        .discordian_analysis_with_stats(model, &title, &content, locale, &stat_keywords, &stat_categories)
+        .discordian_analysis_with_stats_custom(
+            model,
+            &title,
+            &content,
+            locale,
+            &stat_keywords,
+            &stat_categories,
+            batch_context.discordian_prompt.as_deref(),
+        )
         .await;
 
     match analysis_result {
@@ -502,9 +512,21 @@ pub async fn process_batch(
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
         let corpus_stats = CorpusStats::load_from_db(db.conn()).ok();
+
+        // Load custom discordian prompt from settings (if set)
+        let discordian_prompt: Option<String> = db
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'discordian_prompt'",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
+
         BatchContext {
             bias_weights,
             corpus_stats,
+            discordian_prompt,
         }
     };
 
@@ -801,9 +823,21 @@ pub async fn process_batch_clustered(
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
         let corpus_stats = CorpusStats::load_from_db(db.conn()).ok();
+
+        // Load custom discordian prompt from settings (if set)
+        let discordian_prompt: Option<String> = db
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'discordian_prompt'",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
+
         BatchContext {
             bias_weights,
             corpus_stats,
+            discordian_prompt,
         }
     };
 

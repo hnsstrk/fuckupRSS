@@ -3,7 +3,7 @@
 use crate::db::Database;
 use crate::ollama::{
     get_language_for_locale, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_NUM_CTX,
-    DEFAULT_SUMMARY_PROMPT,
+    DEFAULT_SUMMARY_PROMPT, DEFAULT_DISCORDIAN_PROMPT_WITH_STATS,
 };
 use crate::AppState;
 use crate::SEPHIROTH_CATEGORIES;
@@ -116,6 +116,28 @@ pub fn get_analysis_prompt(state: &State<'_, AppState>, locale: &str) -> String 
         Some(prompt) => prompt.replace("{language}", language),
         None => DEFAULT_ANALYSIS_PROMPT.replace("{language}", language),
     }
+}
+
+/// Get discordian prompt from database (returns None for default behavior)
+/// The prompt is NOT pre-processed with {language} here, as that's done in the OllamaClient
+pub fn get_discordian_prompt(state: &State<'_, AppState>) -> Option<String> {
+    let db = match state.db.lock() {
+        Ok(db) => db,
+        Err(_) => return None,
+    };
+
+    db.conn()
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'discordian_prompt'",
+            [],
+            |row| row.get(0),
+        )
+        .ok()
+}
+
+/// Get discordian prompt from database or default (returns the actual prompt string)
+pub fn get_discordian_prompt_or_default(state: &State<'_, AppState>) -> String {
+    get_discordian_prompt(state).unwrap_or_else(|| DEFAULT_DISCORDIAN_PROMPT_WITH_STATS.to_string())
 }
 
 // ============================================================

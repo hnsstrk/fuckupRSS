@@ -228,8 +228,11 @@
       "title": "AI Prompts",
       "summaryPrompt": "Summary Prompt",
       "analysisPrompt": "Analysis Prompt",
+      "discordianPrompt": "Discordian Analysis Prompt",
+      "discordianPromptDescription": "Combined analysis with statistical context (Summary + Bias + Keywords + Categories). Uses placeholders: {language}, {title}, {content}, {stat_keywords}, {stat_categories}",
       "reset": "Reset to Defaults",
-      "resetSuccess": "Prompts reset"
+      "resetSuccess": "Prompts reset",
+      "save": "Save Prompts"
     },
     "opml": {
       "title": "OPML Import/Export",

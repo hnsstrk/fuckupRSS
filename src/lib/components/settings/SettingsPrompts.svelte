@@ -12,9 +12,11 @@
   // Prompts state
   let summaryPrompt = $state("");
   let analysisPrompt = $state("");
+  let discordianPrompt = $state("");
   let defaultPrompts = $state<{
     summary_prompt: string;
     analysis_prompt: string;
+    discordian_prompt: string;
   } | null>(null);
   let promptsModified = $state(false);
 
@@ -27,19 +29,23 @@
       const prompts = await invoke<{
         summary_prompt: string;
         analysis_prompt: string;
+        discordian_prompt: string;
       }>("get_prompts");
       summaryPrompt = prompts.summary_prompt;
       analysisPrompt = prompts.analysis_prompt;
+      discordianPrompt = prompts.discordian_prompt;
 
       defaultPrompts = await invoke<{
         summary_prompt: string;
         analysis_prompt: string;
+        discordian_prompt: string;
       }>("get_default_prompts");
 
       if (defaultPrompts) {
         promptsModified =
           summaryPrompt !== defaultPrompts.summary_prompt ||
-          analysisPrompt !== defaultPrompts.analysis_prompt;
+          analysisPrompt !== defaultPrompts.analysis_prompt ||
+          discordianPrompt !== defaultPrompts.discordian_prompt;
       }
     } catch (e) {
       console.error("Failed to load prompts:", e);
@@ -50,7 +56,8 @@
     if (defaultPrompts) {
       promptsModified =
         summaryPrompt !== defaultPrompts.summary_prompt ||
-        analysisPrompt !== defaultPrompts.analysis_prompt;
+        analysisPrompt !== defaultPrompts.analysis_prompt ||
+        discordianPrompt !== defaultPrompts.discordian_prompt;
     }
   }
 
@@ -59,6 +66,7 @@
       await invoke("set_prompts", {
         summaryPrompt: summaryPrompt,
         analysisPrompt: analysisPrompt,
+        discordianPrompt: discordianPrompt,
       });
       promptsModified = false;
       toasts.success($_("settings.promptsSaved"));
@@ -73,9 +81,11 @@
       const prompts = await invoke<{
         summary_prompt: string;
         analysis_prompt: string;
+        discordian_prompt: string;
       }>("reset_prompts");
       summaryPrompt = prompts.summary_prompt;
       analysisPrompt = prompts.analysis_prompt;
+      discordianPrompt = prompts.discordian_prompt;
       promptsModified = false;
     } catch (e) {
       console.error("Failed to reset prompts:", e);
@@ -110,6 +120,18 @@
       bind:value={analysisPrompt}
       oninput={handlePromptChange}
       rows="8"
+    ></textarea>
+  </div>
+
+  <div class="setting-group">
+    <label class="label" for="discordian-prompt">{$_("settings.prompts.discordianPrompt")}</label>
+    <p class="prompt-description">{$_("settings.prompts.discordianPromptDescription")}</p>
+    <textarea
+      id="discordian-prompt"
+      class="prompt-textarea prompt-textarea-large"
+      bind:value={discordianPrompt}
+      oninput={handlePromptChange}
+      rows="18"
     ></textarea>
   </div>
 
@@ -164,6 +186,13 @@
   }
 
   /* Prompts */
+  .prompt-description {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
+    line-height: 1.4;
+  }
+
   .prompt-textarea {
     width: 100%;
     padding: 0.75rem;
@@ -175,6 +204,10 @@
     font-size: 0.875rem;
     resize: vertical;
     min-height: 100px;
+  }
+
+  .prompt-textarea-large {
+    min-height: 300px;
   }
 
   .prompt-textarea:focus {

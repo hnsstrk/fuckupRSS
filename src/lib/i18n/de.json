@@ -228,8 +228,11 @@
       "title": "KI-Prompts",
       "summaryPrompt": "Zusammenfassungs-Prompt",
       "analysisPrompt": "Analyse-Prompt",
+      "discordianPrompt": "Discordian Analysis Prompt",
+      "discordianPromptDescription": "Kombinierte Analyse mit statistischem Kontext (Summary + Bias + Keywords + Kategorien). Verwendet Platzhalter: {language}, {title}, {content}, {stat_keywords}, {stat_categories}",
       "reset": "Auf Standard zurücksetzen",
-      "resetSuccess": "Prompts zurückgesetzt"
+      "resetSuccess": "Prompts zurückgesetzt",
+      "save": "Prompts speichern"
     },
     "opml": {
       "title": "OPML Import/Export",

@@ -486,6 +486,9 @@ Content: {}"#,
 
     /// Discordian Analysis with statistical pre-analysis context
     /// The LLM validates and corrects statistical suggestions rather than generating from scratch
+    ///
+    /// If `custom_prompt` is provided, it will be used instead of the default prompt.
+    /// The prompt template should contain placeholders: {language}, {title}, {content}, {stat_keywords}, {stat_categories}
     pub async fn discordian_analysis_with_stats(
         &self,
         model: &str,
@@ -494,6 +497,33 @@ Content: {}"#,
         locale: &str,
         stat_keywords: &[String],
         stat_categories: &[(String, f64)], // (category_name, confidence)
+    ) -> Result<DiscordianAnalysisWithRejections, OllamaError> {
+        self.discordian_analysis_with_stats_custom(
+            model,
+            title,
+            content,
+            locale,
+            stat_keywords,
+            stat_categories,
+            None,
+        )
+        .await
+    }
+
+    /// Discordian Analysis with statistical pre-analysis context and optional custom prompt
+    /// The LLM validates and corrects statistical suggestions rather than generating from scratch
+    ///
+    /// If `custom_prompt` is provided, it will be used instead of the default prompt.
+    /// The prompt template should contain placeholders: {language}, {title}, {content}, {stat_keywords}, {stat_categories}
+    pub async fn discordian_analysis_with_stats_custom(
+        &self,
+        model: &str,
+        title: &str,
+        content: &str,
+        locale: &str,
+        stat_keywords: &[String],
+        stat_categories: &[(String, f64)], // (category_name, confidence)
+        custom_prompt: Option<&str>,
     ) -> Result<DiscordianAnalysisWithRejections, OllamaError> {
         debug!("Starting Discordian analysis with stats for: {}", truncate_str(title, 60));
         let language = get_language_for_locale(locale);
@@ -517,7 +547,8 @@ Content: {}"#,
                 .join(", ")
         };
 
-        let prompt = DEFAULT_DISCORDIAN_PROMPT_WITH_STATS
+        let prompt_template = custom_prompt.unwrap_or(DEFAULT_DISCORDIAN_PROMPT_WITH_STATS);
+        let prompt = prompt_template
             .replace("{language}", language)
             .replace("{title}", title)
             .replace("{content}", &truncated_content)

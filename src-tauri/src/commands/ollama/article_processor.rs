@@ -17,7 +17,7 @@ use super::data_persistence::{
 };
 use super::helpers::{
     create_ollama_client, determine_category_sources, determine_keyword_sources,
-    get_analysis_prompt, get_locale_from_db, get_summary_prompt, merge_keywords,
+    get_analysis_prompt, get_discordian_prompt, get_locale_from_db, get_summary_prompt, merge_keywords,
     validate_and_merge_categories,
 };
 use super::types::{AnalysisResponse, DiscordianResponse, SummaryResponse};
@@ -259,6 +259,7 @@ pub async fn process_article_discordian(
     model: String,
 ) -> Result<DiscordianResponse, String> {
     let locale = get_locale_from_db(&state);
+    let custom_discordian_prompt = get_discordian_prompt(&state);
 
     // Step 1: Load article content, bias weights, and corpus stats
     let (client, title, content, article_date, bias_weights, corpus_stats): (
@@ -330,7 +331,15 @@ pub async fn process_article_discordian(
 
     // Step 3: Run LLM analysis with statistical context
     match client
-        .discordian_analysis_with_stats(&model, &title, &content, &locale, &stat_keywords, &stat_categories)
+        .discordian_analysis_with_stats_custom(
+            &model,
+            &title,
+            &content,
+            &locale,
+            &stat_keywords,
+            &stat_categories,
+            custom_discordian_prompt.as_deref(),
+        )
         .await
     {
         Ok(analysis_with_rejections) => {

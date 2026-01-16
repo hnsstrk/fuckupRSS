@@ -46,12 +46,14 @@ pub struct ModelPullResult {
 pub struct PromptTemplates {
     pub summary_prompt: String,
     pub analysis_prompt: String,
+    pub discordian_prompt: String,
 }
 
 #[derive(serde::Serialize)]
 pub struct DefaultPrompts {
     pub summary_prompt: String,
     pub analysis_prompt: String,
+    pub discordian_prompt: String,
 }
 
 // ============================================================

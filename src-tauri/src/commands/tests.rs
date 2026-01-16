@@ -394,11 +394,13 @@ fn test_prompt_templates_serialize() {
     let templates = PromptTemplates {
         summary_prompt: "Summarize: {content}".to_string(),
         analysis_prompt: "Analyze: {title} {content}".to_string(),
+        discordian_prompt: "Discordian: {language} {title} {content} {stat_keywords} {stat_categories}".to_string(),
     };
 
     let json = serde_json::to_string(&templates).expect("Serialization failed");
     assert!(json.contains("summary_prompt"));
     assert!(json.contains("analysis_prompt"));
+    assert!(json.contains("discordian_prompt"));
 }
 
 #[test]
@@ -408,10 +410,12 @@ fn test_default_prompts_serialize() {
     let defaults = DefaultPrompts {
         summary_prompt: "Default summary prompt".to_string(),
         analysis_prompt: "Default analysis prompt".to_string(),
+        discordian_prompt: "Default discordian prompt".to_string(),
     };
 
     let json = serde_json::to_string(&defaults).expect("Serialization failed");
     assert!(json.contains("Default summary"));
+    assert!(json.contains("discordian_prompt"));
 }
 
 // ============================================================
