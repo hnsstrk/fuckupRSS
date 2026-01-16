@@ -1196,19 +1196,22 @@
   }
 
   .category-card {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 15%, var(--bg-base)) 0%, var(--bg-base) 100%);
-    border: 1px solid color-mix(in srgb, var(--cat-color) 30%, transparent);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 25%, var(--bg-base)) 0%, color-mix(in srgb, var(--cat-color) 8%, var(--bg-base)) 100%);
+    border: 1px solid color-mix(in srgb, var(--cat-color) 50%, transparent);
+    border-left: 3px solid var(--cat-color);
     border-radius: 0.625rem;
     padding: 1rem;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
     cursor: pointer;
     text-align: left;
     width: 100%;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--cat-color) 15%, transparent);
   }
 
   .category-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--cat-color) 20%, transparent);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--cat-color) 30%, transparent);
+    border-color: color-mix(in srgb, var(--cat-color) 70%, transparent);
   }
 
   .category-card.expanded {
