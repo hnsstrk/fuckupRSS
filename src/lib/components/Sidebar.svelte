@@ -225,19 +225,19 @@
       </button>
     </div>
     <p class="tagline">Immanentize the Eschaton</p>
-    <!-- Navigation -->
+    <!-- Navigation: Alle Feeds → Immanentize Network → Operation Mindfuck → Fnord-Statistiken → Einstellungen -->
     <div class="nav-bar">
       <button onclick={onarticles} class="nav-btn {articlesActive ? 'active' : ''}" title={$_('sidebar.allFeeds')} aria-label={$_('sidebar.allFeeds')}>
         <i class="icon fa-solid fa-newspaper"></i>
-      </button>
-      <button onclick={onfnord} class="nav-btn {fnordActive ? 'active' : ''}" title={$_('fnordView.title')} aria-label={$_('fnordView.title')}>
-        <i class="icon fa-solid fa-clipboard-list"></i>
       </button>
       <button onclick={onnetwork} class="nav-btn {networkActive ? 'active' : ''}" title={$_('network.title')} aria-label={$_('network.title')}>
         <i class="icon fa-solid fa-circle-nodes"></i>
       </button>
       <button onclick={onmindfuck} class="nav-btn {mindfuckActive ? 'active' : ''}" title={$_('mindfuck.title')} aria-label={$_('mindfuck.title')}>
         <i class="icon fa-solid fa-brain"></i>
+      </button>
+      <button onclick={onfnord} class="nav-btn {fnordActive ? 'active' : ''}" title={$_('fnordView.title')} aria-label={$_('fnordView.title')}>
+        <i class="icon fa-solid fa-clipboard-list"></i>
       </button>
       <button onclick={onsettings} class="nav-btn {settingsActive ? 'active' : ''}" title={$_('settings.title')} aria-label={$_('settings.title')}>
         <i class="icon fa-solid fa-gear"></i>
