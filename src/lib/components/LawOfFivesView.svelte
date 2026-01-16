@@ -802,7 +802,7 @@
   }
 
   .completeness-bar.completion-good {
-    background: linear-gradient(90deg, #22d3ee, #67e8f9);
+    background: linear-gradient(90deg, var(--accent-info), color-mix(in srgb, var(--accent-info) 70%, white));
   }
 
   .completeness-bar.completion-fair {
@@ -829,22 +829,22 @@
   }
 
   .completeness-percent.completion-excellent {
-    background-color: rgba(34, 197, 94, 0.15);
+    background-color: color-mix(in srgb, var(--accent-success) 15%, transparent);
     color: var(--accent-success);
   }
 
   .completeness-percent.completion-good {
-    background-color: rgba(34, 211, 238, 0.15);
-    color: #22d3ee;
+    background-color: color-mix(in srgb, var(--accent-info) 15%, transparent);
+    color: var(--accent-info);
   }
 
   .completeness-percent.completion-fair {
-    background-color: rgba(251, 191, 36, 0.15);
+    background-color: color-mix(in srgb, var(--accent-warning) 15%, transparent);
     color: var(--accent-warning);
   }
 
   .completeness-percent.completion-low {
-    background-color: rgba(239, 68, 68, 0.15);
+    background-color: color-mix(in srgb, var(--accent-error) 15%, transparent);
     color: var(--accent-error);
   }
 

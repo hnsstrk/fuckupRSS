@@ -12,13 +12,13 @@
 
   let { onKeywordSelect, onShowKeywordArticles }: Props = $props();
 
-  // Type icons and colors
+  // Type icons and colors (using theme CSS variables)
   const typeConfig: Record<KeywordType, { icon: string; color: string }> = {
     concept: { icon: 'fa-solid fa-lightbulb', color: 'var(--text-muted)' },
-    person: { icon: 'fa-solid fa-user', color: '#3b82f6' },
-    organization: { icon: 'fa-solid fa-building', color: '#8b5cf6' },
-    location: { icon: 'fa-solid fa-location-dot', color: '#22c55e' },
-    acronym: { icon: 'fa-solid fa-a', color: '#f97316' },
+    person: { icon: 'fa-solid fa-user', color: 'var(--accent-info)' },
+    organization: { icon: 'fa-solid fa-building', color: 'var(--accent-primary)' },
+    location: { icon: 'fa-solid fa-location-dot', color: 'var(--accent-success)' },
+    acronym: { icon: 'fa-solid fa-a', color: 'var(--accent-warning)' },
   };
 
   // State

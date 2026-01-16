@@ -117,6 +117,36 @@ html.macchiato {
   --ctp-mantle: #1e2030;
   --ctp-crust: #181926;
 
+  /* Semantic colors - must be redefined for each theme */
+  --bg-base: var(--ctp-base);
+  --bg-surface: var(--ctp-mantle);
+  --bg-overlay: var(--ctp-surface0);
+  --bg-muted: var(--ctp-surface1);
+  --bg-highlight: var(--ctp-surface2);
+
+  --text-primary: var(--ctp-text);
+  --text-secondary: var(--ctp-subtext1);
+  --text-muted: var(--ctp-subtext0);
+  --text-faint: var(--ctp-overlay1);
+
+  --border-default: var(--ctp-surface1);
+  --border-muted: var(--ctp-surface0);
+
+  --accent-primary: var(--ctp-mauve);
+  --accent-secondary: var(--ctp-lavender);
+  --accent-warning: var(--ctp-peach);
+  --accent-error: var(--ctp-red);
+  --accent-success: var(--ctp-green);
+  --accent-info: var(--ctp-sapphire);
+
+  --status-error: var(--ctp-red);
+  --status-success: var(--ctp-green);
+  --status-warning: var(--ctp-peach);
+
+  --fnord-color: var(--ctp-red);
+  --illuminated-color: var(--ctp-overlay1);
+  --golden-apple-color: var(--ctp-yellow);
+
   --text-on-accent: var(--ctp-crust);
 }
 
@@ -150,6 +180,36 @@ html.frappe {
   --ctp-base: #303446;
   --ctp-mantle: #292c3c;
   --ctp-crust: #232634;
+
+  /* Semantic colors - must be redefined for each theme */
+  --bg-base: var(--ctp-base);
+  --bg-surface: var(--ctp-mantle);
+  --bg-overlay: var(--ctp-surface0);
+  --bg-muted: var(--ctp-surface1);
+  --bg-highlight: var(--ctp-surface2);
+
+  --text-primary: var(--ctp-text);
+  --text-secondary: var(--ctp-subtext1);
+  --text-muted: var(--ctp-subtext0);
+  --text-faint: var(--ctp-overlay1);
+
+  --border-default: var(--ctp-surface1);
+  --border-muted: var(--ctp-surface0);
+
+  --accent-primary: var(--ctp-mauve);
+  --accent-secondary: var(--ctp-lavender);
+  --accent-warning: var(--ctp-peach);
+  --accent-error: var(--ctp-red);
+  --accent-success: var(--ctp-green);
+  --accent-info: var(--ctp-sapphire);
+
+  --status-error: var(--ctp-red);
+  --status-success: var(--ctp-green);
+  --status-warning: var(--ctp-peach);
+
+  --fnord-color: var(--ctp-red);
+  --illuminated-color: var(--ctp-overlay1);
+  --golden-apple-color: var(--ctp-yellow);
 
   --text-on-accent: var(--ctp-crust);
 }
@@ -631,92 +691,66 @@ html.solarized-light {
    ID 5: Sicherheit
    ID 6: Kultur & Leben
 
-   Jedes Theme hat eigene Kategoriefarben basierend
-   auf seiner spezifischen Farbpalette.
+   Kategoriefarben werden aus den Theme-Akzentfarben
+   abgeleitet, um konsistente Theme-Integration zu gewährleisten.
    =========================================== */
 
-/* --- Catppuccin Mocha (Default Dark) --- */
+/* --- Catppuccin Themes (verwenden --ctp-* Variablen) --- */
 :root,
-html.mocha {
-  --category-1: #89dceb;  /* Sky - Wissen & Technologie */
-  --category-2: #cba6f7;  /* Mauve - Politik & Gesellschaft */
-  --category-3: #f9e2af;  /* Yellow - Wirtschaft */
-  --category-4: #a6e3a1;  /* Green - Umwelt & Gesundheit */
-  --category-5: #fab387;  /* Peach - Sicherheit */
-  --category-6: #f5c2e7;  /* Pink - Kultur & Leben */
-}
-
-/* --- Catppuccin Macchiato --- */
-html.macchiato {
-  --category-1: #91d7e3;  /* Sky */
-  --category-2: #c6a0f6;  /* Mauve */
-  --category-3: #eed49f;  /* Yellow */
-  --category-4: #a6da95;  /* Green */
-  --category-5: #f5a97f;  /* Peach */
-  --category-6: #f5bde6;  /* Pink */
-}
-
-/* --- Catppuccin Frappé --- */
-html.frappe {
-  --category-1: #99d1db;  /* Sky */
-  --category-2: #ca9ee6;  /* Mauve */
-  --category-3: #e5c890;  /* Yellow */
-  --category-4: #a6d189;  /* Green */
-  --category-5: #ef9f76;  /* Peach */
-  --category-6: #f4b8e4;  /* Pink */
-}
-
-/* --- Catppuccin Latte (Light) --- */
+html.mocha,
+html.macchiato,
+html.frappe,
 html.latte {
-  --category-1: #04a5e5;  /* Sky */
-  --category-2: #8839ef;  /* Mauve */
-  --category-3: #df8e1d;  /* Yellow */
-  --category-4: #40a02b;  /* Green */
-  --category-5: #fe640b;  /* Peach */
-  --category-6: #ea76cb;  /* Pink */
+  /* Kategoriefarben aus Catppuccin-Palette */
+  --category-1: var(--ctp-sky);       /* Wissen & Technologie */
+  --category-2: var(--ctp-red);       /* Politik & Gesellschaft */
+  --category-3: var(--ctp-yellow);    /* Wirtschaft */
+  --category-4: var(--ctp-green);     /* Umwelt & Gesundheit */
+  --category-5: var(--ctp-peach);     /* Sicherheit */
+  --category-6: var(--ctp-pink);      /* Kultur & Leben */
 }
 
-/* --- Ayu Dark --- */
+/* --- Ayu Dark (offizielle Ayu-Farben) --- */
 html.ayu-dark {
   --category-1: #59c2ff;  /* Blue - Wissen & Technologie */
-  --category-2: #d95757;  /* Red - Politik & Gesellschaft */
+  --category-2: #f07178;  /* Red - Politik & Gesellschaft */
   --category-3: #e6b450;  /* Yellow - Wirtschaft */
-  --category-4: #70bf56;  /* Green - Umwelt & Gesundheit */
+  --category-4: #aad94c;  /* Green - Umwelt & Gesundheit */
   --category-5: #ff8f40;  /* Orange - Sicherheit */
-  --category-6: #f07178;  /* Coral - Kultur & Leben */
+  --category-6: #d2a6ff;  /* Purple - Kultur & Leben */
 }
 
-/* --- Ayu Mirage --- */
+/* --- Ayu Mirage (offizielle Ayu-Farben) --- */
 html.ayu-mirage {
   --category-1: #73d0ff;  /* Blue - Wissen & Technologie */
-  --category-2: #ff6666;  /* Red - Politik & Gesellschaft */
+  --category-2: #f28779;  /* Red - Politik & Gesellschaft */
   --category-3: #ffcc66;  /* Yellow - Wirtschaft */
   --category-4: #87d96c;  /* Green - Umwelt & Gesundheit */
   --category-5: #ffad66;  /* Orange - Sicherheit */
-  --category-6: #f28779;  /* Coral - Kultur & Leben */
+  --category-6: #d4bfff;  /* Purple - Kultur & Leben */
 }
 
-/* --- Ayu Light --- */
+/* --- Ayu Light (offizielle Ayu-Farben) --- */
 html.ayu-light {
   --category-1: #399ee6;  /* Blue - Wissen & Technologie */
-  --category-2: #e65050;  /* Red - Politik & Gesellschaft */
-  --category-3: #f29718;  /* Orange/Yellow - Wirtschaft */
-  --category-4: #6cbf43;  /* Green - Umwelt & Gesundheit */
-  --category-5: #ff7e33;  /* Orange - Sicherheit */
-  --category-6: #f07171;  /* Coral - Kultur & Leben */
+  --category-2: #f07171;  /* Red - Politik & Gesellschaft */
+  --category-3: #f29718;  /* Orange - Wirtschaft */
+  --category-4: #86b300;  /* Green - Umwelt & Gesundheit */
+  --category-5: #fa8d3e;  /* Orange - Sicherheit */
+  --category-6: #a37acc;  /* Purple - Kultur & Leben */
 }
 
-/* --- Gruvbox Dark --- */
+/* --- Gruvbox Dark (offizielle bright Gruvbox-Farben) --- */
 html.gruvbox-dark {
   --category-1: #83a598;  /* Blue - Wissen & Technologie */
-  --category-2: #fb4934;  /* Red - Politik & Gesellschaft */
-  --category-3: #fabd2f;  /* Yellow - Wirtschaft */
-  --category-4: #b8bb26;  /* Green - Umwelt & Gesundheit */
-  --category-5: #fe8019;  /* Orange - Sicherheit */
-  --category-6: #d3869b;  /* Purple - Kultur & Leben */
+  --category-2: #fb4934;  /* Bright Red - Politik & Gesellschaft */
+  --category-3: #fabd2f;  /* Bright Yellow - Wirtschaft */
+  --category-4: #b8bb26;  /* Bright Green - Umwelt & Gesundheit */
+  --category-5: #fe8019;  /* Bright Orange - Sicherheit */
+  --category-6: #d3869b;  /* Bright Purple - Kultur & Leben */
 }
 
-/* --- Gruvbox Light --- */
+/* --- Gruvbox Light (offizielle neutral Gruvbox-Farben) --- */
 html.gruvbox-light {
   --category-1: #458588;  /* Blue - Wissen & Technologie */
   --category-2: #cc241d;  /* Red - Politik & Gesellschaft */
@@ -726,7 +760,7 @@ html.gruvbox-light {
   --category-6: #b16286;  /* Purple - Kultur & Leben */
 }
 
-/* --- Tokyo Night --- */
+/* --- Tokyo Night (offizielle Tokyo Night-Farben) --- */
 html.tokyo-night {
   --category-1: #7dcfff;  /* Cyan - Wissen & Technologie */
   --category-2: #f7768e;  /* Red - Politik & Gesellschaft */
@@ -736,7 +770,7 @@ html.tokyo-night {
   --category-6: #bb9af7;  /* Purple - Kultur & Leben */
 }
 
-/* --- Tokyo Night Storm --- */
+/* --- Tokyo Night Storm (offizielle Tokyo Night-Farben) --- */
 html.tokyo-storm {
   --category-1: #7dcfff;  /* Cyan - Wissen & Technologie */
   --category-2: #f7768e;  /* Red - Politik & Gesellschaft */
@@ -746,17 +780,17 @@ html.tokyo-storm {
   --category-6: #bb9af7;  /* Purple - Kultur & Leben */
 }
 
-/* --- Tokyo Night Day (Light) --- */
+/* --- Tokyo Night Day (offizielle Tokyo Day-Farben) --- */
 html.tokyo-day {
   --category-1: #007197;  /* Cyan - Wissen & Technologie */
   --category-2: #f52a65;  /* Red - Politik & Gesellschaft */
-  --category-3: #8c6c3e;  /* Brown/Yellow - Wirtschaft */
+  --category-3: #8c6c3e;  /* Yellow/Brown - Wirtschaft */
   --category-4: #587539;  /* Green - Umwelt & Gesundheit */
   --category-5: #b15c00;  /* Orange - Sicherheit */
   --category-6: #9854f1;  /* Purple - Kultur & Leben */
 }
 
-/* --- Solarized Dark --- */
+/* --- Solarized Dark (offizielle Solarized-Farben) --- */
 html.solarized-dark {
   --category-1: #2aa198;  /* Cyan - Wissen & Technologie */
   --category-2: #dc322f;  /* Red - Politik & Gesellschaft */
@@ -766,7 +800,7 @@ html.solarized-dark {
   --category-6: #d33682;  /* Magenta - Kultur & Leben */
 }
 
-/* --- Solarized Light --- */
+/* --- Solarized Light (offizielle Solarized-Farben) --- */
 html.solarized-light {
   --category-1: #2aa198;  /* Cyan - Wissen & Technologie */
   --category-2: #dc322f;  /* Red - Politik & Gesellschaft */
@@ -774,6 +808,177 @@ html.solarized-light {
   --category-4: #859900;  /* Green - Umwelt & Gesundheit */
   --category-5: #cb4b16;  /* Orange - Sicherheit */
   --category-6: #d33682;  /* Magenta - Kultur & Leben */
+}
+
+/* ===========================================
+   Bias Indicator Colors (Greyface Alert)
+   Farben für politische Bias-Anzeige:
+   - Strong Left → Lean Left: Blau-Spektrum
+   - Center: Grün/Neutral
+   - Lean Right → Strong Right: Orange/Rot-Spektrum
+
+   Sachlichkeit (Objectivity):
+   - Emotional: Orange/Rot
+   - Mixed: Gelb
+   - Objective: Grün
+   =========================================== */
+
+/* --- Catppuccin Themes --- */
+:root,
+html.mocha,
+html.macchiato,
+html.frappe {
+  --bias-strong-left: var(--ctp-blue);
+  --bias-lean-left: var(--ctp-sapphire);
+  --bias-center: var(--ctp-green);
+  --bias-lean-right: var(--ctp-peach);
+  --bias-strong-right: var(--ctp-red);
+
+  --sach-emotional: var(--ctp-peach);
+  --sach-mixed: var(--ctp-yellow);
+  --sach-objective: var(--ctp-green);
+}
+
+html.latte {
+  --bias-strong-left: var(--ctp-blue);
+  --bias-lean-left: var(--ctp-sapphire);
+  --bias-center: var(--ctp-green);
+  --bias-lean-right: var(--ctp-peach);
+  --bias-strong-right: var(--ctp-red);
+
+  --sach-emotional: var(--ctp-peach);
+  --sach-mixed: var(--ctp-yellow);
+  --sach-objective: var(--ctp-green);
+}
+
+/* --- Ayu Dark --- */
+html.ayu-dark {
+  --bias-strong-left: #59c2ff;  /* Blue */
+  --bias-lean-left: #95e6cb;    /* Cyan */
+  --bias-center: #aad94c;       /* Green */
+  --bias-lean-right: #ff8f40;   /* Orange */
+  --bias-strong-right: #f07178; /* Red */
+
+  --sach-emotional: #ff8f40;
+  --sach-mixed: #e6b450;
+  --sach-objective: #aad94c;
+}
+
+/* --- Ayu Mirage --- */
+html.ayu-mirage {
+  --bias-strong-left: #73d0ff;  /* Blue */
+  --bias-lean-left: #95e6cb;    /* Cyan */
+  --bias-center: #87d96c;       /* Green */
+  --bias-lean-right: #ffad66;   /* Orange */
+  --bias-strong-right: #f28779; /* Red */
+
+  --sach-emotional: #ffad66;
+  --sach-mixed: #ffcc66;
+  --sach-objective: #87d96c;
+}
+
+/* --- Ayu Light --- */
+html.ayu-light {
+  --bias-strong-left: #399ee6;  /* Blue */
+  --bias-lean-left: #4cbf99;    /* Cyan */
+  --bias-center: #86b300;       /* Green */
+  --bias-lean-right: #fa8d3e;   /* Orange */
+  --bias-strong-right: #f07171; /* Red */
+
+  --sach-emotional: #fa8d3e;
+  --sach-mixed: #f29718;
+  --sach-objective: #86b300;
+}
+
+/* --- Gruvbox Dark --- */
+html.gruvbox-dark {
+  --bias-strong-left: #83a598;  /* Blue */
+  --bias-lean-left: #8ec07c;    /* Aqua */
+  --bias-center: #b8bb26;       /* Green */
+  --bias-lean-right: #fe8019;   /* Orange */
+  --bias-strong-right: #fb4934; /* Red */
+
+  --sach-emotional: #fe8019;
+  --sach-mixed: #fabd2f;
+  --sach-objective: #b8bb26;
+}
+
+/* --- Gruvbox Light --- */
+html.gruvbox-light {
+  --bias-strong-left: #458588;  /* Blue */
+  --bias-lean-left: #689d6a;    /* Aqua */
+  --bias-center: #98971a;       /* Green */
+  --bias-lean-right: #d65d0e;   /* Orange */
+  --bias-strong-right: #cc241d; /* Red */
+
+  --sach-emotional: #d65d0e;
+  --sach-mixed: #d79921;
+  --sach-objective: #98971a;
+}
+
+/* --- Tokyo Night --- */
+html.tokyo-night {
+  --bias-strong-left: #7aa2f7;  /* Blue */
+  --bias-lean-left: #7dcfff;    /* Cyan */
+  --bias-center: #9ece6a;       /* Green */
+  --bias-lean-right: #ff9e64;   /* Orange */
+  --bias-strong-right: #f7768e; /* Red */
+
+  --sach-emotional: #ff9e64;
+  --sach-mixed: #e0af68;
+  --sach-objective: #9ece6a;
+}
+
+/* --- Tokyo Night Storm --- */
+html.tokyo-storm {
+  --bias-strong-left: #7aa2f7;  /* Blue */
+  --bias-lean-left: #7dcfff;    /* Cyan */
+  --bias-center: #9ece6a;       /* Green */
+  --bias-lean-right: #ff9e64;   /* Orange */
+  --bias-strong-right: #f7768e; /* Red */
+
+  --sach-emotional: #ff9e64;
+  --sach-mixed: #e0af68;
+  --sach-objective: #9ece6a;
+}
+
+/* --- Tokyo Night Day --- */
+html.tokyo-day {
+  --bias-strong-left: #2e7de9;  /* Blue */
+  --bias-lean-left: #007197;    /* Cyan */
+  --bias-center: #587539;       /* Green */
+  --bias-lean-right: #b15c00;   /* Orange */
+  --bias-strong-right: #f52a65; /* Red */
+
+  --sach-emotional: #b15c00;
+  --sach-mixed: #8c6c3e;
+  --sach-objective: #587539;
+}
+
+/* --- Solarized Dark --- */
+html.solarized-dark {
+  --bias-strong-left: #268bd2;  /* Blue */
+  --bias-lean-left: #2aa198;    /* Cyan */
+  --bias-center: #859900;       /* Green */
+  --bias-lean-right: #cb4b16;   /* Orange */
+  --bias-strong-right: #dc322f; /* Red */
+
+  --sach-emotional: #cb4b16;
+  --sach-mixed: #b58900;
+  --sach-objective: #859900;
+}
+
+/* --- Solarized Light --- */
+html.solarized-light {
+  --bias-strong-left: #268bd2;  /* Blue */
+  --bias-lean-left: #2aa198;    /* Cyan */
+  --bias-center: #859900;       /* Green */
+  --bias-lean-right: #cb4b16;   /* Orange */
+  --bias-strong-right: #dc322f; /* Red */
+
+  --sach-emotional: #cb4b16;
+  --sach-mixed: #b58900;
+  --sach-objective: #859900;
 }
 
 /* ===========================================

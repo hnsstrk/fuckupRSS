@@ -237,11 +237,11 @@
   }
 
   .bias-left {
-    color: #89b4fa;
+    color: var(--bias-lean-left);
   }
 
   .bias-right {
-    color: #f38ba8;
+    color: var(--bias-lean-right);
   }
 
   .category-dots {

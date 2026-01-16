@@ -257,7 +257,7 @@
           <div class="category-cards">
             {#each groupedCategories as group (group.id)}
               {@const barWidth = (group.weight / maxWeight) * 100}
-              <div class="category-card" style="--cat-color: {group.color || '#6366F1'}">
+              <div class="category-card" style="--cat-color: {group.color || 'var(--accent-primary)'}">
                 <div class="card-header">
                   <div class="card-icon-wrapper">
                     <i class="{group.icon || 'fa-solid fa-folder'}"></i>

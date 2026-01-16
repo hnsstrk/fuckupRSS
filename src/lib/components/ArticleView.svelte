@@ -804,18 +804,18 @@
     color: var(--text-secondary);
   }
 
-  /* Bias colors */
-  .indicator.bias-strong-left { color: #3b82f6; }
-  .indicator.bias-lean-left { color: #60a5fa; }
-  .indicator.bias-center { color: #10b981; }
-  .indicator.bias-lean-right { color: #f97316; }
-  .indicator.bias-strong-right { color: #ef4444; }
+  /* Bias colors (Theme-aware via CSS variables) */
+  .indicator.bias-strong-left { color: var(--bias-strong-left); }
+  .indicator.bias-lean-left { color: var(--bias-lean-left); }
+  .indicator.bias-center { color: var(--bias-center); }
+  .indicator.bias-lean-right { color: var(--bias-lean-right); }
+  .indicator.bias-strong-right { color: var(--bias-strong-right); }
   .indicator.bias-neutral { color: var(--text-muted); }
 
-  /* Sachlichkeit colors */
-  .indicator.sach-emotional { color: #f97316; }
-  .indicator.sach-mixed { color: #eab308; }
-  .indicator.sach-objective { color: #10b981; }
+  /* Sachlichkeit colors (Theme-aware via CSS variables) */
+  .indicator.sach-emotional { color: var(--sach-emotional); }
+  .indicator.sach-mixed { color: var(--sach-mixed); }
+  .indicator.sach-objective { color: var(--sach-objective); }
   .indicator.sach-neutral { color: var(--text-muted); }
 
   /* Quality stars */

@@ -860,27 +860,27 @@
   }
 
   .log-level-badge.error {
-    background-color: rgba(243, 139, 168, 0.2);
+    background-color: color-mix(in srgb, var(--status-error) 20%, transparent);
     color: var(--status-error);
   }
 
   .log-level-badge.warn {
-    background-color: rgba(249, 226, 175, 0.2);
+    background-color: color-mix(in srgb, var(--status-warning) 20%, transparent);
     color: var(--status-warning);
   }
 
   .log-level-badge.info {
-    background-color: rgba(137, 220, 235, 0.2);
-    color: #89dceb;
+    background-color: color-mix(in srgb, var(--accent-info) 20%, transparent);
+    color: var(--accent-info);
   }
 
   .log-level-badge.debug {
-    background-color: rgba(203, 166, 247, 0.2);
-    color: #cba6f7;
+    background-color: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+    color: var(--accent-primary);
   }
 
   .log-level-badge.trace {
-    background-color: rgba(108, 112, 134, 0.2);
+    background-color: color-mix(in srgb, var(--text-muted) 20%, transparent);
     color: var(--text-muted);
   }
 
