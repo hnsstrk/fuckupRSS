@@ -623,6 +623,95 @@ html.solarized-light {
 }
 
 /* ===========================================
+   Category Colors (6 Hauptkategorien / Sephiroth)
+   ID 1: Wissen & Technologie
+   ID 2: Politik & Gesellschaft
+   ID 3: Wirtschaft
+   ID 4: Umwelt & Gesundheit
+   ID 5: Sicherheit
+   ID 6: Kultur & Leben
+   =========================================== */
+
+/* Dark themes - vibrant, distinct colors */
+:root,
+html.mocha,
+html.macchiato,
+html.frappe,
+html.ayu-dark,
+html.ayu-mirage,
+html.gruvbox-dark,
+html.tokyo-night,
+html.tokyo-storm,
+html.solarized-dark {
+  /* Category 1: Wissen & Technologie - Cyan/Tech blue */
+  --category-1: #89dceb;
+  --category-1-bg: rgba(137, 220, 235, 0.15);
+  --category-1-border: rgba(137, 220, 235, 0.4);
+
+  /* Category 2: Politik & Gesellschaft - Purple/Mauve */
+  --category-2: #cba6f7;
+  --category-2-bg: rgba(203, 166, 247, 0.15);
+  --category-2-border: rgba(203, 166, 247, 0.4);
+
+  /* Category 3: Wirtschaft - Gold/Yellow */
+  --category-3: #f9e2af;
+  --category-3-bg: rgba(249, 226, 175, 0.15);
+  --category-3-border: rgba(249, 226, 175, 0.4);
+
+  /* Category 4: Umwelt & Gesundheit - Green */
+  --category-4: #a6e3a1;
+  --category-4-bg: rgba(166, 227, 161, 0.15);
+  --category-4-border: rgba(166, 227, 161, 0.4);
+
+  /* Category 5: Sicherheit - Orange/Warning */
+  --category-5: #fab387;
+  --category-5-bg: rgba(250, 179, 135, 0.15);
+  --category-5-border: rgba(250, 179, 135, 0.4);
+
+  /* Category 6: Kultur & Leben - Pink/Flamingo */
+  --category-6: #f5c2e7;
+  --category-6-bg: rgba(245, 194, 231, 0.15);
+  --category-6-border: rgba(245, 194, 231, 0.4);
+}
+
+/* Light themes - darker, more saturated for readability */
+html.latte,
+html.ayu-light,
+html.gruvbox-light,
+html.tokyo-day,
+html.solarized-light {
+  /* Category 1: Wissen & Technologie - Tech blue */
+  --category-1: #04a5e5;
+  --category-1-bg: rgba(4, 165, 229, 0.12);
+  --category-1-border: rgba(4, 165, 229, 0.35);
+
+  /* Category 2: Politik & Gesellschaft - Purple */
+  --category-2: #8839ef;
+  --category-2-bg: rgba(136, 57, 239, 0.12);
+  --category-2-border: rgba(136, 57, 239, 0.35);
+
+  /* Category 3: Wirtschaft - Gold/Amber */
+  --category-3: #df8e1d;
+  --category-3-bg: rgba(223, 142, 29, 0.12);
+  --category-3-border: rgba(223, 142, 29, 0.35);
+
+  /* Category 4: Umwelt & Gesundheit - Green */
+  --category-4: #40a02b;
+  --category-4-bg: rgba(64, 160, 43, 0.12);
+  --category-4-border: rgba(64, 160, 43, 0.35);
+
+  /* Category 5: Sicherheit - Orange */
+  --category-5: #fe640b;
+  --category-5-bg: rgba(254, 100, 11, 0.12);
+  --category-5-border: rgba(254, 100, 11, 0.35);
+
+  /* Category 6: Kultur & Leben - Pink */
+  --category-6: #ea76cb;
+  --category-6-bg: rgba(234, 118, 203, 0.12);
+  --category-6-border: rgba(234, 118, 203, 0.35);
+}
+
+/* ===========================================
    Whitespace Visualization
    =========================================== */
 .ws-char {
