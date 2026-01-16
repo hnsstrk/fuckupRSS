@@ -4,6 +4,28 @@
   import { invoke } from '@tauri-apps/api/core';
   import Tooltip from './Tooltip.svelte';
 
+  // Analysis Completeness types
+  interface UnprocessedCount {
+    total: number;
+    with_content: number;
+  }
+
+  interface ArticleEmbeddingCount {
+    total_articles: number;
+    with_embedding: number;
+    without_embedding: number;
+    processable: number;
+  }
+
+  interface AnalysisCompleteness {
+    total_articles: number;
+    with_full_text: number;
+    with_ai_analysis: number;
+    with_embeddings: number;
+    unprocessed: number;
+    failed: number;
+  }
+
   // Types from backend
   interface TopKeyword {
     id: number;
@@ -62,6 +84,7 @@
   }
 
   let stats = $state<LawOfFivesStats | null>(null);
+  let analysisCompleteness = $state<AnalysisCompleteness | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
 
@@ -73,13 +96,48 @@
     loading = true;
     error = null;
     try {
-      stats = await invoke<LawOfFivesStats>('get_law_of_fives_stats');
+      // Load main stats and analysis completeness in parallel
+      const [lawStats, unprocessed, embeddingStats, failedCount] = await Promise.all([
+        invoke<LawOfFivesStats>('get_law_of_fives_stats'),
+        invoke<UnprocessedCount>('get_unprocessed_count'),
+        invoke<ArticleEmbeddingCount>('get_article_embedding_stats'),
+        invoke<{ count: number }>('get_failed_count'),
+      ]);
+
+      stats = lawStats;
+
+      // Calculate analysis completeness
+      const totalArticles = embeddingStats.total_articles;
+      const withEmbeddings = embeddingStats.with_embedding;
+      const withAiAnalysis = totalArticles - unprocessed.total;
+      const withFullText = unprocessed.with_content + withAiAnalysis;
+
+      analysisCompleteness = {
+        total_articles: totalArticles,
+        with_full_text: withFullText,
+        with_ai_analysis: withAiAnalysis,
+        with_embeddings: withEmbeddings,
+        unprocessed: unprocessed.total,
+        failed: failedCount.count,
+      };
     } catch (e) {
       console.error('[LawOfFives] Error loading stats:', e);
       error = String(e);
     } finally {
       loading = false;
     }
+  }
+
+  function getCompletionPercent(value: number, total: number): number {
+    if (total === 0) return 0;
+    return Math.round((value / total) * 100);
+  }
+
+  function getCompletionClass(percent: number): string {
+    if (percent >= 90) return 'completion-excellent';
+    if (percent >= 70) return 'completion-good';
+    if (percent >= 50) return 'completion-fair';
+    return 'completion-low';
   }
 
   function getTrendIcon(direction: 'Rising' | 'Stable' | 'Falling'): string {
@@ -255,6 +313,92 @@
           {/each}
         </div>
       </div>
+
+      <!-- Analysis Completeness -->
+      {#if analysisCompleteness}
+        {@const total = analysisCompleteness.total_articles}
+        {@const fullTextPercent = getCompletionPercent(analysisCompleteness.with_full_text, total)}
+        {@const aiPercent = getCompletionPercent(analysisCompleteness.with_ai_analysis, total)}
+        {@const embeddingPercent = getCompletionPercent(analysisCompleteness.with_embeddings, total)}
+        <div class="completeness-section">
+          <div class="section-header">
+            <h2>
+              {$_('lawOfFives.analysisCompleteness') || 'Analyse-Vollständigkeit'}
+              <span class="section-help" title={$_('lawOfFives.completenessHelp') || 'Zeigt wie viele Artikel vollständig verarbeitet wurden'}>
+                <i class="fa-solid fa-circle-info"></i>
+              </span>
+            </h2>
+          </div>
+          <div class="completeness-grid">
+            <!-- Full Text -->
+            <div class="completeness-card">
+              <div class="completeness-icon">
+                <i class="fa-solid fa-file-lines"></i>
+              </div>
+              <div class="completeness-info">
+                <span class="completeness-label">{$_('lawOfFives.fullText') || 'Volltext'}</span>
+                <div class="completeness-bar-container">
+                  <div class="completeness-bar {getCompletionClass(fullTextPercent)}" style="width: {fullTextPercent}%"></div>
+                </div>
+                <span class="completeness-value">
+                  {analysisCompleteness.with_full_text} / {total}
+                  <span class="completeness-percent {getCompletionClass(fullTextPercent)}">{fullTextPercent}%</span>
+                </span>
+              </div>
+            </div>
+
+            <!-- AI Analysis -->
+            <div class="completeness-card">
+              <div class="completeness-icon">
+                <i class="fa-solid fa-brain"></i>
+              </div>
+              <div class="completeness-info">
+                <span class="completeness-label">{$_('lawOfFives.aiAnalysis') || 'KI-Analyse'}</span>
+                <div class="completeness-bar-container">
+                  <div class="completeness-bar {getCompletionClass(aiPercent)}" style="width: {aiPercent}%"></div>
+                </div>
+                <span class="completeness-value">
+                  {analysisCompleteness.with_ai_analysis} / {total}
+                  <span class="completeness-percent {getCompletionClass(aiPercent)}">{aiPercent}%</span>
+                </span>
+              </div>
+            </div>
+
+            <!-- Embeddings -->
+            <div class="completeness-card">
+              <div class="completeness-icon">
+                <i class="fa-solid fa-vector-square"></i>
+              </div>
+              <div class="completeness-info">
+                <span class="completeness-label">{$_('lawOfFives.embeddings') || 'Embeddings'}</span>
+                <div class="completeness-bar-container">
+                  <div class="completeness-bar {getCompletionClass(embeddingPercent)}" style="width: {embeddingPercent}%"></div>
+                </div>
+                <span class="completeness-value">
+                  {analysisCompleteness.with_embeddings} / {total}
+                  <span class="completeness-percent {getCompletionClass(embeddingPercent)}">{embeddingPercent}%</span>
+                </span>
+              </div>
+            </div>
+
+            <!-- Unprocessed/Failed -->
+            <div class="completeness-card status-card">
+              <div class="status-item" title={$_('lawOfFives.unprocessedHelp') || 'Artikel die noch verarbeitet werden müssen'}>
+                <i class="fa-solid fa-hourglass-half status-icon pending"></i>
+                <span class="status-label">{$_('lawOfFives.pending') || 'Ausstehend'}</span>
+                <span class="status-value">{analysisCompleteness.unprocessed}</span>
+              </div>
+              {#if analysisCompleteness.failed > 0}
+                <div class="status-item" title={$_('lawOfFives.failedHelp') || 'Artikel bei denen die Verarbeitung fehlgeschlagen ist'}>
+                  <i class="fa-solid fa-exclamation-triangle status-icon failed"></i>
+                  <span class="status-label">{$_('lawOfFives.failed') || 'Fehlgeschlagen'}</span>
+                  <span class="status-value">{analysisCompleteness.failed}</span>
+                </div>
+              {/if}
+            </div>
+          </div>
+        </div>
+      {/if}
 
       <!-- Three columns grid -->
       <div class="three-columns">
@@ -556,6 +700,192 @@
     border-radius: 0.75rem;
     padding: 1.5rem;
     border: 1px solid var(--border-default);
+  }
+
+  /* Analysis Completeness */
+  .completeness-section {
+    background-color: var(--bg-surface);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    border: 1px solid var(--border-default);
+  }
+
+  .section-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .section-help {
+    font-size: 0.75rem;
+    color: var(--text-faint);
+    cursor: help;
+    font-weight: normal;
+    text-transform: none;
+  }
+
+  .section-help:hover {
+    color: var(--text-muted);
+  }
+
+  .completeness-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+
+  @media (max-width: 1200px) {
+    .completeness-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 600px) {
+    .completeness-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .completeness-card {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-muted);
+  }
+
+  .completeness-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-muted);
+    border-radius: 0.5rem;
+    color: var(--accent-primary);
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  .completeness-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    min-width: 0;
+  }
+
+  .completeness-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .completeness-bar-container {
+    height: 6px;
+    background-color: var(--bg-muted);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .completeness-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+
+  .completeness-bar.completion-excellent {
+    background: linear-gradient(90deg, var(--accent-success), color-mix(in srgb, var(--accent-success) 70%, white));
+  }
+
+  .completeness-bar.completion-good {
+    background: linear-gradient(90deg, #22d3ee, #67e8f9);
+  }
+
+  .completeness-bar.completion-fair {
+    background: linear-gradient(90deg, var(--accent-warning), color-mix(in srgb, var(--accent-warning) 70%, white));
+  }
+
+  .completeness-bar.completion-low {
+    background: linear-gradient(90deg, var(--accent-error), color-mix(in srgb, var(--accent-error) 70%, white));
+  }
+
+  .completeness-value {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .completeness-percent {
+    font-weight: 600;
+    font-size: 0.75rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+  }
+
+  .completeness-percent.completion-excellent {
+    background-color: rgba(34, 197, 94, 0.15);
+    color: var(--accent-success);
+  }
+
+  .completeness-percent.completion-good {
+    background-color: rgba(34, 211, 238, 0.15);
+    color: #22d3ee;
+  }
+
+  .completeness-percent.completion-fair {
+    background-color: rgba(251, 191, 36, 0.15);
+    color: var(--accent-warning);
+  }
+
+  .completeness-percent.completion-low {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: var(--accent-error);
+  }
+
+  /* Status Card */
+  .status-card {
+    flex-direction: column;
+    gap: 0.75rem;
+    justify-content: center;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: help;
+  }
+
+  .status-icon {
+    font-size: 0.875rem;
+    width: 1.25rem;
+    text-align: center;
+  }
+
+  .status-icon.pending {
+    color: var(--accent-warning);
+  }
+
+  .status-icon.failed {
+    color: var(--accent-error);
+  }
+
+  .status-label {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    flex: 1;
+  }
+
+  .status-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
   }
 
   .trend-chart {

@@ -659,7 +659,16 @@
       "activityRate": "Aktivitaetsrate",
       "keywordDiversity": "Keyword-Diversitaet",
       "readingCoverage": "Leseabdeckung"
-    }
+    },
+    "analysisCompleteness": "Analyse-Vollstaendigkeit",
+    "completenessHelp": "Zeigt wie viele Artikel vollstaendig verarbeitet wurden",
+    "fullText": "Volltext",
+    "aiAnalysis": "KI-Analyse",
+    "embeddings": "Embeddings",
+    "pending": "Ausstehend",
+    "failed": "Fehlgeschlagen",
+    "unprocessedHelp": "Artikel die noch verarbeitet werden muessen",
+    "failedHelp": "Artikel bei denen die Verarbeitung fehlgeschlagen ist"
   },
   "mindfuck": {
     "title": "Operation Mindfuck",

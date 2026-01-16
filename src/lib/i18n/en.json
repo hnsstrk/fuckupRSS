@@ -659,7 +659,16 @@
       "activityRate": "Activity Rate",
       "keywordDiversity": "Keyword Diversity",
       "readingCoverage": "Reading Coverage"
-    }
+    },
+    "analysisCompleteness": "Analysis Completeness",
+    "completenessHelp": "Shows how many articles have been fully processed",
+    "fullText": "Full Text",
+    "aiAnalysis": "AI Analysis",
+    "embeddings": "Embeddings",
+    "pending": "Pending",
+    "failed": "Failed",
+    "unprocessedHelp": "Articles that still need to be processed",
+    "failedHelp": "Articles where processing failed"
   },
   "mindfuck": {
     "title": "Operation Mindfuck",
