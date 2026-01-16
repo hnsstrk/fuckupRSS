@@ -632,14 +632,13 @@ html.solarized-light {
    ID 6: Kultur & Leben
    =========================================== */
 
-/* Dark themes - vibrant, distinct colors */
+/* Dark themes - vibrant, distinct colors (Catppuccin-based default) */
 :root,
 html.mocha,
 html.macchiato,
 html.frappe,
 html.ayu-dark,
 html.ayu-mirage,
-html.gruvbox-dark,
 html.tokyo-night,
 html.tokyo-storm,
 html.solarized-dark {
@@ -674,10 +673,42 @@ html.solarized-dark {
   --category-6-border: rgba(245, 194, 231, 0.4);
 }
 
+/* Gruvbox Dark - authentic Gruvbox palette colors */
+html.gruvbox-dark {
+  /* Category 1: Wissen & Technologie - Aqua */
+  --category-1: #8ec07c;
+  --category-1-bg: rgba(142, 192, 124, 0.18);
+  --category-1-border: rgba(142, 192, 124, 0.5);
+
+  /* Category 2: Politik & Gesellschaft - Red */
+  --category-2: #fb4934;
+  --category-2-bg: rgba(251, 73, 52, 0.18);
+  --category-2-border: rgba(251, 73, 52, 0.5);
+
+  /* Category 3: Wirtschaft - Yellow */
+  --category-3: #fabd2f;
+  --category-3-bg: rgba(250, 189, 47, 0.18);
+  --category-3-border: rgba(250, 189, 47, 0.5);
+
+  /* Category 4: Umwelt & Gesundheit - Green */
+  --category-4: #b8bb26;
+  --category-4-bg: rgba(184, 187, 38, 0.18);
+  --category-4-border: rgba(184, 187, 38, 0.5);
+
+  /* Category 5: Sicherheit - Orange */
+  --category-5: #fe8019;
+  --category-5-bg: rgba(254, 128, 25, 0.18);
+  --category-5-border: rgba(254, 128, 25, 0.5);
+
+  /* Category 6: Kultur & Leben - Purple */
+  --category-6: #d3869b;
+  --category-6-bg: rgba(211, 134, 155, 0.18);
+  --category-6-border: rgba(211, 134, 155, 0.5);
+}
+
 /* Light themes - darker, more saturated for readability */
 html.latte,
 html.ayu-light,
-html.gruvbox-light,
 html.tokyo-day,
 html.solarized-light {
   /* Category 1: Wissen & Technologie - Tech blue */
@@ -709,6 +740,39 @@ html.solarized-light {
   --category-6: #ea76cb;
   --category-6-bg: rgba(234, 118, 203, 0.12);
   --category-6-border: rgba(234, 118, 203, 0.35);
+}
+
+/* Gruvbox Light - authentic Gruvbox palette colors (darker variants) */
+html.gruvbox-light {
+  /* Category 1: Wissen & Technologie - Aqua */
+  --category-1: #427b58;
+  --category-1-bg: rgba(66, 123, 88, 0.15);
+  --category-1-border: rgba(66, 123, 88, 0.4);
+
+  /* Category 2: Politik & Gesellschaft - Red */
+  --category-2: #9d0006;
+  --category-2-bg: rgba(157, 0, 6, 0.15);
+  --category-2-border: rgba(157, 0, 6, 0.4);
+
+  /* Category 3: Wirtschaft - Yellow */
+  --category-3: #b57614;
+  --category-3-bg: rgba(181, 118, 20, 0.15);
+  --category-3-border: rgba(181, 118, 20, 0.4);
+
+  /* Category 4: Umwelt & Gesundheit - Green */
+  --category-4: #79740e;
+  --category-4-bg: rgba(121, 116, 14, 0.15);
+  --category-4-border: rgba(121, 116, 14, 0.4);
+
+  /* Category 5: Sicherheit - Orange */
+  --category-5: #af3a03;
+  --category-5-bg: rgba(175, 58, 3, 0.15);
+  --category-5-border: rgba(175, 58, 3, 0.4);
+
+  /* Category 6: Kultur & Leben - Purple */
+  --category-6: #8f3f71;
+  --category-6-bg: rgba(143, 63, 113, 0.15);
+  --category-6-border: rgba(143, 63, 113, 0.4);
 }
 
 /* ===========================================

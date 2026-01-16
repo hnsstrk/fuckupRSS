@@ -232,8 +232,8 @@
               {@const barWidth = (cat.read_count / maxRead) * 100}
               {@const isExpanded = expandedCategoryId === cat.sephiroth_id}
               <button
-                class="category-card {isExpanded ? 'expanded' : ''}"
-                style="--cat-color: {cat.color || '#6366F1'}"
+                class="category-card category-{cat.sephiroth_id} {isExpanded ? 'expanded' : ''}"
+                data-category-id={cat.sephiroth_id}
                 onclick={() => toggleCategoryExpand(cat.sephiroth_id)}
               >
                 <div class="card-header">
@@ -580,6 +580,18 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 1rem;
+  }
+
+  /* Category-specific colors from theme CSS variables */
+  .category-card.category-1 { --cat-color: var(--category-1, #89dceb); }
+  .category-card.category-2 { --cat-color: var(--category-2, #cba6f7); }
+  .category-card.category-3 { --cat-color: var(--category-3, #f9e2af); }
+  .category-card.category-4 { --cat-color: var(--category-4, #a6e3a1); }
+  .category-card.category-5 { --cat-color: var(--category-5, #fab387); }
+  .category-card.category-6 { --cat-color: var(--category-6, #f5c2e7); }
+  /* Fallback for unknown categories */
+  .category-card:not(.category-1):not(.category-2):not(.category-3):not(.category-4):not(.category-5):not(.category-6) {
+    --cat-color: var(--accent-primary, #6366F1);
   }
 
   .category-card {
