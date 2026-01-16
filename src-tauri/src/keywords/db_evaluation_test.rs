@@ -209,9 +209,10 @@ mod tests {
             let old_diversity = calculate_diversity_score(&old_keywords);
             let new_diversity = calculate_diversity_score(&new_keywords);
 
-            // Truncate title for display
-            let display_title = if title.len() > 60 {
-                format!("{}...", &title[..57])
+            // Truncate title for display (UTF-8 safe)
+            let display_title = if title.chars().count() > 60 {
+                let truncated: String = title.chars().take(57).collect();
+                format!("{}...", truncated)
             } else {
                 title.clone()
             };

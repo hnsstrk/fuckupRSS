@@ -483,6 +483,12 @@
     newKeywordInput = value;
   }
 
+  async function handleShowKeywordArticles(keywordId: number, keywordName: string) {
+    // Select the keyword and switch to list view to show its articles
+    await selectKeywordById(keywordId);
+    activeTab = 'list';
+  }
+
   async function createNewKeyword() {
     if (!newKeywordInput.trim()) return;
 
@@ -707,7 +713,7 @@
   {:else if activeTab === 'table'}
   <!-- Table View -->
   <div class="table-view">
-    <KeywordTable onKeywordSelect={selectKeywordById} />
+    <KeywordTable onKeywordSelect={selectKeywordById} onShowKeywordArticles={handleShowKeywordArticles} />
   </div>
   {:else if activeTab === 'graph'}
   <!-- Graph View -->

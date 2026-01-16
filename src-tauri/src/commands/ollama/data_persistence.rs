@@ -87,12 +87,14 @@ pub fn save_article_keywords_and_network(
     article_date: Option<&str>,
 ) -> (Vec<String>, Vec<i64>) {
     use crate::keywords::types::KeywordSource;
+    use crate::commands::ollama::helpers::detect_keyword_type;
     let kws_with_source: Vec<KeywordWithSource> = keywords
         .iter()
         .map(|k| KeywordWithSource {
             name: k.clone(),
             source: KeywordSource::Ai,
             confidence: 1.0,
+            keyword_type: detect_keyword_type(k),
         })
         .collect();
     save_article_keywords_with_source(conn, fnord_id, &kws_with_source, categories_saved, article_date)
@@ -134,6 +136,7 @@ pub fn save_article_keywords_with_source(
         .flat_map(|kw| {
             let split_parts = split_compound_keyword(&kw.name);
             let original_name = kw.name.clone();
+            let keyword_type = kw.keyword_type.clone();
             split_parts.into_iter().map(move |part| KeywordWithSource {
                 confidence: if part != original_name {
                     kw.confidence * 0.8
@@ -142,6 +145,7 @@ pub fn save_article_keywords_with_source(
                 },
                 name: part,
                 source: kw.source.clone(),
+                keyword_type: keyword_type.clone(),
             })
         })
         .collect();
@@ -181,9 +185,9 @@ pub fn save_article_keywords_with_source(
                     warn!("Failed to update keyword '{}': {}", store_keyword, e);
                 }
             } else if let Err(e) = conn.execute(
-                r#"INSERT INTO immanentize (name, count, article_count, first_seen, last_used, is_canonical)
-                   VALUES (?1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, TRUE)"#,
-                [store_keyword],
+                r#"INSERT INTO immanentize (name, count, article_count, first_seen, last_used, is_canonical, keyword_type)
+                   VALUES (?1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, TRUE, ?2)"#,
+                rusqlite::params![store_keyword, &kw.keyword_type],
             ) {
                 warn!("Failed to insert keyword '{}': {}", store_keyword, e);
             }

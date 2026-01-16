@@ -194,6 +194,12 @@ pub fn validate_and_merge_categories(
     }
 }
 
+/// Statistical keyword info with type
+pub struct StatKeywordInfo {
+    pub name: String,
+    pub keyword_type: String,
+}
+
 /// Determine source for each keyword by comparing with statistical suggestions
 pub fn determine_keyword_sources(
     final_keywords: &[String],
@@ -211,9 +217,82 @@ pub fn determine_keyword_sources(
                 name: k.clone(),
                 source: if is_statistical { KeywordSource::Statistical } else { KeywordSource::Ai },
                 confidence: if is_statistical { 0.8 } else { 1.0 },
+                keyword_type: "concept".to_string(),
             }
         })
         .collect()
+}
+
+/// Determine source for each keyword by comparing with statistical suggestions (with type info)
+pub fn determine_keyword_sources_with_types(
+    final_keywords: &[String],
+    stat_keywords_with_types: &[StatKeywordInfo],
+) -> Vec<KeywordWithSource> {
+    use crate::keywords::types::KeywordSource;
+
+    let stat_map: HashMap<String, &StatKeywordInfo> = stat_keywords_with_types
+        .iter()
+        .map(|k| (k.name.to_lowercase(), k))
+        .collect();
+
+    final_keywords
+        .iter()
+        .map(|k| {
+            let lower = k.to_lowercase();
+            if let Some(stat_info) = stat_map.get(&lower) {
+                KeywordWithSource {
+                    name: k.clone(),
+                    source: KeywordSource::Statistical,
+                    confidence: 0.8,
+                    keyword_type: stat_info.keyword_type.clone(),
+                }
+            } else {
+                // For AI-only keywords, try to detect type from patterns
+                let keyword_type = detect_keyword_type(k);
+                KeywordWithSource {
+                    name: k.clone(),
+                    source: KeywordSource::Ai,
+                    confidence: 1.0,
+                    keyword_type,
+                }
+            }
+        })
+        .collect()
+}
+
+/// Detect keyword type from heuristics
+pub fn detect_keyword_type(keyword: &str) -> String {
+    // Check for acronyms (all caps, 2-6 chars)
+    if keyword.len() >= 2 && keyword.len() <= 6 && keyword.chars().all(|c| c.is_uppercase() || c.is_numeric()) {
+        return "acronym".to_string();
+    }
+
+    // Check for organization indicators
+    let org_indicators = ["GmbH", "AG", "Inc", "Corp", "Ltd", "e.V.", "Verband", "Institut", "Ministerium", "Bundesamt", "Behörde"];
+    if org_indicators.iter().any(|ind| keyword.contains(ind)) {
+        return "organization".to_string();
+    }
+
+    // Check for location indicators
+    let loc_indicators = ["Stadt", "Land", "Region", "Bezirk", "Kreis"];
+    if loc_indicators.iter().any(|ind| keyword.contains(ind)) {
+        return "location".to_string();
+    }
+
+    // Check if it looks like a person name (title case, no technical terms)
+    let words: Vec<&str> = keyword.split_whitespace().collect();
+    if words.len() >= 2 && words.len() <= 4 {
+        let all_title_case = words.iter().all(|w| {
+            w.chars().next().map_or(false, |c| c.is_uppercase()) &&
+            w.chars().skip(1).all(|c| c.is_lowercase())
+        });
+        if all_title_case {
+            // Likely a person name
+            return "person".to_string();
+        }
+    }
+
+    "concept".to_string()
 }
 
 /// Determine source for each category by comparing with statistical suggestions

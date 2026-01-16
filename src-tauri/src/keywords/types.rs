@@ -147,6 +147,13 @@ pub struct KeywordWithMetadata {
     pub source: KeywordSource,
     /// Confidence score (0.0 - 1.0)
     pub confidence: f64,
+    /// Type of keyword (concept, person, organization, location, acronym)
+    #[serde(default = "default_keyword_type")]
+    pub keyword_type: String,
+}
+
+fn default_keyword_type() -> String {
+    "concept".to_string()
 }
 
 impl KeywordWithMetadata {
@@ -156,6 +163,17 @@ impl KeywordWithMetadata {
             name,
             source,
             confidence,
+            keyword_type: "concept".to_string(),
+        }
+    }
+
+    /// Create a new keyword with metadata and type
+    pub fn new_with_type(name: String, source: KeywordSource, confidence: f64, keyword_type: String) -> Self {
+        Self {
+            name,
+            source,
+            confidence,
+            keyword_type,
         }
     }
 
@@ -165,6 +183,17 @@ impl KeywordWithMetadata {
             name,
             source: KeywordSource::Ai,
             confidence: 1.0,
+            keyword_type: "concept".to_string(),
+        }
+    }
+
+    /// Create from AI source with type
+    pub fn from_ai_with_type(name: String, keyword_type: String) -> Self {
+        Self {
+            name,
+            source: KeywordSource::Ai,
+            confidence: 1.0,
+            keyword_type,
         }
     }
 
@@ -174,6 +203,7 @@ impl KeywordWithMetadata {
             name,
             source: KeywordSource::Statistical,
             confidence,
+            keyword_type: "concept".to_string(),
         }
     }
 
@@ -183,6 +213,7 @@ impl KeywordWithMetadata {
             name,
             source: KeywordSource::Manual,
             confidence: 1.0,
+            keyword_type: "concept".to_string(),
         }
     }
 
@@ -203,6 +234,7 @@ impl From<(String, String, f64)> for KeywordWithMetadata {
             name,
             source: KeywordSource::from(source),
             confidence,
+            keyword_type: "concept".to_string(),
         }
     }
 }

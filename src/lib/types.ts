@@ -255,6 +255,7 @@ export interface Keyword {
   canonical_id: number | null;
   first_seen: string | null;
   last_used: string | null;
+  keyword_type: KeywordType;
 }
 
 export interface KeywordNeighbor {

@@ -2,14 +2,24 @@
   import { _ } from 'svelte-i18n';
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import type { Keyword } from '../types';
+  import type { Keyword, KeywordType } from '../types';
 
   // Props
   interface Props {
     onKeywordSelect: (id: number) => void;
+    onShowKeywordArticles?: (id: number, name: string) => void;
   }
 
-  let { onKeywordSelect }: Props = $props();
+  let { onKeywordSelect, onShowKeywordArticles }: Props = $props();
+
+  // Type icons and colors
+  const typeConfig: Record<KeywordType, { icon: string; color: string }> = {
+    concept: { icon: 'fa-solid fa-lightbulb', color: 'var(--text-muted)' },
+    person: { icon: 'fa-solid fa-user', color: '#3b82f6' },
+    organization: { icon: 'fa-solid fa-building', color: '#8b5cf6' },
+    location: { icon: 'fa-solid fa-location-dot', color: '#22c55e' },
+    acronym: { icon: 'fa-solid fa-a', color: '#f97316' },
+  };
 
   // State
   let keywords = $state<Keyword[]>([]);
@@ -17,7 +27,7 @@
   let error = $state<string | null>(null);
 
   // Sorting
-  type SortColumn = 'name' | 'article_count' | 'first_seen' | 'last_used';
+  type SortColumn = 'name' | 'keyword_type' | 'article_count' | 'first_seen' | 'last_used';
   type SortDirection = 'asc' | 'desc';
   let sortColumn = $state<SortColumn>('article_count');
   let sortDirection = $state<SortDirection>('desc');
@@ -47,6 +57,9 @@
       switch (sortColumn) {
         case 'name':
           comparison = a.name.localeCompare(b.name);
+          break;
+        case 'keyword_type':
+          comparison = (a.keyword_type || 'concept').localeCompare(b.keyword_type || 'concept');
           break;
         case 'article_count':
           comparison = a.article_count - b.article_count;
@@ -158,6 +171,22 @@
     }
   }
 
+  function handleShowArticles(event: MouseEvent, keyword: Keyword) {
+    event.stopPropagation();
+    if (onShowKeywordArticles) {
+      onShowKeywordArticles(keyword.id, keyword.name);
+    }
+  }
+
+  function getTypeLabel(type: KeywordType): string {
+    const key = `network.keywordType.${type}`;
+    return $_?.(key) || type;
+  }
+
+  function getTypeConfig(type: KeywordType | undefined) {
+    return typeConfig[type || 'concept'] || typeConfig.concept;
+  }
+
   function handleMinArticleChange(e: Event) {
     const target = e.target as HTMLInputElement;
     minArticleCount = parseInt(target.value) || 0;
@@ -224,6 +253,10 @@
               <span>{$_('network.name') || 'Name'}</span>
               <i class={getSortIcon('name')}></i>
             </th>
+            <th class="sortable type-col" onclick={() => handleSort('keyword_type')}>
+              <span>{$_('network.type') || 'Typ'}</span>
+              <i class={getSortIcon('keyword_type')}></i>
+            </th>
             <th class="sortable numeric" onclick={() => handleSort('article_count')}>
               <span>{$_('network.articles') || 'Artikel'}</span>
               <i class={getSortIcon('article_count')}></i>
@@ -236,12 +269,15 @@
               <span>{$_('network.lastUsed') || 'Zuletzt'}</span>
               <i class={getSortIcon('last_used')}></i>
             </th>
+            <th class="actions-col">
+              <span>{$_('network.actions') || 'Aktionen'}</span>
+            </th>
           </tr>
         </thead>
         <tbody>
           {#if loading && keywords.length === 0}
             <tr class="loading-row">
-              <td colspan="4">
+              <td colspan="6">
                 <div class="loading-indicator">
                   <i class="fa-solid fa-spinner fa-spin"></i>
                   <span>{$_('network.loading') || 'Lade...'}</span>
@@ -250,7 +286,7 @@
             </tr>
           {:else if displayedKeywords.length === 0}
             <tr class="empty-row">
-              <td colspan="4">
+              <td colspan="6">
                 <div class="empty-message">
                   <i class="fa-solid fa-inbox"></i>
                   <span>{$_('network.noResults') || 'Keine Ergebnisse gefunden'}</span>
@@ -275,11 +311,27 @@
                     </span>
                   {/if}
                 </td>
+                <td class="type-cell">
+                  <span class="type-badge" style="color: {getTypeConfig(keyword.keyword_type).color}" title={getTypeLabel(keyword.keyword_type || 'concept')}>
+                    <i class={getTypeConfig(keyword.keyword_type).icon}></i>
+                  </span>
+                </td>
                 <td class="numeric">
                   <span class="article-count">{keyword.article_count}</span>
                 </td>
                 <td class="date-cell">{formatDate(keyword.first_seen)}</td>
                 <td class="date-cell">{formatDate(keyword.last_used)}</td>
+                <td class="actions-cell">
+                  {#if onShowKeywordArticles}
+                    <button
+                      class="action-btn"
+                      onclick={(e) => handleShowArticles(e, keyword)}
+                      title={$_('network.showArticles') || 'Artikel anzeigen'}
+                    >
+                      <i class="fa-solid fa-newspaper"></i>
+                    </button>
+                  {/if}
+                </td>
               </tr>
             {/each}
           {/if}
@@ -494,10 +546,20 @@
   }
 
   /* Column widths */
-  .keyword-table th:nth-child(1) { width: 40%; }
-  .keyword-table th:nth-child(2) { width: 15%; }
-  .keyword-table th:nth-child(3) { width: 22%; }
-  .keyword-table th:nth-child(4) { width: 23%; }
+  .keyword-table th:nth-child(1) { width: 30%; }  /* Name */
+  .keyword-table th:nth-child(2) { width: 8%; }   /* Type */
+  .keyword-table th:nth-child(3) { width: 12%; }  /* Articles */
+  .keyword-table th:nth-child(4) { width: 18%; }  /* First seen */
+  .keyword-table th:nth-child(5) { width: 18%; }  /* Last used */
+  .keyword-table th:nth-child(6) { width: 14%; }  /* Actions */
+
+  .type-col {
+    text-align: center;
+  }
+
+  .actions-col {
+    text-align: center;
+  }
 
   .keyword-table td {
     padding: 0.625rem 1rem;
@@ -658,5 +720,56 @@
   .summary-text {
     font-size: 0.75rem;
     color: var(--text-muted);
+  }
+
+  /* Type Cell */
+  .type-cell {
+    text-align: center;
+  }
+
+  .type-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.375rem;
+    background-color: var(--bg-overlay);
+    font-size: 0.875rem;
+    transition: transform 0.15s;
+  }
+
+  .type-badge:hover {
+    transform: scale(1.1);
+  }
+
+  /* Actions Cell */
+  .actions-cell {
+    text-align: center;
+  }
+
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    background: none;
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .action-btn:hover {
+    background-color: var(--bg-overlay);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+  }
+
+  .action-btn i {
+    font-size: 0.75rem;
   }
 </style>

@@ -782,11 +782,17 @@ ollama serve
 ## Data Paths
 
 Datenbank wird im src-tauri Ordner gespeichert:
-- **Pfad:** `src-tauri/data/fuckup.db`
+- **Relativer Pfad:** `src-tauri/data/fuckup.db`
+- **Absoluter Pfad:** `/Users/hnsstrk/Repositories/fuckupRSS/src-tauri/data/fuckup.db`
 - **Format:** SQLite mit WAL-Modus
 - **Hinweis:** `data/` ist in `.gitignore` eingetragen
 
 **Technischer Hintergrund:** Die Datenbank wird relativ zum Arbeitsverzeichnis erstellt (`./data/fuckup.db`). Da Tauri den Rust-Binary aus dem `src-tauri/` Verzeichnis startet, ist der effektive Pfad `src-tauri/data/fuckup.db`.
+
+**Schneller DB-Zugriff (Claude Code):**
+```bash
+sqlite3 /Users/hnsstrk/Repositories/fuckupRSS/src-tauri/data/fuckup.db
+```
 
 ## MCP-Server (Claude Code Integration)
 

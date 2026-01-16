@@ -729,6 +729,28 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 16: Add keyword_type to immanentize table
+    let has_keyword_type: bool = conn
+        .prepare(
+            "SELECT COUNT(*) FROM pragma_table_info('immanentize') WHERE name = 'keyword_type'",
+        )?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_keyword_type {
+        conn.execute_batch(
+            r#"
+            ALTER TABLE immanentize ADD COLUMN keyword_type TEXT DEFAULT 'concept' CHECK(keyword_type IN ('concept', 'person', 'organization', 'location', 'acronym'));
+            "#,
+        )?;
+    }
+
+    // Create index for keyword_type
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_immanentize_keyword_type ON immanentize(keyword_type);
+        "#,
+    )?;
+
     Ok(())
 }
 
@@ -902,6 +924,9 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             -- Synonym-Handling
             is_canonical BOOLEAN DEFAULT TRUE,
             canonical_id INTEGER,
+
+            -- Keyword Type (concept, person, organization, location, acronym)
+            keyword_type TEXT DEFAULT 'concept' CHECK(keyword_type IN ('concept', 'person', 'organization', 'location', 'acronym')),
 
             -- Zeitstempel
             first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
