@@ -953,6 +953,7 @@ pub fn get_similar_keywords(
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let limit_val = limit.unwrap_or(5);
 
+    // Optimized query: First find neighbors via index, then lookup keyword info
     let mut stmt = db
         .conn()
         .prepare(
@@ -963,21 +964,19 @@ pub fn get_similar_keywords(
                 COALESCE(n.embedding_similarity, 0.0) as similarity,
                 COALESCE(n.cooccurrence, 0) as cooccurrence
             FROM immanentize_neighbors n
-            JOIN immanentize i ON (
-                CASE
-                    WHEN n.immanentize_id_a = ? THEN n.immanentize_id_b = i.id
-                    ELSE n.immanentize_id_a = i.id
-                END
-            )
-            WHERE n.immanentize_id_a = ? OR n.immanentize_id_b = ?
+            JOIN immanentize i ON i.id = CASE
+                WHEN n.immanentize_id_a = ?1 THEN n.immanentize_id_b
+                ELSE n.immanentize_id_a
+            END
+            WHERE n.immanentize_id_a = ?1 OR n.immanentize_id_b = ?1
             ORDER BY n.combined_weight DESC, n.cooccurrence DESC
-            LIMIT ?
+            LIMIT ?2
             "#,
         )
         .map_err(|e| e.to_string())?;
 
     let similar = stmt
-        .query_map(params![keyword_id, keyword_id, keyword_id, limit_val], |row| {
+        .query_map(params![keyword_id, limit_val], |row| {
             Ok(SimilarKeywordInfo {
                 id: row.get(0)?,
                 name: row.get(1)?,
