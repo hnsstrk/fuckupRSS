@@ -261,34 +261,581 @@ pub fn determine_keyword_sources_with_types(
 }
 
 /// Detect keyword type from heuristics
+///
+/// Priority order: acronym -> organization -> location -> person -> concept
+///
+/// Person detection is strict to avoid false positives. We require:
+/// 1. 2-4 words, all title case
+/// 2. NOT matching any exclusion patterns (common nouns, organizations, etc.)
+/// 3. OR matching person title patterns (Dr., Prof., etc.)
 pub fn detect_keyword_type(keyword: &str) -> String {
     // Check for acronyms (all caps, 2-6 chars)
     if keyword.len() >= 2 && keyword.len() <= 6 && keyword.chars().all(|c| c.is_uppercase() || c.is_numeric()) {
         return "acronym".to_string();
     }
 
-    // Check for organization indicators
-    let org_indicators = ["GmbH", "AG", "Inc", "Corp", "Ltd", "e.V.", "Verband", "Institut", "Ministerium", "Bundesamt", "Behörde"];
-    if org_indicators.iter().any(|ind| keyword.contains(ind)) {
+    let keyword_lower = keyword.to_lowercase();
+    let words: Vec<&str> = keyword.split_whitespace().collect();
+
+    // ================================================================
+    // ORGANIZATION DETECTION (expanded patterns)
+    // ================================================================
+
+    // Legal entity suffixes (case-insensitive check)
+    let org_suffixes = [
+        "gmbh", "ag", "inc", "inc.", "corp", "corp.", "ltd", "ltd.", "co.", "co",
+        "e.v.", "ev", "eg", "se", "sa", "kg", "ohg", "plc", "llc", "mbh",
+    ];
+    if org_suffixes.iter().any(|suf| {
+        keyword_lower.ends_with(&format!(" {}", suf)) || keyword_lower == *suf
+    }) {
         return "organization".to_string();
     }
 
-    // Check for location indicators
-    let loc_indicators = ["Stadt", "Land", "Region", "Bezirk", "Kreis"];
-    if loc_indicators.iter().any(|ind| keyword.contains(ind)) {
+    // Organization indicators - must match as whole words or word boundaries
+    // We check if the indicator appears as a distinct word component
+    let org_word_indicators = [
+        // German institutions (as whole words or compound endings) - including plural forms
+        "verband", "verbände", "institut", "institute", "ministerium", "ministerien",
+        "bundesamt", "behörde", "behörden", "bundesanstalt", "landesamt",
+        "stiftung", "stiftungen", "verein", "vereine", "gewerkschaft", "gewerkschaften",
+        "kammer", "kammern", "akademie", "akademien",
+        "universität", "universitäten", "hochschule", "hochschulen",
+        "zentrum", "zentren", "agentur", "agenturen", "anstalt", "anstalten",
+        "gesellschaft", "gesellschaften", "genossenschaft", "genossenschaften",
+        "bundesregierung", "landesregierung",
+        // English institutions
+        "foundation", "foundations", "institute", "institutes", "university", "universities",
+        "college", "colleges", "council", "councils", "committee", "committees",
+        "commission", "commissions", "agency", "agencies", "authority", "authorities",
+        "board", "boards", "trust", "trusts", "association", "associations",
+        "federation", "federations", "coalition", "coalitions", "alliance", "alliances",
+        "organization", "organisations", "organisation", "organizations",
+        "corporation", "corporations", "company", "companies",
+        "holdings", "partners", "enterprises",
+        // Political
+        "partei", "parteien", "fraktion", "fraktionen",
+        // Sports clubs/teams - specific patterns
+        "vfb", "vfl", "fsv", "tsv",
+        "rovers", "wanderers", "albion",
+        "borussia",
+        // Media
+        "tribune", "gazette", "herald",
+        "broadcasting", "television",
+        // Tech companies
+        "labs", "solutions", "technologies",
+        // Military/Government
+        "brigade", "brigaden", "division", "divisionen", "command", "corps",
+        "department", "departments", "ministry", "ministries", "tribunal", "tribunals",
+        // Other
+        "airline", "airlines", "airways", "railway", "railways",
+        "insurance", "versicherung", "versicherungen", "krankenkasse", "krankenkassen",
+    ];
+
+    // Check if org indicator appears as a whole word or word part
+    for ind in org_word_indicators.iter() {
+        // Check for whole word match
+        if keyword_lower == *ind {
+            return "organization".to_string();
+        }
+        // Check word boundaries (space before/after)
+        if keyword_lower.ends_with(&format!(" {}", ind)) ||
+           keyword_lower.starts_with(&format!("{} ", ind)) ||
+           keyword_lower.contains(&format!(" {} ", ind))
+        {
+            return "organization".to_string();
+        }
+        // German compound word endings (e.g., "Pestel-Institut")
+        // The indicator must be at least 5 chars and have a prefix
+        if ind.len() >= 5 && keyword_lower.ends_with(ind) && keyword.len() > ind.len() + 2 {
+            return "organization".to_string();
+        }
+        // Check for hyphenated compounds (e.g., "Pestel-Institut")
+        if keyword_lower.contains(&format!("-{}", ind)) {
+            return "organization".to_string();
+        }
+        // German compound words where indicator is in the middle (e.g., "Gewerkschaftsbund")
+        // Only for indicators >= 8 chars to avoid false positives
+        if ind.len() >= 8 && keyword_lower.contains(ind) {
+            return "organization".to_string();
+        }
+    }
+
+    // Additional German compound suffixes that indicate organizations
+    let org_compound_suffixes = [
+        "bund", "verband", "werk", "dienst", "wesen", "amt",
+    ];
+    for suf in org_compound_suffixes.iter() {
+        // Must end with this suffix and have substantial content before
+        if keyword_lower.ends_with(suf) && keyword.len() > suf.len() + 5 {
+            // Additional check: the part before should contain an org-related stem
+            let prefix = &keyword_lower[..keyword_lower.len() - suf.len()];
+            let org_stems = ["gewerk", "arbeit", "beamt", "polizei", "feuerwehr", "rettung",
+                           "bundes", "landes", "kranken", "versicher", "angestellt"];
+            if org_stems.iter().any(|stem| prefix.contains(stem)) {
+                return "organization".to_string();
+            }
+        }
+    }
+
+    // Organization patterns with word boundaries (case-insensitive)
+    let org_boundary_patterns = [
+        // Sports clubs - need word boundary check
+        ("fc ", true, false),  // starts with
+        (" fc", false, true),  // ends with
+        ("sc ", true, false),
+        (" sc", false, true),
+        ("sv ", true, false),
+        (" sv", false, true),
+        // Specific sports terms
+        ("united", false, false), // contains
+        ("athletic", false, false),
+        ("palace", false, false),
+        ("villa", false, false),
+        ("milan", false, false),
+        ("inter ", true, false),
+        (" inter", false, true),
+        ("real ", true, false),
+        ("bayern", false, false),
+        ("arsenal", false, false),
+        ("chelsea", false, false),
+        ("liverpool", false, false),
+        ("everton", false, false),
+        ("tottenham", false, false),
+        // Media - only when clearly media
+        (" news", false, true),
+        ("news ", true, false),
+        (" times", false, true),
+        (" post", false, true),
+        (" daily", false, true),
+        ("daily ", true, false),
+        // Military
+        (" force", false, true),
+        ("forces", false, false),
+        (" guard", false, true),
+        // Other
+        (" bank", false, true),
+        ("bank ", true, false),
+        (" bahn", false, true),
+        // Political parties with special handling
+        ("party", false, false),
+        ("bewegung", false, false),
+        ("front ", true, false),
+        (" front", false, true),
+        // Groups
+        (" group", false, true),
+        ("group ", true, false),
+        // Club (but not as generic word)
+        (" club", false, true),
+        ("club ", true, false),
+        // Union (as organization)
+        (" union", false, true),
+        ("union ", true, false),
+        // Office
+        (" office", false, true),
+        ("office ", true, false),
+        // Court
+        (" court", false, true),
+        // Press/Media/Radio/TV
+        (" press", false, true),
+        (" radio", false, true),
+        (" tv", false, true),
+        ("media ", true, false),
+        (" media", false, true),
+        // City as sports team suffix
+        (" city", false, true),
+    ];
+
+    for (pattern, is_start, is_end) in org_boundary_patterns.iter() {
+        let matches = if *is_start {
+            keyword_lower.starts_with(pattern)
+        } else if *is_end {
+            keyword_lower.ends_with(pattern)
+        } else {
+            keyword_lower.contains(pattern)
+        };
+        if matches {
+            return "organization".to_string();
+        }
+    }
+
+    // Specific organization patterns - longer patterns that can be matched with contains
+    let org_long_patterns = [
+        // Political parties
+        "die grünen", "die linke", "freie wähler",
+        // Specific organizations
+        "federal reserve", "european commission", "world health",
+        // Tech companies
+        "google", "microsoft", "amazon", "facebook", "twitter",
+        // NGOs
+        "amnesty international", "greenpeace", "caritas", "diakonie",
+        // Government/Security
+        "bundeswehr", "polizei", "feuerwehr", "rettungsdienst",
+    ];
+
+    for pat in org_long_patterns.iter() {
+        if keyword_lower == *pat || keyword_lower.contains(pat) {
+            return "organization".to_string();
+        }
+    }
+
+    // Short abbreviations/acronyms that need word boundary matching
+    // These are often embedded in other words, so we need strict matching
+    let org_abbrev_patterns = [
+        // Political parties
+        "cdu", "csu", "spd", "fdp", "afd",
+        // International organizations
+        "eu", "un", "uno", "who", "nato", "unicef", "unesco", "wto", "imf",
+        // Media
+        "bbc", "cnn", "nbc", "abc", "ard", "zdf", "rtl", "fox", "sat.1",
+        // Sports
+        "fifa", "uefa", "ioc", "nfl", "nba", "mlb", "nhl", "pga", "atp", "wta",
+        // Tech (short names)
+        "meta",
+        // NGOs (short names)
+        "amnesty", "oxfam",
+    ];
+
+    for pat in org_abbrev_patterns.iter() {
+        // Must be exact match, or with word boundaries (space, hyphen)
+        if keyword_lower == *pat ||
+           keyword_lower.starts_with(&format!("{} ", pat)) ||
+           keyword_lower.ends_with(&format!(" {}", pat)) ||
+           keyword_lower.contains(&format!(" {} ", pat)) ||
+           keyword_lower.starts_with(&format!("{}-", pat)) ||
+           keyword_lower.ends_with(&format!("-{}", pat)) ||
+           keyword_lower.contains(&format!("-{}-", pat))
+        {
+            return "organization".to_string();
+        }
+    }
+
+    // ================================================================
+    // LOCATION DETECTION (expanded patterns)
+    // ================================================================
+
+    // Location suffixes - only for single-word keywords to avoid false positives
+    // Multi-word phrases are handled by loc_indicators and known_locations
+    let loc_suffixes = [
+        "land", "reich", "istan", "abad", "burg", "berg", "dorf", "heim",
+        "hausen", "stadt", "furt", "haven", "hafen", "see", "tal", "wald",
+        "field", "town", "ville", "port", "bridge", "shire", "ford",
+    ];
+
+    // Only apply suffix matching to single words (no spaces)
+    if !keyword.contains(' ') {
+        for suf in loc_suffixes.iter() {
+            if keyword_lower.ends_with(suf) && keyword.len() > suf.len() + 2 {
+                let prefix = &keyword[..keyword.len() - suf.len()];
+                if !prefix.is_empty() && prefix.chars().last().map_or(false, |c| c.is_alphabetic()) {
+                    // Avoid false positives like "Homeland"
+                    let non_location_with_suffix = ["homeland", "fatherland", "motherland", "wasteland", "dreamland"];
+                    if !non_location_with_suffix.iter().any(|w| keyword_lower == *w) {
+                        return "location".to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    // Country suffix "ien" - only for specific patterns (countries typically end with consonant + "ien")
+    // e.g., "Spanien", "Italien", "Rumänien" but NOT "O'Brien", "alien"
+    if !keyword.contains(' ') && keyword_lower.ends_with("ien") && keyword.len() >= 6 {
+        let prefix = &keyword_lower[..keyword_lower.len() - 3];
+        // Check if it looks like a country name (ends with n, l, r, t, k before "ien")
+        let country_like_chars = ['n', 'l', 'r', 't', 'k', 'd', 's', 'b', 'm'];
+        if prefix.chars().last().map_or(false, |c| country_like_chars.contains(&c)) {
+            // Additional check: not a person's name pattern (no apostrophe, no common surname endings)
+            if !keyword.contains('\'') && !keyword_lower.ends_with("brien") {
+                return "location".to_string();
+            }
+        }
+    }
+
+    // Location indicators (contains)
+    let loc_indicators = [
+        "stadt ", " stadt", "kreis", "bezirk", "region ", " region", "provinz",
+        "bundesstaat", "bundesland", "kanton", "distrikt", "county", "state of",
+        "republic of", "kingdom of", "emirate", "airport", "flughafen", "hafen",
+        "bahnhof", "station", "straße", "strasse", "platz", "allee", "avenue",
+        "street", "road", "square", "plaza",
+    ];
+    if loc_indicators.iter().any(|ind| keyword_lower.contains(ind)) {
         return "location".to_string();
     }
 
-    // Check if it looks like a person name (title case, no technical terms)
-    let words: Vec<&str> = keyword.split_whitespace().collect();
+    // Known countries and major cities
+    let known_locations = [
+        // Countries (German names)
+        "deutschland", "österreich", "schweiz", "frankreich", "italien", "spanien",
+        "portugal", "griechenland", "türkei", "russland", "ukraine", "polen",
+        "tschechien", "ungarn", "rumänien", "bulgarien", "kroatien", "serbien",
+        "niederlande", "belgien", "luxemburg", "dänemark", "schweden", "norwegen",
+        "finnland", "estland", "lettland", "litauen", "irland", "großbritannien",
+        "england", "schottland", "wales", "nordirland", "china", "japan", "indien",
+        "pakistan", "iran", "irak", "syrien", "israel", "ägypten", "marokko",
+        "südafrika", "nigeria", "kenia", "brasilien", "argentinien", "mexiko",
+        "kanada", "australien", "neuseeland",
+        // Countries (English names)
+        "germany", "austria", "switzerland", "france", "italy", "spain", "portugal",
+        "greece", "turkey", "russia", "ukraine", "poland", "czechia", "hungary",
+        "romania", "bulgaria", "croatia", "serbia", "netherlands", "belgium",
+        "denmark", "sweden", "norway", "finland", "ireland", "britain", "scotland",
+        "wales", "china", "japan", "india", "pakistan", "iran", "iraq", "syria",
+        "israel", "egypt", "morocco", "south africa", "nigeria", "kenya", "brazil",
+        "argentina", "mexico", "canada", "australia", "new zealand", "united states",
+        "united kingdom",
+        // Major cities
+        "berlin", "münchen", "hamburg", "köln", "frankfurt", "stuttgart", "düsseldorf",
+        "dortmund", "essen", "leipzig", "bremen", "dresden", "hannover", "nürnberg",
+        "wien", "zürich", "genf", "bern", "paris", "london", "rom", "madrid",
+        "barcelona", "amsterdam", "brüssel", "kopenhagen", "stockholm", "oslo",
+        "helsinki", "warschau", "prag", "budapest", "athen", "istanbul", "moskau",
+        "kiew", "kyjiw", "peking", "beijing", "shanghai", "tokio", "tokyo", "delhi",
+        "mumbai", "teheran", "kairo", "kapstadt", "lagos", "new york", "los angeles",
+        "chicago", "washington", "toronto", "sydney", "melbourne",
+    ];
+    if known_locations.iter().any(|loc| keyword_lower == *loc) {
+        return "location".to_string();
+    }
+
+    // ================================================================
+    // PERSON DETECTION (strict with exclusions)
+    // ================================================================
+
+    // First check for person title indicators (strong signal)
+    let person_titles = [
+        "dr.", "dr ", "prof.", "prof ", "herr ", "frau ", "mr.", "mr ", "mrs.", "mrs ",
+        "ms.", "ms ", "sir ", "lord ", "lady ", "dame ", "graf ", "baron ", "prinz ",
+        "könig ", "präsident ", "kanzler ", "minister ", "general ", "oberst ",
+        "kapitän ", "direktor ", "chef ", "ceo ", "cfo ", "cto ",
+    ];
+    if person_titles.iter().any(|title| keyword_lower.starts_with(title)) {
+        return "person".to_string();
+    }
+
+    // Check title case pattern for potential person names
+    // Handle hyphenated names like "Jean-Pascal" and Irish/Scottish names like "O'Brien"
+    let is_title_case_word = |w: &str| -> bool {
+        // Handle hyphenated compound names (e.g., "Jean-Pascal")
+        if w.contains('-') {
+            w.split('-').all(|part| {
+                let chars: Vec<char> = part.chars().collect();
+                !chars.is_empty() &&
+                chars[0].is_uppercase() &&
+                chars.iter().skip(1).all(|c| c.is_lowercase())
+            })
+        }
+        // Handle Irish/Scottish names with apostrophe (e.g., "O'Brien", "O'Connor", "McDonald")
+        else if w.contains('\'') {
+            // Split by apostrophe and check each part
+            w.split('\'').all(|part| {
+                if part.is_empty() {
+                    return true; // Empty part after split is OK
+                }
+                let chars: Vec<char> = part.chars().collect();
+                chars[0].is_uppercase() &&
+                chars.iter().skip(1).all(|c| c.is_lowercase())
+            })
+        } else {
+            let chars: Vec<char> = w.chars().collect();
+            !chars.is_empty() &&
+            chars[0].is_uppercase() &&
+            chars.iter().skip(1).all(|c| c.is_lowercase())
+        }
+    };
+
     if words.len() >= 2 && words.len() <= 4 {
-        let all_title_case = words.iter().all(|w| {
-            w.chars().next().map_or(false, |c| c.is_uppercase()) &&
-            w.chars().skip(1).all(|c| c.is_lowercase())
-        });
+        let all_title_case = words.iter().all(|w| is_title_case_word(w));
+
         if all_title_case {
-            // Likely a person name
-            return "person".to_string();
+            // Now apply strict exclusion rules
+
+            // Exclusion: German articles at start (Der, Die, Das, Ein, Eine, etc.)
+            let german_articles = ["der", "die", "das", "ein", "eine", "einem", "einen",
+                                   "einer", "eines", "dem", "den", "am", "im", "vom", "zum",
+                                   "zur", "beim", "als", "für", "mit", "aus", "bei", "nach",
+                                   "vor", "seit", "von", "zu", "auch", "und", "oder", "aber",
+                                   "wenn", "weil", "dass", "ob", "wie", "was", "wer", "wo",
+                                   "wann", "warum", "welche", "welcher", "welches", "diese",
+                                   "dieser", "dieses", "jede", "jeder", "jedes", "alle",
+                                   "keine", "keiner", "keines", "meine", "mein", "sein",
+                                   "seine", "ihre", "ihr", "unser", "unsere", "euer", "eure"];
+            if german_articles.iter().any(|art| words[0].to_lowercase() == *art) {
+                return "concept".to_string();
+            }
+
+            // Exclusion: English articles/prepositions at start
+            let english_starters = ["the", "a", "an", "for", "from", "with", "by", "in", "on",
+                                    "at", "to", "of", "is", "are", "was", "were", "be", "been",
+                                    "being", "have", "has", "had", "do", "does", "did", "will",
+                                    "would", "could", "should", "may", "might", "must", "shall",
+                                    "can", "this", "that", "these", "those", "my", "your", "his",
+                                    "her", "its", "our", "their", "some", "any", "no", "every",
+                                    "all", "both", "each", "few", "more", "most", "other", "such",
+                                    "how", "what", "when", "where", "why", "who", "which", "if",
+                                    "then", "than", "so", "as", "like", "just", "only", "also",
+                                    "very", "too", "not", "but", "and", "or"];
+            if english_starters.iter().any(|art| words[0].to_lowercase() == *art) {
+                return "concept".to_string();
+            }
+
+            // Exclusion: Common non-person compound words
+            let non_person_words = [
+                // Temporal
+                "januar", "februar", "märz", "april", "mai", "juni", "juli", "august",
+                "september", "oktober", "november", "dezember", "january", "february",
+                "march", "may", "june", "july", "october", "december",
+                "montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag", "sonntag",
+                "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+                "jahr", "jahre", "monat", "woche", "tag", "stunde", "minute",
+                "year", "years", "month", "week", "day", "hour", "minute",
+                "weltkrieg", "neuzeit", "weltkriegs",
+                // Geographic
+                "norden", "süden", "osten", "westen", "north", "south", "east", "west",
+                "central", "eastern", "western", "northern", "southern",
+                // Nationalities/Adjectives (German)
+                "britische", "britischer", "britisches", "britischen",
+                "deutsche", "deutscher", "deutsches", "deutschen",
+                "amerikanische", "amerikanischer", "amerikanisches", "amerikanischen",
+                "französische", "französischer", "französisches", "französischen",
+                "europäische", "europäischer", "europäisches", "europäischen",
+                "internationale", "internationaler", "internationales", "internationalen",
+                "nationale", "nationaler", "nationales", "nationalen",
+                "russische", "russischer", "russisches", "russischen",
+                "chinesische", "chinesischer", "chinesisches", "chinesischen",
+                // Nationalities/Adjectives (English)
+                "british", "german", "american", "french", "european", "international",
+                "national", "russian", "chinese", "global", "local", "regional",
+                // Political/Abstract
+                "krieg", "frieden", "politik", "wirtschaft", "kultur", "gesellschaft",
+                "war", "peace", "politics", "economy", "culture", "society",
+                "reform", "krise", "crisis", "konflikt", "conflict",
+                "zusammenarbeit", "cooperation", "integration", "einigung",
+                "souveränität", "sovereignty", "sicherheit", "security",
+                // Tech/Science
+                "software", "hardware", "internet", "digital", "cyber", "tech",
+                "science", "research", "study", "projekt", "project",
+                "programm", "program", "programme",
+                // Events
+                "game", "games", "cup", "championship", "tournament", "festival",
+                "conference", "summit", "meeting", "congress", "forum",
+                "awards", "prize", "prix", "globes", "open", "classic", "masters",
+                "slam", "slams", "tour", "series", "league", "leagues",
+                "sentry", "operation", "exercise",
+                // Sports terms
+                "football", "fußball", "handball", "basketball", "volleyball",
+                "tennis", "golf", "rugby", "cricket", "hockey", "soccer",
+                "cycling", "swimming", "athletics", "racing",
+                "team", "teams", "squad", "club", "clubs", "match", "final",
+                "blacks", "stars", "giants", "lions", "eagles",
+                // Media terms
+                "news", "report", "interview", "article", "story", "video",
+                "film", "movie", "show", "series", "episode", "season",
+                "book", "books", "novel", "magazine", "journal", "paper",
+                "funk", "radio", "tv", "television",
+                // Common nouns
+                "haus", "house", "gebäude", "building", "straße", "street", "road",
+                "park", "garden", "museum", "theater", "cinema", "hotel",
+                "hospital", "school", "church", "palace", "castle", "tower",
+                "bridge", "station", "airport", "port", "harbor",
+                "truck", "car", "vehicle", "fahrzeug",
+                "cases", "cleaning", "health", "wealth",
+                // Abstract concepts
+                "system", "systems", "service", "services", "process", "method",
+                "model", "models", "plan", "plans",
+                "initiative", "campaign", "movement", "trend",
+                "act", "law", "bill", "treaty", "agreement", "deal", "pact",
+                "fashion", "finance", "business", "industry",
+                "depression", "recession", "inflation",
+                // Adjectives often in compounds
+                "new", "neu", "alte", "old", "große", "great", "big", "small",
+                "erste", "ersten", "erster", "erstes",
+                "first", "zweite", "zweiten", "zweiter",
+                "second", "dritte", "dritten", "dritter", "third",
+                "letzte", "letzten", "letzter", "last",
+                "nächste", "nächsten", "nächster", "next",
+                "andere", "anderen", "anderer", "other",
+                "black", "white", "red", "blue", "green", "golden", "silver",
+                "schwarz", "weiß", "rot", "blau", "grün", "gold", "silber",
+                "fast", "slow", "quick", "dry", "wet", "cold", "hot", "warm",
+                "mental", "physical", "social", "political", "economic",
+                "kalter", "kalte", "kaltes", "heißer", "heiße", "heißes",
+                "frühe", "früher", "frühen", "späte", "später", "späten",
+                "heilige", "heiliger", "heiligen",
+                // Quantifiers and pronouns
+                "mehr", "more", "weniger", "less", "viel", "many", "much",
+                "alle", "alles", "allen", "aller",
+                "all", "keine", "keiner", "keines", "keinen", "none",
+                "einige", "some", "mehrere", "gute", "guter", "gutes", "guten",
+                "million", "millionen", "milliarde", "milliarden", "billion",
+                "tausend", "thousand", "hundert", "hundred",
+                "fünf", "zehn", "zwanzig", "dreißig", "fünfzig",
+            ];
+
+            // Check if any word in the keyword matches non-person words
+            let has_non_person_word = words.iter().any(|w| {
+                non_person_words.iter().any(|npw| w.to_lowercase() == *npw)
+            });
+
+            if has_non_person_word {
+                return "concept".to_string();
+            }
+
+            // Exclusion: Patterns that indicate non-person
+            let non_person_patterns = [
+                // Dates and time references
+                "jahr ", " jahr", "jahre", "monat", " tag", "tag ",
+                // Financial/Legal
+                "euro", "dollar", "prozent", "percent", "gesetz", "act ",
+                "haft", "strafe", "urteil", "klage", "anklage",
+                // Events (specific patterns)
+                " cup", "cup ", " open", "open ", " slam", "slam ",
+                " tour", "tour ", " prix", "prix ", " award", "awards",
+                // Organizations patterns
+                " fc", "fc ", " sc", "sc ", " ac", "ac ",
+                "united", "city ", " city", "palace", "villa", "milan",
+                "rovers", "wanderers", "athletic",
+                // News/Media
+                " news", "news ", " daily", "daily ", " times", "times ",
+                // Technology
+                "linux", "windows", "android", "ios", "macos", "ubuntu",
+                "firefox", "chrome", "safari", "edge",
+                // Compound indicators
+                "abkommen", "vereinbarung", "vertrag", "treaty",
+                "gesundheit", "health", "sicherheit", "security",
+                "wirtschaft", "economy", "wissenschaft", "science",
+            ];
+
+            if non_person_patterns.iter().any(|pat| keyword_lower.contains(pat)) {
+                return "concept".to_string();
+            }
+
+            // Exclusion: Single word that could be a name but is actually common noun
+            let ambiguous_single_words = [
+                "china", "berlin", "paris", "london", "rom", "madrid", "wien", "tokio",
+                "jordan", "georgia", "dakota", "montana", "virginia", "carolina",
+                "phoenix", "aurora", "trinity", "liberty", "justice", "victory",
+                "diamond", "crystal", "ruby", "amber", "jade", "pearl", "ivy",
+                "rose", "lily", "violet", "daisy", "holly", "heather",
+                "hunter", "mason", "carter", "cooper", "walker", "taylor",
+                "cook", "baker", "fisher", "miller", "smith", "king", "prince",
+            ];
+
+            if words.len() == 1 && ambiguous_single_words.iter().any(|w| keyword_lower == *w) {
+                // Single ambiguous word - default to concept
+                return "concept".to_string();
+            }
+
+            // Additional check: if first word is a known first name pattern, more likely person
+            // But we're being conservative, so we only accept clear person names at this point
+
+            // If we passed all exclusions and have 2-4 title case words, it's likely a person
+            // But let's add one more check: at least one word should be > 3 chars
+            let has_substantial_word = words.iter().any(|w| w.len() > 3);
+            if has_substantial_word {
+                return "person".to_string();
+            }
         }
     }
 
@@ -324,4 +871,360 @@ pub fn determine_category_sources(
             }
         })
         .collect()
+}
+
+// ============================================================
+// TESTS
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================
+    // ACRONYM TESTS
+    // ========================================
+
+    #[test]
+    fn test_detect_acronym_uppercase() {
+        assert_eq!(detect_keyword_type("NATO"), "acronym");
+        assert_eq!(detect_keyword_type("EU"), "acronym");
+        assert_eq!(detect_keyword_type("USA"), "acronym");
+        assert_eq!(detect_keyword_type("UN"), "acronym");
+        assert_eq!(detect_keyword_type("BBC"), "acronym");
+        assert_eq!(detect_keyword_type("FBI"), "acronym");
+        assert_eq!(detect_keyword_type("CIA"), "acronym");
+    }
+
+    #[test]
+    fn test_detect_acronym_with_numbers() {
+        assert_eq!(detect_keyword_type("G7"), "acronym");
+        assert_eq!(detect_keyword_type("G20"), "acronym");
+        assert_eq!(detect_keyword_type("5G"), "acronym");
+    }
+
+    #[test]
+    fn test_not_acronym_too_long() {
+        // Too long for acronym detection
+        assert_ne!(detect_keyword_type("ABCDEFGH"), "acronym");
+    }
+
+    // ========================================
+    // ORGANIZATION TESTS
+    // ========================================
+
+    #[test]
+    fn test_detect_organization_legal_suffix() {
+        assert_eq!(detect_keyword_type("Siemens AG"), "organization");
+        assert_eq!(detect_keyword_type("Google Inc"), "organization");
+        assert_eq!(detect_keyword_type("HIL GmbH"), "organization");
+        assert_eq!(detect_keyword_type("Microsoft Corp"), "organization");
+        assert_eq!(detect_keyword_type("Shunjia Toys Co Ltd"), "organization");
+    }
+
+    #[test]
+    fn test_detect_organization_german_institutions() {
+        assert_eq!(detect_keyword_type("Bundesamt für Verfassungsschutz"), "organization");
+        assert_eq!(detect_keyword_type("Pestel-Institut"), "organization");
+        assert_eq!(detect_keyword_type("Das Ministerium"), "organization");
+        assert_eq!(detect_keyword_type("Lokale Behörden"), "organization");
+        assert_eq!(detect_keyword_type("Deutscher Gewerkschaftsbund"), "organization");
+        assert_eq!(detect_keyword_type("Industrie- und Handelskammer"), "organization");
+    }
+
+    #[test]
+    fn test_detect_organization_english_institutions() {
+        assert_eq!(detect_keyword_type("Cambridge University"), "organization");
+        assert_eq!(detect_keyword_type("World Health Organization"), "organization");
+        assert_eq!(detect_keyword_type("European Commission"), "organization");
+        assert_eq!(detect_keyword_type("Federal Reserve"), "organization");
+    }
+
+    #[test]
+    fn test_detect_organization_political() {
+        assert_eq!(detect_keyword_type("Conservative Party"), "organization");
+        assert_eq!(detect_keyword_type("Die Grünen"), "organization");
+        assert_eq!(detect_keyword_type("Die Linke"), "organization");
+        assert_eq!(detect_keyword_type("Freie Wähler"), "organization");
+        assert_eq!(detect_keyword_type("MAGA-Bewegung"), "organization");
+    }
+
+    #[test]
+    fn test_detect_organization_sports_clubs() {
+        assert_eq!(detect_keyword_type("Bayern München"), "organization");
+        assert_eq!(detect_keyword_type("Manchester United"), "organization");
+        assert_eq!(detect_keyword_type("Borussia Dortmund"), "organization");
+        assert_eq!(detect_keyword_type("FC Augsburg"), "organization");
+        assert_eq!(detect_keyword_type("Aston Villa"), "organization");
+        assert_eq!(detect_keyword_type("Crystal Palace"), "organization");
+        assert_eq!(detect_keyword_type("Inter Milan"), "organization");
+        assert_eq!(detect_keyword_type("Chelsea"), "organization");
+        assert_eq!(detect_keyword_type("Arsenal"), "organization");
+    }
+
+    #[test]
+    fn test_detect_organization_media() {
+        assert_eq!(detect_keyword_type("BBC News"), "organization");
+        assert_eq!(detect_keyword_type("Fox News"), "organization");
+        assert_eq!(detect_keyword_type("Apple Daily"), "organization");
+        assert_eq!(detect_keyword_type("Deutsche Bahn"), "organization");
+    }
+
+    #[test]
+    fn test_detect_organization_military() {
+        assert_eq!(detect_keyword_type("Coast Guard"), "organization");
+        assert_eq!(detect_keyword_type("Delta Force"), "organization");
+        assert_eq!(detect_keyword_type("Allied Reaction Force"), "organization");
+    }
+
+    // ========================================
+    // LOCATION TESTS
+    // ========================================
+
+    #[test]
+    fn test_detect_location_countries() {
+        assert_eq!(detect_keyword_type("Deutschland"), "location");
+        assert_eq!(detect_keyword_type("Frankreich"), "location");
+        assert_eq!(detect_keyword_type("Österreich"), "location");
+        assert_eq!(detect_keyword_type("Großbritannien"), "location");
+        assert_eq!(detect_keyword_type("Japan"), "location");
+        assert_eq!(detect_keyword_type("China"), "location");
+    }
+
+    #[test]
+    fn test_detect_location_cities() {
+        assert_eq!(detect_keyword_type("Berlin"), "location");
+        assert_eq!(detect_keyword_type("München"), "location");
+        assert_eq!(detect_keyword_type("Hamburg"), "location");
+        assert_eq!(detect_keyword_type("Paris"), "location");
+        assert_eq!(detect_keyword_type("London"), "location");
+        assert_eq!(detect_keyword_type("Wien"), "location");
+        assert_eq!(detect_keyword_type("Zürich"), "location");
+    }
+
+    #[test]
+    fn test_detect_location_with_suffix() {
+        assert_eq!(detect_keyword_type("Heidelberg"), "location");
+        assert_eq!(detect_keyword_type("Frankfurt"), "location");
+        assert_eq!(detect_keyword_type("Nürnberg"), "location");
+        assert_eq!(detect_keyword_type("Regensburg"), "location");
+    }
+
+    #[test]
+    fn test_detect_location_with_indicators() {
+        assert_eq!(detect_keyword_type("Landkreis München"), "location");
+        assert_eq!(detect_keyword_type("Stadt Prokowsk"), "location");
+        assert_eq!(detect_keyword_type("Region Saporischschja"), "location");
+        assert_eq!(detect_keyword_type("Bundesstaat Minnesota"), "location");
+    }
+
+    #[test]
+    fn test_detect_location_airports_stations() {
+        assert_eq!(detect_keyword_type("Delhi Airport"), "location");
+        assert_eq!(detect_keyword_type("Flughafen Wien"), "location");
+    }
+
+    // ========================================
+    // PERSON TESTS (True Positives)
+    // ========================================
+
+    #[test]
+    fn test_detect_person_with_title() {
+        assert_eq!(detect_keyword_type("Dr. Susan Gilby"), "person");
+        assert_eq!(detect_keyword_type("Prof. Max Mustermann"), "person");
+        assert_eq!(detect_keyword_type("Sir David Attenborough"), "person");
+    }
+
+    #[test]
+    fn test_detect_person_names() {
+        assert_eq!(detect_keyword_type("Angela Merkel"), "person");
+        assert_eq!(detect_keyword_type("Friedrich Merz"), "person");
+        assert_eq!(detect_keyword_type("Emmanuel Macron"), "person");
+        assert_eq!(detect_keyword_type("Donald Trump"), "person");
+        assert_eq!(detect_keyword_type("Elon Musk"), "person");
+        assert_eq!(detect_keyword_type("Keir Starmer"), "person");
+        assert_eq!(detect_keyword_type("Markus Söder"), "person");
+    }
+
+    #[test]
+    fn test_detect_person_international_names() {
+        assert_eq!(detect_keyword_type("Ali Khamenei"), "person");
+        assert_eq!(detect_keyword_type("Leonid Volkov"), "person");
+        assert_eq!(detect_keyword_type("Kyrylo Budanov"), "person");
+        assert_eq!(detect_keyword_type("Andriy Yermak"), "person");
+    }
+
+    #[test]
+    fn test_detect_person_three_word_names() {
+        assert_eq!(detect_keyword_type("Maria Corina Machado"), "person");
+        assert_eq!(detect_keyword_type("Aung San Suu Kyi"), "person");
+    }
+
+    // ========================================
+    // PERSON FALSE POSITIVE TESTS (Should NOT be person)
+    // ========================================
+
+    #[test]
+    fn test_not_person_german_article_start() {
+        assert_ne!(detect_keyword_type("Das Abkommen"), "person");
+        assert_ne!(detect_keyword_type("Die Bundesregierung"), "person");
+        assert_ne!(detect_keyword_type("Der Bundestag"), "person");
+        assert_ne!(detect_keyword_type("Ein Vergleich"), "person");
+        assert_ne!(detect_keyword_type("Aus Sicht"), "person");
+        assert_ne!(detect_keyword_type("Am Samstag"), "person");
+        assert_ne!(detect_keyword_type("Auch Bundeswehr"), "person");
+        assert_ne!(detect_keyword_type("Als Präsident"), "person");
+    }
+
+    #[test]
+    fn test_not_person_english_article_start() {
+        assert_ne!(detect_keyword_type("The Summit"), "person");
+        assert_ne!(detect_keyword_type("For Russia"), "person");
+        assert_ne!(detect_keyword_type("From Fiji"), "person");
+        assert_ne!(detect_keyword_type("By Saturday"), "person");
+        assert_ne!(detect_keyword_type("How Jenrick"), "person");
+        assert_ne!(detect_keyword_type("Is Farage"), "person");
+        assert_ne!(detect_keyword_type("Like Alcaraz"), "person");
+    }
+
+    #[test]
+    fn test_not_person_events_competitions() {
+        assert_ne!(detect_keyword_type("Berlin Game"), "person");
+        assert_ne!(detect_keyword_type("Australian Open"), "person");
+        assert_ne!(detect_keyword_type("Grand Slam"), "person");
+        assert_ne!(detect_keyword_type("Carabao Cup"), "person");
+        assert_ne!(detect_keyword_type("Golden Globes"), "person");
+        assert_ne!(detect_keyword_type("Love On Tour"), "person");
+        assert_ne!(detect_keyword_type("Bahrain Masters"), "person");
+    }
+
+    #[test]
+    fn test_not_person_sports_terms() {
+        assert_ne!(detect_keyword_type("American Football"), "person");
+        assert_ne!(detect_keyword_type("All Blacks"), "person");
+        assert_ne!(detect_keyword_type("All Stars"), "person");
+        assert_ne!(detect_keyword_type("British Cycling"), "person");
+        assert_ne!(detect_keyword_type("Deutsches Handball"), "person");
+    }
+
+    #[test]
+    fn test_not_person_organizations_clubs() {
+        // These should be detected as organizations, not persons
+        assert_ne!(detect_keyword_type("Bayern München"), "person");
+        assert_ne!(detect_keyword_type("Manchester United"), "person");
+        assert_ne!(detect_keyword_type("Crystal Palace"), "person");
+        assert_ne!(detect_keyword_type("Aston Villa"), "person");
+        assert_ne!(detect_keyword_type("Inter Milan"), "person");
+    }
+
+    #[test]
+    fn test_not_person_political_concepts() {
+        assert_ne!(detect_keyword_type("Kalter Krieg"), "person");
+        assert_ne!(detect_keyword_type("Erste Einigung"), "person");
+        assert_ne!(detect_keyword_type("Britische Zusammenarbeit"), "person");
+        assert_ne!(detect_keyword_type("Europäische Union"), "person");
+    }
+
+    #[test]
+    fn test_not_person_media_technology() {
+        assert_ne!(detect_keyword_type("Linux Mint"), "person");
+        assert_ne!(detect_keyword_type("Digital Services Act"), "person");
+        assert_ne!(detect_keyword_type("Fake News"), "person");
+        assert_ne!(detect_keyword_type("Creator Economy"), "person");
+    }
+
+    #[test]
+    fn test_not_person_temporal() {
+        assert_ne!(detect_keyword_type("Fünf Jahre Haft"), "person");
+        assert_ne!(detect_keyword_type("Ersten Weltkrieg"), "person");
+        assert_ne!(detect_keyword_type("Frühe Neuzeit"), "person");
+        assert_ne!(detect_keyword_type("Heilige Jahr"), "person");
+    }
+
+    #[test]
+    fn test_not_person_abstract_concepts() {
+        assert_ne!(detect_keyword_type("Alles Gute"), "person");
+        assert_ne!(detect_keyword_type("Große Depression"), "person");
+        assert_ne!(detect_keyword_type("Blended Finance"), "person");
+        assert_ne!(detect_keyword_type("Fast Fashion"), "person");
+        assert_ne!(detect_keyword_type("Black Friday"), "person");
+    }
+
+    #[test]
+    fn test_not_person_quantified_phrases() {
+        assert_ne!(detect_keyword_type("Mehr Bundeswehr"), "person");
+        assert_ne!(detect_keyword_type("Mehr Sicherheit"), "person");
+        assert_ne!(detect_keyword_type("Millionen Menschen"), "person");
+        assert_ne!(detect_keyword_type("Milliarden Euro"), "person");
+    }
+
+    // ========================================
+    // CONCEPT TESTS
+    // ========================================
+
+    #[test]
+    fn test_detect_concept_single_word() {
+        assert_eq!(detect_keyword_type("Klimawandel"), "concept");
+        assert_eq!(detect_keyword_type("Digitalisierung"), "concept");
+        assert_eq!(detect_keyword_type("Inflation"), "concept");
+    }
+
+    #[test]
+    fn test_detect_concept_lowercase() {
+        // Lowercase words should be concepts
+        assert_eq!(detect_keyword_type("künstliche intelligenz"), "concept");
+    }
+
+    // ========================================
+    // EDGE CASES
+    // ========================================
+
+    #[test]
+    fn test_edge_case_umlauts() {
+        // German names with umlauts
+        assert_eq!(detect_keyword_type("Björn Höcke"), "person");
+        assert_eq!(detect_keyword_type("Jörg Müller"), "person");
+        // Location with umlaut
+        assert_eq!(detect_keyword_type("München"), "location");
+        assert_eq!(detect_keyword_type("Zürich"), "location");
+    }
+
+    #[test]
+    fn test_edge_case_hyphenated_names() {
+        assert_eq!(detect_keyword_type("Jean-Pascal Hohm"), "person");
+        assert_eq!(detect_keyword_type("Frank-Walter Steinmeier"), "person");
+    }
+
+    #[test]
+    fn test_edge_case_apostrophe_names() {
+        assert_eq!(detect_keyword_type("Liam O'Brien"), "person");
+    }
+
+    #[test]
+    fn test_edge_case_empty_string() {
+        assert_eq!(detect_keyword_type(""), "concept");
+    }
+
+    #[test]
+    fn test_edge_case_single_char() {
+        assert_eq!(detect_keyword_type("A"), "concept");
+    }
+
+    // ========================================
+    // REGRESSION TESTS (Known False Positives)
+    // ========================================
+
+    #[test]
+    fn test_regression_known_false_positives() {
+        // These were incorrectly classified as "person" before
+        assert_ne!(detect_keyword_type("Berlin Game"), "person");
+        assert_ne!(detect_keyword_type("Programm Deutschlandfunk"), "person");
+        assert_ne!(detect_keyword_type("Antenna Group"), "person");
+        assert_ne!(detect_keyword_type("Daimler Truck"), "person");
+        assert_ne!(detect_keyword_type("Baltic Sentry"), "person");
+        assert_ne!(detect_keyword_type("Arctic Sentry"), "person");
+        assert_ne!(detect_keyword_type("Cold Cases"), "person");
+        assert_ne!(detect_keyword_type("Dry Cleaning"), "person");
+        assert_ne!(detect_keyword_type("Mental Health"), "person");
+    }
 }
