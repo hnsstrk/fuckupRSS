@@ -4,6 +4,22 @@
   import KeywordTrendChart from '../KeywordTrendChart.svelte';
   import type { Keyword, KeywordNeighbor, KeywordCategory } from '../../types';
 
+  // Get the main category ID (1-6) from a category or subcategory ID
+  function getMainCategoryId(id: number | undefined): number {
+    if (!id) return 0;
+    if (id <= 6) return id;
+    return Math.floor(id / 100); // Subcategory IDs are 101, 102, 201, etc.
+  }
+
+  // Get CSS variable name for category color
+  function getCategoryColorVar(id: number | undefined): string {
+    const mainId = getMainCategoryId(id);
+    if (mainId >= 1 && mainId <= 6) {
+      return `var(--category-${mainId})`;
+    }
+    return 'var(--accent-primary)';
+  }
+
   // Type for keyword articles
   interface KeywordArticle {
     id: number;
@@ -257,7 +273,7 @@
           <div class="category-cards">
             {#each groupedCategories as group (group.id)}
               {@const barWidth = (group.weight / maxWeight) * 100}
-              <div class="category-card" style="--cat-color: {group.color || 'var(--accent-primary)'}">
+              <div class="category-card" style="--cat-color: {getCategoryColorVar(group.id)}">
                 <div class="card-header">
                   <div class="card-icon-wrapper">
                     <i class="{group.icon || 'fa-solid fa-folder'}"></i>

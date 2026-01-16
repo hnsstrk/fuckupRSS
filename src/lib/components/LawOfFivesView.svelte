@@ -463,7 +463,7 @@
           </div>
           <div class="card-content">
             {#each stats.top_5_categories as category, i (category.id)}
-              <div class="list-item" style="--cat-color: {category.color || 'var(--accent-primary)'}">
+              <div class="list-item category-{category.id}">
                 <span class="item-rank">{i + 1}</span>
                 {#if category.icon}
                   <i class="{category.icon} item-category-icon"></i>
@@ -1026,6 +1026,14 @@
     width: 1rem;
     text-align: center;
   }
+
+  /* Category-specific colors from theme CSS variables */
+  .list-item.category-1 { --cat-color: var(--category-1); }
+  .list-item.category-2 { --cat-color: var(--category-2); }
+  .list-item.category-3 { --cat-color: var(--category-3); }
+  .list-item.category-4 { --cat-color: var(--category-4); }
+  .list-item.category-5 { --cat-color: var(--category-5); }
+  .list-item.category-6 { --cat-color: var(--category-6); }
 
   .item-name {
     flex: 1;

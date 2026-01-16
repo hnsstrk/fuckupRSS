@@ -333,7 +333,7 @@
         {@const subcategories = appState.sephiroth.filter(c => c.parent_id === category.id)}
         {@const subcategoryCount = subcategories.reduce((sum, c) => sum + c.article_count, 0)}
         {@const isExpanded = expandedCategoryId === category.id}
-        <div class="sephiroth-group" style="--category-color: {category.color || 'var(--accent-primary)'}">
+        <div class="sephiroth-group category-{category.id}">
           <div class="sephiroth-header">
             <button
               class="expand-btn"
@@ -704,6 +704,14 @@
     display: flex;
     flex-direction: column;
   }
+
+  /* Category-specific colors from theme CSS variables */
+  .sephiroth-group.category-1 { --category-color: var(--category-1); }
+  .sephiroth-group.category-2 { --category-color: var(--category-2); }
+  .sephiroth-group.category-3 { --category-color: var(--category-3); }
+  .sephiroth-group.category-4 { --category-color: var(--category-4); }
+  .sephiroth-group.category-5 { --category-color: var(--category-5); }
+  .sephiroth-group.category-6 { --category-color: var(--category-6); }
 
   .sephiroth-header {
     display: flex;

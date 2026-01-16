@@ -3,6 +3,22 @@
   import { invoke } from '@tauri-apps/api/core';
   import type { ArticleCategoryDetailed, Sephiroth, CorrectionInput } from '$lib/types';
 
+  // Get the main category ID (1-6) from a category or subcategory ID
+  function getMainCategoryId(id: number | undefined): number {
+    if (!id) return 0;
+    if (id <= 6) return id;
+    return Math.floor(id / 100); // Subcategory IDs are 101, 102, 201, etc.
+  }
+
+  // Get CSS variable name for category color
+  function getCategoryColorVar(id: number | undefined): string {
+    const mainId = getMainCategoryId(id);
+    if (mainId >= 1 && mainId <= 6) {
+      return `var(--category-${mainId})`;
+    }
+    return 'var(--accent-primary)';
+  }
+
   interface Props {
     fnordId: number;
     categories: ArticleCategoryDetailed[];
@@ -194,7 +210,7 @@
       <div
         class="category-chip"
         class:editable={editing}
-        style="--cat-color: {category.color || 'var(--accent-primary)'}"
+        style="--cat-color: {getCategoryColorVar(category.sephiroth_id)}"
       >
         {#if category.icon}
           <i class="category-icon {category.icon}"></i>
@@ -260,7 +276,7 @@
           {:else}
             {#each groupedCategories as group (group.main.id)}
               <div class="category-group">
-                <div class="group-header" style="--cat-color: {group.main.color || 'var(--accent-primary)'}">
+                <div class="group-header" style="--cat-color: {getCategoryColorVar(group.main.id)}">
                   {#if group.main.icon}
                     <i class="group-icon {group.main.icon}"></i>
                   {/if}

@@ -9,6 +9,22 @@
   import { ArticleCard, ArticleKeywords, ArticleCategories } from "./article";
   import StatisticalPreview from "./article/StatisticalPreview.svelte";
 
+  // Get the main category ID (1-6) from a category or subcategory ID
+  function getMainCategoryId(id: number | undefined): number {
+    if (!id) return 0;
+    if (id <= 6) return id;
+    return Math.floor(id / 100); // Subcategory IDs are 101, 102, 201, etc.
+  }
+
+  // Get CSS variable name for category color
+  function getCategoryColorVar(id: number | undefined): string {
+    const mainId = getMainCategoryId(id);
+    if (mainId >= 1 && mainId <= 6) {
+      return `var(--category-${mainId})`;
+    }
+    return 'var(--bg-overlay)';
+  }
+
   let showRevisions = $state(false);
   let revisions = $state<FnordRevision[]>([]);
   let loadingRevisions = $state(false);
@@ -484,7 +500,7 @@
                   <!-- Fallback to old display for articles not yet loaded with detailed info -->
                   <div class="category-badges">
                     {#each categories as cat (cat.sephiroth_id)}
-                      <span class="category-badge" style="background-color: {cat.color || 'var(--bg-overlay)'}; color: {cat.color ? 'white' : 'var(--text-primary)'}">
+                      <span class="category-badge" style="background-color: {getCategoryColorVar(cat.sephiroth_id)}; color: white">
                         {#if cat.icon}<i class="{cat.icon} badge-icon"></i>{/if}
                         {cat.name}
                       </span>

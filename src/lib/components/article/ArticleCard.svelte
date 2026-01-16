@@ -9,9 +9,26 @@
   } from '../../utils/articleFormat';
 
   interface Category {
+    id?: number;
     name: string;
     color?: string;
     icon?: string;
+  }
+
+  // Get the main category ID (1-6) from a category or subcategory ID
+  function getMainCategoryId(id: number | undefined): number {
+    if (!id) return 0;
+    if (id <= 6) return id;
+    return Math.floor(id / 100); // Subcategory IDs are 101, 102, 201, etc.
+  }
+
+  // Get CSS variable name for category color
+  function getCategoryColorVar(id: number | undefined): string {
+    const mainId = getMainCategoryId(id);
+    if (mainId >= 1 && mainId <= 6) {
+      return `var(--category-${mainId})`;
+    }
+    return 'var(--bg-overlay)';
   }
 
   interface Tag {
@@ -136,7 +153,7 @@
           {#each categories as cat (cat.name)}
             <span
               class="card-category"
-              style="background-color: {cat.color || 'var(--bg-overlay)'}"
+              style="background-color: {getCategoryColorVar(cat.id)}"
               title={cat.name}
             >
               {#if cat.icon}<i class={cat.icon}></i>{:else}{cat.name}{/if}
