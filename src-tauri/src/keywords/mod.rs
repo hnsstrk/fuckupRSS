@@ -10,17 +10,8 @@ pub mod clustering;
 pub mod config;
 pub mod types;
 
-pub use advanced::{
-    extract_ngrams, extract_textrank, extract_enhanced_entities,
-    filter_by_pos_heuristics, prepare_semantic_candidates, apply_semantic_scores,
-    SemanticCandidate,
-    // MMR Diversification
-    apply_mmr_diversification, apply_mmr_text_based, MmrConfig, MmrCandidate,
-    // Levenshtein distance utilities
-    levenshtein_distance, is_near_duplicate,
-    // TRISUM Multi-Centrality
-    extract_textrank_trisum, get_centrality_scores, TrisumConfig, CentralityScores,
-};
+// Re-export for external use - internal usage via advanced:: prefix
+pub use advanced::TrisumConfig;
 pub use clustering::{
     cluster_articles, get_representatives, transfer_keywords_to_cluster, calculate_savings,
     ArticleCluster, ArticleForClustering, ClusterConfig, ClusteringResult,
@@ -105,6 +96,7 @@ static KNOWN_ACRONYMS: Lazy<HashSet<&str>> = Lazy::new(|| {
 
 pub struct KeywordExtractor {
     max_keywords: usize,
+    config: config::KeywordConfig,
 }
 
 impl Default for KeywordExtractor {
@@ -115,7 +107,18 @@ impl Default for KeywordExtractor {
 
 impl KeywordExtractor {
     pub fn new(max_keywords: usize) -> Self {
-        Self { max_keywords }
+        Self {
+            max_keywords,
+            config: config::KeywordConfig::standard().with_max_keywords(max_keywords),
+        }
+    }
+
+    /// Create extractor with full configuration
+    pub fn with_config(config: config::KeywordConfig) -> Self {
+        Self {
+            max_keywords: config.max_keywords,
+            config,
+        }
     }
 
     pub fn detect_language(text: &str) -> Language {
@@ -198,16 +201,30 @@ impl KeywordExtractor {
                 .or_insert(kw);
         }
 
-        // 5. TextRank graph-based extraction
-        for kw in advanced::extract_textrank(&full_text, 4, self.max_keywords * 2) {
+        // 5. TextRank or TRISUM graph-based extraction
+        let graph_keywords = if self.config.use_trisum {
+            // Use TRISUM multi-centrality for better keyword quality
+            let trisum_config = advanced::TrisumConfig {
+                pagerank_weight: self.config.trisum_pagerank_weight,
+                eigenvector_weight: self.config.trisum_eigenvector_weight,
+                betweenness_weight: self.config.trisum_betweenness_weight,
+            };
+            advanced::extract_textrank_trisum(&full_text, 4, self.max_keywords * 2, Some(trisum_config))
+        } else {
+            // Standard TextRank
+            advanced::extract_textrank(&full_text, 4, self.max_keywords * 2)
+        };
+
+        let source_name = if self.config.use_trisum { "trisum" } else { "textrank" };
+        for kw in graph_keywords {
             let key = kw.text.to_lowercase();
             candidates
                 .entry(key)
                 .and_modify(|existing| {
-                    // TextRank confirmation boosts score
+                    // Graph-based confirmation boosts score
                     existing.score = (existing.score + kw.score * 0.3).min(1.0);
-                    if !existing.source.contains("textrank") {
-                        existing.source = format!("{},textrank", existing.source);
+                    if !existing.source.contains(source_name) {
+                        existing.source = format!("{},{}", existing.source, source_name);
                     }
                 })
                 .or_insert(kw);
@@ -251,13 +268,21 @@ impl KeywordExtractor {
         // Apply POS heuristics to boost likely nouns
         filtered = advanced::filter_by_pos_heuristics(filtered);
 
-        // Sort and diversify
+        // Sort by score
         filtered.sort_by(|a, b| {
             b.score
                 .partial_cmp(&a.score)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-        self.ensure_diversity(filtered)
+
+        // 8. Apply MMR diversification or simple diversity
+        if self.config.use_mmr {
+            // Use MMR text-based diversification for better keyword variety
+            advanced::apply_mmr_text_based(filtered, self.max_keywords, self.config.mmr_lambda)
+        } else {
+            // Fall back to simple diversity method
+            self.ensure_diversity(filtered)
+        }
     }
 
     fn extract_yake(&self, text: &str, lang: Language) -> Vec<ExtractedKeyword> {
@@ -439,6 +464,37 @@ pub fn extract_keywords(title: &str, content: &str, max_keywords: usize) -> Vec<
         .into_iter()
         .map(|kw| kw.text)
         .collect()
+}
+
+/// Extract keywords with full configuration control
+pub fn extract_keywords_with_config(
+    title: &str,
+    content: &str,
+    config: config::KeywordConfig,
+) -> Vec<String> {
+    let extractor = KeywordExtractor::with_config(config);
+    extractor
+        .extract(title, content)
+        .into_iter()
+        .map(|kw| kw.text)
+        .collect()
+}
+
+/// Extract keywords with MMR diversification enabled
+pub fn extract_keywords_diverse(title: &str, content: &str, max_keywords: usize) -> Vec<String> {
+    let config = config::KeywordConfig::standard()
+        .with_max_keywords(max_keywords)
+        .with_mmr(true)
+        .with_mmr_lambda(0.5); // Favor diversity
+    extract_keywords_with_config(title, content, config)
+}
+
+/// Extract keywords using TRISUM multi-centrality
+pub fn extract_keywords_trisum(title: &str, content: &str, max_keywords: usize) -> Vec<String> {
+    let config = config::KeywordConfig::standard()
+        .with_max_keywords(max_keywords)
+        .with_trisum(true);
+    extract_keywords_with_config(title, content, config)
 }
 
 /// Extract keywords with full metadata including source and type

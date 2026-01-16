@@ -1,6 +1,10 @@
 //! Batch processing commands for article analysis
 
 use crate::embedding_worker;
+use crate::keywords::{
+    cluster_articles, get_representatives, calculate_savings,
+    ArticleForClustering, ClusterConfig, ClusteringResult,
+};
 use crate::ollama::{DiscordianAnalysis, OllamaClient, OllamaError};
 use crate::text_analysis::{
     record_correction, BiasWeights, CategoryMatcher, CorrectionRecord, CorrectionType, CorpusStats,
@@ -9,7 +13,8 @@ use crate::text_analysis::{
 use crate::{classify_by_keywords, extract_keywords};
 use crate::AppState;
 use futures::{stream, StreamExt};
-use log::{debug, info};
+use log::{debug, info, warn};
+use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State, Window};
@@ -31,6 +36,160 @@ use super::types::{
 struct BatchContext {
     bias_weights: BiasWeights,
     corpus_stats: Option<CorpusStats>,
+}
+
+/// Configuration for cluster-based batch processing
+#[derive(Debug, Clone)]
+pub struct ClusterBatchConfig {
+    /// Whether to use clustering optimization
+    pub use_clustering: bool,
+    /// Minimum articles to enable clustering (below this, process all)
+    pub min_articles_for_clustering: usize,
+    /// Clustering configuration
+    pub cluster_config: ClusterConfig,
+}
+
+impl Default for ClusterBatchConfig {
+    fn default() -> Self {
+        Self {
+            use_clustering: true,
+            min_articles_for_clustering: 10,
+            cluster_config: ClusterConfig {
+                distance_threshold: 0.4, // Cosine distance
+                min_cluster_size: 2,     // Need at least 2 to benefit
+                max_clusters: 0,         // Unlimited
+            },
+        }
+    }
+}
+
+/// Result of cluster-optimized batch processing
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ClusterBatchResult {
+    /// Standard batch result
+    pub processed: i64,
+    pub succeeded: i64,
+    pub failed: i64,
+    /// Clustering statistics
+    pub clusters_found: usize,
+    pub llm_calls_saved: usize,
+    pub savings_percentage: f64,
+}
+
+/// Load articles with embeddings for clustering
+fn load_articles_for_clustering(
+    state: &AppState,
+    limit: Option<i64>,
+) -> Result<Vec<(BatchArticle, Option<Vec<f32>>)>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let query = match limit {
+        Some(n) => format!(
+            r#"SELECT f.id, f.title, f.content_full,
+                      DATE(COALESCE(f.published_at, f.fetched_at)) as article_date,
+                      COALESCE(f.analysis_attempts, 0) as attempts,
+                      f.analysis_error,
+                      f.embedding
+               FROM fnords f
+               WHERE f.processed_at IS NULL
+               AND f.content_full IS NOT NULL AND LENGTH(f.content_full) >= 100
+               AND (f.analysis_hopeless IS NULL OR f.analysis_hopeless = FALSE)
+               ORDER BY f.published_at DESC
+               LIMIT {}"#,
+            n
+        ),
+        None => r#"SELECT f.id, f.title, f.content_full,
+                      DATE(COALESCE(f.published_at, f.fetched_at)) as article_date,
+                      COALESCE(f.analysis_attempts, 0) as attempts,
+                      f.analysis_error,
+                      f.embedding
+               FROM fnords f
+               WHERE f.processed_at IS NULL
+               AND f.content_full IS NOT NULL AND LENGTH(f.content_full) >= 100
+               AND (f.analysis_hopeless IS NULL OR f.analysis_hopeless = FALSE)
+               ORDER BY f.published_at DESC"#
+            .to_string(),
+    };
+
+    let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            let embedding: Option<Vec<u8>> = row.get(6)?;
+            let embedding_f32: Option<Vec<f32>> = embedding.map(|bytes| {
+                bytes
+                    .chunks_exact(4)
+                    .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+                    .collect()
+            });
+
+            Ok((
+                BatchArticle {
+                    fnord_id: row.get(0)?,
+                    title: row.get(1)?,
+                    content: row.get(2)?,
+                    article_date: row.get(3)?,
+                    attempts: row.get(4)?,
+                    previous_error: row.get(5)?,
+                },
+                embedding_f32,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+/// Apply clustering to articles and return optimized processing plan
+fn apply_clustering(
+    articles: Vec<(BatchArticle, Option<Vec<f32>>)>,
+    config: &ClusterBatchConfig,
+) -> (ClusteringResult, HashMap<i64, BatchArticle>) {
+    // Build article map for later lookup
+    let article_map: HashMap<i64, BatchArticle> = articles
+        .iter()
+        .map(|(a, _)| (a.fnord_id, a.clone()))
+        .collect();
+
+    // Only articles with embeddings can be clustered
+    let clusterable: Vec<ArticleForClustering> = articles
+        .iter()
+        .filter_map(|(article, embedding)| {
+            embedding.as_ref().map(|emb| ArticleForClustering {
+                id: article.fnord_id,
+                title: article.title.clone(),
+                embedding: emb.clone(),
+                summary: None,
+                is_processed: false,
+            })
+        })
+        .collect();
+
+    let non_clusterable_ids: Vec<i64> = articles
+        .iter()
+        .filter(|(_, emb)| emb.is_none())
+        .map(|(a, _)| a.fnord_id)
+        .collect();
+
+    if clusterable.len() < config.min_articles_for_clustering {
+        // Not enough articles for clustering, return all as unclustered
+        let result = ClusteringResult {
+            clusters: vec![],
+            unclustered_ids: articles.iter().map(|(a, _)| a.fnord_id).collect(),
+            total_articles: articles.len(),
+            representatives_count: articles.len(),
+        };
+        return (result, article_map);
+    }
+
+    // Perform clustering
+    let mut clustering_result = cluster_articles(clusterable, &config.cluster_config);
+
+    // Add non-clusterable articles to unclustered list
+    clustering_result.unclustered_ids.extend(non_clusterable_ids);
+    clustering_result.representatives_count =
+        clustering_result.clusters.len() + clustering_result.unclustered_ids.len();
+
+    (clustering_result, article_map)
 }
 
 /// Get count of hopeless articles (failed 3+ times)
@@ -548,4 +707,383 @@ pub async fn process_batch(
 pub fn cancel_batch(state: State<AppState>) -> Result<(), String> {
     state.batch_cancel.store(true, Ordering::SeqCst);
     Ok(())
+}
+
+/// Transfer keywords from representative to cluster members
+fn transfer_keywords_to_cluster_members(
+    state: &AppState,
+    cluster: &crate::keywords::ArticleCluster,
+    keywords: &[String],
+    categories: &[i64],
+) -> Result<usize, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut transferred = 0;
+
+    for &article_id in &cluster.article_ids {
+        // Skip the representative (already processed)
+        if article_id == cluster.representative_id {
+            continue;
+        }
+
+        // Save keywords for this article
+        for keyword in keywords {
+            let _ = db.conn().execute(
+                r#"INSERT OR IGNORE INTO immanentize (name) VALUES (?1)"#,
+                [keyword],
+            );
+
+            let keyword_id: i64 = db.conn().query_row(
+                "SELECT id FROM immanentize WHERE name = ?1",
+                [keyword],
+                |row| row.get(0),
+            ).unwrap_or(0);
+
+            if keyword_id > 0 {
+                let _ = db.conn().execute(
+                    r#"INSERT OR REPLACE INTO fnord_immanentize
+                       (fnord_id, immanentize_id, source, confidence)
+                       VALUES (?1, ?2, 'cluster', 0.85)"#,
+                    (article_id, keyword_id),
+                );
+            }
+        }
+
+        // Save categories for this article
+        for &category_id in categories {
+            let _ = db.conn().execute(
+                r#"INSERT OR REPLACE INTO fnord_sephiroth
+                   (fnord_id, sephiroth_id, source, confidence)
+                   VALUES (?1, ?2, 'cluster', 0.85)"#,
+                (article_id, category_id),
+            );
+        }
+
+        // Mark as processed (via cluster)
+        let _ = db.conn().execute(
+            r#"UPDATE fnords SET
+               processed_at = CURRENT_TIMESTAMP,
+               analysis_attempts = 0,
+               analysis_error = 'Processed via cluster transfer'
+            WHERE id = ?1"#,
+            [article_id],
+        );
+
+        transferred += 1;
+    }
+
+    Ok(transferred)
+}
+
+/// Process batch with clustering optimization
+///
+/// This command groups similar articles together based on embeddings,
+/// runs LLM analysis only on cluster representatives, and transfers
+/// keywords to all cluster members.
+#[tauri::command]
+pub async fn process_batch_clustered(
+    window: Window,
+    state: State<'_, AppState>,
+    model: String,
+    limit: Option<i64>,
+    use_clustering: Option<bool>,
+) -> Result<ClusterBatchResult, String> {
+    let locale = get_locale_from_db(&state);
+    let concurrency = get_ai_concurrency(&state);
+    let should_cluster = use_clustering.unwrap_or(true);
+
+    info!(
+        "Starting clustered batch processing with concurrency: {}, clustering: {}",
+        concurrency, should_cluster
+    );
+
+    // Load batch context
+    let batch_context = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
+        let corpus_stats = CorpusStats::load_from_db(db.conn()).ok();
+        BatchContext {
+            bias_weights,
+            corpus_stats,
+        }
+    };
+
+    // Load articles with embeddings
+    let articles_with_embeddings = load_articles_for_clustering(&state, limit)?;
+    let total_articles = articles_with_embeddings.len();
+
+    if total_articles == 0 {
+        return Ok(ClusterBatchResult {
+            processed: 0,
+            succeeded: 0,
+            failed: 0,
+            clusters_found: 0,
+            llm_calls_saved: 0,
+            savings_percentage: 0.0,
+        });
+    }
+
+    state.batch_cancel.store(false, Ordering::SeqCst);
+    state.batch_running.store(true, Ordering::SeqCst);
+
+    // Apply clustering if enabled
+    let cluster_config = ClusterBatchConfig::default();
+    let (clustering_result, article_map) = if should_cluster {
+        apply_clustering(articles_with_embeddings, &cluster_config)
+    } else {
+        let article_map: HashMap<i64, BatchArticle> = articles_with_embeddings
+            .iter()
+            .map(|(a, _)| (a.fnord_id, a.clone()))
+            .collect();
+        let result = ClusteringResult {
+            clusters: vec![],
+            unclustered_ids: articles_with_embeddings.iter().map(|(a, _)| a.fnord_id).collect(),
+            total_articles,
+            representatives_count: total_articles,
+        };
+        (result, article_map)
+    };
+
+    let (saved, _total, savings_pct) = calculate_savings(&clustering_result);
+    let representatives = get_representatives(&clustering_result);
+    let total_to_process = representatives.len() as i64;
+
+    info!(
+        "Clustering: {} clusters found, {} representatives, {} LLM calls saved ({:.1}%)",
+        clustering_result.clusters.len(),
+        representatives.len(),
+        saved,
+        savings_pct
+    );
+
+    let _ = window.emit(
+        "batch-progress",
+        BatchProgress {
+            current: 0,
+            total: total_to_process,
+            fnord_id: 0,
+            title: format!(
+                "Starting clustered batch: {} articles in {} clusters, {} to process...",
+                total_articles,
+                clustering_result.clusters.len(),
+                representatives.len()
+            ),
+            success: true,
+            error: None,
+        },
+    );
+
+    // Get num_ctx setting
+    let num_ctx = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        get_num_ctx_setting(&db)
+    };
+
+    // Process only representatives
+    let articles_to_process: Vec<BatchArticle> = representatives
+        .iter()
+        .filter_map(|&id| article_map.get(&id).cloned())
+        .collect();
+
+    // Wrap in Arc first, then build cluster lookup
+    let clustering_result = Arc::new(clustering_result);
+    let batch_context = Arc::new(batch_context);
+
+    // Build cluster lookup: representative_id -> cluster index
+    let cluster_lookup: HashMap<i64, usize> = clustering_result
+        .clusters
+        .iter()
+        .enumerate()
+        .map(|(idx, c)| (c.representative_id, idx))
+        .collect();
+    let cluster_lookup = Arc::new(cluster_lookup);
+
+    let stream = stream::iter(articles_to_process.into_iter().enumerate());
+
+    let results = stream
+        .map(|(idx, article)| {
+            let title = article.title.clone();
+            let fnord_id = article.fnord_id;
+            let model = model.clone();
+            let locale = locale.clone();
+            let state = state.clone();
+            let window = window.clone();
+            let batch_context = batch_context.clone();
+            let cluster_lookup = cluster_lookup.clone();
+            let clustering_result = clustering_result.clone();
+
+            async move {
+                if state.batch_cancel.load(Ordering::SeqCst) {
+                    return (idx, title, fnord_id, false, Some("Cancelled".to_string()), 0usize);
+                }
+
+                let (ctx_multiplier, adjusted_num_ctx) = match article.attempts {
+                    0 => (1.0, num_ctx),
+                    1 => (1.5, ((num_ctx as f64) * 1.5) as u32),
+                    _ => (2.0, num_ctx * 2),
+                };
+
+                if article.attempts > 0 {
+                    info!(
+                        "Retry {}/3 for article {}: using {}x context (num_ctx={})",
+                        article.attempts + 1,
+                        fnord_id,
+                        ctx_multiplier,
+                        adjusted_num_ctx
+                    );
+                }
+
+                let client = OllamaClient::with_context(None, adjusted_num_ctx);
+
+                let (success, error) =
+                    process_single_article(&client, &state, &model, &locale, article, &batch_context)
+                        .await;
+
+                // If this is a cluster representative, transfer keywords to members
+                let mut transferred = 0;
+                if success {
+                    if let Some(&cluster_idx) = cluster_lookup.get(&fnord_id) {
+                        if let Some(cluster) = clustering_result.clusters.get(cluster_idx) {
+                            // Load keywords and categories for this article
+                            let (keywords, categories) = {
+                                let db = match state.db.lock() {
+                                    Ok(db) => db,
+                                    Err(_) => {
+                                        return (idx, title, fnord_id, success, error, 0);
+                                    }
+                                };
+
+                                let keywords: Vec<String> = db.conn()
+                                    .prepare(
+                                        r#"SELECT i.name FROM immanentize i
+                                           JOIN fnord_immanentize fi ON fi.immanentize_id = i.id
+                                           WHERE fi.fnord_id = ?1"#
+                                    )
+                                    .ok()
+                                    .and_then(|mut stmt| {
+                                        stmt.query_map([fnord_id], |row| row.get(0))
+                                            .ok()
+                                            .map(|rows| rows.filter_map(|r| r.ok()).collect())
+                                    })
+                                    .unwrap_or_default();
+
+                                let categories: Vec<i64> = db.conn()
+                                    .prepare(
+                                        r#"SELECT sephiroth_id FROM fnord_sephiroth
+                                           WHERE fnord_id = ?1"#
+                                    )
+                                    .ok()
+                                    .and_then(|mut stmt| {
+                                        stmt.query_map([fnord_id], |row| row.get(0))
+                                            .ok()
+                                            .map(|rows| rows.filter_map(|r| r.ok()).collect())
+                                    })
+                                    .unwrap_or_default();
+
+                                (keywords, categories)
+                            };
+
+                            if !keywords.is_empty() || !categories.is_empty() {
+                                match transfer_keywords_to_cluster_members(&state, cluster, &keywords, &categories) {
+                                    Ok(n) => {
+                                        transferred = n;
+                                        info!(
+                                            "Transferred {} keywords to {} cluster members",
+                                            keywords.len(),
+                                            transferred
+                                        );
+                                    }
+                                    Err(e) => {
+                                        warn!("Failed to transfer keywords to cluster: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let _ = window.emit(
+                    "batch-progress",
+                    BatchProgress {
+                        current: (idx + 1) as i64,
+                        total: total_to_process,
+                        fnord_id,
+                        title: title.clone(),
+                        success,
+                        error: error.clone(),
+                    },
+                );
+
+                (idx, title, fnord_id, success, error, transferred)
+            }
+        })
+        .buffer_unordered(concurrency)
+        .collect::<Vec<_>>()
+        .await;
+
+    let mut succeeded = 0;
+    let mut failed = 0;
+    let mut total_transferred = 0;
+    for (_, _, _, success, _, transferred) in &results {
+        if *success {
+            succeeded += 1;
+            total_transferred += transferred;
+        } else {
+            failed += 1;
+        }
+    }
+
+    // Process embedding queue after batch
+    if succeeded > 0 && !state.batch_cancel.load(Ordering::SeqCst) {
+        let queue_size = {
+            let db = state.db.lock().map_err(|e| e.to_string())?;
+            db.conn()
+                .query_row("SELECT COUNT(*) FROM embedding_queue", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap_or(0)
+        };
+
+        if queue_size > 0 {
+            let _ = window.emit(
+                "embedding-progress",
+                embedding_worker::EmbeddingProgress {
+                    queue_size,
+                    total: queue_size,
+                    processed: 0,
+                    failed: 0,
+                    is_processing: true,
+                },
+            );
+
+            let _ = embedding_worker::process_embedding_queue(
+                state.db.clone(),
+                Some(&window.app_handle()),
+                queue_size,
+                Some(queue_size),
+            )
+            .await;
+
+            let _ = window.emit(
+                "embedding-progress",
+                embedding_worker::EmbeddingProgress {
+                    queue_size: 0,
+                    total: queue_size,
+                    processed: queue_size,
+                    failed: 0,
+                    is_processing: false,
+                },
+            );
+        }
+    }
+
+    state.batch_running.store(false, Ordering::SeqCst);
+
+    Ok(ClusterBatchResult {
+        processed: total_articles as i64,
+        succeeded: succeeded + total_transferred as i64,
+        failed,
+        clusters_found: clustering_result.clusters.len(),
+        llm_calls_saved: saved,
+        savings_percentage: savings_pct,
+    })
 }

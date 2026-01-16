@@ -56,3 +56,7 @@ pub use types::{
     ArticleEmbeddingProgress,
     ArticleEmbeddingBatchResult,
 };
+
+// Re-export cluster batch types
+#[allow(unused_imports)]
+pub use batch_processor::{ClusterBatchConfig, ClusterBatchResult};

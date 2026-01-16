@@ -140,6 +140,7 @@ pub struct FailedCount {
     pub count: i64,
 }
 
+#[derive(Clone)]
 pub struct BatchArticle {
     pub fnord_id: i64,
     pub title: String,

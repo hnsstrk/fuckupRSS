@@ -654,6 +654,103 @@ Gewichtungen werden in der `bias_weights` Tabelle gespeichert:
 - Gewichtungen sind auf 0.1-3.0 begrenzt
 - `correction_count` trackt Häufigkeit der Anpassungen
 
+### Advanced Keyword Extraction
+
+Die Keyword-Extraktion verwendet mehrere Methoden mit konfigurierbaren Optionen:
+
+**Konfigurierbare Features:**
+```rust
+pub struct KeywordConfig {
+    // Standard-Optionen
+    pub max_keywords: usize,           // Default: 15
+    pub min_word_length: usize,        // Default: 3
+    pub use_stemming: bool,            // Default: true
+    pub max_categories: usize,         // Default: 5
+    pub statistical_confidence: f64,   // Default: 0.8
+    pub compound_confidence_factor: f64, // Default: 0.8
+
+    // === MMR Diversification ===
+    pub use_mmr: bool,                 // Default: true
+    pub mmr_lambda: f64,               // Default: 0.6 (0.0=diversity, 1.0=relevance)
+
+    // === TRISUM Multi-Centrality ===
+    pub use_trisum: bool,              // Default: false
+    pub trisum_pagerank_weight: f64,   // Default: 0.4
+    pub trisum_eigenvector_weight: f64, // Default: 0.35
+    pub trisum_betweenness_weight: f64, // Default: 0.25
+
+    // === Levenshtein Deduplication ===
+    pub levenshtein_max_distance: usize, // Default: 2
+}
+```
+
+**Vordefinierte Konfigurationen:**
+| Konfiguration | use_mmr | use_trisum | Beschreibung |
+|---------------|---------|------------|--------------|
+| `standard()` | true | false | Standard für Einzel-Artikel |
+| `batch_processing()` | true | true | Für Batch-Verarbeitung (TRISUM aktiv) |
+| `high_diversity()` | true | true | Maximale Keyword-Vielfalt |
+| `local_extraction()` | false | false | Fallback ohne fortgeschrittene Features |
+
+**MMR (Maximal Marginal Relevance):**
+- Balanciert Relevanz vs. Diversität der Keywords
+- `mmr_lambda=0.3` → mehr Diversität
+- `mmr_lambda=0.7` → mehr Relevanz
+
+**TRISUM Multi-Centrality:**
+- Kombiniert PageRank, Eigenvector- und Betweenness-Centrality
+- Findet "Bridge"-Keywords (verbinden Themenbereiche)
+- Empfohlen für Batch-Verarbeitung
+
+**Levenshtein-Deduplizierung:**
+- Entfernt Near-Duplicates (z.B. "Trump" vs "Trumps")
+- `max_distance=2` ist Standard
+- Verhindert redundante Keywords
+
+**Relevante Module:**
+- `src-tauri/src/keywords/mod.rs` - Haupt-Extraktor
+- `src-tauri/src/keywords/config.rs` - Konfiguration
+- `src-tauri/src/keywords/advanced.rs` - MMR, TRISUM, Levenshtein
+- `src-tauri/src/keywords/clustering.rs` - Artikel-Clustering
+
+### Article Clustering (Batch Optimization)
+
+Bei der Batch-Verarbeitung können ähnliche Artikel gruppiert werden:
+
+```
+1. Artikel mit Embeddings laden
+2. Agglomerative Hierarchische Clustering
+3. Nur Cluster-Repräsentanten durch LLM analysieren
+4. Keywords auf Cluster-Mitglieder übertragen
+```
+
+**Vorteile:**
+- Reduziert LLM-Aufrufe signifikant (oft 30-50%)
+- Konsistente Keywords für ähnliche Artikel
+- Schnellere Batch-Verarbeitung
+
+**Konfiguration:**
+```rust
+pub struct ClusterConfig {
+    pub distance_threshold: f64,    // Default: 0.4 (Cosine distance)
+    pub min_cluster_size: usize,    // Default: 2
+    pub max_clusters: usize,        // Default: 0 (unlimited)
+}
+```
+
+**Tauri Command:**
+```typescript
+// Standard-Batch (ohne Clustering)
+await invoke('process_batch', { model, limit });
+
+// Cluster-optimierter Batch
+await invoke('process_batch_clustered', {
+  model,
+  limit,
+  useClustering: true  // Optional, default: true
+});
+```
+
 ## Ollama Setup
 
 Ollama muss separat installiert und gestartet werden. fuckupRSS verbindet sich mit dem laufenden Ollama-Server.
