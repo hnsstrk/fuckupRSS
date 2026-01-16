@@ -297,6 +297,9 @@
         <h4 class="section-title">
           <i class="fa-solid fa-diagram-project section-icon"></i>
           {$_('network.similarKeywords') || 'Aehnliche Keywords'}
+          <span class="section-help" title={$_('network.similarKeywordsHelp') || 'Keywords mit ähnlicher semantischer Bedeutung basierend auf Embeddings'}>
+            <i class="fa-solid fa-circle-info"></i>
+          </span>
         </h4>
         {#if similarKeywordsLoading}
           <div class="loading-similar">
@@ -304,27 +307,36 @@
             {$_('network.loading') || 'Laden...'}
           </div>
         {:else if similarKeywords.length > 0}
-          <div class="similar-keywords-grid">
+          <div class="similar-keywords-list">
             {#each similarKeywords as simKw (simKw.id)}
+              {@const similarityPercent = Math.round(simKw.similarity * 100)}
+              {@const similarityClass = similarityPercent >= 80 ? 'high' : similarityPercent >= 60 ? 'medium' : 'low'}
               <button
-                class="similar-keyword-item"
+                class="similar-keyword-card"
                 onclick={() => onKeywordSelect(simKw.id)}
-                title={`${$_('network.similarity') || 'Aehnlichkeit'}: ${Math.round(simKw.similarity * 100)}% | ${$_('network.cooccurrence') || 'Kookkurrenz'}: ${simKw.cooccurrence}`}
               >
-                <span class="similar-name">{simKw.name}</span>
-                <div class="similar-scores">
-                  {#if simKw.similarity > 0}
-                    <span class="similar-score semantic" title={$_('network.embeddingSimilarity') || 'Embedding-Aehnlichkeit'}>
+                <div class="similar-card-header">
+                  <span class="similar-name">{simKw.name}</span>
+                  <span class="similarity-badge {similarityClass}">
+                    {similarityPercent}%
+                  </span>
+                </div>
+                <div class="similar-card-body">
+                  <div class="similarity-bar-container">
+                    <div class="similarity-bar {similarityClass}" style="width: {similarityPercent}%"></div>
+                  </div>
+                  <div class="similar-meta">
+                    <span class="meta-semantic" title={$_('network.embeddingSimilarity') || 'Semantische Aehnlichkeit'}>
                       <i class="fa-solid fa-brain"></i>
-                      {Math.round(simKw.similarity * 100)}%
+                      {$_('network.semantic') || 'Semantisch'}
                     </span>
-                  {/if}
-                  {#if simKw.cooccurrence > 0}
-                    <span class="similar-score cooccur" title={$_('network.cooccurrence') || 'Kookkurrenz'}>
-                      <i class="fa-solid fa-link"></i>
-                      {simKw.cooccurrence}
-                    </span>
-                  {/if}
+                    {#if simKw.cooccurrence > 0}
+                      <span class="meta-cooccur" title={$_('network.cooccurrence') || 'Gemeinsame Artikel'}>
+                        <i class="fa-solid fa-link"></i>
+                        {simKw.cooccurrence} {$_('network.shared') || 'gemeinsam'}
+                      </span>
+                    {/if}
+                  </div>
                 </div>
               </button>
             {/each}
@@ -340,29 +352,37 @@
         <KeywordTrendChart
           keywordId={selectedKeyword.id}
           keywordName={selectedKeyword.name}
-          neighborIds={cooccurringKeywords.slice(0, 7).map(k => k.id)}
+          neighborIds={cooccurringKeywords.slice(0, 4).map(k => k.id)}
           ondayschange={onDaysChange}
         />
         {#if cooccurringKeywords.length > 0}
           <div class="neighbor-legend">
             <span class="legend-label">{$_('network.comparedWith')}:</span>
-            {#each cooccurringKeywords.slice(0, 7) as coKw, idx (coKw.id)}
-              <button
-                class="neighbor-tag"
-                style="--neighbor-color: {['#f9e2af', '#a6e3a1', '#89b4fa', '#f5c2e7', '#94e2d5', '#fab387', '#89dceb'][idx]}"
-                onclick={() => onKeywordSelect(coKw.id)}
-                title="{coKw.cooccurrence_count} {$_('network.articleCount')}"
-              >
-                {coKw.name}
-              </button>
-            {/each}
-            {#if cooccurringKeywords.length > 7}
-              <span
-                class="more-count"
-                title={cooccurringKeywords.slice(7).map(k => k.name).join(', ')}
-              >
-                +{cooccurringKeywords.length - 7}
-              </span>
+            <!-- Top 4 with colors matching the chart -->
+            <div class="colored-neighbors">
+              {#each cooccurringKeywords.slice(0, 4) as coKw, idx (coKw.id)}
+                <button
+                  class="neighbor-tag neighbor-tag-colored neighbor-color-{idx + 1}"
+                  onclick={() => onKeywordSelect(coKw.id)}
+                  title="{coKw.cooccurrence_count} {$_('network.articleCount')}"
+                >
+                  {coKw.name}
+                </button>
+              {/each}
+            </div>
+            <!-- Remaining keywords in neutral style -->
+            {#if cooccurringKeywords.length > 4}
+              <div class="neutral-neighbors">
+                {#each cooccurringKeywords.slice(4) as coKw (coKw.id)}
+                  <button
+                    class="neighbor-tag neighbor-tag-neutral"
+                    onclick={() => onKeywordSelect(coKw.id)}
+                    title="{coKw.cooccurrence_count} {$_('network.articleCount')}"
+                  >
+                    {coKw.name}
+                  </button>
+                {/each}
+              </div>
             {/if}
           </div>
         {/if}
@@ -754,8 +774,7 @@
   /* Neighbor Legend */
   .neighbor-legend {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
+    flex-direction: column;
     gap: 0.5rem;
     margin-top: 0.75rem;
     padding: 0.5rem;
@@ -768,31 +787,88 @@
     color: var(--text-muted);
   }
 
+  .colored-neighbors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .neutral-neighbors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding-top: 0.375rem;
+    border-top: 1px solid var(--border-muted);
+  }
+
   .neighbor-tag {
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
-    background-color: var(--bg-overlay);
-    border: 1px solid var(--neighbor-color);
     border-radius: 0.25rem;
-    color: var(--neighbor-color);
     cursor: pointer;
     transition: all 0.2s;
   }
 
-  .neighbor-tag:hover {
-    background-color: var(--neighbor-color);
+  /* Colored neighbor tags using theme category colors */
+  .neighbor-tag-colored {
+    font-weight: 500;
+  }
+
+  .neighbor-color-1 {
+    background-color: var(--category-1-bg);
+    border: 1px solid var(--category-1-border);
+    color: var(--category-1);
+  }
+
+  .neighbor-color-1:hover {
+    background-color: var(--category-1);
     color: var(--text-on-accent);
   }
 
-  .more-count {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    padding: 0.25rem 0.5rem;
-    cursor: help;
+  .neighbor-color-2 {
+    background-color: var(--category-2-bg);
+    border: 1px solid var(--category-2-border);
+    color: var(--category-2);
   }
 
-  .more-count:hover {
-    color: var(--text-primary);
+  .neighbor-color-2:hover {
+    background-color: var(--category-2);
+    color: var(--text-on-accent);
+  }
+
+  .neighbor-color-3 {
+    background-color: var(--category-3-bg);
+    border: 1px solid var(--category-3-border);
+    color: var(--category-3);
+  }
+
+  .neighbor-color-3:hover {
+    background-color: var(--category-3);
+    color: var(--text-on-accent);
+  }
+
+  .neighbor-color-4 {
+    background-color: var(--category-4-bg);
+    border: 1px solid var(--category-4-border);
+    color: var(--category-4);
+  }
+
+  .neighbor-color-4:hover {
+    background-color: var(--category-4);
+    color: var(--text-on-accent);
+  }
+
+  /* Neutral neighbor tags */
+  .neighbor-tag-neutral {
+    background-color: var(--bg-overlay);
+    border: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
+  }
+
+  .neighbor-tag-neutral:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
   }
 
   /* Articles List */
@@ -896,65 +972,132 @@
     color: var(--accent-primary);
   }
 
-  .similar-keywords-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  .section-help {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--text-faint);
+    cursor: help;
+  }
+
+  .section-help:hover {
+    color: var(--text-muted);
+  }
+
+  .similar-keywords-list {
+    display: flex;
+    flex-direction: column;
     gap: 0.5rem;
   }
 
-  .similar-keyword-item {
+  .similar-keyword-card {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    padding: 0.5rem 0.75rem;
+    gap: 0.375rem;
+    padding: 0.625rem 0.75rem;
     background-color: var(--bg-surface);
     border: 1px solid var(--border-default);
-    border-radius: 0.375rem;
+    border-radius: 0.5rem;
     cursor: pointer;
     text-align: left;
     transition: all 0.2s;
   }
 
-  .similar-keyword-item:hover {
+  .similar-keyword-card:hover {
     border-color: var(--accent-primary);
     background-color: var(--bg-overlay);
+    transform: translateX(2px);
+  }
+
+  .similar-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .similar-name {
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 500;
     color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex: 1;
   }
 
-  .similar-scores {
+  .similarity-badge {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  .similarity-badge.high {
+    background-color: rgba(34, 197, 94, 0.2);
+    color: var(--accent-success);
+  }
+
+  .similarity-badge.medium {
+    background-color: rgba(251, 191, 36, 0.2);
+    color: var(--accent-warning);
+  }
+
+  .similarity-badge.low {
+    background-color: var(--bg-overlay);
+    color: var(--text-muted);
+  }
+
+  .similar-card-body {
     display: flex;
-    gap: 0.5rem;
+    flex-direction: column;
+    gap: 0.375rem;
   }
 
-  .similar-score {
+  .similarity-bar-container {
+    height: 4px;
+    background-color: var(--bg-muted);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .similarity-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .similarity-bar.high {
+    background: linear-gradient(90deg, var(--accent-success), color-mix(in srgb, var(--accent-success) 70%, white));
+  }
+
+  .similarity-bar.medium {
+    background: linear-gradient(90deg, var(--accent-warning), color-mix(in srgb, var(--accent-warning) 70%, white));
+  }
+
+  .similarity-bar.low {
+    background: var(--text-muted);
+  }
+
+  .similar-meta {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.6875rem;
+  }
+
+  .meta-semantic,
+  .meta-cooccur {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    font-size: 0.625rem;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    font-weight: 500;
+    color: var(--text-muted);
   }
 
-  .similar-score i {
-    font-size: 0.5rem;
+  .meta-semantic i {
+    color: var(--accent-secondary);
   }
 
-  .similar-score.semantic {
-    background-color: rgba(139, 92, 246, 0.15);
-    color: var(--accent-purple, #a78bfa);
-  }
-
-  .similar-score.cooccur {
-    background-color: rgba(34, 197, 94, 0.15);
+  .meta-cooccur i {
     color: var(--accent-success);
   }
 

@@ -26,18 +26,68 @@
   let prevKeywordId: number | null = null;
   let prevNeighborIdsKey = '';
   let mounted = false;
+  let themeObserver: MutationObserver | null = null;
 
-  // Color palette: main keyword first (Mauve), then 7 co-occurring keywords
-  const colors = [
-    { border: '#cba6f7', bg: 'rgba(203, 166, 247, 0.3)' }, // Mauve - Main keyword
-    { border: '#f9e2af', bg: 'rgba(249, 226, 175, 0.15)' }, // Yellow
-    { border: '#a6e3a1', bg: 'rgba(166, 227, 161, 0.15)' }, // Green
-    { border: '#89b4fa', bg: 'rgba(137, 180, 250, 0.15)' }, // Blue
-    { border: '#f5c2e7', bg: 'rgba(245, 194, 231, 0.15)' }, // Pink
-    { border: '#94e2d5', bg: 'rgba(148, 226, 213, 0.15)' }, // Teal
-    { border: '#fab387', bg: 'rgba(250, 179, 135, 0.15)' }, // Peach
-    { border: '#89dceb', bg: 'rgba(137, 220, 235, 0.15)' }, // Sky
-  ];
+  // Chart color type
+  interface ChartColor {
+    border: string;
+    bg: string;
+  }
+
+  // Get theme-aware colors from CSS variables
+  function getThemeColors(): ChartColor[] {
+    const style = getComputedStyle(document.documentElement);
+
+    // Main keyword uses accent-primary (mauve/purple)
+    const accentPrimary = style.getPropertyValue('--accent-primary').trim() || '#cba6f7';
+
+    // Category colors for the 4 co-occurring keywords (indices 1-4)
+    const categoryColors: ChartColor[] = [];
+    for (let i = 1; i <= 4; i++) {
+      const border = style.getPropertyValue(`--category-${i}`).trim();
+      const bg = style.getPropertyValue(`--category-${i}-bg`).trim();
+      if (border && bg) {
+        categoryColors.push({ border, bg });
+      }
+    }
+
+    // Fallback colors if CSS variables aren't available
+    const fallbackColors: ChartColor[] = [
+      { border: '#89dceb', bg: 'rgba(137, 220, 235, 0.15)' },
+      { border: '#cba6f7', bg: 'rgba(203, 166, 247, 0.15)' },
+      { border: '#f9e2af', bg: 'rgba(249, 226, 175, 0.15)' },
+      { border: '#a6e3a1', bg: 'rgba(166, 227, 161, 0.15)' },
+    ];
+
+    return [
+      { border: accentPrimary, bg: hexToRgba(accentPrimary, 0.3) },
+      ...(categoryColors.length >= 4 ? categoryColors : fallbackColors)
+    ];
+  }
+
+  // Helper to convert hex to rgba
+  function hexToRgba(hex: string, alpha: number): string {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (result) {
+      const r = parseInt(result[1], 16);
+      const g = parseInt(result[2], 16);
+      const b = parseInt(result[3], 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    return `rgba(203, 166, 247, ${alpha})`;
+  }
+
+  // Get theme-aware chart styling
+  function getChartThemeStyles() {
+    const style = getComputedStyle(document.documentElement);
+    return {
+      textColor: style.getPropertyValue('--text-muted').trim() || '#a6adc8',
+      gridColor: style.getPropertyValue('--border-default').trim() || 'rgba(88, 91, 112, 0.3)',
+      tooltipBg: style.getPropertyValue('--bg-surface').trim() || '#1e1e2e',
+      tooltipText: style.getPropertyValue('--text-primary').trim() || '#cdd6f4',
+      tooltipBorder: style.getPropertyValue('--border-default').trim() || '#585b70',
+    };
+  }
 
   async function loadTrendData() {
     if (!keywordId) return;
@@ -46,8 +96,8 @@
     error = null;
 
     try {
-      // Build list of all IDs (main keyword + up to 7 co-occurring)
-      const allIds = [keywordId, ...neighborIds.slice(0, 7)];
+      // Build list of all IDs (main keyword + up to 4 co-occurring = 5 total)
+      const allIds = [keywordId, ...neighborIds.slice(0, 4)];
 
       const response = await invoke<{
         keywords: { id: number; name: string; counts: number[] }[];
@@ -79,6 +129,10 @@
     }
 
     if (data.dates.length === 0 || data.keywords.length === 0) return;
+
+    // Get theme-aware colors and styles
+    const colors = getThemeColors();
+    const themeStyles = getChartThemeStyles();
 
     // Format dates for display
     const labels = data.dates.map(d => {
@@ -124,7 +178,7 @@
             position: 'top',
             align: 'start',
             labels: {
-              color: '#cdd6f4',
+              color: themeStyles.textColor,
               font: {
                 size: 11,
               },
@@ -134,10 +188,10 @@
             },
           },
           tooltip: {
-            backgroundColor: '#1e1e2e',
-            titleColor: '#cdd6f4',
-            bodyColor: '#cdd6f4',
-            borderColor: '#585b70',
+            backgroundColor: themeStyles.tooltipBg,
+            titleColor: themeStyles.tooltipText,
+            bodyColor: themeStyles.tooltipText,
+            borderColor: themeStyles.tooltipBorder,
             borderWidth: 1,
             padding: 12,
             callbacks: {
@@ -157,10 +211,10 @@
         scales: {
           x: {
             grid: {
-              color: 'rgba(88, 91, 112, 0.3)',
+              color: hexToRgba(themeStyles.gridColor, 0.3),
             },
             ticks: {
-              color: '#a6adc8',
+              color: themeStyles.textColor,
               maxRotation: 45,
               minRotation: 45,
               font: {
@@ -171,10 +225,10 @@
           y: {
             beginAtZero: true,
             grid: {
-              color: 'rgba(88, 91, 112, 0.3)',
+              color: hexToRgba(themeStyles.gridColor, 0.3),
             },
             ticks: {
-              color: '#a6adc8',
+              color: themeStyles.textColor,
               precision: 0,
               font: {
                 size: 10,
@@ -183,7 +237,7 @@
             title: {
               display: true,
               text: $_('network.articleCount') || 'Artikel',
-              color: '#a6adc8',
+              color: themeStyles.textColor,
               font: {
                 size: 11,
               },
@@ -207,6 +261,23 @@
     prevNeighborIdsKey = neighborIds.join(',');
     ondayschange?.(days);
     loadTrendData();
+
+    // Watch for theme changes on html element
+    themeObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          // Theme changed, reload chart with new colors
+          if (chart && canvas) {
+            loadTrendData();
+          }
+        }
+      }
+    });
+
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
   });
 
   onDestroy(() => {
@@ -214,6 +285,10 @@
     if (chart) {
       chart.destroy();
       chart = null;
+    }
+    if (themeObserver) {
+      themeObserver.disconnect();
+      themeObserver = null;
     }
   });
 
