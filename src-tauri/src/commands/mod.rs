@@ -4,7 +4,6 @@ pub mod embedding;
 pub mod fnords;
 pub mod immanentize;
 pub mod keyword_type_detection;
-pub mod law_of_fives;
 pub mod mindfuck;
 pub mod ollama;
 pub mod opml;

@@ -260,8 +260,6 @@ pub fn run() {
             commands::stopwords::restore_system_stopwords,
             commands::stopwords::export_stopwords,
             commands::stopwords::import_stopwords,
-            // Law of Fives (Discordian Dashboard)
-            commands::law_of_fives::get_law_of_fives_stats,
             // Keyword Type Detection (Semantic)
             commands::keyword_type_detection::init_keyword_type_prototypes,
             commands::keyword_type_detection::generate_keyword_type_prototypes,

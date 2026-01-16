@@ -394,10 +394,6 @@
     "mindfuck": {
       "term": "Operation Mindfuck",
       "description": "Bias mirror. Shows you your filter bubble and suggests articles that challenge your worldview."
-    },
-    "lawOfFives": {
-      "term": "Law of Fives",
-      "description": "The Law of Fives states that all things happen in Fives, or are divisible by or somehow connected to 5. A central principle of Discordianism."
     }
   },
   "actions": {
@@ -632,43 +628,6 @@
       "location": "Location",
       "acronym": "Acronym"
     }
-  },
-  "lawOfFives": {
-    "title": "Law of Fives",
-    "subtitle": "All things happen in Fives",
-    "loading": "Loading dashboard...",
-    "noData": "No data available",
-    "fnordIndex": "Fnord Index",
-    "fiveDayTrend": "5-Day Trend",
-    "topKeywords": "Top 5 Keywords",
-    "topFeeds": "Top 5 Sources",
-    "topCategories": "Top 5 Categories",
-    "articlesThisWeek": "Articles this week",
-    "unread": "Unread",
-    "calculatedAt": "Calculated at",
-    "levels": {
-      "novice": "Novice - Begin to see the Fnords",
-      "initiate": "Initiate - The patterns become visible",
-      "adept": "Adept - Chaos and Order in balance",
-      "illuminated": "Illuminated - The golden apples approach",
-      "pope": "Pope/Mome - Hail Eris!"
-    },
-    "components": {
-      "changeRate": "Change Rate",
-      "biasIntensity": "Bias Intensity",
-      "activityRate": "Activity Rate",
-      "keywordDiversity": "Keyword Diversity",
-      "readingCoverage": "Reading Coverage"
-    },
-    "analysisCompleteness": "Analysis Completeness",
-    "completenessHelp": "Shows how many articles have been fully processed",
-    "fullText": "Full Text",
-    "aiAnalysis": "AI Analysis",
-    "embeddings": "Embeddings",
-    "pending": "Pending",
-    "failed": "Failed",
-    "unprocessedHelp": "Articles that still need to be processed",
-    "failedHelp": "Articles where processing failed"
   },
   "mindfuck": {
     "title": "Operation Mindfuck",
