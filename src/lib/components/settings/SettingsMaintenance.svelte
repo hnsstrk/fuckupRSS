@@ -39,9 +39,27 @@
   let statisticalRunning = $state(false);
   let statisticalUnlisten: UnlistenFn | null = null;
 
+  // Prototype status for semantic keyword type detection
+  let prototypeStatus = $state<{
+    prototype_count: number;
+    expected_count: number;
+    oldest_update: string | null;
+    embedding_model: string;
+    is_complete: boolean;
+  } | null>(null);
+  let generatingPrototypes = $state(false);
+
   export async function init() {
     maintenanceResult = null;
-    await loadKeywordStats();
+    await Promise.all([loadKeywordStats(), loadPrototypeStatus()]);
+  }
+
+  async function loadPrototypeStatus() {
+    try {
+      prototypeStatus = await invoke("get_prototype_status");
+    } catch (e) {
+      console.error("Failed to load prototype status:", e);
+    }
   }
 
   onDestroy(() => {
@@ -299,26 +317,60 @@
     }
   }
 
+  async function handleGeneratePrototypes() {
+    generatingPrototypes = true;
+    maintenanceResult = null;
+    try {
+      const result = await invoke<{
+        types_generated: number;
+        total_examples_processed: number;
+        errors: string[];
+      }>("generate_keyword_type_prototypes");
+
+      if (result.errors.length > 0) {
+        maintenanceResult = $_("settings.maintenance.prototypesGeneratedWithErrors", {
+          values: {
+            count: result.types_generated,
+            errors: result.errors.length,
+          },
+        });
+      } else {
+        maintenanceResult = $_("settings.maintenance.prototypesGenerated", {
+          values: { count: result.types_generated },
+        });
+      }
+
+      await loadPrototypeStatus();
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    } finally {
+      generatingPrototypes = false;
+    }
+  }
+
   async function handleUpdateKeywordTypes() {
     maintenanceRunning = "keywordTypes";
     maintenanceResult = null;
     try {
+      // Use semantic detection if prototypes are available
       const result = await invoke<{
-        total_updated: number;
-        concept_count: number;
-        person_count: number;
-        organization_count: number;
-        location_count: number;
-        acronym_count: number;
-      }>("update_keyword_types");
-      maintenanceResult = $_("settings.maintenance.keywordTypesUpdated", {
+        total_processed: number;
+        type_counts: [string, number][];
+        low_confidence_count: number;
+        errors: string[];
+      }>("update_keyword_types_semantic");
+
+      // Build result message
+      const typeCounts = Object.fromEntries(result.type_counts);
+      maintenanceResult = $_("settings.maintenance.keywordTypesUpdatedSemantic", {
         values: {
-          total: result.total_updated,
-          concept: result.concept_count,
-          person: result.person_count,
-          organization: result.organization_count,
-          location: result.location_count,
-          acronym: result.acronym_count,
+          total: result.total_processed,
+          concept: typeCounts["concept"] || 0,
+          person: typeCounts["person"] || 0,
+          organization: typeCounts["organization"] || 0,
+          location: typeCounts["location"] || 0,
+          acronym: typeCounts["acronym"] || 0,
+          lowConfidence: result.low_confidence_count,
         },
       });
     } catch (e) {
@@ -500,10 +552,53 @@
     />
   {/if}
 
+  <!-- Prototype Status Card -->
+  {#if prototypeStatus}
+    <div class="prototype-status" class:incomplete={!prototypeStatus.is_complete}>
+      <div class="prototype-header">
+        <span class="prototype-title">{$_("settings.maintenance.prototypeStatus")}</span>
+        {#if prototypeStatus.is_complete}
+          <span class="prototype-badge complete">
+            <i class="fa-solid fa-check"></i>
+            {$_("settings.maintenance.prototypeComplete")}
+          </span>
+        {:else}
+          <span class="prototype-badge incomplete">
+            <i class="fa-solid fa-exclamation-triangle"></i>
+            {prototypeStatus.prototype_count}/{prototypeStatus.expected_count}
+          </span>
+        {/if}
+      </div>
+      <div class="prototype-info">
+        <span>{$_("settings.maintenance.embeddingModel")}: {prototypeStatus.embedding_model}</span>
+        {#if prototypeStatus.oldest_update}
+          <span>{$_("settings.maintenance.lastUpdated")}: {new Date(prototypeStatus.oldest_update).toLocaleDateString()}</span>
+        {/if}
+      </div>
+      {#if !prototypeStatus.is_complete || !generatingPrototypes}
+        <button
+          type="button"
+          class="btn-action btn-small"
+          onclick={handleGeneratePrototypes}
+          disabled={generatingPrototypes || maintenanceRunning !== null || !ollamaAvailable}
+        >
+          {#if generatingPrototypes}
+            <i class="fa-solid fa-spinner fa-spin"></i>
+          {:else}
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+          {/if}
+          {prototypeStatus.is_complete
+            ? $_("settings.maintenance.regeneratePrototypes")
+            : $_("settings.maintenance.generatePrototypes")}
+        </button>
+      {/if}
+    </div>
+  {/if}
+
   <div class="maintenance-action">
     <div class="action-info">
       <span class="action-title">{$_("settings.maintenance.updateKeywordTypes")}</span>
-      <p class="action-desc">{$_("settings.maintenance.updateKeywordTypesDesc")}</p>
+      <p class="action-desc">{$_("settings.maintenance.updateKeywordTypesDescSemantic")}</p>
     </div>
     {#if maintenanceRunning !== "keywordTypes"}
       <button
@@ -686,6 +781,68 @@
   .btn-action.btn-danger:hover:not(:disabled) {
     background-color: var(--status-error);
     color: var(--text-on-accent);
+  }
+
+  .btn-action.btn-small {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  .btn-action.btn-small i {
+    margin-right: 0.375rem;
+  }
+
+  /* Prototype Status Card */
+  .prototype-status {
+    padding: 0.75rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.375rem;
+    border: 1px solid var(--status-success);
+    margin-bottom: 0.5rem;
+  }
+
+  .prototype-status.incomplete {
+    border-color: var(--status-warning);
+  }
+
+  .prototype-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .prototype-title {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+  }
+
+  .prototype-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+  }
+
+  .prototype-badge.complete {
+    background-color: rgba(166, 227, 161, 0.2);
+    color: var(--status-success);
+  }
+
+  .prototype-badge.incomplete {
+    background-color: rgba(249, 226, 175, 0.2);
+    color: var(--status-warning);
+  }
+
+  .prototype-info {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
   }
 
   /* Confirmation Dialog */

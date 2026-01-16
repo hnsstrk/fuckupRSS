@@ -306,7 +306,17 @@
       "reanalyzeCancelled": "Analyse abgebrochen",
       "updateKeywordTypes": "Keyword-Typen aktualisieren",
       "updateKeywordTypesDesc": "Erkennt und aktualisiert die Typen aller Keywords (Person, Organisation, Ort, Akronym, Konzept)",
-      "keywordTypesUpdated": "{total} Keywords aktualisiert: {concept} Konzepte, {person} Personen, {organization} Organisationen, {location} Orte, {acronym} Akronyme"
+      "updateKeywordTypesDescSemantic": "Verwendet Heuristik + semantische Embedding-Analyse für bessere Typ-Erkennung (Law of Fives)",
+      "keywordTypesUpdated": "{total} Keywords aktualisiert: {concept} Konzepte, {person} Personen, {organization} Organisationen, {location} Orte, {acronym} Akronyme",
+      "keywordTypesUpdatedSemantic": "{total} Keywords aktualisiert: {concept} Konzepte, {person} Personen, {organization} Organisationen, {location} Orte, {acronym} Akronyme ({lowConfidence} niedrige Konfidenz)",
+      "prototypeStatus": "Prototyp-Embeddings",
+      "prototypeComplete": "Vollständig",
+      "embeddingModel": "Modell",
+      "lastUpdated": "Aktualisiert",
+      "generatePrototypes": "Prototypen generieren",
+      "regeneratePrototypes": "Neu generieren",
+      "prototypesGenerated": "{count} Prototypen generiert",
+      "prototypesGeneratedWithErrors": "{count} Prototypen generiert ({errors} Fehler)"
     },
     "stopwords": {
       "title": "Stopwörter",

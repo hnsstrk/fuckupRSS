@@ -751,6 +751,19 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 17: Create keyword_type_prototypes table
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS keyword_type_prototypes (
+            type_name TEXT PRIMARY KEY,
+            embedding BLOB,
+            example_keywords TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        "#,
+    )?;
+
     Ok(())
 }
 
@@ -1040,6 +1053,17 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
 
         CREATE INDEX IF NOT EXISTS idx_bias_weights_type_context ON bias_weights(weight_type, context_key);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_bias_weights_unique ON bias_weights(weight_type, context_key, COALESCE(term, ''));
+
+        -- ============================================================
+        -- KEYWORD_TYPE_PROTOTYPES (Embedding-Prototypen für Typ-Erkennung)
+        -- ============================================================
+        CREATE TABLE IF NOT EXISTS keyword_type_prototypes (
+            type_name TEXT PRIMARY KEY,  -- 'person', 'organization', 'location', 'acronym', 'concept'
+            embedding BLOB,              -- 1024-dim snowflake-arctic-embed2
+            example_keywords TEXT,       -- Komma-separierte Beispiel-Keywords
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
 
         -- ============================================================
         -- SETTINGS (Benutzereinstellungen)
