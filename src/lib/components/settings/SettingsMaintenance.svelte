@@ -41,11 +41,10 @@
 
   // Prototype status for semantic keyword type detection
   let prototypeStatus = $state<{
-    prototype_count: number;
-    expected_count: number;
-    oldest_update: string | null;
-    embedding_model: string;
-    is_complete: boolean;
+    total: number;
+    expected: number;
+    complete: boolean;
+    by_type: Record<string, number>;
   } | null>(null);
   let generatingPrototypes = $state(false);
 
@@ -56,7 +55,7 @@
 
   async function loadPrototypeStatus() {
     try {
-      prototypeStatus = await invoke("get_prototype_status");
+      prototypeStatus = await invoke("get_prototype_stats");
     } catch (e) {
       console.error("Failed to load prototype status:", e);
     }
@@ -322,21 +321,21 @@
     maintenanceResult = null;
     try {
       const result = await invoke<{
-        types_generated: number;
-        total_examples_processed: number;
-        errors: string[];
+        total: number;
+        generated: number;
+        errors: number;
       }>("generate_keyword_type_prototypes");
 
-      if (result.errors.length > 0) {
+      if (result.errors > 0) {
         maintenanceResult = $_("settings.maintenance.prototypesGeneratedWithErrors", {
           values: {
-            count: result.types_generated,
-            errors: result.errors.length,
+            count: result.generated,
+            errors: result.errors,
           },
         });
       } else {
         maintenanceResult = $_("settings.maintenance.prototypesGenerated", {
-          values: { count: result.types_generated },
+          values: { count: result.generated },
         });
       }
 
@@ -352,25 +351,35 @@
     maintenanceRunning = "keywordTypes";
     maintenanceResult = null;
     try {
-      // Use semantic detection if prototypes are available
+      // Use hybrid detection (heuristic + semantic)
       const result = await invoke<{
-        total_processed: number;
-        type_counts: [string, number][];
-        low_confidence_count: number;
-        errors: string[];
-      }>("update_keyword_types_semantic");
+        total: number;
+        processed: number;
+        updated: number;
+        errors: number;
+        by_type: {
+          person: number;
+          organization: number;
+          location: number;
+          acronym: number;
+          concept: number;
+        };
+        by_method: {
+          heuristic: number;
+          semantic: number;
+          llm: number;
+        };
+      }>("update_keyword_types_hybrid");
 
-      // Build result message
-      const typeCounts = Object.fromEntries(result.type_counts);
       maintenanceResult = $_("settings.maintenance.keywordTypesUpdatedSemantic", {
         values: {
-          total: result.total_processed,
-          concept: typeCounts["concept"] || 0,
-          person: typeCounts["person"] || 0,
-          organization: typeCounts["organization"] || 0,
-          location: typeCounts["location"] || 0,
-          acronym: typeCounts["acronym"] || 0,
-          lowConfidence: result.low_confidence_count,
+          total: result.processed,
+          concept: result.by_type.concept,
+          person: result.by_type.person,
+          organization: result.by_type.organization,
+          location: result.by_type.location,
+          acronym: result.by_type.acronym,
+          lowConfidence: result.errors,
         },
       });
     } catch (e) {
@@ -554,10 +563,10 @@
 
   <!-- Prototype Status Card -->
   {#if prototypeStatus}
-    <div class="prototype-status" class:incomplete={!prototypeStatus.is_complete}>
+    <div class="prototype-status" class:incomplete={!prototypeStatus.complete}>
       <div class="prototype-header">
         <span class="prototype-title">{$_("settings.maintenance.prototypeStatus")}</span>
-        {#if prototypeStatus.is_complete}
+        {#if prototypeStatus.complete}
           <span class="prototype-badge complete">
             <i class="fa-solid fa-check"></i>
             {$_("settings.maintenance.prototypeComplete")}
@@ -565,17 +574,14 @@
         {:else}
           <span class="prototype-badge incomplete">
             <i class="fa-solid fa-exclamation-triangle"></i>
-            {prototypeStatus.prototype_count}/{prototypeStatus.expected_count}
+            {prototypeStatus.total}/{prototypeStatus.expected}
           </span>
         {/if}
       </div>
       <div class="prototype-info">
-        <span>{$_("settings.maintenance.embeddingModel")}: {prototypeStatus.embedding_model}</span>
-        {#if prototypeStatus.oldest_update}
-          <span>{$_("settings.maintenance.lastUpdated")}: {new Date(prototypeStatus.oldest_update).toLocaleDateString()}</span>
-        {/if}
+        <span>{$_("settings.maintenance.typesConfigured")}: {Object.keys(prototypeStatus.by_type).length}</span>
       </div>
-      {#if !prototypeStatus.is_complete || !generatingPrototypes}
+      {#if !prototypeStatus.complete || !generatingPrototypes}
         <button
           type="button"
           class="btn-action btn-small"
@@ -587,7 +593,7 @@
           {:else}
             <i class="fa-solid fa-wand-magic-sparkles"></i>
           {/if}
-          {prototypeStatus.is_complete
+          {prototypeStatus.complete
             ? $_("settings.maintenance.regeneratePrototypes")
             : $_("settings.maintenance.generatePrototypes")}
         </button>

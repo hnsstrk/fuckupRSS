@@ -214,11 +214,6 @@ pub fn run() {
             commands::immanentize::auto_merge_similar_keywords,
             // Keyword Type Batch Update
             commands::immanentize::update_keyword_types,
-            // Law of Fives: Semantic Keyword Type Detection
-            commands::law_of_fives::generate_keyword_type_prototypes,
-            commands::law_of_fives::detect_keyword_type_by_id,
-            commands::law_of_fives::update_keyword_types_semantic,
-            commands::law_of_fives::get_prototype_status,
             // Embedding Queue
             commands::embedding::get_embedding_queue_status,
             commands::embedding::process_embedding_queue_now,

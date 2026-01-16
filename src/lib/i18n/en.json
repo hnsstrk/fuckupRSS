@@ -313,6 +313,7 @@
       "prototypeComplete": "Complete",
       "embeddingModel": "Model",
       "lastUpdated": "Updated",
+      "typesConfigured": "Types configured",
       "generatePrototypes": "Generate Prototypes",
       "regeneratePrototypes": "Regenerate",
       "prototypesGenerated": "{count} prototypes generated",
