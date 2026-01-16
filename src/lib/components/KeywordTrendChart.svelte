@@ -279,7 +279,9 @@
   .trend-chart-container {
     display: flex;
     flex-direction: column;
-    min-height: 280px;
+    height: 320px;
+    min-height: 320px;
+    max-height: 320px;
     background-color: var(--bg-overlay);
     border-radius: 0.5rem;
     padding: 1rem;
@@ -321,7 +323,8 @@
   .chart-wrapper {
     flex: 1;
     position: relative;
-    min-height: 200px;
+    height: 240px;
+    min-height: 240px;
   }
 
   .chart-wrapper.hidden {

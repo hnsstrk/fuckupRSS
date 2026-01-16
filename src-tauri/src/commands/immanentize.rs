@@ -619,8 +619,8 @@ pub fn get_trending_comparison(
         });
     }
 
-    // Generate all dates in the range
-    let mut date_stmt = db
+    // Generate all dates in the range (single query)
+    let dates: Vec<String> = db
         .conn()
         .prepare(
             r#"
@@ -634,62 +634,86 @@ pub fn get_trending_comparison(
             SELECT date FROM dates ORDER BY date
             "#,
         )
-        .map_err(|e| e.to_string())?;
-
-    let dates: Vec<String> = date_stmt
+        .map_err(|e| e.to_string())?
         .query_map([days], |row| row.get(0))
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    // Get trend data for each keyword
-    let mut keywords: Vec<KeywordTrendData> = Vec::new();
+    // Build placeholder string for IN clause
+    let placeholders: String = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
 
-    for id in ids {
-        // Get keyword name
-        let name: String = db
-            .conn()
-            .query_row("SELECT name FROM immanentize WHERE id = ?", [id], |row| {
-                row.get(0)
-            })
-            .unwrap_or_else(|_| format!("Keyword {}", id));
+    // Get all keyword names in a single query
+    let names_query = format!(
+        "SELECT id, name FROM immanentize WHERE id IN ({})",
+        placeholders
+    );
+    let mut names_stmt = db.conn().prepare(&names_query).map_err(|e| e.to_string())?;
+    let names_map: std::collections::HashMap<i64, String> = names_stmt
+        .query_map(rusqlite::params_from_iter(ids.iter()), |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
 
-        // Get daily counts
-        let mut daily_counts: std::collections::HashMap<String, i64> =
-            std::collections::HashMap::new();
+    // Get all daily counts in a single query
+    let counts_query = format!(
+        r#"
+        SELECT immanentize_id, date, count
+        FROM immanentize_daily
+        WHERE immanentize_id IN ({})
+        AND date >= DATE('now', '-' || ? || ' days')
+        "#,
+        placeholders
+    );
+    let mut counts_stmt = db.conn().prepare(&counts_query).map_err(|e| e.to_string())?;
 
-        let mut stmt = db
-            .conn()
-            .prepare(
-                r#"
-                SELECT date, count
-                FROM immanentize_daily
-                WHERE immanentize_id = ?1
-                AND date >= DATE('now', '-' || ?2 || ' days')
-                "#,
-            )
-            .map_err(|e| e.to_string())?;
+    // Build params: all ids first, then days
+    let mut params: Vec<Box<dyn rusqlite::ToSql>> = ids
+        .iter()
+        .map(|id| Box::new(*id) as Box<dyn rusqlite::ToSql>)
+        .collect();
+    params.push(Box::new(days));
 
-        let rows = stmt
-            .query_map(rusqlite::params![id, days], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-            })
-            .map_err(|e| e.to_string())?;
+    let mut daily_counts: std::collections::HashMap<i64, std::collections::HashMap<String, i64>> =
+        std::collections::HashMap::new();
 
-        for row in rows {
-            if let Ok((date, count)) = row {
-                daily_counts.insert(date, count);
-            }
+    let rows = counts_stmt
+        .query_map(rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    for row in rows {
+        if let Ok((id, date, count)) = row {
+            daily_counts
+                .entry(id)
+                .or_insert_with(std::collections::HashMap::new)
+                .insert(date, count);
         }
-
-        // Build counts array aligned with dates
-        let counts: Vec<i64> = dates
-            .iter()
-            .map(|d| *daily_counts.get(d).unwrap_or(&0))
-            .collect();
-
-        keywords.push(KeywordTrendData { id, name, counts });
     }
+
+    // Build result preserving original order
+    let keywords: Vec<KeywordTrendData> = ids
+        .iter()
+        .map(|&id| {
+            let name = names_map
+                .get(&id)
+                .cloned()
+                .unwrap_or_else(|| format!("Keyword {}", id));
+            let id_counts = daily_counts.get(&id);
+            let counts: Vec<i64> = dates
+                .iter()
+                .map(|d| id_counts.and_then(|c| c.get(d)).copied().unwrap_or(0))
+                .collect();
+            KeywordTrendData { id, name, counts }
+        })
+        .collect();
 
     Ok(TrendComparison { keywords, dates })
 }
