@@ -393,6 +393,10 @@
     "mindfuck": {
       "term": "Operation Mindfuck",
       "description": "Bias-Spiegel. Zeigt dir deine Filterblase und schlägt Artikel vor, die dein Weltbild herausfordern."
+    },
+    "lawOfFives": {
+      "term": "Gesetz der Fuenf",
+      "description": "Das Gesetz der Fuenf besagt, dass alle Dinge in Fuenfern geschehen oder irgendwie mit 5 verbunden sind. Ein zentrales Prinzip des Discordianismus."
     }
   },
   "actions": {
@@ -462,7 +466,47 @@
     "loading": "Laden...",
     "noData": "Keine Daten",
     "noChangedArticles": "Keine geänderten Artikel",
-    "changedAt": "Geändert"
+    "changedAt": "Geändert",
+    "noSubcategories": "Keine Unterkategorien",
+    "period": "Zeitraum",
+    "days7": "7 Tage",
+    "days30": "30 Tage",
+    "days90": "90 Tage",
+    "timeline": "Eris-Chronik",
+    "timelineDescription": "Artikel und Revisionen im Zeitverlauf",
+    "greyface": {
+      "title": "Greyface-Index",
+      "description": "Bias-Messung im Corpus",
+      "index": "Index",
+      "avgBias": "Durchschn. Tendenz",
+      "avgSachlichkeit": "Durchschn. Sachlichkeit",
+      "articlesWithBias": "Mit Bias-Daten",
+      "distribution": "Bias-Verteilung",
+      "leftExtreme": "Stark links",
+      "leftLeaning": "Links",
+      "neutral": "Neutral",
+      "rightLeaning": "Rechts",
+      "rightExtreme": "Stark rechts",
+      "alert": "Greyface Alert",
+      "balanced": "Ausgewogen",
+      "unbalanced": "Unausgewogen"
+    },
+    "topKeywords": "Top Keywords",
+    "trend": "Trend",
+    "trendUp": "steigend",
+    "trendDown": "fallend",
+    "trendNew": "neu",
+    "feedActivity": "Feed-Aktivität",
+    "articlesInPeriod": "Artikel im Zeitraum",
+    "lastSync": "Letzte Sync",
+    "biasHeatmap": "Bias-Heatmap",
+    "biasHeatmapDescription": "Quellen × Bias-Level Matrix",
+    "avgBias": "Durchschn. Bias",
+    "keywordCloud": "Keyword-Wolke",
+    "keywordCloudDescription": "Visuelle Darstellung der wichtigsten Themen",
+    "fnordDetector": "Fnord-Detektor",
+    "easterEgg23": "Du hast das Geheimnis der 23 entdeckt!",
+    "hiddenFnord": "fnord"
   },
   "revisions": {
     "title": "Revisionen",
@@ -583,6 +627,34 @@
       "organization": "Organisation",
       "location": "Ort",
       "acronym": "Akronym"
+    }
+  },
+  "lawOfFives": {
+    "title": "Gesetz der Fuenf",
+    "subtitle": "Alle Dinge geschehen in Fuenfern",
+    "loading": "Lade Dashboard...",
+    "noData": "Keine Daten verfuegbar",
+    "fnordIndex": "Fnord-Index",
+    "fiveDayTrend": "5-Tage-Trend",
+    "topKeywords": "Top 5 Keywords",
+    "topFeeds": "Top 5 Quellen",
+    "topCategories": "Top 5 Kategorien",
+    "articlesThisWeek": "Artikel diese Woche",
+    "unread": "Ungelesen",
+    "calculatedAt": "Berechnet am",
+    "levels": {
+      "novice": "Novize - Beginne die Fnords zu sehen",
+      "initiate": "Initiat - Die Muster werden sichtbar",
+      "adept": "Adept - Chaos und Ordnung im Gleichgewicht",
+      "illuminated": "Erleuchteter - Die goldenen Aepfel nahen",
+      "pope": "Papst/Paepstin - Hail Eris!"
+    },
+    "components": {
+      "changeRate": "Aenderungsrate",
+      "biasIntensity": "Bias-Intensitaet",
+      "activityRate": "Aktivitaetsrate",
+      "keywordDiversity": "Keyword-Diversitaet",
+      "readingCoverage": "Leseabdeckung"
     }
   },
   "mindfuck": {

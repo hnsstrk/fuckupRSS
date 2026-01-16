@@ -393,6 +393,10 @@
     "mindfuck": {
       "term": "Operation Mindfuck",
       "description": "Bias mirror. Shows you your filter bubble and suggests articles that challenge your worldview."
+    },
+    "lawOfFives": {
+      "term": "Law of Fives",
+      "description": "The Law of Fives states that all things happen in Fives, or are divisible by or somehow connected to 5. A central principle of Discordianism."
     }
   },
   "actions": {
@@ -462,7 +466,47 @@
     "loading": "Loading...",
     "noData": "No data",
     "noChangedArticles": "No changed articles",
-    "changedAt": "Changed"
+    "changedAt": "Changed",
+    "noSubcategories": "No subcategories",
+    "period": "Period",
+    "days7": "7 days",
+    "days30": "30 days",
+    "days90": "90 days",
+    "timeline": "Eris Chronicle",
+    "timelineDescription": "Articles and revisions over time",
+    "greyface": {
+      "title": "Greyface Index",
+      "description": "Bias measurement across corpus",
+      "index": "Index",
+      "avgBias": "Avg. Bias",
+      "avgSachlichkeit": "Avg. Objectivity",
+      "articlesWithBias": "With bias data",
+      "distribution": "Bias Distribution",
+      "leftExtreme": "Strong left",
+      "leftLeaning": "Left",
+      "neutral": "Neutral",
+      "rightLeaning": "Right",
+      "rightExtreme": "Strong right",
+      "alert": "Greyface Alert",
+      "balanced": "Balanced",
+      "unbalanced": "Unbalanced"
+    },
+    "topKeywords": "Top Keywords",
+    "trend": "Trend",
+    "trendUp": "rising",
+    "trendDown": "falling",
+    "trendNew": "new",
+    "feedActivity": "Feed Activity",
+    "articlesInPeriod": "Articles in period",
+    "lastSync": "Last sync",
+    "biasHeatmap": "Bias Heatmap",
+    "biasHeatmapDescription": "Sources x Bias Level Matrix",
+    "avgBias": "Avg. Bias",
+    "keywordCloud": "Keyword Cloud",
+    "keywordCloudDescription": "Visual representation of key topics",
+    "fnordDetector": "Fnord Detector",
+    "easterEgg23": "You discovered the secret of 23!",
+    "hiddenFnord": "fnord"
   },
   "revisions": {
     "title": "Revisions",
@@ -583,6 +627,34 @@
       "organization": "Organization",
       "location": "Location",
       "acronym": "Acronym"
+    }
+  },
+  "lawOfFives": {
+    "title": "Law of Fives",
+    "subtitle": "All things happen in Fives",
+    "loading": "Loading dashboard...",
+    "noData": "No data available",
+    "fnordIndex": "Fnord Index",
+    "fiveDayTrend": "5-Day Trend",
+    "topKeywords": "Top 5 Keywords",
+    "topFeeds": "Top 5 Sources",
+    "topCategories": "Top 5 Categories",
+    "articlesThisWeek": "Articles this week",
+    "unread": "Unread",
+    "calculatedAt": "Calculated at",
+    "levels": {
+      "novice": "Novice - Begin to see the Fnords",
+      "initiate": "Initiate - The patterns become visible",
+      "adept": "Adept - Chaos and Order in balance",
+      "illuminated": "Illuminated - The golden apples approach",
+      "pope": "Pope/Mome - Hail Eris!"
+    },
+    "components": {
+      "changeRate": "Change Rate",
+      "biasIntensity": "Bias Intensity",
+      "activityRate": "Activity Rate",
+      "keywordDiversity": "Keyword Diversity",
+      "readingCoverage": "Reading Coverage"
     }
   },
   "mindfuck": {

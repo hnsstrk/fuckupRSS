@@ -1,567 +1,496 @@
-//! Law of Fives - Keyword Type Detection using Embedding Prototypes
-//!
-//! This module provides semantic keyword type detection using embedding prototypes.
-//! The 5 types (person, organization, location, concept, acronym) each have prototype
-//! embeddings generated from representative example keywords.
-//!
-//! The detection strategy is:
-//! 1. Heuristic detection (fast, pattern-based) - see ollama/helpers.rs
-//! 2. Embedding prototype comparison (~90% accuracy)
-//! 3. Optional LLM fallback for edge cases (future)
+// Law of Fives - Discordianisches Dashboard-Modul
+//
+// Das "Gesetz der Fuenf" ist ein zentrales Element des Discordianismus:
+// "Alle Dinge geschehen in Fuenfern, oder sind durch Fuenf teilbar, oder
+// sind irgendwie direkt oder indirekt mit 5 verbunden."
+//
+// Dieses Modul liefert Statistiken in Fuenfer-Gruppen fuer das Dashboard.
 
-use crate::embeddings::{blob_to_embedding, cosine_similarity, embedding_to_blob};
-use crate::ollama::OllamaClient;
 use crate::AppState;
-use log::{debug, info, warn};
-use rusqlite::params;
 use serde::Serialize;
 use tauri::State;
 
-// ============================================================
-// PROTOTYPE DEFINITIONS
-// ============================================================
+/// Keyword mit Trend-Information
+#[derive(Debug, Serialize, Clone)]
+pub struct TopKeyword {
+    pub id: i64,
+    pub name: String,
+    pub keyword_type: Option<String>,
+    pub article_count: i64,
+    pub trend_direction: TrendDirection,
+    pub trend_percent: f64,
+}
 
-/// Example keywords for each type, used to generate prototype embeddings.
-/// These are carefully chosen to be representative of their category.
-pub const PERSON_EXAMPLES: &[&str] = &[
-    "Angela Merkel",
-    "Emmanuel Macron",
-    "Donald Trump",
-    "Olaf Scholz",
-    "Joe Biden",
-    "Vladimir Putin",
-    "Xi Jinping",
-    "Elon Musk",
-    "Mark Zuckerberg",
-    "Albert Einstein",
-];
+/// Trend-Richtung
+#[derive(Debug, Serialize, Clone)]
+pub enum TrendDirection {
+    Rising,
+    Stable,
+    Falling,
+}
 
-pub const ORGANIZATION_EXAMPLES: &[&str] = &[
-    "Bundesregierung",
-    "Europäische Union",
-    "NATO",
-    "Vereinte Nationen",
-    "Deutsche Bank",
-    "Volkswagen AG",
-    "Google Inc",
-    "CDU",
-    "SPD",
-    "Greenpeace",
-];
+/// Top Feed mit Aktivitaets-Info
+#[derive(Debug, Serialize, Clone)]
+pub struct TopFeed {
+    pub id: i64,
+    pub title: String,
+    pub article_count: i64,
+    pub unread_count: i64,
+    pub articles_today: i64,
+    pub articles_week: i64,
+}
 
-pub const LOCATION_EXAMPLES: &[&str] = &[
-    "Berlin",
-    "Deutschland",
-    "Europa",
-    "Washington D.C.",
-    "Russland",
-    "China",
-    "Frankreich",
-    "München",
-    "New York",
-    "Brüssel",
-];
+/// Top Kategorie
+#[derive(Debug, Serialize, Clone)]
+pub struct TopCategory {
+    pub id: i64,
+    pub name: String,
+    pub icon: Option<String>,
+    pub color: Option<String>,
+    pub article_count: i64,
+    pub trend_direction: TrendDirection,
+}
 
-pub const CONCEPT_EXAMPLES: &[&str] = &[
-    "Klimawandel",
-    "Digitalisierung",
-    "Nachhaltigkeit",
-    "Inflation",
-    "Demokratie",
-    "Energiewende",
-    "Cybersicherheit",
-    "Migration",
-    "Künstliche Intelligenz",
-    "Globalisierung",
-];
+/// 5-Tage-Trend Datenpunkt
+#[derive(Debug, Serialize, Clone)]
+pub struct TrendPoint {
+    pub date: String,
+    pub article_count: i64,
+    pub keyword_count: i64,
+}
 
-pub const ACRONYM_EXAMPLES: &[&str] = &[
-    "CO2",
-    "BIP",
-    "KI",
-    "IT",
-    "USA",
-    "CIA",
-    "FBI",
-    "DNA",
-    "GPS",
-    "API",
-];
+/// Fnord-Index (5-stufige Bewertung)
+#[derive(Debug, Serialize, Clone)]
+pub struct FnordIndex {
+    /// Stufe 1-5 (1=niedrig, 5=hoch)
+    pub level: u8,
+    /// Beschreibung der Stufe
+    pub description: String,
+    /// Komponenten des Index
+    pub components: FnordIndexComponents,
+}
 
-/// The 5 keyword types
-pub const KEYWORD_TYPES: &[&str] = &["person", "organization", "location", "concept", "acronym"];
+/// Komponenten des Fnord-Index
+#[derive(Debug, Serialize, Clone)]
+pub struct FnordIndexComponents {
+    /// Anteil geaenderter Artikel (0-1)
+    pub change_rate: f64,
+    /// Durchschnittliche Bias-Staerke (0-1)
+    pub bias_intensity: f64,
+    /// Artikel-Aktivitaet (0-1)
+    pub activity_rate: f64,
+    /// Keyword-Diversitaet (0-1)
+    pub keyword_diversity: f64,
+    /// Leseabdeckung (0-1)
+    pub reading_coverage: f64,
+}
 
-// ============================================================
-// RESULT TYPES
-// ============================================================
-
-/// Result of generating prototype embeddings
+/// Komplett-Response fuer Law of Fives Dashboard
 #[derive(Debug, Serialize)]
-pub struct PrototypeGenerationResult {
-    pub types_generated: i64,
-    pub total_examples_processed: i64,
-    pub errors: Vec<String>,
+pub struct LawOfFivesStats {
+    pub top_5_keywords: Vec<TopKeyword>,
+    pub top_5_feeds: Vec<TopFeed>,
+    pub top_5_categories: Vec<TopCategory>,
+    pub five_day_trend: Vec<TrendPoint>,
+    pub fnord_index: FnordIndex,
+    /// Zeitstempel der Berechnung
+    pub calculated_at: String,
 }
 
-/// Result of semantic type detection
-#[derive(Debug, Clone, Serialize)]
-pub struct SemanticTypeResult {
-    pub keyword_type: String,
-    pub confidence: f64,
-    pub all_scores: Vec<(String, f64)>,
-}
-
-/// Result of batch semantic type update
-#[derive(Debug, Serialize)]
-pub struct SemanticTypeUpdateResult {
-    pub total_processed: i64,
-    pub type_counts: Vec<(String, i64)>,
-    pub low_confidence_count: i64,
-    pub errors: Vec<String>,
-}
-
-// ============================================================
-// PROTOTYPE GENERATION
-// ============================================================
-
-/// Get example keywords for a given type
-fn get_examples_for_type(type_name: &str) -> &'static [&'static str] {
-    match type_name {
-        "person" => PERSON_EXAMPLES,
-        "organization" => ORGANIZATION_EXAMPLES,
-        "location" => LOCATION_EXAMPLES,
-        "concept" => CONCEPT_EXAMPLES,
-        "acronym" => ACRONYM_EXAMPLES,
-        _ => &[],
-    }
-}
-
-/// Generate and save prototype embeddings for all keyword types.
-/// Each prototype is the average embedding of its example keywords.
+/// Haupt-Command: Law of Fives Statistiken
 #[tauri::command]
-pub async fn generate_keyword_type_prototypes(
-    state: State<'_, AppState>,
-) -> Result<PrototypeGenerationResult, String> {
-    let client = OllamaClient::new(None);
+pub fn get_law_of_fives_stats(state: State<AppState>) -> Result<LawOfFivesStats, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
 
-    // Get embedding model from settings
-    let model = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
-        get_embedding_model(db.conn())
-    };
+    // Top 5 Keywords mit Trend
+    let top_5_keywords = get_top_keywords(conn)?;
 
-    info!("Generating keyword type prototypes using model: {}", model);
+    // Top 5 Feeds
+    let top_5_feeds = get_top_feeds(conn)?;
 
-    let mut types_generated = 0i64;
-    let mut total_examples = 0i64;
-    let mut errors = Vec::new();
+    // Top 5 Kategorien
+    let top_5_categories = get_top_categories(conn)?;
 
-    for type_name in KEYWORD_TYPES {
-        let examples = get_examples_for_type(type_name);
-        if examples.is_empty() {
-            warn!("No examples for type: {}", type_name);
-            continue;
-        }
+    // 5-Tage-Trend
+    let five_day_trend = get_five_day_trend(conn)?;
 
-        // Generate embeddings for all examples
-        let mut valid_embeddings: Vec<Vec<f32>> = Vec::new();
+    // Fnord-Index
+    let fnord_index = calculate_fnord_index(conn)?;
 
-        for example in examples {
-            match client.generate_embedding(&model, example).await {
-                Ok(emb) => {
-                    valid_embeddings.push(emb);
-                    total_examples += 1;
-                }
-                Err(e) => {
-                    let err_msg = format!("Failed to embed '{}': {}", example, e);
-                    warn!("{}", err_msg);
-                    errors.push(err_msg);
-                }
-            }
-        }
-
-        if valid_embeddings.is_empty() {
-            errors.push(format!("No valid embeddings for type: {}", type_name));
-            continue;
-        }
-
-        // Calculate average embedding (centroid)
-        let dim = valid_embeddings[0].len();
-        let mut centroid = vec![0.0f32; dim];
-        let count = valid_embeddings.len() as f32;
-
-        for emb in &valid_embeddings {
-            for (i, val) in emb.iter().enumerate() {
-                centroid[i] += val / count;
-            }
-        }
-
-        // Normalize the centroid
-        let norm: f32 = centroid.iter().map(|x| x * x).sum::<f32>().sqrt();
-        if norm > 0.0 {
-            for val in &mut centroid {
-                *val /= norm;
-            }
-        }
-
-        // Save to database
-        let examples_json = serde_json::to_string(&examples.to_vec()).unwrap_or_default();
-        let blob = embedding_to_blob(&centroid);
-
-        {
-            let db = state.db.lock().map_err(|e| e.to_string())?;
-            db.conn()
-                .execute(
-                    r#"
-                    INSERT OR REPLACE INTO keyword_type_prototypes
-                    (type_name, embedding, example_keywords, updated_at)
-                    VALUES (?1, ?2, ?3, CURRENT_TIMESTAMP)
-                    "#,
-                    params![type_name, blob, examples_json],
-                )
-                .map_err(|e| format!("Failed to save prototype for {}: {}", type_name, e))?;
-        }
-
-        info!(
-            "Generated prototype for '{}' from {} examples",
-            type_name,
-            valid_embeddings.len()
-        );
-        types_generated += 1;
-    }
-
-    Ok(PrototypeGenerationResult {
-        types_generated,
-        total_examples_processed: total_examples,
-        errors,
+    Ok(LawOfFivesStats {
+        top_5_keywords,
+        top_5_feeds,
+        top_5_categories,
+        five_day_trend,
+        fnord_index,
+        calculated_at: chrono::Utc::now().to_rfc3339(),
     })
 }
 
-// ============================================================
-// SEMANTIC TYPE DETECTION
-// ============================================================
-
-/// Load all prototype embeddings from database
-fn load_prototypes(conn: &rusqlite::Connection) -> Result<Vec<(String, Vec<f32>)>, String> {
+fn get_top_keywords(conn: &rusqlite::Connection) -> Result<Vec<TopKeyword>, String> {
+    // Top 5 Keywords nach Artikelanzahl mit Trend-Berechnung
+    // Trend: Vergleich letzte 7 Tage vs. vorherige 7 Tage
     let mut stmt = conn
-        .prepare("SELECT type_name, embedding FROM keyword_type_prototypes WHERE embedding IS NOT NULL")
+        .prepare(
+            r#"
+            WITH keyword_recent AS (
+                SELECT fi.keyword_id, COUNT(*) as recent_count
+                FROM fnord_immanentize fi
+                JOIN fnords f ON f.id = fi.fnord_id
+                WHERE f.published_at >= date('now', '-7 days')
+                GROUP BY fi.keyword_id
+            ),
+            keyword_previous AS (
+                SELECT fi.keyword_id, COUNT(*) as previous_count
+                FROM fnord_immanentize fi
+                JOIN fnords f ON f.id = fi.fnord_id
+                WHERE f.published_at >= date('now', '-14 days')
+                  AND f.published_at < date('now', '-7 days')
+                GROUP BY fi.keyword_id
+            )
+            SELECT
+                i.id,
+                i.name,
+                i.keyword_type,
+                COUNT(fi.fnord_id) as article_count,
+                COALESCE(kr.recent_count, 0) as recent,
+                COALESCE(kp.previous_count, 0) as previous
+            FROM immanentize i
+            JOIN fnord_immanentize fi ON fi.keyword_id = i.id
+            LEFT JOIN keyword_recent kr ON kr.keyword_id = i.id
+            LEFT JOIN keyword_previous kp ON kp.keyword_id = i.id
+            GROUP BY i.id
+            ORDER BY article_count DESC
+            LIMIT 5
+            "#,
+        )
         .map_err(|e| e.to_string())?;
 
-    let prototypes: Vec<(String, Vec<f32>)> = stmt
+    let keywords = stmt
         .query_map([], |row| {
-            let type_name: String = row.get(0)?;
-            let blob: Vec<u8> = row.get(1)?;
-            Ok((type_name, blob_to_embedding(&blob)))
+            let recent: i64 = row.get(4)?;
+            let previous: i64 = row.get(5)?;
+
+            let (trend_direction, trend_percent) = calculate_trend(recent, previous);
+
+            Ok(TopKeyword {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                keyword_type: row.get(2)?,
+                article_count: row.get(3)?,
+                trend_direction,
+                trend_percent,
+            })
         })
         .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
 
-    Ok(prototypes)
+    Ok(keywords)
 }
 
-/// Detect keyword type semantically using embedding similarity to prototypes.
-/// Returns the type with highest similarity and confidence score.
-pub fn detect_keyword_type_semantic(
-    keyword_embedding: &[f32],
-    prototypes: &[(String, Vec<f32>)],
-) -> SemanticTypeResult {
-    if prototypes.is_empty() {
-        return SemanticTypeResult {
-            keyword_type: "concept".to_string(),
-            confidence: 0.0,
-            all_scores: vec![],
-        };
-    }
+fn get_top_feeds(conn: &rusqlite::Connection) -> Result<Vec<TopFeed>, String> {
+    let mut stmt = conn
+        .prepare(
+            r#"
+            SELECT
+                p.id,
+                p.title,
+                COUNT(f.id) as article_count,
+                SUM(CASE WHEN f.status = 'concealed' THEN 1 ELSE 0 END) as unread_count,
+                SUM(CASE WHEN date(f.published_at) = date('now') THEN 1 ELSE 0 END) as articles_today,
+                SUM(CASE WHEN f.published_at >= date('now', '-7 days') THEN 1 ELSE 0 END) as articles_week
+            FROM pentacles p
+            LEFT JOIN fnords f ON f.pentacle_id = p.id
+            GROUP BY p.id
+            ORDER BY articles_week DESC, article_count DESC
+            LIMIT 5
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
 
-    // Calculate similarity to each prototype
-    let mut scores: Vec<(String, f64)> = prototypes
-        .iter()
-        .map(|(type_name, proto_emb)| {
-            let sim = cosine_similarity(keyword_embedding, proto_emb);
-            (type_name.clone(), sim)
+    let feeds = stmt
+        .query_map([], |row| {
+            Ok(TopFeed {
+                id: row.get(0)?,
+                title: row.get::<_, Option<String>>(1)?.unwrap_or_else(|| "Unknown".to_string()),
+                article_count: row.get(2)?,
+                unread_count: row.get(3)?,
+                articles_today: row.get(4)?,
+                articles_week: row.get(5)?,
+            })
         })
-        .collect();
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
 
-    // Sort by similarity descending
-    scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-
-    let (best_type, best_score) = scores.first().cloned().unwrap_or(("concept".to_string(), 0.0));
-
-    // Calculate confidence based on margin to second-best
-    let confidence = if scores.len() > 1 {
-        let second_score = scores[1].1;
-        // Confidence is higher when there's a clear winner
-        let margin = best_score - second_score;
-        // Scale margin: 0.1 margin = 0.8 confidence, 0.2+ margin = 1.0 confidence
-        (margin * 5.0 + 0.5).min(1.0).max(0.0)
-    } else {
-        best_score
-    };
-
-    SemanticTypeResult {
-        keyword_type: best_type,
-        confidence,
-        all_scores: scores,
-    }
+    Ok(feeds)
 }
 
-/// Detect keyword type for a single keyword by its ID.
-/// First tries heuristic detection, then falls back to semantic.
-#[tauri::command]
-pub fn detect_keyword_type_by_id(
-    keyword_id: i64,
-    state: State<AppState>,
-) -> Result<SemanticTypeResult, String> {
-    use super::ollama::helpers::detect_keyword_type;
+fn get_top_categories(conn: &rusqlite::Connection) -> Result<Vec<TopCategory>, String> {
+    // Top 5 Hauptkategorien nach Artikelanzahl (level=0)
+    let mut stmt = conn
+        .prepare(
+            r#"
+            WITH category_recent AS (
+                SELECT s.parent_id, COUNT(*) as recent_count
+                FROM fnord_sephiroth fs
+                JOIN sephiroth s ON s.id = fs.sephiroth_id
+                JOIN fnords f ON f.id = fs.fnord_id
+                WHERE s.level = 1
+                  AND f.published_at >= date('now', '-7 days')
+                GROUP BY s.parent_id
+            ),
+            category_previous AS (
+                SELECT s.parent_id, COUNT(*) as previous_count
+                FROM fnord_sephiroth fs
+                JOIN sephiroth s ON s.id = fs.sephiroth_id
+                JOIN fnords f ON f.id = fs.fnord_id
+                WHERE s.level = 1
+                  AND f.published_at >= date('now', '-14 days')
+                  AND f.published_at < date('now', '-7 days')
+                GROUP BY s.parent_id
+            )
+            SELECT
+                m.id,
+                m.name,
+                m.icon,
+                m.color,
+                COUNT(DISTINCT fs.fnord_id) as article_count,
+                COALESCE(cr.recent_count, 0) as recent,
+                COALESCE(cp.previous_count, 0) as previous
+            FROM sephiroth m
+            LEFT JOIN sephiroth s ON s.parent_id = m.id AND s.level = 1
+            LEFT JOIN fnord_sephiroth fs ON fs.sephiroth_id = s.id
+            LEFT JOIN category_recent cr ON cr.parent_id = m.id
+            LEFT JOIN category_previous cp ON cp.parent_id = m.id
+            WHERE m.level = 0
+            GROUP BY m.id
+            ORDER BY article_count DESC
+            LIMIT 5
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let conn = db.conn();
+    let categories = stmt
+        .query_map([], |row| {
+            let recent: i64 = row.get(5)?;
+            let previous: i64 = row.get(6)?;
 
-    // Get keyword name and embedding
-    let (name, embedding_blob): (String, Option<Vec<u8>>) = conn
+            let (trend_direction, _) = calculate_trend(recent, previous);
+
+            Ok(TopCategory {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                icon: row.get(2)?,
+                color: row.get(3)?,
+                article_count: row.get(4)?,
+                trend_direction,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(categories)
+}
+
+fn get_five_day_trend(conn: &rusqlite::Connection) -> Result<Vec<TrendPoint>, String> {
+    let mut stmt = conn
+        .prepare(
+            r#"
+            WITH RECURSIVE dates(date) AS (
+                SELECT date('now', '-4 days')
+                UNION ALL
+                SELECT date(date, '+1 day')
+                FROM dates
+                WHERE date < date('now')
+            )
+            SELECT
+                d.date,
+                COALESCE(article_counts.count, 0) as article_count,
+                COALESCE(keyword_counts.count, 0) as keyword_count
+            FROM dates d
+            LEFT JOIN (
+                SELECT date(published_at) as pub_date, COUNT(*) as count
+                FROM fnords
+                WHERE published_at >= date('now', '-4 days')
+                GROUP BY pub_date
+            ) article_counts ON article_counts.pub_date = d.date
+            LEFT JOIN (
+                SELECT date(id.created_at) as create_date, COUNT(*) as count
+                FROM immanentize_daily id
+                WHERE id.date >= date('now', '-4 days')
+                GROUP BY create_date
+            ) keyword_counts ON keyword_counts.create_date = d.date
+            ORDER BY d.date ASC
+            "#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let trend = stmt
+        .query_map([], |row| {
+            Ok(TrendPoint {
+                date: row.get(0)?,
+                article_count: row.get(1)?,
+                keyword_count: row.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(trend)
+}
+
+fn calculate_fnord_index(conn: &rusqlite::Connection) -> Result<FnordIndex, String> {
+    // Komponenten sammeln
+
+    // 1. Change Rate: Anteil Artikel mit Revisionen
+    let (total_articles, changed_articles): (i64, i64) = conn
         .query_row(
-            "SELECT name, embedding FROM immanentize WHERE id = ?",
-            [keyword_id],
+            r#"
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN has_changes = 1 OR revision_count > 0 THEN 1 ELSE 0 END) as changed
+            FROM fnords
+            "#,
+            [],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
-        .map_err(|e| format!("Keyword not found: {}", e))?;
+        .unwrap_or((0, 0));
 
-    // First try heuristic detection
-    let heuristic_type = detect_keyword_type(&name);
+    let change_rate = if total_articles > 0 {
+        changed_articles as f64 / total_articles as f64
+    } else {
+        0.0
+    };
 
-    // If heuristic is confident (not "concept"), use it
-    if heuristic_type != "concept" {
-        return Ok(SemanticTypeResult {
-            keyword_type: heuristic_type.clone(),
-            confidence: 0.9, // High confidence for heuristic matches
-            all_scores: vec![(heuristic_type, 0.9)],
-        });
-    }
+    // 2. Bias Intensity: Durchschnittliche Abweichung vom Neutral
+    let bias_intensity: f64 = conn
+        .query_row(
+            r#"
+            SELECT COALESCE(AVG(ABS(COALESCE(political_bias, 0))), 0) / 2.0
+            FROM fnords
+            WHERE political_bias IS NOT NULL
+            "#,
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0.0);
 
-    // For "concept" from heuristic, try semantic detection if embedding exists
-    if let Some(blob) = embedding_blob {
-        if !blob.is_empty() {
-            let embedding = blob_to_embedding(&blob);
-            let prototypes = load_prototypes(conn)?;
+    // 3. Activity Rate: Artikel der letzten 7 Tage vs. Durchschnitt
+    let (recent_articles, avg_weekly): (i64, f64) = conn
+        .query_row(
+            r#"
+            SELECT
+                (SELECT COUNT(*) FROM fnords WHERE published_at >= date('now', '-7 days')),
+                COALESCE(
+                    (SELECT COUNT(*) * 7.0 / MAX(1, julianday('now') - julianday(MIN(published_at)))
+                     FROM fnords
+                     WHERE published_at IS NOT NULL),
+                    0
+                )
+            "#,
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap_or((0, 0.0));
 
-            if !prototypes.is_empty() {
-                let result = detect_keyword_type_semantic(&embedding, &prototypes);
+    let activity_rate = if avg_weekly > 0.0 {
+        (recent_articles as f64 / avg_weekly).min(1.0)
+    } else {
+        0.0
+    };
 
-                // If semantic detection is confident, use it
-                if result.confidence > 0.6 {
-                    return Ok(result);
-                }
-            }
-        }
-    }
+    // 4. Keyword Diversity: Eindeutige Keywords pro Artikel
+    let keyword_diversity: f64 = conn
+        .query_row(
+            r#"
+            SELECT COALESCE(
+                CAST(COUNT(DISTINCT keyword_id) AS REAL) / NULLIF(COUNT(DISTINCT fnord_id), 0),
+                0
+            ) / 10.0
+            FROM fnord_immanentize
+            "#,
+            [],
+            |row| row.get(0),
+        )
+        .map(|v: f64| v.min(1.0))
+        .unwrap_or(0.0);
 
-    // Fall back to heuristic result
-    Ok(SemanticTypeResult {
-        keyword_type: heuristic_type.clone(),
-        confidence: 0.5, // Lower confidence for "concept" fallback
-        all_scores: vec![(heuristic_type, 0.5)],
+    // 5. Reading Coverage: Anteil gelesener Artikel
+    let reading_coverage: f64 = conn
+        .query_row(
+            r#"
+            SELECT COALESCE(
+                CAST(SUM(CASE WHEN status IN ('illuminated', 'golden_apple') THEN 1 ELSE 0 END) AS REAL)
+                / NULLIF(COUNT(*), 0),
+                0
+            )
+            FROM fnords
+            "#,
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0.0);
+
+    // Gesamtscore berechnen (gewichteter Durchschnitt)
+    let score = (change_rate * 0.2
+        + bias_intensity * 0.2
+        + activity_rate * 0.2
+        + keyword_diversity * 0.2
+        + reading_coverage * 0.2)
+        .min(1.0);
+
+    // In 5er-Stufe umwandeln
+    let level = match score {
+        s if s < 0.2 => 1,
+        s if s < 0.4 => 2,
+        s if s < 0.6 => 3,
+        s if s < 0.8 => 4,
+        _ => 5,
+    };
+
+    let description = match level {
+        1 => "Novize - Beginne die Fnords zu sehen".to_string(),
+        2 => "Initiat - Die Muster werden sichtbar".to_string(),
+        3 => "Adept - Chaos und Ordnung im Gleichgewicht".to_string(),
+        4 => "Erleuchteter - Die goldenen Aepfel nahen".to_string(),
+        5 => "Papst/Paepstin - Hail Eris!".to_string(),
+        _ => "Unbekannt".to_string(),
+    };
+
+    Ok(FnordIndex {
+        level,
+        description,
+        components: FnordIndexComponents {
+            change_rate,
+            bias_intensity,
+            activity_rate,
+            keyword_diversity,
+            reading_coverage,
+        },
     })
 }
 
-// ============================================================
-// BATCH UPDATE WITH HYBRID DETECTION
-// ============================================================
-
-/// Update all keyword types using hybrid detection (heuristic + semantic).
-/// This replaces the pure heuristic update_keyword_types with a smarter approach.
-#[tauri::command]
-pub fn update_keyword_types_semantic(
-    state: State<AppState>,
-) -> Result<SemanticTypeUpdateResult, String> {
-    use super::ollama::helpers::detect_keyword_type;
-
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let conn = db.conn();
-
-    // Load prototypes once
-    let prototypes = load_prototypes(conn)?;
-    let has_prototypes = !prototypes.is_empty();
-
-    if !has_prototypes {
-        warn!("No prototypes found - using heuristic-only detection");
-    }
-
-    // Get all keywords with their embeddings
-    let keywords: Vec<(i64, String, Option<Vec<u8>>)> = conn
-        .prepare("SELECT id, name, embedding FROM immanentize")
-        .map_err(|e| e.to_string())?
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
-
-    let mut type_counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
-    let mut low_confidence_count = 0i64;
-    let mut errors = Vec::new();
-    let mut total_processed = 0i64;
-
-    for (id, name, embedding_blob) in &keywords {
-        // First try heuristic detection
-        let heuristic_type = detect_keyword_type(name);
-
-        let (final_type, _confidence) = if heuristic_type != "concept" {
-            // Heuristic found a specific type - trust it
-            (heuristic_type, 0.9)
-        } else if has_prototypes {
-            // Try semantic detection for "concept" keywords
-            if let Some(blob) = embedding_blob {
-                if !blob.is_empty() {
-                    let embedding = blob_to_embedding(blob);
-                    let result = detect_keyword_type_semantic(&embedding, &prototypes);
-
-                    if result.confidence > 0.55 {
-                        (result.keyword_type, result.confidence)
-                    } else {
-                        low_confidence_count += 1;
-                        ("concept".to_string(), result.confidence)
-                    }
-                } else {
-                    low_confidence_count += 1;
-                    ("concept".to_string(), 0.5)
-                }
-            } else {
-                low_confidence_count += 1;
-                ("concept".to_string(), 0.5)
-            }
+fn calculate_trend(recent: i64, previous: i64) -> (TrendDirection, f64) {
+    if previous == 0 {
+        if recent > 0 {
+            (TrendDirection::Rising, 100.0)
         } else {
-            (heuristic_type, 0.5)
+            (TrendDirection::Stable, 0.0)
+        }
+    } else {
+        let change = ((recent - previous) as f64 / previous as f64) * 100.0;
+        let direction = if change > 10.0 {
+            TrendDirection::Rising
+        } else if change < -10.0 {
+            TrendDirection::Falling
+        } else {
+            TrendDirection::Stable
         };
-
-        // Update database
-        if let Err(e) = conn.execute(
-            "UPDATE immanentize SET keyword_type = ?1 WHERE id = ?2",
-            params![&final_type, id],
-        ) {
-            errors.push(format!("Failed to update {}: {}", id, e));
-            continue;
-        }
-
-        *type_counts.entry(final_type).or_insert(0) += 1;
-        total_processed += 1;
-
-        if total_processed % 500 == 0 {
-            debug!("Processed {} keywords...", total_processed);
-        }
-    }
-
-    info!(
-        "Keyword types updated: {} total, {} low confidence",
-        total_processed, low_confidence_count
-    );
-
-    let type_counts_vec: Vec<(String, i64)> = type_counts.into_iter().collect();
-
-    Ok(SemanticTypeUpdateResult {
-        total_processed,
-        type_counts: type_counts_vec,
-        low_confidence_count,
-        errors,
-    })
-}
-
-// ============================================================
-// HELPER FUNCTIONS
-// ============================================================
-
-/// Get the configured embedding model from settings
-fn get_embedding_model(conn: &rusqlite::Connection) -> String {
-    conn.query_row(
-        "SELECT value FROM settings WHERE key = 'embedding_model'",
-        [],
-        |row| row.get(0),
-    )
-    .unwrap_or_else(|_| "snowflake-arctic-embed2".to_string())
-}
-
-/// Check if prototypes exist and are up-to-date
-#[tauri::command]
-pub fn get_prototype_status(state: State<AppState>) -> Result<PrototypeStatus, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let conn = db.conn();
-
-    let count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM keyword_type_prototypes WHERE embedding IS NOT NULL",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-
-    let oldest_update: Option<String> = conn
-        .query_row(
-            "SELECT MIN(updated_at) FROM keyword_type_prototypes",
-            [],
-            |row| row.get(0),
-        )
-        .ok();
-
-    let model = get_embedding_model(conn);
-
-    Ok(PrototypeStatus {
-        prototype_count: count,
-        expected_count: KEYWORD_TYPES.len() as i64,
-        oldest_update,
-        embedding_model: model,
-        is_complete: count == KEYWORD_TYPES.len() as i64,
-    })
-}
-
-/// Status of prototype embeddings
-#[derive(Debug, Serialize)]
-pub struct PrototypeStatus {
-    pub prototype_count: i64,
-    pub expected_count: i64,
-    pub oldest_update: Option<String>,
-    pub embedding_model: String,
-    pub is_complete: bool,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_get_examples_for_type() {
-        assert_eq!(get_examples_for_type("person").len(), 10);
-        assert_eq!(get_examples_for_type("organization").len(), 10);
-        assert_eq!(get_examples_for_type("location").len(), 10);
-        assert_eq!(get_examples_for_type("concept").len(), 10);
-        assert_eq!(get_examples_for_type("acronym").len(), 10);
-        assert!(get_examples_for_type("unknown").is_empty());
-    }
-
-    #[test]
-    fn test_semantic_detection_with_empty_prototypes() {
-        let embedding = vec![0.1, 0.2, 0.3];
-        let prototypes: Vec<(String, Vec<f32>)> = vec![];
-
-        let result = detect_keyword_type_semantic(&embedding, &prototypes);
-        assert_eq!(result.keyword_type, "concept");
-        assert_eq!(result.confidence, 0.0);
-    }
-
-    #[test]
-    fn test_semantic_detection_finds_best_match() {
-        let keyword_emb = vec![0.9, 0.1, 0.0];
-        let prototypes = vec![
-            ("person".to_string(), vec![0.8, 0.2, 0.0]),       // Similar
-            ("organization".to_string(), vec![0.1, 0.9, 0.0]), // Different
-            ("concept".to_string(), vec![0.0, 0.0, 1.0]),      // Very different
-        ];
-
-        let result = detect_keyword_type_semantic(&keyword_emb, &prototypes);
-        assert_eq!(result.keyword_type, "person");
-        assert!(result.confidence > 0.5);
-    }
-
-    #[test]
-    fn test_keyword_types_count() {
-        assert_eq!(KEYWORD_TYPES.len(), 5);
+        (direction, change.abs())
     }
 }

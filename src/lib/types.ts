@@ -524,3 +524,68 @@ export interface CorrectionInput {
   // For category corrections: the category ID
   category_id?: number;
 }
+
+// Extended Fnord Statistics (Plan 4)
+export interface TimelineDataPoint {
+  date: string;
+  articles: number;
+  revisions: number;
+}
+
+export interface ArticleTimeline {
+  data: TimelineDataPoint[];
+  period_days: number;
+}
+
+export interface BiasDistribution {
+  left_extreme: number;
+  left_leaning: number;
+  neutral: number;
+  right_leaning: number;
+  right_extreme: number;
+}
+
+export interface GreyfaceIndex {
+  index: number;
+  avg_political_bias: number;
+  avg_sachlichkeit: number;
+  bias_distribution: BiasDistribution;
+  articles_with_bias: number;
+  total_articles: number;
+}
+
+export interface KeywordStats {
+  id: number;
+  name: string;
+  count: number;
+  trend: number;
+  keyword_type: string | null;
+}
+
+export interface FeedActivity {
+  pentacle_id: number;
+  title: string | null;
+  articles_total: number;
+  articles_period: number;
+  revisions_period: number;
+  last_sync: string | null;
+}
+
+export interface BiasHeatmapEntry {
+  pentacle_id: number;
+  pentacle_title: string | null;
+  bias_minus_2: number;
+  bias_minus_1: number;
+  bias_0: number;
+  bias_plus_1: number;
+  bias_plus_2: number;
+  avg_bias: number;
+}
+
+export interface KeywordCloudEntry {
+  id: number;
+  name: string;
+  count: number;
+  weight: number;
+  keyword_type: string | null;
+}
