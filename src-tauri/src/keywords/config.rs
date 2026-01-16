@@ -48,6 +48,7 @@ impl Default for KeywordConfig {
 
 impl KeywordConfig {
     /// Standard configuration for article processing
+    /// Uses full pipeline: MMR for diversity, TRISUM for multi-centrality, and Levenshtein for deduplication
     pub fn standard() -> Self {
         Self {
             max_keywords: 15,
@@ -59,8 +60,8 @@ impl KeywordConfig {
             // MMR enabled by default for better diversity
             use_mmr: true,
             mmr_lambda: 0.6,
-            // TRISUM disabled by default (standard TextRank)
-            use_trisum: false,
+            // TRISUM enabled by default for multi-centrality keyword extraction
+            use_trisum: true,
             trisum_pagerank_weight: 0.4,
             trisum_eigenvector_weight: 0.35,
             trisum_betweenness_weight: 0.25,
@@ -232,7 +233,7 @@ pub mod defaults {
 
     // === TRISUM Defaults ===
     /// Whether TRISUM is enabled by default
-    pub const USE_TRISUM: bool = false;
+    pub const USE_TRISUM: bool = true;
     /// Default TRISUM PageRank weight
     pub const TRISUM_PAGERANK_WEIGHT: f64 = 0.4;
     /// Default TRISUM Eigenvector weight
@@ -256,7 +257,7 @@ mod tests {
         assert_eq!(config.min_word_length, 3);
         assert!(config.use_stemming);
         assert!(config.use_mmr);
-        assert!(!config.use_trisum);
+        assert!(config.use_trisum); // TRISUM is now enabled by default
         assert_eq!(config.levenshtein_max_distance, 2);
     }
 

@@ -501,3 +501,97 @@ fn test_normalize_and_dedupe_typos() {
     // So it might be considered a near-duplicate depending on threshold
     assert!(deduped.len() >= 1, "Should keep at least one variant");
 }
+
+// ============================================================
+// IS_GARBAGE_KEYWORD TESTS
+// ============================================================
+
+#[test]
+fn test_is_garbage_keyword_empty() {
+    assert!(is_garbage_keyword(""));
+    assert!(is_garbage_keyword("   "));
+}
+
+#[test]
+fn test_is_garbage_keyword_mostly_digits() {
+    // All digits = garbage
+    assert!(is_garbage_keyword("12345"));     // All digits
+    // Mixed with hex letters only = garbage (looks like hex ID)
+    assert!(is_garbage_keyword("abc123def456")); // Hex-like pattern
+    // But words with some digits should pass if they look like real terms
+    assert!(!is_garbage_keyword("Artikel123")); // Real word prefix
+    assert!(!is_garbage_keyword("COVID19"));    // Real term
+}
+
+#[test]
+fn test_is_garbage_keyword_data_attributes() {
+    // HTML data attributes
+    assert!(is_garbage_keyword("data-component"));
+    assert!(is_garbage_keyword("data-testid"));
+    assert!(is_garbage_keyword("aria-label"));
+    assert!(is_garbage_keyword("aria-hidden"));
+}
+
+#[test]
+fn test_is_garbage_keyword_hex_ids() {
+    // Hexadecimal IDs (only hex chars 0-9, a-f, and mixed digits+letters)
+    assert!(is_garbage_keyword("11516c14826")); // Pure hex ID
+    assert!(is_garbage_keyword("abc123def456")); // 12 chars, hex-like
+    assert!(is_garbage_keyword("deadbeef12")); // Pure hex
+    // But real words should pass (contain non-hex letters like g-z)
+    assert!(!is_garbage_keyword("Klimawandel")); // Contains 'k', 'l', 'i', 'm', 'w', 'n'
+    assert!(!is_garbage_keyword("NATO")); // Short acronym
+    assert!(!is_garbage_keyword("Technology")); // Contains non-hex letters
+}
+
+#[test]
+fn test_is_garbage_keyword_css_class_names() {
+    // CSS-like class names with multiple dashes/underscores
+    assert!(is_garbage_keyword("nav-item-active"));
+    assert!(is_garbage_keyword("btn_primary_large"));
+    assert!(is_garbage_keyword("header--sticky--top"));
+    // Single dash is ok (like compound words)
+    assert!(!is_garbage_keyword("COVID-19"));
+}
+
+#[test]
+fn test_is_garbage_keyword_file_paths() {
+    // File paths and URL components
+    assert!(is_garbage_keyword("path/to/file"));
+    assert!(is_garbage_keyword("script.js"));
+    assert!(is_garbage_keyword("style.css"));
+    assert!(is_garbage_keyword("index.html"));
+}
+
+#[test]
+fn test_is_garbage_keyword_js_keywords() {
+    // JavaScript keywords
+    assert!(is_garbage_keyword("function"));
+    assert!(is_garbage_keyword("return"));
+    assert!(is_garbage_keyword("const"));
+    assert!(is_garbage_keyword("async"));
+    assert!(is_garbage_keyword("null"));
+    assert!(is_garbage_keyword("undefined"));
+}
+
+#[test]
+fn test_is_garbage_keyword_short_words() {
+    // Very short words (unless known acronyms)
+    assert!(is_garbage_keyword("xy"));
+    assert!(is_garbage_keyword("ab"));
+    // Known acronyms should pass
+    assert!(!is_garbage_keyword("EU"));
+    assert!(!is_garbage_keyword("UN"));
+}
+
+#[test]
+fn test_is_garbage_keyword_valid_keywords() {
+    // Valid news keywords should pass
+    assert!(!is_garbage_keyword("Berlin"));
+    assert!(!is_garbage_keyword("Politik"));
+    assert!(!is_garbage_keyword("Klimawandel"));
+    assert!(!is_garbage_keyword("Bundesregierung"));
+    assert!(!is_garbage_keyword("Ukraine"));
+    assert!(!is_garbage_keyword("Angela Merkel"));
+    assert!(!is_garbage_keyword("Künstliche Intelligenz"));
+}

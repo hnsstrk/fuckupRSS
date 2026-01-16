@@ -194,16 +194,58 @@ static HTML_STOPWORDS: &[&str] = &[
 
 /// News-specific stopwords (journalistic terms, news agencies, common filler words)
 static NEWS_STOPWORDS: &[&str] = &[
-    // German news terms
+    // === German News Terms ===
     "bericht", "sagt", "laut", "unterdessen", "heute", "gestern", "video", "update",
     "interview", "kommentar", "mehr", "neue", "ersten", "lesen", "artikel", "news",
-    "uhr", "foto", "quelle", "dpa", "afp", "reuters", "aktualisiert", "redaktion",
+    "uhr", "foto", "quelle", "aktualisiert", "redaktion",
     "meldung", "nachricht", "pressemitteilung", "mitteilung", "stellungnahme",
-    // English news terms
+    // German generic news filler
+    "beitrag", "eilmeldung", "liveticker", "zur", "beim", "vom", "zum",
+    // === English News Terms ===
     "report", "says", "according", "today", "yesterday", "comment", "read", "article",
     "source", "photo", "breaking", "exclusive", "update", "live", "developing",
     "correspondent", "reporter", "editor", "editorial", "opinion", "analysis",
-    "wire", "ap", "upi", "featured", "trending", "viral", "latest",
+    "wire", "featured", "trending", "viral", "latest",
+    // === News Agencies and Wire Services ===
+    "dpa", "afp", "reuters", "ap", "upi", "epa", "apa", "sid",
+    // === German Media Outlets (Feed Names) ===
+    "deutschlandfunk", "programm deutschlandfunk", "dlf", "dlf kultur", "dlf nova",
+    "tagesschau", "tagesthemen", "tagesschau24", "ard", "ard aktuell",
+    "zdf", "zdf heute", "heute journal", "heute show",
+    "spiegel", "spiegel online", "der spiegel", "spon",
+    "zeit", "zeit online", "die zeit",
+    "faz", "frankfurter allgemeine", "frankfurter allgemeine zeitung",
+    "sueddeutsche", "süddeutsche", "sz", "süddeutsche zeitung",
+    "welt", "die welt", "welt online",
+    "bild", "bild zeitung",
+    "focus", "focus online",
+    "stern", "stern online",
+    "handelsblatt", "wiwo", "wirtschaftswoche",
+    "n-tv", "ntv", "n24", "welt nachrichtensender",
+    "heise", "heise online", "golem", "golem.de",
+    "netzpolitik", "netzpolitik.org",
+    "taz", "die tageszeitung",
+    "fr", "frankfurter rundschau",
+    "rp", "rheinische post",
+    "rnd", "redaktionsnetzwerk deutschland",
+    // === International Media Outlets ===
+    "bbc", "bbc news", "bbc world", "bbc world service",
+    "cnn", "cnn international",
+    "nyt", "new york times", "the new york times",
+    "wapo", "washington post", "the washington post",
+    "guardian", "the guardian",
+    "ft", "financial times",
+    "economist", "the economist",
+    "politico", "euronews", "france24", "al jazeera", "rt",
+    "nzz", "neue zürcher zeitung",
+    "orf", "derstandard", "der standard", "kurier", "krone",
+    // === Generic Article/Content Terms ===
+    "weiterlesen", "mehr lesen", "read more", "continue reading",
+    "abonnieren", "subscribe", "newsletter", "rss feed",
+    "teilen", "share", "tweet", "facebook", "twitter", "linkedin",
+    "kommentare", "comments", "diskussion", "discussion",
+    "anzeige", "werbung", "sponsored", "ad", "advertisement",
+    "premium", "plus", "abo", "paywall",
 ];
 
 // ============================================================
@@ -327,5 +369,46 @@ mod tests {
         assert!(!STOPWORDS.contains("politik"));
         assert!(!STOPWORDS.contains("technology"));
         assert!(!STOPWORDS.contains("wirtschaft"));
+    }
+
+    #[test]
+    fn test_stopwords_contains_news_agencies() {
+        // News agencies should be filtered
+        assert!(STOPWORDS.contains("dpa"));
+        assert!(STOPWORDS.contains("afp"));
+        assert!(STOPWORDS.contains("reuters"));
+        assert!(STOPWORDS.contains("ap"));
+        assert!(STOPWORDS.contains("upi"));
+    }
+
+    #[test]
+    fn test_stopwords_contains_german_media_outlets() {
+        // German media outlet names should be filtered
+        assert!(STOPWORDS.contains("deutschlandfunk"));
+        assert!(STOPWORDS.contains("tagesschau"));
+        assert!(STOPWORDS.contains("spiegel"));
+        assert!(STOPWORDS.contains("zeit"));
+        assert!(STOPWORDS.contains("faz"));
+        assert!(STOPWORDS.contains("sueddeutsche"));
+        assert!(STOPWORDS.contains("heise"));
+    }
+
+    #[test]
+    fn test_stopwords_contains_international_media() {
+        // International media outlet names should be filtered
+        assert!(STOPWORDS.contains("bbc"));
+        assert!(STOPWORDS.contains("cnn"));
+        assert!(STOPWORDS.contains("guardian"));
+        assert!(STOPWORDS.contains("nzz"));
+    }
+
+    #[test]
+    fn test_stopwords_contains_generic_news_terms() {
+        // Generic news filler terms should be filtered
+        assert!(STOPWORDS.contains("beitrag"));
+        assert!(STOPWORDS.contains("eilmeldung"));
+        assert!(STOPWORDS.contains("liveticker"));
+        assert!(STOPWORDS.contains("weiterlesen"));
+        assert!(STOPWORDS.contains("newsletter"));
     }
 }

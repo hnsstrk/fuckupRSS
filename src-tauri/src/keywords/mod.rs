@@ -24,6 +24,12 @@ pub use types::{
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod evaluation_test;
+
+#[cfg(test)]
+mod db_evaluation_test;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum KeywordType {
     Concept,
@@ -395,6 +401,12 @@ impl KeywordExtractor {
         if text.len() < 2 || text.len() > 50 {
             return false;
         }
+
+        // Check for garbage patterns (HTML IDs, CSS classes, hex codes, etc.)
+        if is_garbage_keyword(text) {
+            return false;
+        }
+
         // Check against unified stopwords (includes news, HTML, DE, EN)
         if stopwords.contains(&lower) {
             return false;
@@ -579,8 +591,108 @@ pub fn extract_keywords_with_semantic_scoring(
 
 static GARBAGE_PATTERNS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
+        // === HTML Tags and Attributes ===
         "doctype",
         "html",
+        "div",
+        "span",
+        "class",
+        "href",
+        "onclick",
+        "onload",
+        "onchange",
+        "onsubmit",
+        "onmouseover",
+        "onmouseout",
+        "onfocus",
+        "onblur",
+        "script",
+        "style",
+        "iframe",
+        "input",
+        "button",
+        "form",
+        "label",
+        "textarea",
+        "select",
+        "option",
+        "img",
+        "src",
+        "alt",
+        "title",
+        "width",
+        "height",
+        "border",
+        "colspan",
+        "rowspan",
+        "cellpadding",
+        "cellspacing",
+        "xmlns",
+        "viewbox",
+        "xmlns",
+        "xlink",
+        "svg",
+        "path",
+        "rect",
+        "circle",
+        "polygon",
+        "polyline",
+        "line",
+        "ellipse",
+        "text",
+        "tspan",
+        "defs",
+        "use",
+        "symbol",
+        "clippath",
+        "mask",
+        "pattern",
+        "filter",
+        "feblend",
+        "fegaussianblur",
+        // === CSS Units and Properties ===
+        "px",
+        "em",
+        "rem",
+        "vh",
+        "vw",
+        "pt",
+        "pc",
+        "cm",
+        "mm",
+        "padding",
+        "margin",
+        "inline",
+        "block",
+        "flex",
+        "grid",
+        "absolute",
+        "relative",
+        "fixed",
+        "sticky",
+        "static",
+        "display",
+        "position",
+        "overflow",
+        "visibility",
+        "opacity",
+        "transform",
+        "transition",
+        "animation",
+        "cursor",
+        "pointer",
+        "justify",
+        "align",
+        "vertical",
+        "horizontal",
+        "center",
+        "middle",
+        "baseline",
+        "nowrap",
+        "wrap",
+        "column",
+        "row",
+        // === URL and Web ===
         "http",
         "https",
         "www",
@@ -588,6 +700,18 @@ static GARBAGE_PATTERNS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         "org",
         "de",
         "net",
+        "io",
+        "co",
+        "uk",
+        "eu",
+        "info",
+        "mailto",
+        "tel",
+        "javascript",
+        "blob",
+        "data",
+        "base64",
+        // === Common English Stopwords ===
         "the",
         "and",
         "for",
@@ -668,9 +792,13 @@ static GARBAGE_PATTERNS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         "says",
         "said",
         "according",
+        // === News Agencies ===
         "reuters",
         "dpa",
         "afp",
+        "ap",
+        "upi",
+        // === German Stopwords ===
         "der",
         "die",
         "das",
@@ -787,11 +915,92 @@ static GARBAGE_PATTERNS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         "uhr",
         "jahr",
         "jahre",
+        // === Generic News Terms ===
+        "zur",
+        "beim",
+        "vom",
+        "zum",
+        "beitrag",
+        "artikel",
+        "meldung",
+        "nachricht",
+        "news",
+        "update",
+        "breaking",
+        "eilmeldung",
+        "liveticker",
     ]
     .iter()
     .copied()
     .collect()
 });
+
+/// Check if a keyword looks like garbage (HTML ID, CSS class, hex code, etc.)
+/// Returns true if the keyword should be filtered out
+pub fn is_garbage_keyword(keyword: &str) -> bool {
+    let trimmed = keyword.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+
+    let lower = trimmed.to_lowercase();
+
+    // === Pattern 1: All digits = definitely garbage ===
+    if trimmed.chars().all(|c| c.is_numeric()) {
+        return true;
+    }
+
+    // === Pattern 2: HTML data attributes ===
+    if lower.starts_with("data-") || lower.starts_with("aria-") {
+        return true;
+    }
+
+    // === Pattern 3: Contains HTML-typical patterns ===
+    if lower.contains("data-") || lower.contains("aria-") || lower.contains("role=") || lower.contains("style=") {
+        return true;
+    }
+
+    // === Pattern 4: Hexadecimal IDs (like "11516c14826", "f3a8b2c9d1") ===
+    // Long alphanumeric strings that look like hex IDs:
+    // - 8+ characters, all alphanumeric
+    // - Contains only hex characters (0-9, a-f)
+    // - Has mixed digits and letters
+    if trimmed.len() >= 8 && !trimmed.contains(' ') {
+        let is_hex_like = lower.chars().all(|c| {
+            c.is_ascii_digit() || matches!(c, 'a'..='f')
+        });
+        let has_digits = trimmed.chars().any(|c| c.is_numeric());
+        let has_letters = trimmed.chars().any(|c| c.is_alphabetic());
+
+        if is_hex_like && has_digits && has_letters {
+            return true;
+        }
+    }
+
+    // === Pattern 5: CSS-like class names (multiple dashes or underscores) ===
+    let dash_count = trimmed.chars().filter(|c| *c == '-' || *c == '_').count();
+    if dash_count >= 2 && trimmed.len() < 30 {
+        return true;
+    }
+
+    // === Pattern 6: Looks like a file path or URL component ===
+    if lower.contains("/") || lower.contains("\\") || lower.ends_with(".js") || lower.ends_with(".css") || lower.ends_with(".html") {
+        return true;
+    }
+
+    // === Pattern 7: JavaScript/programming keywords ===
+    let js_keywords = ["function", "return", "const", "var", "let", "async", "await", "null", "undefined", "true", "false"];
+    if js_keywords.contains(&lower.as_str()) {
+        return true;
+    }
+
+    // === Pattern 8: Very short single words that are likely garbage ===
+    if trimmed.len() <= 2 && !KNOWN_ACRONYMS.contains(trimmed) {
+        return true;
+    }
+
+    false
+}
 
 static VALID_SINGLE_WORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
@@ -841,6 +1050,11 @@ pub fn normalize_keyword(keyword: &str) -> Option<String> {
     let lower = trimmed.to_lowercase();
 
     if trimmed.len() < 3 || trimmed.len() > 50 {
+        return None;
+    }
+
+    // Check for garbage patterns (HTML IDs, CSS classes, hex codes, etc.)
+    if is_garbage_keyword(trimmed) {
         return None;
     }
 
