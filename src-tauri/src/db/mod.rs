@@ -2,6 +2,9 @@ mod schema;
 #[cfg(test)]
 mod tests;
 
+// Re-export stopword functions for use in commands
+pub use schema::{reset_stopwords_to_default, restore_default_stopwords};
+
 use log::info;
 use rusqlite::{ffi::sqlite3_auto_extension, Connection};
 use sqlite_vec::sqlite3_vec_init;

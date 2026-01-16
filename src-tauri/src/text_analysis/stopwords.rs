@@ -249,12 +249,36 @@ static NEWS_STOPWORDS: &[&str] = &[
 ];
 
 // ============================================================
-// USER STOPWORDS (Database-backed)
+// DATABASE STOPWORDS (System + User)
 // ============================================================
 
-/// Load user-defined stopwords from database
+/// Load all stopwords from database (system + user)
+pub fn load_all_db_stopwords(conn: &Connection) -> Result<HashSet<String>, rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT word FROM stopwords")?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+
+    let mut words = HashSet::new();
+    for row in rows {
+        words.insert(row?.to_lowercase());
+    }
+    Ok(words)
+}
+
+/// Load user-defined stopwords from database (for backwards compatibility)
 pub fn load_user_stopwords(conn: &Connection) -> Result<HashSet<String>, rusqlite::Error> {
-    let mut stmt = conn.prepare("SELECT word FROM user_stopwords")?;
+    let mut stmt = conn.prepare("SELECT word FROM stopwords WHERE source = 'user'")?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+
+    let mut words = HashSet::new();
+    for row in rows {
+        words.insert(row?.to_lowercase());
+    }
+    Ok(words)
+}
+
+/// Load system stopwords from database
+pub fn load_system_stopwords(conn: &Connection) -> Result<HashSet<String>, rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT word FROM stopwords WHERE source = 'system'")?;
     let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
 
     let mut words = HashSet::new();
@@ -271,17 +295,27 @@ pub fn add_user_stopword(conn: &Connection, word: &str) -> Result<(), rusqlite::
         return Ok(());
     }
     conn.execute(
-        "INSERT OR IGNORE INTO user_stopwords (word) VALUES (?)",
+        "INSERT OR IGNORE INTO stopwords (word, source) VALUES (?, 'user')",
         [&word_lower],
     )?;
     Ok(())
 }
 
-/// Remove a user stopword from the database
+/// Remove a user stopword from the database (only removes user-added stopwords)
 pub fn remove_user_stopword(conn: &Connection, word: &str) -> Result<bool, rusqlite::Error> {
     let word_lower = word.trim().to_lowercase();
     let deleted = conn.execute(
-        "DELETE FROM user_stopwords WHERE LOWER(word) = ?",
+        "DELETE FROM stopwords WHERE LOWER(word) = ? AND source = 'user'",
+        [&word_lower],
+    )?;
+    Ok(deleted > 0)
+}
+
+/// Remove any stopword from the database (system or user)
+pub fn remove_stopword(conn: &Connection, word: &str) -> Result<bool, rusqlite::Error> {
+    let word_lower = word.trim().to_lowercase();
+    let deleted = conn.execute(
+        "DELETE FROM stopwords WHERE LOWER(word) = ?",
         [&word_lower],
     )?;
     Ok(deleted > 0)
@@ -289,54 +323,77 @@ pub fn remove_user_stopword(conn: &Connection, word: &str) -> Result<bool, rusql
 
 /// Get count of user stopwords
 pub fn count_user_stopwords(conn: &Connection) -> Result<i64, rusqlite::Error> {
-    conn.query_row("SELECT COUNT(*) FROM user_stopwords", [], |row| row.get(0))
+    conn.query_row(
+        "SELECT COUNT(*) FROM stopwords WHERE source = 'user'",
+        [],
+        |row| row.get(0),
+    )
 }
 
-/// Check if a word is a stopword (static + user-defined)
-pub fn is_stopword(word: &str, user_stopwords: Option<&HashSet<String>>) -> bool {
+/// Get count of system stopwords
+pub fn count_system_stopwords(conn: &Connection) -> Result<i64, rusqlite::Error> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM stopwords WHERE source = 'system'",
+        [],
+        |row| row.get(0),
+    )
+}
+
+/// Get count of all stopwords in database
+pub fn count_all_stopwords(conn: &Connection) -> Result<i64, rusqlite::Error> {
+    conn.query_row("SELECT COUNT(*) FROM stopwords", [], |row| row.get(0))
+}
+
+/// Check if a word is a stopword (database + static fallback)
+pub fn is_stopword(word: &str, db_stopwords: Option<&HashSet<String>>) -> bool {
     let lower = word.to_lowercase();
 
-    // Check static stopwords first
-    if STOPWORDS.contains(lower.as_str()) {
-        return true;
-    }
-
-    // Check user stopwords if provided
-    if let Some(user) = user_stopwords {
-        if user.contains(&lower) {
+    // Check provided database stopwords first
+    if let Some(db) = db_stopwords {
+        if db.contains(&lower) {
             return true;
         }
+    }
+
+    // Fallback to static stopwords if no DB stopwords provided
+    if db_stopwords.is_none() && STOPWORDS.contains(lower.as_str()) {
+        return true;
     }
 
     false
 }
 
-/// Get all stopwords (static + user) as a combined set
+/// Get all stopwords (database-first, static fallback)
 pub fn get_all_stopwords(conn: &Connection) -> HashSet<String> {
-    let mut all: HashSet<String> = STOPWORDS.iter().map(|s| s.to_string()).collect();
-
-    if let Ok(user) = load_user_stopwords(conn) {
-        all.extend(user);
+    // Try to load from database first
+    if let Ok(db_stopwords) = load_all_db_stopwords(conn) {
+        if !db_stopwords.is_empty() {
+            return db_stopwords;
+        }
     }
 
-    all
+    // Fallback to static stopwords
+    STOPWORDS.iter().map(|s| s.to_string()).collect()
 }
 
 /// Get statistics about stopwords
 pub struct StopwordStats {
-    pub builtin_count: usize,
+    pub system_count: i64,
     pub user_count: i64,
-    pub total_count: usize,
+    pub builtin_count: usize,
+    pub total_count: i64,
 }
 
 pub fn get_stopword_stats(conn: &Connection) -> Result<StopwordStats, rusqlite::Error> {
-    let builtin_count = STOPWORDS.len();
+    let system_count = count_system_stopwords(conn)?;
     let user_count = count_user_stopwords(conn)?;
-    let total_count = builtin_count + user_count as usize;
+    let builtin_count = STOPWORDS.len();
+    let total_count = system_count + user_count;
 
     Ok(StopwordStats {
-        builtin_count,
+        system_count,
         user_count,
+        builtin_count,
         total_count,
     })
 }

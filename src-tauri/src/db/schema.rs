@@ -1,44 +1,79 @@
 use log::info;
 use rusqlite::Connection;
-use serde::Deserialize;
 
-/// Default stopwords embedded at compile time
-const DEFAULT_STOPWORDS_JSON: &str = include_str!("../../data/default_stopwords.json");
+/// Default stopwords embedded at compile time from txt files
+const STOPWORDS_DE: &str = include_str!("../../resources/stopwords/de.txt");
+const STOPWORDS_EN: &str = include_str!("../../resources/stopwords/en.txt");
+const STOPWORDS_TECHNICAL: &str = include_str!("../../resources/stopwords/technical.txt");
+const STOPWORDS_NEWS: &str = include_str!("../../resources/stopwords/news.txt");
 
-/// Structure for parsing the default stopwords JSON file
-#[derive(Debug, Deserialize)]
-struct DefaultStopwordsFile {
-    stopwords: Vec<String>,
+/// Parse a stopword file (lines starting with # are comments, empty lines are skipped)
+fn parse_stopword_file(content: &str) -> Vec<String> {
+    content
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(|line| line.to_lowercase())
+        .collect()
 }
 
-/// Restore default stopwords from the embedded JSON file
+/// Restore default stopwords from embedded txt files
 ///
-/// This function is called during database initialization when the user_stopwords table is empty.
+/// This function is called during database initialization when the stopwords table is empty.
 /// It ensures that a curated list of stopwords is always available, even when the database is
 /// newly created or re-initialized.
 ///
 /// Returns the number of stopwords that were restored.
 pub fn restore_default_stopwords(conn: &Connection) -> Result<usize, rusqlite::Error> {
-    let file: DefaultStopwordsFile = serde_json::from_str(DEFAULT_STOPWORDS_JSON)
-        .expect("Failed to parse embedded default_stopwords.json");
-
-    let mut stmt = conn.prepare("INSERT OR IGNORE INTO user_stopwords (word) VALUES (?1)")?;
+    let mut stmt = conn.prepare(
+        "INSERT OR IGNORE INTO stopwords (word, source, language) VALUES (?1, 'system', ?2)",
+    )?;
     let mut count = 0;
 
-    for word in &file.stopwords {
-        if stmt.execute([word])? > 0 {
+    // Load German stopwords
+    for word in parse_stopword_file(STOPWORDS_DE) {
+        if stmt.execute(rusqlite::params![&word, "de"])? > 0 {
+            count += 1;
+        }
+    }
+
+    // Load English stopwords
+    for word in parse_stopword_file(STOPWORDS_EN) {
+        if stmt.execute(rusqlite::params![&word, "en"])? > 0 {
+            count += 1;
+        }
+    }
+
+    // Load technical stopwords
+    for word in parse_stopword_file(STOPWORDS_TECHNICAL) {
+        if stmt.execute(rusqlite::params![&word, "technical"])? > 0 {
+            count += 1;
+        }
+    }
+
+    // Load news stopwords
+    for word in parse_stopword_file(STOPWORDS_NEWS) {
+        if stmt.execute(rusqlite::params![&word, "news"])? > 0 {
             count += 1;
         }
     }
 
     if count > 0 {
         info!(
-            "Restored {} default stopwords from embedded JSON file",
+            "Restored {} default stopwords from embedded txt files",
             count
         );
     }
 
     Ok(count)
+}
+
+/// Reset stopwords to default (removes all user stopwords and re-seeds system stopwords)
+pub fn reset_stopwords_to_default(conn: &Connection) -> Result<usize, rusqlite::Error> {
+    // Delete all stopwords
+    conn.execute("DELETE FROM stopwords", [])?;
+    // Re-seed with defaults
+    restore_default_stopwords(conn)
 }
 
 /// Run migrations for existing databases
@@ -716,18 +751,53 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
-    // Migration 15: Create user_stopwords table for user-defined stopwords
-    conn.execute_batch(
-        r#"
-        CREATE TABLE IF NOT EXISTS user_stopwords (
-            id INTEGER PRIMARY KEY,
-            word TEXT NOT NULL UNIQUE COLLATE NOCASE,
-            added_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
+    // Migration 15: Create stopwords table (system + user stopwords)
+    // Check if we need to migrate from old user_stopwords table
+    let has_user_stopwords_table: bool = conn
+        .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='user_stopwords'")?
+        .query_row([], |row| row.get::<_, i64>(0).map(|c| c > 0))?;
 
-        CREATE INDEX IF NOT EXISTS idx_user_stopwords_word ON user_stopwords(word);
-        "#,
-    )?;
+    let has_stopwords_table: bool = conn
+        .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='stopwords'")?
+        .query_row([], |row| row.get::<_, i64>(0).map(|c| c > 0))?;
+
+    if !has_stopwords_table {
+        // Create new stopwords table with source and language columns
+        conn.execute_batch(
+            r#"
+            CREATE TABLE stopwords (
+                id INTEGER PRIMARY KEY,
+                word TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                source TEXT NOT NULL DEFAULT 'system' CHECK(source IN ('system', 'user')),
+                language TEXT,  -- 'de', 'en', 'technical', 'news', or NULL for user
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX idx_stopwords_word ON stopwords(word);
+            CREATE INDEX idx_stopwords_source ON stopwords(source);
+            CREATE INDEX idx_stopwords_language ON stopwords(language);
+            "#,
+        )?;
+
+        // Migrate data from old user_stopwords table if it exists
+        if has_user_stopwords_table {
+            conn.execute(
+                r#"INSERT OR IGNORE INTO stopwords (word, source, language, created_at)
+                   SELECT word, 'user', NULL, added_at FROM user_stopwords"#,
+                [],
+            )?;
+            // Drop old table
+            conn.execute("DROP TABLE user_stopwords", [])?;
+        }
+    } else if has_user_stopwords_table {
+        // Both tables exist - migrate remaining data and drop old table
+        conn.execute(
+            r#"INSERT OR IGNORE INTO stopwords (word, source, language, created_at)
+               SELECT word, 'user', NULL, added_at FROM user_stopwords"#,
+            [],
+        )?;
+        conn.execute("DROP TABLE user_stopwords", [])?;
+    }
 
     // Migration 16: Add keyword_type to immanentize table
     let has_keyword_type: bool = conn
@@ -1152,12 +1222,16 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         )?;
     }
 
-    // Restore default stopwords from embedded JSON file (only if table is empty)
-    let stopword_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM user_stopwords", [], |row| row.get(0))
+    // Restore default stopwords from embedded txt files (only if no system stopwords exist)
+    let system_stopword_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM stopwords WHERE source = 'system'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap_or(0);
 
-    if stopword_count == 0 {
+    if system_stopword_count == 0 {
         restore_default_stopwords(conn)?;
     }
 

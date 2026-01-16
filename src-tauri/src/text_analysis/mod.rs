@@ -16,6 +16,8 @@ pub use category_matcher::CategoryMatcher;
 pub use bias::{BiasWeights, CorrectionRecord, CorrectionType, BiasStats, record_correction, get_bias_stats};
 #[allow(unused_imports)]
 pub use stopwords::{
-    STOPWORDS, load_user_stopwords, add_user_stopword, remove_user_stopword,
+    STOPWORDS, load_user_stopwords, load_system_stopwords, load_all_db_stopwords,
+    add_user_stopword, remove_user_stopword, remove_stopword,
     get_all_stopwords, get_stopword_stats, StopwordStats, is_stopword,
+    count_user_stopwords, count_system_stopwords, count_all_stopwords,
 };

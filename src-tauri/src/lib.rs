@@ -247,6 +247,8 @@ pub fn run() {
             commands::article_analysis::score_keywords_semantically,
             // Stopword Management
             commands::stopwords::get_user_stopwords,
+            commands::stopwords::get_system_stopwords,
+            commands::stopwords::get_all_stopwords_list,
             commands::stopwords::add_stopword,
             commands::stopwords::add_stopwords_batch,
             commands::stopwords::remove_stopword,
@@ -254,6 +256,8 @@ pub fn run() {
             commands::stopwords::is_stopword_check,
             commands::stopwords::search_stopwords,
             commands::stopwords::clear_user_stopwords,
+            commands::stopwords::reset_stopwords,
+            commands::stopwords::restore_system_stopwords,
             commands::stopwords::export_stopwords,
             commands::stopwords::import_stopwords,
             // Law of Fives (Discordian Dashboard)

@@ -1,0 +1,172 @@
+# News-specific Stopwords
+# === German News Terms ===
+bericht
+sagt
+laut
+unterdessen
+video
+update
+interview
+kommentar
+uhr
+foto
+quelle
+aktualisiert
+redaktion
+meldung
+nachricht
+pressemitteilung
+mitteilung
+stellungnahme
+beitrag
+eilmeldung
+liveticker
+zur
+beim
+vom
+zum
+# === English News Terms ===
+report
+says
+according
+comment
+breaking
+exclusive
+live
+developing
+correspondent
+reporter
+editor
+editorial
+opinion
+analysis
+wire
+featured
+trending
+viral
+latest
+# === News Agencies and Wire Services ===
+dpa
+afp
+reuters
+ap
+upi
+epa
+apa
+sid
+# === German Media Outlets ===
+deutschlandfunk
+programm deutschlandfunk
+dlf
+dlf kultur
+dlf nova
+tagesschau
+tagesthemen
+tagesschau24
+ard
+ard aktuell
+zdf
+zdf heute
+heute journal
+heute show
+spiegel
+spiegel online
+der spiegel
+spon
+zeit
+zeit online
+die zeit
+faz
+frankfurter allgemeine
+frankfurter allgemeine zeitung
+sueddeutsche
+suedeutsche
+sz
+sueddeutsche zeitung
+welt
+die welt
+welt online
+bild
+bild zeitung
+focus
+focus online
+stern
+stern online
+handelsblatt
+wiwo
+wirtschaftswoche
+n-tv
+ntv
+n24
+welt nachrichtensender
+heise
+heise online
+golem
+golem.de
+netzpolitik
+netzpolitik.org
+taz
+die tageszeitung
+fr
+frankfurter rundschau
+rp
+rheinische post
+rnd
+redaktionsnetzwerk deutschland
+# === International Media Outlets ===
+bbc
+bbc news
+bbc world
+bbc world service
+cnn
+cnn international
+nyt
+new york times
+the new york times
+wapo
+washington post
+the washington post
+guardian
+the guardian
+ft
+financial times
+economist
+the economist
+politico
+euronews
+france24
+al jazeera
+rt
+nzz
+neue zuercher zeitung
+orf
+derstandard
+der standard
+kurier
+krone
+# === Generic Article/Content Terms ===
+weiterlesen
+mehr lesen
+read more
+continue reading
+abonnieren
+subscribe
+newsletter
+rss feed
+teilen
+tweet
+facebook
+twitter
+linkedin
+kommentare
+diskussion
+discussion
+anzeige
+werbung
+sponsored
+ad
+advertisement
+premium
+plus
+abo
+paywall
