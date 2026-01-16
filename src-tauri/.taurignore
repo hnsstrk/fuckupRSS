@@ -1,0 +1,9 @@
+# Ignore SQLite database and WAL files to prevent rebuild loops
+# The database is stored in src-tauri/data/ and changes frequently
+# which would otherwise trigger constant rebuilds during development
+
+data/
+data/**
+*.db
+*.db-shm
+*.db-wal

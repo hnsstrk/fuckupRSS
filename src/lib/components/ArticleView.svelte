@@ -207,6 +207,37 @@
     }
   }
 
+  // Compact Greyface helpers
+  function getBiasIcon(bias: number | null): string {
+    if (bias === null) return 'fa-scale-balanced';
+    if (bias < 0) return 'fa-scale-unbalanced';
+    if (bias > 0) return 'fa-scale-unbalanced-flip';
+    return 'fa-scale-balanced';
+  }
+
+  function getBiasColor(bias: number | null): string {
+    if (bias === null) return 'neutral';
+    if (bias <= -2) return 'strong-left';
+    if (bias === -1) return 'lean-left';
+    if (bias === 0) return 'center';
+    if (bias === 1) return 'lean-right';
+    return 'strong-right';
+  }
+
+  function getSachlichkeitIcon(s: number | null): string {
+    if (s === null) return 'fa-face-meh';
+    if (s <= 1) return 'fa-heart';
+    if (s === 2) return 'fa-face-meh';
+    return 'fa-brain';
+  }
+
+  function getSachlichkeitColor(s: number | null): string {
+    if (s === null) return 'neutral';
+    if (s <= 1) return 'emotional';
+    if (s === 2) return 'mixed';
+    return 'objective';
+  }
+
   function openInBrowser() {
     if (appState.selectedFnord) {
       window.open(appState.selectedFnord.url, "_blank");
@@ -379,32 +410,33 @@
       </div>
     {/if}
 
-    <!-- Greyface Alert -->
-    {#if fnord.political_bias !== null || fnord.sachlichkeit !== null}
+    <!-- Greyface Alert (compact) -->
+    {#if fnord.political_bias !== null || fnord.sachlichkeit !== null || fnord.quality_score !== null}
       <div class="greyface-section">
         <div class="section-content">
-          <div class="section-header">
-            <Tooltip termKey="greyface">{$_('articleView.greyface.title')}</Tooltip>
-          </div>
-          <div class="greyface-grid">
-            {#if fnord.political_bias !== null}
-              <div class="greyface-item">
-                <div class="item-label">{$_('articleView.greyface.bias')}</div>
-                <div class="item-value">{getBiasLabel(fnord.political_bias)}</div>
-              </div>
-            {/if}
-            {#if fnord.sachlichkeit !== null}
-              <div class="greyface-item">
-                <div class="item-label">{$_('articleView.greyface.sachlichkeit')}</div>
-                <div class="item-value">{getSachlichkeitLabel(fnord.sachlichkeit)}</div>
-              </div>
-            {/if}
-            {#if fnord.quality_score !== null}
-              <div class="greyface-item">
-                <div class="item-label">{$_('articleView.greyface.quality')}</div>
-                <div class="item-value quality">{#each Array(fnord.quality_score) as _, i (i)}<i class="fa-solid fa-star"></i>{/each}{#each Array(5 - fnord.quality_score) as _, i (i)}<i class="fa-regular fa-star"></i>{/each}</div>
-              </div>
-            {/if}
+          <div class="greyface-row">
+            <div class="greyface-label">
+              <Tooltip termKey="greyface">{$_('articleView.greyface.title')}</Tooltip>
+            </div>
+            <div class="greyface-indicators">
+              {#if fnord.political_bias !== null}
+                <span class="indicator bias-{getBiasColor(fnord.political_bias)}" title="{$_('articleView.greyface.bias')}: {getBiasLabel(fnord.political_bias)}">
+                  <i class="fa-solid {getBiasIcon(fnord.political_bias)}"></i>
+                  <span class="indicator-text">{getBiasLabel(fnord.political_bias)}</span>
+                </span>
+              {/if}
+              {#if fnord.sachlichkeit !== null}
+                <span class="indicator sach-{getSachlichkeitColor(fnord.sachlichkeit)}" title="{$_('articleView.greyface.sachlichkeit')}: {getSachlichkeitLabel(fnord.sachlichkeit)}">
+                  <i class="fa-solid {getSachlichkeitIcon(fnord.sachlichkeit)}"></i>
+                  <span class="indicator-text">{getSachlichkeitLabel(fnord.sachlichkeit)}</span>
+                </span>
+              {/if}
+              {#if fnord.quality_score !== null}
+                <span class="indicator quality" title="{$_('articleView.greyface.quality')}">
+                  {#each Array(fnord.quality_score) as _, i (i)}<i class="fa-solid fa-star"></i>{/each}{#each Array(5 - fnord.quality_score) as _, i (i)}<i class="fa-regular fa-star"></i>{/each}
+                </span>
+              {/if}
+            </div>
           </div>
         </div>
       </div>
@@ -711,7 +743,6 @@
     border-radius: 0.375rem;
   }
 
-  .greyface-section,
   .summary-section {
     padding: 1rem 1.5rem;
     background-color: var(--bg-surface);
@@ -725,28 +756,72 @@
     margin-bottom: 0.75rem;
   }
 
-  .greyface-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
-    gap: 1rem;
+  /* Compact Greyface Alert */
+  .greyface-section {
+    padding: 1rem 1.5rem;
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-default);
   }
 
-  .greyface-item {
+  .greyface-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .greyface-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    min-width: 5rem;
+    padding-top: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  .greyface-indicators {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+
+  .greyface-indicators .indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.8125rem;
+    background-color: var(--bg-overlay);
+    cursor: default;
+  }
+
+  .greyface-indicators .indicator i {
     font-size: 0.875rem;
   }
 
-  .item-label {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin-bottom: 0.25rem;
+  .indicator-text {
+    color: var(--text-secondary);
   }
 
-  .item-value {
-    color: var(--text-primary);
-  }
+  /* Bias colors */
+  .indicator.bias-strong-left { color: #3b82f6; }
+  .indicator.bias-lean-left { color: #60a5fa; }
+  .indicator.bias-center { color: #10b981; }
+  .indicator.bias-lean-right { color: #f97316; }
+  .indicator.bias-strong-right { color: #ef4444; }
+  .indicator.bias-neutral { color: var(--text-muted); }
 
-  .item-value.quality {
+  /* Sachlichkeit colors */
+  .indicator.sach-emotional { color: #f97316; }
+  .indicator.sach-mixed { color: #eab308; }
+  .indicator.sach-objective { color: #10b981; }
+  .indicator.sach-neutral { color: var(--text-muted); }
+
+  /* Quality stars */
+  .indicator.quality {
     color: var(--golden-apple-color);
+    gap: 0.125rem;
   }
 
   .summary-text {
