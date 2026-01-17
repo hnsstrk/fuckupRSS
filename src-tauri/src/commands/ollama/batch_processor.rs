@@ -419,12 +419,9 @@ async fn process_single_article(
                 }
             }
 
-            // Generate article embedding
-            if let Err(e) =
-                generate_and_save_article_embedding(client, &state.db, fnord_id, &title, &content).await
-            {
-                debug!("Failed to generate embedding for article {}: {}", fnord_id, e);
-            }
+            // NOTE: Article embeddings are generated at the END of the batch
+            // to avoid constant model switching between LLM and embedding model.
+            // See the "Generate article embeddings" section after the main loop.
 
             (true, None)
         }
@@ -663,9 +660,11 @@ pub async fn process_batch(
 
     let mut succeeded = 0;
     let mut failed = 0;
-    for (_, _, _, success, _) in &results {
+    let mut successful_fnord_ids: Vec<i64> = Vec::new();
+    for (_, _, fnord_id, success, _) in &results {
         if *success {
             succeeded += 1;
+            successful_fnord_ids.push(*fnord_id);
         } else {
             failed += 1;
         }
@@ -712,6 +711,63 @@ pub async fn process_batch(
                     is_processing: false,
                 },
             );
+        }
+
+        // Generate article embeddings AFTER all LLM analysis is complete
+        // This avoids constant model switching between LLM and embedding model
+        if !successful_fnord_ids.is_empty() && !state.batch_cancel.load(Ordering::SeqCst) {
+            info!(
+                "Generating article embeddings for {} articles...",
+                successful_fnord_ids.len()
+            );
+
+            let _ = window.emit(
+                "batch-progress",
+                BatchProgress {
+                    current: total,
+                    total,
+                    fnord_id: 0,
+                    title: format!("Generating {} article embeddings...", successful_fnord_ids.len()),
+                    success: true,
+                    error: None,
+                },
+            );
+
+            // Load articles for embedding generation
+            let articles_for_embedding: Vec<(i64, String, String)> = {
+                let db = state.db.lock().map_err(|e| e.to_string())?;
+                // Query each article individually to avoid lifetime issues
+                let mut result = Vec::new();
+                for &fnord_id in &successful_fnord_ids {
+                    if let Ok((title, content)) = db.conn().query_row(
+                        "SELECT title, COALESCE(content_full, '') FROM fnords WHERE id = ? AND embedding IS NULL",
+                        [fnord_id],
+                        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                    ) {
+                        result.push((fnord_id, title, content));
+                    }
+                }
+                result
+            };
+
+            // Generate embeddings (uses embedding model, not LLM)
+            let embedding_client = OllamaClient::new(None);
+            for (fnord_id, title, content) in articles_for_embedding {
+                if state.batch_cancel.load(Ordering::SeqCst) {
+                    break;
+                }
+                if let Err(e) = generate_and_save_article_embedding(
+                    &embedding_client,
+                    &state.db,
+                    fnord_id,
+                    &title,
+                    &content,
+                )
+                .await
+                {
+                    debug!("Failed to generate embedding for article {}: {}", fnord_id, e);
+                }
+            }
         }
     }
 
