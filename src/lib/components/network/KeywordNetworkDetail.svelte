@@ -328,32 +328,20 @@
               {@const similarityPercent = Math.round(simKw.similarity * 100)}
               {@const similarityClass = similarityPercent >= 80 ? 'high' : similarityPercent >= 60 ? 'medium' : 'low'}
               <button
-                class="similar-keyword-card"
+                class="similar-keyword-row"
                 onclick={() => onKeywordSelect(simKw.id)}
+                title="{simKw.cooccurrence > 0 ? simKw.cooccurrence + ' gemeinsame Artikel' : 'Semantisch ähnlich'}"
               >
-                <div class="similar-card-header">
-                  <span class="similar-name">{simKw.name}</span>
-                  <span class="similarity-badge {similarityClass}">
-                    {similarityPercent}%
-                  </span>
+                <span class="similar-name">{simKw.name}</span>
+                <div class="similar-bar-wrap">
+                  <div class="similarity-bar {similarityClass}" style="width: {similarityPercent}%"></div>
                 </div>
-                <div class="similar-card-body">
-                  <div class="similarity-bar-container">
-                    <div class="similarity-bar {similarityClass}" style="width: {similarityPercent}%"></div>
-                  </div>
-                  <div class="similar-meta">
-                    <span class="meta-semantic" title={$_('network.embeddingSimilarity') || 'Semantische Aehnlichkeit'}>
-                      <i class="fa-solid fa-brain"></i>
-                      {$_('network.semantic') || 'Semantisch'}
-                    </span>
-                    {#if simKw.cooccurrence > 0}
-                      <span class="meta-cooccur" title={$_('network.cooccurrence') || 'Gemeinsame Artikel'}>
-                        <i class="fa-solid fa-link"></i>
-                        {simKw.cooccurrence} {$_('network.shared') || 'gemeinsam'}
-                      </span>
-                    {/if}
-                  </div>
-                </div>
+                <span class="similar-stats">
+                  <span class="similarity-pct {similarityClass}">{similarityPercent}%</span>
+                  {#if simKw.cooccurrence > 0}
+                    <span class="cooccur-count">({simKw.cooccurrence})</span>
+                  {/if}
+                </span>
               </button>
             {/each}
           </div>
@@ -1002,119 +990,94 @@
   .similar-keywords-list {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.25rem;
   }
 
-  .similar-keyword-card {
+  .similar-keyword-row {
     display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
-    padding: 0.625rem 0.75rem;
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-default);
-    border-radius: 0.5rem;
-    cursor: pointer;
-    text-align: left;
-    transition: all 0.2s;
-  }
-
-  .similar-keyword-card:hover {
-    border-color: var(--accent-primary);
-    background-color: var(--bg-overlay);
-    transform: translateX(2px);
-  }
-
-  .similar-card-header {
-    display: flex;
-    justify-content: space-between;
     align-items: center;
     gap: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+  }
+
+  .similar-keyword-row:hover {
+    border-color: var(--accent-primary);
+    background-color: var(--bg-overlay);
   }
 
   .similar-name {
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 500;
     color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    flex: 1;
-  }
-
-  .similarity-badge {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
+    width: 120px;
     flex-shrink: 0;
   }
 
-  .similarity-badge.high {
-    background-color: rgba(34, 197, 94, 0.2);
-    color: var(--accent-success);
-  }
-
-  .similarity-badge.medium {
-    background-color: rgba(251, 191, 36, 0.2);
-    color: var(--accent-warning);
-  }
-
-  .similarity-badge.low {
-    background-color: var(--bg-overlay);
-    color: var(--text-muted);
-  }
-
-  .similar-card-body {
-    display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
-  }
-
-  .similarity-bar-container {
-    height: 4px;
+  .similar-bar-wrap {
+    flex: 1;
+    height: 6px;
     background-color: var(--bg-muted);
-    border-radius: 2px;
+    border-radius: 3px;
     overflow: hidden;
+    min-width: 60px;
   }
 
   .similarity-bar {
     height: 100%;
-    border-radius: 2px;
+    border-radius: 3px;
     transition: width 0.3s ease;
   }
 
   .similarity-bar.high {
-    background: linear-gradient(90deg, var(--accent-success), color-mix(in srgb, var(--accent-success) 70%, white));
+    background: var(--accent-success);
   }
 
   .similarity-bar.medium {
-    background: linear-gradient(90deg, var(--accent-warning), color-mix(in srgb, var(--accent-warning) 70%, white));
+    background: var(--accent-warning);
   }
 
   .similarity-bar.low {
     background: var(--text-muted);
   }
 
-  .similar-meta {
+  .similar-stats {
     display: flex;
-    gap: 0.75rem;
-    font-size: 0.6875rem;
+    align-items: baseline;
+    gap: 0.25rem;
+    min-width: 55px;
+    justify-content: flex-end;
+    flex-shrink: 0;
   }
 
-  .meta-semantic,
-  .meta-cooccur {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
+  .similarity-pct {
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .similarity-pct.high {
+    color: var(--accent-success);
+  }
+
+  .similarity-pct.medium {
+    color: var(--accent-warning);
+  }
+
+  .similarity-pct.low {
     color: var(--text-muted);
   }
 
-  .meta-semantic i {
-    color: var(--accent-secondary);
-  }
-
-  .meta-cooccur i {
-    color: var(--accent-success);
+  .cooccur-count {
+    font-size: 0.625rem;
+    color: var(--text-muted);
   }
 
   .loading-similar {
