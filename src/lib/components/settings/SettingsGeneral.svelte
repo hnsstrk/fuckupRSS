@@ -69,6 +69,9 @@
     { value: "tokyo-night", labelKey: "settings.themes.tokyo-night", family: "tokyoNight" },
     { value: "tokyo-storm", labelKey: "settings.themes.tokyo-storm", family: "tokyoNight" },
     { value: "solarized-dark", labelKey: "settings.themes.solarized-dark", family: "solarized" },
+    { value: "dracula", labelKey: "settings.themes.dracula", family: "dracula" },
+    { value: "nord", labelKey: "settings.themes.nord", family: "nord" },
+    { value: "everforest", labelKey: "settings.themes.everforest", family: "everforest" },
   ];
 
   const lightThemeOptions: ThemeOption<LightTheme>[] = [
@@ -85,6 +88,9 @@
     gruvbox: "settings.themeFamily.gruvbox",
     tokyoNight: "settings.themeFamily.tokyoNight",
     solarized: "settings.themeFamily.solarized",
+    dracula: "settings.themeFamily.dracula",
+    nord: "settings.themeFamily.nord",
+    everforest: "settings.themeFamily.everforest",
   };
 
   const logLevelOptions: { value: LogLevel; label: string }[] = [

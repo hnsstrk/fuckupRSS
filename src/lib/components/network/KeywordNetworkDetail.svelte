@@ -268,7 +268,9 @@
         <div class="detail-section">
           <h4 class="section-title">
             <Tooltip termKey="sephiroth">{$_('network.categories')}</Tooltip>
-            <span class="help-icon" title={$_('network.categoriesHelp')}>?</span>
+            <span class="help-icon" title={$_('network.categoriesHelp')}>
+              <i class="fa-solid fa-circle-info"></i>
+            </span>
           </h4>
           <div class="category-cards">
             {#each groupedCategories as group (group.id)}
@@ -307,48 +309,6 @@
           </div>
         </div>
       {/if}
-
-      <!-- Similar Keywords (Embedding-based) -->
-      <div class="detail-section">
-        <h4 class="section-title">
-          <i class="fa-solid fa-diagram-project section-icon"></i>
-          {$_('network.similarKeywords') || 'Aehnliche Keywords'}
-          <span class="section-help" title={$_('network.similarKeywordsHelp') || 'Keywords mit ähnlicher semantischer Bedeutung basierend auf Embeddings'}>
-            <i class="fa-solid fa-circle-info"></i>
-          </span>
-        </h4>
-        {#if similarKeywordsLoading}
-          <div class="loading-similar">
-            <i class="fa-solid fa-spinner fa-spin"></i>
-            {$_('network.loading') || 'Laden...'}
-          </div>
-        {:else if similarKeywords.length > 0}
-          <div class="similar-keywords-list">
-            {#each similarKeywords as simKw (simKw.id)}
-              {@const similarityPercent = Math.round(simKw.similarity * 100)}
-              {@const similarityClass = similarityPercent >= 80 ? 'high' : similarityPercent >= 60 ? 'medium' : 'low'}
-              <button
-                class="similar-keyword-row"
-                onclick={() => onKeywordSelect(simKw.id)}
-                title="{simKw.cooccurrence > 0 ? simKw.cooccurrence + ' gemeinsame Artikel' : 'Semantisch ähnlich'}"
-              >
-                <span class="similar-name">{simKw.name}</span>
-                <div class="similar-bar-wrap">
-                  <div class="similarity-bar {similarityClass}" style="width: {similarityPercent}%"></div>
-                </div>
-                <span class="similar-stats">
-                  <span class="similarity-pct {similarityClass}">{similarityPercent}%</span>
-                  {#if simKw.cooccurrence > 0}
-                    <span class="cooccur-count">({simKw.cooccurrence})</span>
-                  {/if}
-                </span>
-              </button>
-            {/each}
-          </div>
-        {:else}
-          <div class="no-similar">{$_('network.noSimilarKeywords') || 'Keine aehnlichen Keywords gefunden'}</div>
-        {/if}
-      </div>
 
       <!-- Trend Chart with Co-occurring Keywords -->
       <div class="detail-section">
@@ -389,6 +349,48 @@
               </div>
             {/if}
           </div>
+        {/if}
+      </div>
+
+      <!-- Similar Keywords (Embedding-based) -->
+      <div class="detail-section">
+        <h4 class="section-title">
+          <i class="fa-solid fa-diagram-project section-icon"></i>
+          {$_('network.similarKeywords') || 'Aehnliche Keywords'}
+          <span class="section-help" title={$_('network.similarKeywordsHelp') || 'Keywords mit ähnlicher semantischer Bedeutung basierend auf Embeddings'}>
+            <i class="fa-solid fa-circle-info"></i>
+          </span>
+        </h4>
+        {#if similarKeywordsLoading}
+          <div class="loading-similar">
+            <i class="fa-solid fa-spinner fa-spin"></i>
+            {$_('network.loading') || 'Laden...'}
+          </div>
+        {:else if similarKeywords.length > 0}
+          <div class="similar-keywords-list">
+            {#each similarKeywords as simKw (simKw.id)}
+              {@const similarityPercent = Math.round(simKw.similarity * 100)}
+              {@const similarityClass = similarityPercent >= 80 ? 'high' : similarityPercent >= 60 ? 'medium' : 'low'}
+              <button
+                class="similar-keyword-row"
+                onclick={() => onKeywordSelect(simKw.id)}
+                title="{simKw.cooccurrence > 0 ? simKw.cooccurrence + ' gemeinsame Artikel' : 'Semantisch ähnlich'}"
+              >
+                <span class="similar-name">{simKw.name}</span>
+                <div class="similar-bar-wrap">
+                  <div class="similarity-bar {similarityClass}" style="width: {similarityPercent}%"></div>
+                </div>
+                <span class="similar-stats">
+                  <span class="similarity-pct {similarityClass}">{similarityPercent}%</span>
+                  {#if simKw.cooccurrence > 0}
+                    <span class="cooccur-count">({simKw.cooccurrence})</span>
+                  {/if}
+                </span>
+              </button>
+            {/each}
+          </div>
+        {:else}
+          <div class="no-similar">{$_('network.noSimilarKeywords') || 'Keine aehnlichen Keywords gefunden'}</div>
         {/if}
       </div>
 
@@ -590,21 +592,13 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1rem;
-    height: 1rem;
-    font-size: 0.625rem;
-    font-weight: 700;
+    font-size: 0.875rem;
     color: var(--text-muted);
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-primary);
-    border-radius: 50%;
     cursor: help;
-    text-transform: none;
   }
 
   .help-icon:hover {
-    color: var(--text-primary);
-    border-color: var(--accent-primary);
+    color: var(--accent-primary);
   }
 
   /* Category Cards (matching FnordView) */

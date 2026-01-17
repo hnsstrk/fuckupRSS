@@ -1,0 +1,62 @@
+/* ===========================================
+   Dracula Theme
+   https://draculatheme.com/contribute#color-palette
+   A dark theme with vibrant colors
+   =========================================== */
+html.dracula {
+  --bg-base: #282a36;
+  --bg-surface: #21222c;
+  --bg-overlay: #343746;
+  --bg-muted: #44475a;
+  --bg-highlight: #6272a4;
+
+  --text-primary: #f8f8f2;
+  --text-secondary: #e9e9e4;
+  --text-muted: #bfbfba;
+  --text-faint: #6272a4;
+
+  --border-default: #44475a;
+  --border-muted: #343746;
+
+  --accent-primary: #bd93f9;
+  --accent-secondary: #ff79c6;
+  --accent-warning: #ffb86c;
+  --accent-error: #ff5555;
+  --accent-success: #50fa7b;
+  --accent-info: #8be9fd;
+
+  --status-error: #ff5555;
+  --status-success: #50fa7b;
+  --status-warning: #ffb86c;
+
+  --fnord-color: #ff5555;
+  --illuminated-color: #6272a4;
+  --golden-apple-color: #f1fa8c;
+
+  --text-on-accent: #282a36;
+
+  /* Category Colors */
+  --category-1: #8be9fd;  /* Cyan - Wissen & Technologie */
+  --category-2: #ff5555;  /* Red - Politik & Gesellschaft */
+  --category-3: #f1fa8c;  /* Yellow - Wirtschaft */
+  --category-4: #50fa7b;  /* Green - Umwelt & Gesundheit */
+  --category-5: #ffb86c;  /* Orange - Sicherheit */
+  --category-6: #ff79c6;  /* Pink - Kultur & Leben */
+
+  /* Bias Colors */
+  --bias-strong-left: #8be9fd;  /* Cyan */
+  --bias-lean-left: #bd93f9;    /* Purple */
+  --bias-center: #50fa7b;       /* Green */
+  --bias-lean-right: #ffb86c;   /* Orange */
+  --bias-strong-right: #ff5555; /* Red */
+
+  --sach-emotional: #ffb86c;
+  --sach-mixed: #f1fa8c;
+  --sach-objective: #50fa7b;
+
+  /* Diff Colors */
+  --diff-deleted-bg: rgba(255, 85, 85, 0.25);
+  --diff-added-bg: rgba(80, 250, 123, 0.30);
+  --diff-modified-old-bg: rgba(255, 184, 108, 0.15);
+  --diff-modified-new-bg: rgba(255, 184, 108, 0.35);
+}

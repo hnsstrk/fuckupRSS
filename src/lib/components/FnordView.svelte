@@ -37,6 +37,10 @@
   let biasHeatmap = $state<BiasHeatmapEntry[]>([]);
   let keywordCloud = $state<KeywordCloudEntry[]>([]);
 
+  // Loading/error states for extended stats
+  let extendedStatsLoading = $state(false);
+  let extendedStatsError = $state<string | null>(null);
+
   // Period selector
   let selectedPeriod = $state<7 | 30 | 90>(7);
 
@@ -81,6 +85,8 @@
   }
 
   async function loadExtendedStats() {
+    extendedStatsLoading = true;
+    extendedStatsError = null;
     try {
       const [timelineData, greyfaceData, keywordsData, feedData, heatmapData, cloudData] = await Promise.all([
         invoke<ArticleTimeline>('get_article_timeline', { days: selectedPeriod }),
@@ -104,6 +110,9 @@
       }
     } catch (e) {
       console.error('[FnordView] Error loading extended stats:', e);
+      extendedStatsError = e instanceof Error ? e.message : String(e);
+    } finally {
+      extendedStatsLoading = false;
     }
   }
 
@@ -178,6 +187,20 @@
       default: return 'var(--category-1)';
     }
   }
+
+  // Check if timeline has any meaningful data (not all zeros)
+  function hasTimelineData(data: ArticleTimeline | null): boolean {
+    if (!data || data.data.length === 0) return false;
+    return data.data.some(d => d.articles > 0 || d.revisions > 0);
+  }
+
+  // Check if we have any trend data at all
+  let hasTrendData = $derived(
+    hasTimelineData(timeline) ||
+    topKeywords.length > 0 ||
+    feedActivity.length > 0 ||
+    keywordCloud.length > 0
+  );
 </script>
 
 <div class="fnord-view">
@@ -488,6 +511,7 @@
                 class="period-btn"
                 class:active={selectedPeriod === 7}
                 onclick={() => changePeriod(7)}
+                disabled={extendedStatsLoading}
               >
                 {$_('fnordView.days7') || '7 Tage'}
               </button>
@@ -495,6 +519,7 @@
                 class="period-btn"
                 class:active={selectedPeriod === 30}
                 onclick={() => changePeriod(30)}
+                disabled={extendedStatsLoading}
               >
                 {$_('fnordView.days30') || '30 Tage'}
               </button>
@@ -502,6 +527,7 @@
                 class="period-btn"
                 class:active={selectedPeriod === 90}
                 onclick={() => changePeriod(90)}
+                disabled={extendedStatsLoading}
               >
                 {$_('fnordView.days90') || '90 Tage'}
               </button>
@@ -509,10 +535,36 @@
           </div>
         </div>
 
+        <!-- Loading state for trends section -->
+        {#if extendedStatsLoading}
+          <div class="trends-loading-state">
+            <div class="spinner"></div>
+            <span>{$_('fnordView.loadingTrends') || 'Trend-Daten werden geladen...'}</span>
+          </div>
+        {:else if extendedStatsError}
+          <!-- Error state for trends section -->
+          <div class="trends-error-state">
+            <i class="fa-solid fa-exclamation-triangle error-icon"></i>
+            <p>{$_('fnordView.trendsError') || 'Fehler beim Laden der Trend-Daten'}</p>
+            <span class="error-message">{extendedStatsError}</span>
+            <button class="retry-btn" onclick={() => loadExtendedStats()}>
+              <i class="fa-solid fa-refresh"></i>
+              {$_('fnordView.retry') || 'Erneut versuchen'}
+            </button>
+          </div>
+        {:else if !hasTrendData}
+          <!-- Empty state when no trend data available -->
+          <div class="trends-empty-state">
+            <i class="fa-solid fa-chart-line-down empty-icon"></i>
+            <p>{$_('fnordView.noTrendData') || 'Keine Trend-Daten vorhanden'}</p>
+            <span class="empty-hint">{$_('fnordView.noTrendDataHint') || 'Trend-Daten werden verfügbar, sobald Artikel synchronisiert und analysiert wurden.'}</span>
+          </div>
+        {:else}
         <!-- Timeline Card -->
-        {#if timeline && timeline.data.length > 0}
-          {@const maxArticles = Math.max(...timeline.data.map(d => d.articles), 1)}
-          {@const maxRevisions = Math.max(...timeline.data.map(d => d.revisions), 1)}
+        {#if timeline && hasTimelineData(timeline)}
+          {@const timelineData = timeline.data}
+          {@const maxArticles = Math.max(...timelineData.map(d => d.articles), 1)}
+          {@const maxRevisions = Math.max(...timelineData.map(d => d.revisions), 1)}
           {@const maxVal = Math.max(maxArticles, maxRevisions)}
           <div class="stats-card full-width timeline-card">
             <h3 class="card-title">
@@ -521,7 +573,7 @@
             </h3>
             <div class="timeline-chart">
               <div class="chart-bars">
-                {#each timeline.data as day, i (day.date)}
+                {#each timelineData as day, i (day.date)}
                   <div class="chart-day" title="{day.date}">
                     <div class="bar-container">
                       <div
@@ -535,7 +587,7 @@
                         title="{$_('fnordView.revisions')}: {day.revisions}"
                       ></div>
                     </div>
-                    {#if i === 0 || i === timeline.data.length - 1 || i === Math.floor(timeline.data.length / 2)}
+                    {#if i === 0 || i === timelineData.length - 1 || i === Math.floor(timelineData.length / 2)}
                       <span class="day-label">{day.date.slice(5)}</span>
                     {/if}
                   </div>
@@ -632,6 +684,7 @@
               <span class="cloud-word fnord-hidden" title="fnord">fnord</span>
             </div>
           </div>
+        {/if}
         {/if}
       </div>
     {:else if activeTab === 'articles'}
@@ -1590,6 +1643,84 @@
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+  }
+
+  /* Trends Section States */
+  .trends-loading-state,
+  .trends-error-state,
+  .trends-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1.5rem;
+    text-align: center;
+    color: var(--text-muted);
+    gap: 0.75rem;
+    background-color: var(--bg-surface);
+    border-radius: 0.75rem;
+    border: 1px dashed var(--border-default);
+    margin-top: 1rem;
+  }
+
+  .trends-loading-state span,
+  .trends-empty-state p,
+  .trends-error-state p {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .trends-empty-state .empty-icon,
+  .trends-error-state .error-icon {
+    font-size: 2.5rem;
+    opacity: 0.4;
+  }
+
+  .trends-error-state .error-icon {
+    color: var(--category-5);
+    opacity: 0.7;
+  }
+
+  .trends-empty-state .empty-hint,
+  .trends-error-state .error-message {
+    font-size: 0.8125rem;
+    opacity: 0.7;
+    max-width: 350px;
+  }
+
+  .trends-error-state .error-message {
+    font-family: monospace;
+    font-size: 0.75rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--bg-base);
+    border-radius: 0.375rem;
+    color: var(--text-muted);
+  }
+
+  .retry-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    background: var(--accent-primary);
+    border: none;
+    border-radius: 0.5rem;
+    color: white;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .retry-btn:hover {
+    background: color-mix(in srgb, var(--accent-primary) 85%, black);
+    transform: translateY(-1px);
+  }
+
+  .period-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* Easter Egg */

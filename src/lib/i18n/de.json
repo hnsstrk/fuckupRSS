@@ -178,7 +178,10 @@
       "ayu": "Ayu",
       "gruvbox": "Gruvbox",
       "tokyoNight": "Tokyo Night",
-      "solarized": "Solarized"
+      "solarized": "Solarized",
+      "dracula": "Dracula",
+      "nord": "Nord",
+      "everforest": "Everforest"
     },
     "themes": {
       "mocha": "Mocha",
@@ -194,7 +197,10 @@
       "tokyo-storm": "Storm",
       "tokyo-day": "Day",
       "solarized-dark": "Dark",
-      "solarized-light": "Light"
+      "solarized-light": "Light",
+      "dracula": "Dracula",
+      "nord": "Nord",
+      "everforest": "Everforest"
     },
     "logLevel": "Log-Level",
     "logLevelDescription": "Nur im Entwicklungsmodus sichtbar. Steuert die Detailtiefe der Logs.",
@@ -688,18 +694,57 @@
       "title": "Blinde Flecken",
       "description": "Bereiche die du weniger liest",
       "noBlindSpots": "Keine blinden Flecken erkannt - du liest ausgewogen!",
+      "noBlindSpotsSubtitle": "Deine Lesegewohnheiten decken alle verfügbaren Kategorien gut ab. Weiter so!",
       "lowReadRate": "Niedrige Leserate",
+      "readRatio": "{read} von {available} gelesen",
+      "readPercentage": "{percent}% gelesen",
+      "exploreCategory": "Kategorie erkunden",
       "severity": {
         "high": "Stark unterrepräsentiert",
         "medium": "Unterrepräsentiert",
         "low": "Leicht unterrepräsentiert"
+      },
+      "severityDescription": {
+        "high": "Weniger als 10% gelesen",
+        "medium": "Weniger als 30% gelesen",
+        "low": "Unter dem Durchschnitt"
       }
     },
     "counterPerspectives": {
       "title": "Gegenperspektiven",
       "description": "Artikel mit alternativen Sichtweisen",
       "noRecommendations": "Keine Empfehlungen verfügbar",
-      "readArticle": "Artikel lesen"
+      "readArticle": "Artikel lesen",
+      "emptyState": {
+        "title": "Deine Filterblasen-Sprenger",
+        "description": "Hier erscheinen Artikel, die deine gewohnten Sichtweisen herausfordern und deinen Horizont erweitern.",
+        "howItWorks": "Wie funktioniert das?",
+        "step1Title": "Leseverhalten analysieren",
+        "step1Description": "Wir beobachten, welche Themen und Perspektiven du bevorzugst.",
+        "step2Title": "Lücken erkennen",
+        "step2Description": "Blinde Flecken und unterrepräsentierte Blickwinkel werden identifiziert.",
+        "step3Title": "Gegenpole vorschlagen",
+        "step3Description": "Artikel mit anderen Standpunkten werden gezielt empfohlen.",
+        "requirements": "Was du tun musst",
+        "req1": "Mindestens 10 Artikel lesen",
+        "req2": "KI-Analyse aktivieren (Ollama)",
+        "req3": "Artikel müssen Bias-Bewertungen haben",
+        "currentProgress": "Dein aktueller Stand",
+        "articlesRead": "Artikel gelesen",
+        "articlesNeeded": "von 10 benötigt",
+        "aiEnabled": "KI verfügbar",
+        "aiDisabled": "KI nicht verfügbar",
+        "biasDataAvailable": "Mit Bias-Daten",
+        "placeholder": {
+          "title": "So sehen Empfehlungen aus",
+          "sampleTitle1": "Alternative Perspektive zu aktuellen Themen",
+          "sampleReason1": "Kontrastiert deine übliche Links-Tendenz",
+          "sampleTitle2": "Technologie aus kritischer Sicht",
+          "sampleReason2": "Andere Quelle als deine Favoriten",
+          "sampleTitle3": "Wirtschaft: Der andere Blickwinkel",
+          "sampleReason3": "Kategorie die du selten liest"
+        }
+      }
     },
     "trends": {
       "title": "Lesetrends",

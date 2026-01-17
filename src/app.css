@@ -1,3 +1,6 @@
+/* Import additional themes - must be before tailwind directives */
+@import './lib/themes/index.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -634,6 +637,8 @@ html.solarized-dark {
   --diff-modified-old-bg: rgba(250, 179, 135, 0.15);
   --diff-modified-new-bg: rgba(250, 179, 135, 0.35);
 }
+
+/* Note: dracula, nord, and everforest define their own diff colors in theme files */
 
 html.latte,
 html.ayu-light,

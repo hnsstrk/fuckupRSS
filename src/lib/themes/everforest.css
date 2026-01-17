@@ -1,0 +1,62 @@
+/* ===========================================
+   Everforest Theme (Dark)
+   https://github.com/sainnhe/everforest
+   A green based color scheme inspired by nature
+   =========================================== */
+html.everforest {
+  --bg-base: #2d353b;
+  --bg-surface: #272e33;
+  --bg-overlay: #343f44;
+  --bg-muted: #3d484d;
+  --bg-highlight: #475258;
+
+  --text-primary: #d3c6aa;
+  --text-secondary: #c5b99d;
+  --text-muted: #9da9a0;
+  --text-faint: #7a8478;
+
+  --border-default: #3d484d;
+  --border-muted: #343f44;
+
+  --accent-primary: #a7c080;
+  --accent-secondary: #7fbbb3;
+  --accent-warning: #dbbc7f;
+  --accent-error: #e67e80;
+  --accent-success: #a7c080;
+  --accent-info: #7fbbb3;
+
+  --status-error: #e67e80;
+  --status-success: #a7c080;
+  --status-warning: #dbbc7f;
+
+  --fnord-color: #e67e80;
+  --illuminated-color: #7a8478;
+  --golden-apple-color: #dbbc7f;
+
+  --text-on-accent: #2d353b;
+
+  /* Category Colors */
+  --category-1: #7fbbb3;  /* Aqua - Wissen & Technologie */
+  --category-2: #e67e80;  /* Red - Politik & Gesellschaft */
+  --category-3: #dbbc7f;  /* Yellow - Wirtschaft */
+  --category-4: #a7c080;  /* Green - Umwelt & Gesundheit */
+  --category-5: #e69875;  /* Orange - Sicherheit */
+  --category-6: #d699b6;  /* Purple - Kultur & Leben */
+
+  /* Bias Colors */
+  --bias-strong-left: #7fbbb3;  /* Aqua */
+  --bias-lean-left: #83c092;    /* Teal */
+  --bias-center: #a7c080;       /* Green */
+  --bias-lean-right: #e69875;   /* Orange */
+  --bias-strong-right: #e67e80; /* Red */
+
+  --sach-emotional: #e69875;
+  --sach-mixed: #dbbc7f;
+  --sach-objective: #a7c080;
+
+  /* Diff Colors */
+  --diff-deleted-bg: rgba(230, 126, 128, 0.25);
+  --diff-added-bg: rgba(167, 192, 128, 0.30);
+  --diff-modified-old-bg: rgba(219, 188, 127, 0.15);
+  --diff-modified-new-bg: rgba(219, 188, 127, 0.35);
+}

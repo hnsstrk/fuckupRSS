@@ -22,7 +22,13 @@ export type DarkTheme =
   | 'tokyo-night'
   | 'tokyo-storm'
   // Solarized
-  | 'solarized-dark';
+  | 'solarized-dark'
+  // Dracula
+  | 'dracula'
+  // Nord
+  | 'nord'
+  // Everforest
+  | 'everforest';
 
 // Light themes (user can choose one when mode is 'light' or 'system' with light OS)
 export type LightTheme =
@@ -72,6 +78,12 @@ const THEME_CLASSES: Theme[] = [
   // Solarized
   'solarized-dark',
   'solarized-light',
+  // Dracula
+  'dracula',
+  // Nord
+  'nord',
+  // Everforest
+  'everforest',
 ];
 
 const DARK_THEMES: DarkTheme[] = [
@@ -84,6 +96,9 @@ const DARK_THEMES: DarkTheme[] = [
   'tokyo-night',
   'tokyo-storm',
   'solarized-dark',
+  'dracula',
+  'nord',
+  'everforest',
 ];
 
 const LIGHT_THEMES: LightTheme[] = [

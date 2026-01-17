@@ -178,7 +178,10 @@
       "ayu": "Ayu",
       "gruvbox": "Gruvbox",
       "tokyoNight": "Tokyo Night",
-      "solarized": "Solarized"
+      "solarized": "Solarized",
+      "dracula": "Dracula",
+      "nord": "Nord",
+      "everforest": "Everforest"
     },
     "themes": {
       "mocha": "Mocha",
@@ -194,7 +197,10 @@
       "tokyo-storm": "Storm",
       "tokyo-day": "Day",
       "solarized-dark": "Dark",
-      "solarized-light": "Light"
+      "solarized-light": "Light",
+      "dracula": "Dracula",
+      "nord": "Nord",
+      "everforest": "Everforest"
     },
     "logLevel": "Log Level",
     "logLevelDescription": "Only visible in development mode. Controls the detail level of logs.",
@@ -688,18 +694,57 @@
       "title": "Blind Spots",
       "description": "Areas you read less",
       "noBlindSpots": "No blind spots detected - you're reading balanced!",
+      "noBlindSpotsSubtitle": "Your reading habits cover all available categories well. Keep it up!",
       "lowReadRate": "Low read rate",
+      "readRatio": "{read} of {available} read",
+      "readPercentage": "{percent}% read",
+      "exploreCategory": "Explore category",
       "severity": {
         "high": "Highly underrepresented",
         "medium": "Underrepresented",
         "low": "Slightly underrepresented"
+      },
+      "severityDescription": {
+        "high": "Less than 10% read",
+        "medium": "Less than 30% read",
+        "low": "Below average"
       }
     },
     "counterPerspectives": {
       "title": "Counter-Perspectives",
       "description": "Articles with alternative viewpoints",
       "noRecommendations": "No recommendations available",
-      "readArticle": "Read article"
+      "readArticle": "Read article",
+      "emptyState": {
+        "title": "Your Filter Bubble Busters",
+        "description": "This is where articles appear that challenge your usual perspectives and broaden your horizons.",
+        "howItWorks": "How does it work?",
+        "step1Title": "Analyze reading behavior",
+        "step1Description": "We observe which topics and perspectives you prefer.",
+        "step2Title": "Identify gaps",
+        "step2Description": "Blind spots and underrepresented viewpoints are identified.",
+        "step3Title": "Suggest opposites",
+        "step3Description": "Articles with different standpoints are specifically recommended.",
+        "requirements": "What you need to do",
+        "req1": "Read at least 10 articles",
+        "req2": "Enable AI analysis (Ollama)",
+        "req3": "Articles need bias ratings",
+        "currentProgress": "Your current progress",
+        "articlesRead": "Articles read",
+        "articlesNeeded": "of 10 needed",
+        "aiEnabled": "AI available",
+        "aiDisabled": "AI not available",
+        "biasDataAvailable": "With bias data",
+        "placeholder": {
+          "title": "This is what recommendations look like",
+          "sampleTitle1": "Alternative perspective on current topics",
+          "sampleReason1": "Contrasts your usual left-leaning tendency",
+          "sampleTitle2": "Technology from a critical view",
+          "sampleReason2": "Different source than your favorites",
+          "sampleTitle3": "Economy: The other viewpoint",
+          "sampleReason3": "Category you rarely read"
+        }
+      }
     },
     "trends": {
       "title": "Reading Trends",

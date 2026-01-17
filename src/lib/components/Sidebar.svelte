@@ -417,7 +417,7 @@
   <div class="batch-section">
     {#if appState.batchProcessing}
       <button onclick={handleCancelBatch} class="btn-batch processing" title={$_('batch.cancel')}>
-        <Tooltip termKey="discordian">DISCORDIAN ANALYSIS</Tooltip>
+        <Tooltip termKey="discordian">{$_('batch.title')}</Tooltip>
         <i class="cancel-icon fa-solid fa-xmark"></i>
       </button>
     {:else if appState.ollamaStatus.available}
@@ -426,14 +426,14 @@
         class="btn-batch"
         disabled={appState.batchProcessing || appState.unprocessedCount.with_content === 0}
       >
-        <Tooltip termKey="discordian">DISCORDIAN ANALYSIS</Tooltip>
+        <Tooltip termKey="discordian">{$_('batch.title')}</Tooltip>
         {#if appState.unprocessedCount.with_content > 0}
           <span class="unprocessed-badge">{appState.unprocessedCount.with_content}</span>
         {/if}
       </button>
     {:else}
       <button class="btn-batch" disabled title={$_('batch.noOllama')}>
-        <Tooltip termKey="discordian">DISCORDIAN ANALYSIS</Tooltip>
+        <Tooltip termKey="discordian">{$_('batch.title')}</Tooltip>
       </button>
     {/if}
   </div>
@@ -896,6 +896,7 @@
     border-radius: 0.375rem;
     font-size: 0.6875rem;
     font-weight: 600;
+    text-transform: uppercase;
     letter-spacing: 0.05em;
     cursor: pointer;
     transition: all 0.2s;
