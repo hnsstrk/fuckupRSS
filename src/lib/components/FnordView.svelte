@@ -909,13 +909,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    min-width: 100px;
-    max-width: 140px;
+    width: 140px;
+    flex-shrink: 0;
   }
 
   .source-bar-wrapper {
     flex: 1;
-    min-width: 60px;
+    min-width: 80px;
   }
 
   .source-progress {
