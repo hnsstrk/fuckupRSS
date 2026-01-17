@@ -5,6 +5,47 @@
   import { onMount, onDestroy } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
+  // Theme selector for debugging
+  const themes = [
+    { id: 'mocha', name: 'Mocha' },
+    { id: 'macchiato', name: 'Macchiato' },
+    { id: 'frappe', name: 'Frappé' },
+    { id: 'latte', name: 'Latte' },
+    { id: 'ayu-dark', name: 'Ayu Dark' },
+    { id: 'ayu-mirage', name: 'Ayu Mirage' },
+    { id: 'ayu-light', name: 'Ayu Light' },
+    { id: 'gruvbox-dark', name: 'Gruvbox Dark' },
+    { id: 'gruvbox-light', name: 'Gruvbox Light' },
+    { id: 'tokyo-night', name: 'Tokyo Night' },
+    { id: 'tokyo-storm', name: 'Tokyo Storm' },
+    { id: 'tokyo-day', name: 'Tokyo Day' },
+    { id: 'solarized-dark', name: 'Solarized Dark' },
+    { id: 'solarized-light', name: 'Solarized Light' },
+  ];
+
+  let currentTheme = $state('mocha');
+
+  function detectCurrentTheme() {
+    const html = document.documentElement;
+    for (const theme of themes) {
+      if (html.classList.contains(theme.id)) {
+        currentTheme = theme.id;
+        break;
+      }
+    }
+  }
+
+  function setTheme(themeId: string) {
+    const html = document.documentElement;
+    // Remove all theme classes
+    themes.forEach(t => html.classList.remove(t.id));
+    // Add new theme class
+    html.classList.add(themeId);
+    currentTheme = themeId;
+    // Also save to settings
+    invoke('set_setting', { key: 'theme', value: themeId }).catch(console.error);
+  }
+
   interface LoadedModel {
     name: string;
     size: number;
@@ -77,6 +118,7 @@
   }
 
   onMount(async () => {
+    detectCurrentTheme();
     loadStats();
     // Refresh every 10 seconds
     refreshInterval = setInterval(() => {
@@ -182,6 +224,20 @@
 
   <!-- Spacer -->
   <div class="spacer"></div>
+
+  <!-- Debug Theme Selector -->
+  <div class="status-section theme-selector" title="Theme Selector (Debug)">
+    <i class="status-icon fa-solid fa-palette"></i>
+    <select
+      class="theme-select"
+      bind:value={currentTheme}
+      onchange={(e) => setTheme(e.currentTarget.value)}
+    >
+      {#each themes as theme}
+        <option value={theme.id}>{theme.name}</option>
+      {/each}
+    </select>
+  </div>
 
   <!-- Ollama Status -->
   <div class="status-section ollama-section" title={$_('statusBar.ollamaTooltip')}>
@@ -314,5 +370,36 @@
   .vram {
     color: var(--text-muted);
     font-size: 0.625rem;
+  }
+
+  /* Debug Theme Selector */
+  .theme-selector {
+    border-left: 1px solid var(--border-default);
+    padding-left: 0.75rem;
+  }
+
+  .theme-select {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    border-radius: 0.25rem;
+    padding: 0.125rem 0.375rem;
+    font-size: 0.625rem;
+    cursor: pointer;
+    outline: none;
+  }
+
+  .theme-select:hover {
+    border-color: var(--accent-primary);
+  }
+
+  .theme-select:focus {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 1px var(--accent-primary);
+  }
+
+  .theme-select option {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
   }
 </style>
