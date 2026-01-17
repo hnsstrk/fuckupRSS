@@ -25,6 +25,16 @@
     return 'var(--bg-overlay)';
   }
 
+  // Track component mount state to prevent state updates after unmount
+  let mounted = $state(true);
+
+  // Cleanup effect to set mounted = false when component is destroyed
+  $effect(() => {
+    return () => {
+      mounted = false;
+    };
+  });
+
   let showRevisions = $state(false);
   let revisions = $state<FnordRevision[]>([]);
   let loadingRevisions = $state(false);
@@ -51,15 +61,22 @@
     if (revisionCount > 0) {
       loadingRevisions = true;
       try {
-        revisions = await appState.getRevisions(fnordId);
+        const revs = await appState.getRevisions(fnordId);
+        // Check if still mounted and same article before updating state
+        if (!mounted || appState.selectedFnord?.id !== fnordId) return;
+        revisions = revs;
       } catch {
+        if (!mounted || appState.selectedFnord?.id !== fnordId) return;
         revisions = [];
       } finally {
-        loadingRevisions = false;
+        if (mounted) loadingRevisions = false;
       }
     } else {
       revisions = [];
     }
+
+    // Check if still mounted before continuing
+    if (!mounted || appState.selectedFnord?.id !== fnordId) return;
 
     // Load categories and tags (both old format and new detailed format)
     try {
@@ -69,26 +86,36 @@
         invoke<ArticleKeyword[]>('get_article_keywords', { fnordId }),
         invoke<ArticleCategoryDetailed[]>('get_article_categories_detailed', { fnordId })
       ]);
+      // Check if still mounted and same article before updating state
+      if (!mounted || appState.selectedFnord?.id !== fnordId) return;
       categories = cats;
       tags = tgs;
       articleKeywords = kwds;
       articleCategoriesDetailed = catsDetailed;
     } catch {
+      if (!mounted || appState.selectedFnord?.id !== fnordId) return;
       categories = [];
       tags = [];
       articleKeywords = [];
       articleCategoriesDetailed = [];
     }
 
+    // Check if still mounted before continuing
+    if (!mounted || appState.selectedFnord?.id !== fnordId) return;
+
     // Load similar articles (only if article was processed and has embedding)
     if (hasEmbedding) {
       loadingSimilar = true;
       try {
-        similarArticles = await appState.findSimilarArticles(fnordId, 5);
+        const similar = await appState.findSimilarArticles(fnordId, 5);
+        // Check if still mounted and same article before updating state
+        if (!mounted || appState.selectedFnord?.id !== fnordId) return;
+        similarArticles = similar;
       } catch {
+        if (!mounted || appState.selectedFnord?.id !== fnordId) return;
         similarArticles = [];
       } finally {
-        loadingSimilar = false;
+        if (mounted) loadingSimilar = false;
       }
     } else {
       similarArticles = [];
@@ -137,37 +164,50 @@
   // (embeddings are regenerated during batch processing)
   async function handleBatchComplete() {
     const fnord = appState.selectedFnord;
-    if (fnord && fnord.processed_at) {
-      try {
-        const [cats, tgs, similar] = await Promise.all([
-          appState.getArticleCategories(fnord.id),
-          appState.getArticleTags(fnord.id),
-          appState.findSimilarArticles(fnord.id, 5)
-        ]);
-        categories = cats;
-        tags = tgs;
-        similarArticles = similar;
-      } catch {
-        // Ignore errors during refresh
-      }
+    if (!fnord || !fnord.processed_at || !mounted) return;
+
+    const fnordId = fnord.id;
+    try {
+      const [cats, tgs, similar] = await Promise.all([
+        appState.getArticleCategories(fnordId),
+        appState.getArticleTags(fnordId),
+        appState.findSimilarArticles(fnordId, 5)
+      ]);
+      // Check if still mounted and same article before updating state
+      if (!mounted || appState.selectedFnord?.id !== fnordId) return;
+      categories = cats;
+      tags = tgs;
+      similarArticles = similar;
+    } catch {
+      // Ignore errors during refresh
     }
   }
 
   // Handler for keywords update (called by ArticleKeywords component)
   async function handleKeywordsUpdate(updatedKeywords: ArticleKeyword[]) {
+    if (!mounted) return;
     articleKeywords = updatedKeywords;
     // Also refresh old tags for similar articles display
-    if (appState.selectedFnord) {
-      tags = await appState.getArticleTags(appState.selectedFnord.id);
+    const fnord = appState.selectedFnord;
+    if (fnord) {
+      const fnordId = fnord.id;
+      const newTags = await appState.getArticleTags(fnordId);
+      if (!mounted || appState.selectedFnord?.id !== fnordId) return;
+      tags = newTags;
     }
   }
 
   // Handler for categories update (called by ArticleCategories component)
   async function handleCategoriesUpdate(updatedCategories: ArticleCategoryDetailed[]) {
+    if (!mounted) return;
     articleCategoriesDetailed = updatedCategories;
     // Also refresh old categories for other displays
-    if (appState.selectedFnord) {
-      categories = await appState.getArticleCategories(appState.selectedFnord.id);
+    const fnord = appState.selectedFnord;
+    if (fnord) {
+      const fnordId = fnord.id;
+      const newCats = await appState.getArticleCategories(fnordId);
+      if (!mounted || appState.selectedFnord?.id !== fnordId) return;
+      categories = newCats;
     }
   }
 
@@ -261,8 +301,16 @@
   }
 
   async function fetchFullContent() {
-    if (appState.selectedFnord) {
-      const result = await appState.fetchFullContent(appState.selectedFnord.id);
+    const fnord = appState.selectedFnord;
+    if (!fnord || !mounted) return;
+
+    const fnordId = fnord.id;
+    try {
+      const result = await appState.fetchFullContent(fnordId);
+
+      // Check if still mounted after async operation
+      if (!mounted) return;
+
       if (result?.success) {
         toasts.success($_('toast.fetchSuccess'));
       } else if (result?.error) {
@@ -270,14 +318,29 @@
       } else if (appState.error) {
         toasts.error($_('toast.fetchError', { values: { error: appState.error }}));
       }
+    } catch (e) {
+      console.error('Fetch full content failed:', e);
+      if (mounted) {
+        toasts.error($_('toast.fetchError', { values: { error: String(e) }}));
+      }
     }
   }
 
   async function analyzeWithAI() {
-    if (appState.selectedFnord && appState.ollamaStatus.available) {
-      const fnordId = appState.selectedFnord.id;
+    const fnord = appState.selectedFnord;
+    if (!fnord || !appState.ollamaStatus.available || !mounted) return;
+
+    const fnordId = fnord.id;
+    try {
       const result = await appState.processArticleDiscordian(fnordId);
+
+      // Check if still mounted and same article after async operation
+      if (!mounted) return;
+
       if (result?.success) {
+        // Check if same article is still selected before reloading data
+        if (appState.selectedFnord?.id !== fnordId) return;
+
         // Reload categories, tags, and similar articles after analysis
         // (embedding is regenerated in backend, so similar articles may change)
         const [cats, tgs, similar] = await Promise.all([
@@ -285,14 +348,23 @@
           appState.getArticleTags(fnordId),
           appState.findSimilarArticles(fnordId, 5)
         ]);
+
+        // Check again after Promise.all
+        if (!mounted || appState.selectedFnord?.id !== fnordId) return;
+
         categories = cats;
         tags = tgs;
         similarArticles = similar;
         toasts.success($_('toast.analyzeSuccess'));
       } else if (result?.error) {
-        toasts.error($_('toast.analyzeError', { values: { error: result.error }}));
+        if (mounted) toasts.error($_('toast.analyzeError', { values: { error: result.error }}));
       } else if (appState.error) {
-        toasts.error($_('toast.analyzeError', { values: { error: appState.error }}));
+        if (mounted) toasts.error($_('toast.analyzeError', { values: { error: appState.error }}));
+      }
+    } catch (e) {
+      console.error('AI analysis failed:', e);
+      if (mounted) {
+        toasts.error($_('toast.analyzeError', { values: { error: String(e) }}));
       }
     }
   }

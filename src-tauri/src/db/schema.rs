@@ -1137,7 +1137,8 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
         INSERT OR IGNORE INTO settings (key, value) VALUES
             ('locale', 'de'),
             ('theme', 'mocha'),
-            ('showTerminologyTooltips', 'true');
+            ('showTerminologyTooltips', 'true'),
+            ('ollama_num_ctx', '4096');
 
         -- ============================================================
         -- INDIZES

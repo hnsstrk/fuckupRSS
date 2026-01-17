@@ -112,15 +112,15 @@ pub fn save_article_keywords_with_source(
     let mut tag_ids: Vec<i64> = Vec::new();
     let mut new_keyword_ids: Vec<i64> = Vec::new();
 
-    let existing_tag_ids: Vec<i64> = {
-        let mut stmt = conn
-            .prepare("SELECT immanentize_id FROM fnord_immanentize WHERE fnord_id = ?")
-            .unwrap();
-        stmt.query_map([fnord_id], |row| row.get(0))
-            .unwrap()
-            .filter_map(|r| r.ok())
-            .collect()
-    };
+    let existing_tag_ids: Vec<i64> = conn
+        .prepare("SELECT immanentize_id FROM fnord_immanentize WHERE fnord_id = ?")
+        .ok()
+        .and_then(|mut stmt| {
+            stmt.query_map([fnord_id], |row| row.get(0))
+                .ok()
+                .map(|rows| rows.filter_map(|r| r.ok()).collect())
+        })
+        .unwrap_or_default();
 
     // Clear existing keywords before re-inserting
     if let Err(e) = conn.execute(

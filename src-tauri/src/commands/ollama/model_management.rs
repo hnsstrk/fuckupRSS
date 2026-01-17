@@ -5,6 +5,9 @@ use tauri::{Emitter, Window};
 
 use super::types::{LoadedModel, LoadedModelsResponse, ModelPullResult, OllamaStatus};
 
+/// Base URL for Ollama API - centralized for future configurability
+const OLLAMA_BASE_URL: &str = "http://localhost:11434";
+
 /// Check Ollama availability and list installed models
 #[tauri::command]
 pub async fn check_ollama() -> Result<OllamaStatus, String> {
@@ -52,7 +55,7 @@ pub async fn get_loaded_models() -> Result<LoadedModelsResponse, String> {
     let client = reqwest_new::Client::new();
 
     let response = client
-        .get("http://localhost:11434/api/ps")
+        .get(&format!("{}/api/ps", OLLAMA_BASE_URL))
         .send()
         .await
         .map_err(|e| format!("Failed to connect to Ollama: {}", e))?;
@@ -109,7 +112,7 @@ pub async fn load_model(model: String) -> Result<bool, String> {
     });
 
     let response = client
-        .post("http://localhost:11434/api/embeddings")
+        .post(&format!("{}/api/embeddings", OLLAMA_BASE_URL))
         .json(&embed_body)
         .send()
         .await;
@@ -128,7 +131,7 @@ pub async fn load_model(model: String) -> Result<bool, String> {
     });
 
     let response = client
-        .post("http://localhost:11434/api/generate")
+        .post(&format!("{}/api/generate", OLLAMA_BASE_URL))
         .json(&gen_body)
         .send()
         .await
@@ -148,7 +151,7 @@ pub async fn unload_model(model: String) -> Result<bool, String> {
     );
 
     let response: reqwest_new::Response = client
-        .post("http://localhost:11434/api/generate")
+        .post(&format!("{}/api/generate", OLLAMA_BASE_URL))
         .header("Content-Type", "application/json")
         .body(body)
         .send()

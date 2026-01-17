@@ -222,17 +222,17 @@ impl OllamaClient {
         }
     }
 
-    fn client(&self) -> reqwest_new::Client {
+    fn client(&self) -> Result<reqwest_new::Client, OllamaError> {
         reqwest_new::Client::builder()
             .timeout(Duration::from_secs(120))
             .build()
-            .expect("Failed to create HTTP client")
+            .map_err(|e| OllamaError::NotAvailable(format!("Failed to create HTTP client: {}", e)))
     }
 
     /// Check if Ollama is available and return list of models
     pub async fn list_models(&self) -> Result<Vec<ModelInfo>, OllamaError> {
         let url = format!("{}/api/tags", self.base_url);
-        let client = self.client();
+        let client = self.client()?;
 
         let resp: reqwest_new::Response = client
             .get(&url)
@@ -270,7 +270,7 @@ impl OllamaClient {
         let client = reqwest_new::Client::builder()
             .timeout(Duration::from_secs(3600)) // 1 hour timeout for large models
             .build()
-            .expect("Failed to create HTTP client");
+            .map_err(|e| OllamaError::PullFailed(format!("Failed to create HTTP client: {}", e)))?;
 
         let request = PullRequest {
             name: model_name.to_string(),
@@ -313,7 +313,7 @@ impl OllamaClient {
     #[allow(dead_code)]
     pub async fn generate_embedding(&self, model: &str, text: &str) -> Result<Vec<f32>, OllamaError> {
         let url = format!("{}/api/embeddings", self.base_url);
-        let client = self.client();
+        let client = self.client()?;
 
         let request = EmbeddingRequest {
             model: model.to_string(),
@@ -580,7 +580,7 @@ Content: {}"#,
     /// Generate text with Ollama
     async fn generate(&self, model: &str, prompt: &str, format: Option<String>) -> Result<String, OllamaError> {
         let url = format!("{}/api/generate", self.base_url);
-        let client = self.client();
+        let client = self.client()?;
 
         let request = GenerateRequest {
             model: model.to_string(),
