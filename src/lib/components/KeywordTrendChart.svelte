@@ -34,39 +34,32 @@
     bg: string;
   }
 
-  // Get theme-aware colors from CSS variables
+  // Get theme-aware colors from CSS variables (no hardcoded fallbacks)
   function getThemeColors(): ChartColor[] {
     const style = getComputedStyle(document.documentElement);
 
-    // Main keyword uses accent-primary (mauve/purple)
-    const accentPrimary = style.getPropertyValue('--accent-primary').trim() || '#cba6f7';
+    // Main keyword uses accent-primary
+    const accentPrimary = style.getPropertyValue('--accent-primary').trim();
 
     // Category colors for the 4 co-occurring keywords (indices 1-4)
+    // Generate bg color dynamically from border color
     const categoryColors: ChartColor[] = [];
     for (let i = 1; i <= 4; i++) {
       const border = style.getPropertyValue(`--category-${i}`).trim();
-      const bg = style.getPropertyValue(`--category-${i}-bg`).trim();
-      if (border && bg) {
-        categoryColors.push({ border, bg });
+      if (border) {
+        categoryColors.push({ border, bg: hexToRgba(border, 0.15) });
       }
     }
 
-    // Fallback colors if CSS variables aren't available
-    const fallbackColors: ChartColor[] = [
-      { border: '#89dceb', bg: 'rgba(137, 220, 235, 0.15)' },
-      { border: '#cba6f7', bg: 'rgba(203, 166, 247, 0.15)' },
-      { border: '#f9e2af', bg: 'rgba(249, 226, 175, 0.15)' },
-      { border: '#a6e3a1', bg: 'rgba(166, 227, 161, 0.15)' },
-    ];
-
     return [
       { border: accentPrimary, bg: hexToRgba(accentPrimary, 0.3) },
-      ...(categoryColors.length >= 4 ? categoryColors : fallbackColors)
+      ...categoryColors
     ];
   }
 
-  // Helper to convert hex to rgba
+  // Helper to convert hex to rgba (no hardcoded fallback)
   function hexToRgba(hex: string, alpha: number): string {
+    if (!hex) return `rgba(128, 128, 128, ${alpha})`; // Neutral gray if no color
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     if (result) {
       const r = parseInt(result[1], 16);
@@ -74,18 +67,18 @@
       const b = parseInt(result[3], 16);
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
-    return `rgba(203, 166, 247, ${alpha})`;
+    return `rgba(128, 128, 128, ${alpha})`; // Neutral gray for invalid hex
   }
 
-  // Get theme-aware chart styling
+  // Get theme-aware chart styling (no hardcoded fallbacks)
   function getChartThemeStyles() {
     const style = getComputedStyle(document.documentElement);
     return {
-      textColor: style.getPropertyValue('--text-muted').trim() || '#a6adc8',
-      gridColor: style.getPropertyValue('--border-default').trim() || 'rgba(88, 91, 112, 0.3)',
-      tooltipBg: style.getPropertyValue('--bg-surface').trim() || '#1e1e2e',
-      tooltipText: style.getPropertyValue('--text-primary').trim() || '#cdd6f4',
-      tooltipBorder: style.getPropertyValue('--border-default').trim() || '#585b70',
+      textColor: style.getPropertyValue('--text-muted').trim(),
+      gridColor: style.getPropertyValue('--border-default').trim(),
+      tooltipBg: style.getPropertyValue('--bg-surface').trim(),
+      tooltipText: style.getPropertyValue('--text-primary').trim(),
+      tooltipBorder: style.getPropertyValue('--border-default').trim(),
     };
   }
 

@@ -18,23 +18,23 @@
   let cy: cytoscape.Core | null = null;
 
   // Get CSS variable values for Cytoscape (which doesn't support CSS vars)
-  function getCssVar(name: string, fallback: string): string {
-    if (typeof document === 'undefined') return fallback;
-    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return value || fallback;
+  // No hardcoded fallbacks - themes must define all variables
+  function getCssVar(name: string): string {
+    if (typeof document === 'undefined') return '';
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
 
   function getThemeColors() {
     return {
-      centerNode: getCssVar('--golden-apple-color', '#f9e2af'),
-      centerBorder: getCssVar('--accent-warning', '#fab387'),
-      neighborNode: getCssVar('--accent-primary', '#cba6f7'),
-      neighborHover: getCssVar('--accent-secondary', '#f5c2e7'),
-      selectedNode: getCssVar('--accent-success', '#a6e3a1'),
-      selectedBorder: getCssVar('--ctp-teal', '#94e2d5'),
-      text: getCssVar('--text-primary', '#cdd6f4'),
-      textOutline: getCssVar('--bg-base', '#1e1e2e'),
-      edge: getCssVar('--bg-highlight', '#585b70'),
+      centerNode: getCssVar('--golden-apple-color'),
+      centerBorder: getCssVar('--accent-warning'),
+      neighborNode: getCssVar('--accent-primary'),
+      neighborHover: getCssVar('--accent-secondary'),
+      selectedNode: getCssVar('--accent-success'),
+      selectedBorder: getCssVar('--accent-info'),
+      text: getCssVar('--text-primary'),
+      textOutline: getCssVar('--bg-base'),
+      edge: getCssVar('--bg-highlight'),
     };
   }
 

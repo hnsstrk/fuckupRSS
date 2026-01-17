@@ -39,21 +39,21 @@
   let mounted = false;
 
   // Get CSS variable values for Cytoscape (which doesn't support CSS vars)
-  function getCssVar(name: string, fallback: string): string {
-    if (typeof document === 'undefined') return fallback;
-    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return value || fallback;
+  // No hardcoded fallbacks - themes must define all variables
+  function getCssVar(name: string): string {
+    if (typeof document === 'undefined') return '';
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
 
   function getThemeColors() {
     return {
-      primary: getCssVar('--accent-primary', '#fab387'),
-      primaryHover: getCssVar('--accent-secondary', '#f9e2af'),
-      selected: getCssVar('--golden-apple-color', '#f9e2af'),
-      text: getCssVar('--text-primary', '#cdd6f4'),
-      textOutline: getCssVar('--bg-base', '#1e1e2e'),
-      edge: getCssVar('--text-muted', '#585b70'),
-      edgeSelected: getCssVar('--accent-primary', '#fab387'),
+      primary: getCssVar('--accent-primary'),
+      primaryHover: getCssVar('--accent-secondary'),
+      selected: getCssVar('--golden-apple-color'),
+      text: getCssVar('--text-primary'),
+      textOutline: getCssVar('--bg-base'),
+      edge: getCssVar('--text-muted'),
+      edgeSelected: getCssVar('--accent-primary'),
     };
   }
 
