@@ -201,34 +201,6 @@
       {/if}
     </div>
 
-    <!-- Period Selector -->
-    <div class="period-selector">
-      <span class="period-label">{$_('fnordView.period') || 'Zeitraum'}:</span>
-      <div class="period-buttons">
-        <button
-          class="period-btn"
-          class:active={selectedPeriod === 7}
-          onclick={() => changePeriod(7)}
-        >
-          {$_('fnordView.days7') || '7 Tage'}
-        </button>
-        <button
-          class="period-btn"
-          class:active={selectedPeriod === 30}
-          onclick={() => changePeriod(30)}
-        >
-          {$_('fnordView.days30') || '30 Tage'}
-        </button>
-        <button
-          class="period-btn"
-          class:active={selectedPeriod === 90}
-          onclick={() => changePeriod(90)}
-        >
-          {$_('fnordView.days90') || '90 Tage'}
-        </button>
-      </div>
-    </div>
-
     <!-- Tabs -->
     <Tabs {tabs} bind:activeTab />
   </div>
@@ -242,7 +214,15 @@
       </div>
     {:else if activeTab === 'stats' && stats}
       <div class="stats-view">
-        <!-- Top Row: Greyface Index + Timeline -->
+        <!-- GESAMT-ÜBERSICHT (ohne Zeitfilter) -->
+        <div class="stats-section-header">
+          <h3 class="section-header-title">
+            <i class="fa-solid fa-chart-pie"></i>
+            {$_('fnordView.overallStats') || 'Gesamt-Übersicht'}
+          </h3>
+        </div>
+
+        <!-- Top Row: Greyface Index + By Source -->
         <div class="stats-row top-row">
           <!-- Greyface Index Card -->
           {#if greyfaceIndex}
@@ -320,106 +300,41 @@
             </div>
           {/if}
 
-          <!-- Timeline Card -->
-          {#if timeline && timeline.data.length > 0}
-            {@const maxArticles = Math.max(...timeline.data.map(d => d.articles), 1)}
-            {@const maxRevisions = Math.max(...timeline.data.map(d => d.revisions), 1)}
-            {@const maxVal = Math.max(maxArticles, maxRevisions)}
-            <div class="stats-card timeline-card">
-              <h3 class="card-title">
-                <i class="fa-solid fa-chart-line"></i>
-                {$_('fnordView.timeline') || 'Eris-Chronik'}
-              </h3>
-              <div class="timeline-chart">
-                <div class="chart-bars">
-                  {#each timeline.data as day, i (day.date)}
-                    <div class="chart-day" title="{day.date}">
-                      <div class="bar-container">
-                        <div
-                          class="bar articles-bar"
-                          style="height: {(day.articles / maxVal) * 100}%"
-                          title="{$_('fnordView.articles')}: {day.articles}"
-                        ></div>
-                        <div
-                          class="bar revisions-bar"
-                          style="height: {(day.revisions / maxVal) * 100}%"
-                          title="{$_('fnordView.revisions')}: {day.revisions}"
-                        ></div>
-                      </div>
-                      {#if i === 0 || i === timeline.data.length - 1 || i === Math.floor(timeline.data.length / 2)}
-                        <span class="day-label">{day.date.slice(5)}</span>
-                      {/if}
-                    </div>
-                  {/each}
-                </div>
-                <div class="chart-legend">
-                  <span class="legend-item"><span class="legend-bar articles"></span> {$_('fnordView.articles')}</span>
-                  <span class="legend-item"><span class="legend-bar revisions"></span> {$_('fnordView.revisions')}</span>
-                </div>
-              </div>
-            </div>
-          {/if}
-        </div>
-
-        <!-- Second Row: Top Keywords + Feed Activity -->
-        <div class="stats-row">
-          <!-- Top Keywords -->
-          {#if topKeywords.length > 0}
-            <div class="stats-card">
-              <h3 class="card-title">
-                <i class="fa-solid fa-hashtag"></i>
-                {$_('fnordView.topKeywords') || 'Top Keywords'}
-              </h3>
-              <div class="keyword-list">
-                {#each topKeywords as kw, i (kw.id)}
-                  <div class="keyword-item">
-                    <span class="keyword-rank">#{i + 1}</span>
-                    <span
-                      class="keyword-name"
-                      style="border-left: 3px solid {getKeywordTypeColor(kw.keyword_type)}; padding-left: 0.5rem;"
-                    >
-                      {kw.name}
-                    </span>
-                    <span class="keyword-count">{kw.count}</span>
-                    <span class="keyword-trend {getTrendClass(kw.trend)}">
-                      <i class="{getTrendIcon(kw.trend)}"></i>
-                      {#if kw.trend !== 0 && kw.trend !== 100}
-                        {Math.abs(kw.trend).toFixed(0)}%
-                      {/if}
-                    </span>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
-
-          <!-- Feed Activity -->
-          {#if feedActivity.length > 0}
-            <div class="stats-card">
+          <!-- By Source Card (Restored) -->
+          {#if stats.by_source.length > 0}
+            {@const maxSourceRevisions = Math.max(...stats.by_source.map(s => s.revision_count), 1)}
+            <div class="stats-card source-card">
               <h3 class="card-title">
                 <i class="fa-solid fa-rss"></i>
-                {$_('fnordView.feedActivity') || 'Feed-Aktivität'}
+                <Tooltip termKey="pentacle">{$_('fnordView.bySource') || 'Nach Quelle'}</Tooltip>
               </h3>
-              <div class="feed-list">
-                {#each feedActivity as feed (feed.pentacle_id)}
-                  <div class="feed-item">
-                    <span class="feed-name">{feed.title || `Feed #${feed.pentacle_id}`}</span>
-                    <div class="feed-stats">
-                      <span class="feed-stat" title="{$_('fnordView.articlesInPeriod')}">
-                        <i class="fa-solid fa-newspaper"></i> {feed.articles_period}
-                      </span>
-                      <span class="feed-stat" title="{$_('fnordView.revisions')}">
-                        <i class="fa-solid fa-code-compare"></i> {feed.revisions_period}
-                      </span>
+              <div class="source-list">
+                {#each stats.by_source.slice(0, 10) as source (source.pentacle_id)}
+                  {@const barWidth = (source.revision_count / maxSourceRevisions) * 100}
+                  <div class="source-item">
+                    <div class="source-header">
+                      <span class="source-name" title={source.title}>{source.title || `Feed #${source.pentacle_id}`}</span>
+                      <span class="source-count">{source.revision_count}</span>
+                    </div>
+                    <div class="source-progress">
+                      <div class="source-progress-fill" style="width: {barWidth}%"></div>
+                    </div>
+                    <div class="source-meta">
+                      <span class="source-articles">{source.article_count} {$_('fnordView.articles') || 'Artikel'}</span>
                     </div>
                   </div>
                 {/each}
+                {#if stats.by_source.length > 10}
+                  <div class="source-more">
+                    +{stats.by_source.length - 10} {$_('fnordView.moreSources') || 'weitere Quellen'}
+                  </div>
+                {/if}
               </div>
             </div>
           {/if}
         </div>
 
-        <!-- Third Row: Bias Heatmap -->
+        <!-- Bias Heatmap (Gesamt) -->
         {#if biasHeatmap.length > 0}
           <div class="stats-card full-width">
             <h3 class="card-title">
@@ -470,34 +385,7 @@
           </div>
         {/if}
 
-        <!-- Fourth Row: Keyword Cloud -->
-        {#if keywordCloud.length > 0}
-          <div class="stats-card full-width">
-            <h3 class="card-title">
-              <i class="fa-solid fa-cloud"></i>
-              {$_('fnordView.keywordCloud') || 'Keyword-Wolke'}
-            </h3>
-            <div class="keyword-cloud">
-              {#each keywordCloud as kw (kw.id)}
-                <span
-                  class="cloud-word"
-                  style="
-                    font-size: {0.75 + kw.weight * 1.25}rem;
-                    opacity: {0.5 + kw.weight * 0.5};
-                    color: {getKeywordTypeColor(kw.keyword_type)};
-                  "
-                  title="{kw.name}: {kw.count} {$_('fnordView.articles')}"
-                >
-                  {kw.name}
-                </span>
-              {/each}
-              <!-- Hidden fnord Easter Egg -->
-              <span class="cloud-word fnord-hidden" title="fnord">fnord</span>
-            </div>
-          </div>
-        {/if}
-
-        <!-- By Category (existing) -->
+        <!-- By Category (Gesamt) -->
         {#if stats.by_category.length > 0}
           {@const maxRevisions = Math.max(...stats.by_category.map(c => c.revision_count), 1)}
           <div class="stats-section">
@@ -570,6 +458,165 @@
                   {/if}
                 </button>
               {/each}
+            </div>
+          </div>
+        {/if}
+
+        <!-- TRENDS & AKTIVITÄT (mit Zeitfilter) -->
+        <div class="stats-section-header trends-header">
+          <h3 class="section-header-title">
+            <i class="fa-solid fa-chart-line"></i>
+            {$_('fnordView.trendsAndActivity') || 'Trends & Aktivität'}
+          </h3>
+          <div class="period-selector">
+            <span class="period-label">{$_('fnordView.period') || 'Zeitraum'}:</span>
+            <div class="period-buttons">
+              <button
+                class="period-btn"
+                class:active={selectedPeriod === 7}
+                onclick={() => changePeriod(7)}
+              >
+                {$_('fnordView.days7') || '7 Tage'}
+              </button>
+              <button
+                class="period-btn"
+                class:active={selectedPeriod === 30}
+                onclick={() => changePeriod(30)}
+              >
+                {$_('fnordView.days30') || '30 Tage'}
+              </button>
+              <button
+                class="period-btn"
+                class:active={selectedPeriod === 90}
+                onclick={() => changePeriod(90)}
+              >
+                {$_('fnordView.days90') || '90 Tage'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timeline Card -->
+        {#if timeline && timeline.data.length > 0}
+          {@const maxArticles = Math.max(...timeline.data.map(d => d.articles), 1)}
+          {@const maxRevisions = Math.max(...timeline.data.map(d => d.revisions), 1)}
+          {@const maxVal = Math.max(maxArticles, maxRevisions)}
+          <div class="stats-card full-width timeline-card">
+            <h3 class="card-title">
+              <i class="fa-solid fa-chart-area"></i>
+              {$_('fnordView.timeline') || 'Eris-Chronik'}
+            </h3>
+            <div class="timeline-chart">
+              <div class="chart-bars">
+                {#each timeline.data as day, i (day.date)}
+                  <div class="chart-day" title="{day.date}">
+                    <div class="bar-container">
+                      <div
+                        class="bar articles-bar"
+                        style="height: {(day.articles / maxVal) * 100}%"
+                        title="{$_('fnordView.articles')}: {day.articles}"
+                      ></div>
+                      <div
+                        class="bar revisions-bar"
+                        style="height: {(day.revisions / maxVal) * 100}%"
+                        title="{$_('fnordView.revisions')}: {day.revisions}"
+                      ></div>
+                    </div>
+                    {#if i === 0 || i === timeline.data.length - 1 || i === Math.floor(timeline.data.length / 2)}
+                      <span class="day-label">{day.date.slice(5)}</span>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="legend-bar articles"></span> {$_('fnordView.articles')}</span>
+                <span class="legend-item"><span class="legend-bar revisions"></span> {$_('fnordView.revisions')}</span>
+              </div>
+            </div>
+          </div>
+        {/if}
+
+        <!-- Keywords + Feed Activity Row -->
+        <div class="stats-row">
+          <!-- Top Keywords (im Zeitraum) -->
+          {#if topKeywords.length > 0}
+            <div class="stats-card">
+              <h3 class="card-title">
+                <i class="fa-solid fa-hashtag"></i>
+                {$_('fnordView.topKeywords') || 'Top Keywords'}
+              </h3>
+              <div class="keyword-list">
+                {#each topKeywords as kw, i (kw.id)}
+                  <div class="keyword-item">
+                    <span class="keyword-rank">#{i + 1}</span>
+                    <span
+                      class="keyword-name"
+                      style="border-left: 3px solid {getKeywordTypeColor(kw.keyword_type)}; padding-left: 0.5rem;"
+                    >
+                      {kw.name}
+                    </span>
+                    <span class="keyword-count">{kw.count}</span>
+                    <span class="keyword-trend {getTrendClass(kw.trend)}">
+                      <i class="{getTrendIcon(kw.trend)}"></i>
+                      {#if kw.trend !== 0 && kw.trend !== 100}
+                        {Math.abs(kw.trend).toFixed(0)}%
+                      {/if}
+                    </span>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          <!-- Feed Activity (im Zeitraum) -->
+          {#if feedActivity.length > 0}
+            <div class="stats-card">
+              <h3 class="card-title">
+                <i class="fa-solid fa-bolt"></i>
+                {$_('fnordView.feedActivity') || 'Feed-Aktivität'}
+              </h3>
+              <div class="feed-list">
+                {#each feedActivity as feed (feed.pentacle_id)}
+                  <div class="feed-item">
+                    <span class="feed-name">{feed.title || `Feed #${feed.pentacle_id}`}</span>
+                    <div class="feed-stats">
+                      <span class="feed-stat" title="{$_('fnordView.articlesInPeriod')}">
+                        <i class="fa-solid fa-newspaper"></i> {feed.articles_period}
+                      </span>
+                      <span class="feed-stat" title="{$_('fnordView.revisions')}">
+                        <i class="fa-solid fa-code-compare"></i> {feed.revisions_period}
+                      </span>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </div>
+
+        <!-- Keyword Cloud (im Zeitraum) -->
+        {#if keywordCloud.length > 0}
+          <div class="stats-card full-width">
+            <h3 class="card-title">
+              <i class="fa-solid fa-cloud"></i>
+              {$_('fnordView.keywordCloud') || 'Keyword-Wolke'}
+            </h3>
+            <div class="keyword-cloud">
+              {#each keywordCloud as kw (kw.id)}
+                <span
+                  class="cloud-word"
+                  style="
+                    font-size: {0.75 + kw.weight * 1.25}rem;
+                    opacity: {0.5 + kw.weight * 0.5};
+                    color: {getKeywordTypeColor(kw.keyword_type)};
+                  "
+                  title="{kw.name}: {kw.count} {$_('fnordView.articles')}"
+                >
+                  {kw.name}
+                </span>
+              {/each}
+              <!-- Hidden fnord Easter Egg -->
+              <span class="cloud-word fnord-hidden" title="fnord">fnord</span>
             </div>
           </div>
         {/if}
@@ -665,12 +712,44 @@
     color: var(--text-muted);
   }
 
+  /* Section Headers */
+  .stats-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .stats-section-header.trends-header {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--border-default);
+    border-bottom: none;
+  }
+
+  .section-header-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .section-header-title i {
+    color: var(--accent-primary);
+  }
+
   /* Period Selector */
   .period-selector {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    margin-bottom: 0.75rem;
   }
 
   .period-label {
@@ -792,6 +871,78 @@
 
   .card-title i {
     color: var(--accent-primary);
+  }
+
+  /* Source Card (Nach Quelle) */
+  .source-card {
+    overflow: hidden;
+  }
+
+  .source-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .source-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .source-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .source-name {
+    font-size: 0.8125rem;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    margin-right: 0.5rem;
+  }
+
+  .source-count {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+  }
+
+  .source-progress {
+    height: 4px;
+    background-color: var(--bg-base);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .source-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-primary), var(--category-3));
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .source-meta {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .source-articles {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+  }
+
+  .source-more {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-default);
+    margin-top: 0.25rem;
   }
 
   /* Greyface Index Card */

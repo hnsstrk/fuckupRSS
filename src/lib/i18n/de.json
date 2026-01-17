@@ -507,7 +507,10 @@
     "keywordCloudDescription": "Visuelle Darstellung der wichtigsten Themen",
     "fnordDetector": "Fnord-Detektor",
     "easterEgg23": "Du hast das Geheimnis der 23 entdeckt!",
-    "hiddenFnord": "fnord"
+    "hiddenFnord": "fnord",
+    "overallStats": "Gesamt-Übersicht",
+    "trendsAndActivity": "Trends & Aktivität",
+    "moreSources": "weitere Quellen"
   },
   "revisions": {
     "title": "Revisionen",
