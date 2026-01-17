@@ -225,7 +225,7 @@
         <!-- Top Row: Greyface Index + By Source -->
         <div class="stats-row top-row">
           <!-- Greyface Index Card -->
-          {#if greyfaceIndex}
+          {#if greyfaceIndex && greyfaceIndex.articles_with_bias > 0}
             <div class="stats-card greyface-card">
               <h3 class="card-title">
                 <i class="fa-solid fa-triangle-exclamation"></i>
@@ -298,6 +298,19 @@
                 </div>
               </div>
             </div>
+          {:else}
+            <!-- Greyface Placeholder when no data -->
+            <div class="stats-card greyface-card greyface-empty">
+              <h3 class="card-title">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <Tooltip termKey="greyface">{$_('fnordView.greyface.title') || 'Greyface-Index'}</Tooltip>
+              </h3>
+              <div class="empty-placeholder">
+                <i class="fa-solid fa-chart-pie empty-icon"></i>
+                <p>{$_('fnordView.greyface.noData') || 'Keine Bias-Daten vorhanden'}</p>
+                <span class="empty-hint">{$_('fnordView.greyface.noDataHint') || 'Führe die KI-Analyse durch, um Bias-Werte zu erhalten.'}</span>
+              </div>
+            </div>
           {/if}
 
           <!-- By Source Card (Restored) -->
@@ -309,24 +322,24 @@
                 <Tooltip termKey="pentacle">{$_('fnordView.bySource') || 'Nach Quelle'}</Tooltip>
               </h3>
               <div class="source-list">
-                {#each stats.by_source.slice(0, 10) as source (source.pentacle_id)}
+                {#each stats.by_source.slice(0, 6) as source (source.pentacle_id)}
                   {@const barWidth = (source.revision_count / maxSourceRevisions) * 100}
                   <div class="source-item">
-                    <div class="source-header">
-                      <span class="source-name" title={source.title}>{source.title || `Feed #${source.pentacle_id}`}</span>
+                    <span class="source-name" title={source.title}>{source.title || `Feed #${source.pentacle_id}`}</span>
+                    <div class="source-bar-wrapper">
+                      <div class="source-progress">
+                        <div class="source-progress-fill" style="width: {barWidth}%"></div>
+                      </div>
+                    </div>
+                    <span class="source-stats">
                       <span class="source-count">{source.revision_count}</span>
-                    </div>
-                    <div class="source-progress">
-                      <div class="source-progress-fill" style="width: {barWidth}%"></div>
-                    </div>
-                    <div class="source-meta">
-                      <span class="source-articles">{source.article_count} {$_('fnordView.articles') || 'Artikel'}</span>
-                    </div>
+                      <span class="source-articles">({source.article_count})</span>
+                    </span>
                   </div>
                 {/each}
-                {#if stats.by_source.length > 10}
+                {#if stats.by_source.length > 6}
                   <div class="source-more">
-                    +{stats.by_source.length - 10} {$_('fnordView.moreSources') || 'weitere Quellen'}
+                    +{stats.by_source.length - 6} {$_('fnordView.moreSources') || 'weitere'}
                   </div>
                 {/if}
               </div>
@@ -881,68 +894,104 @@
   .source-list {
     display: flex;
     flex-direction: column;
-    gap: 0.625rem;
+    gap: 0.5rem;
   }
 
   .source-item {
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .source-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .source-name {
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    flex: 1;
-    margin-right: 0.5rem;
+    min-width: 100px;
+    max-width: 140px;
   }
 
-  .source-count {
-    font-size: 0.875rem;
-    font-weight: 700;
-    color: var(--accent-primary);
+  .source-bar-wrapper {
+    flex: 1;
+    min-width: 60px;
   }
 
   .source-progress {
-    height: 4px;
+    height: 6px;
     background-color: var(--bg-base);
-    border-radius: 2px;
+    border-radius: 3px;
     overflow: hidden;
   }
 
   .source-progress-fill {
     height: 100%;
     background: linear-gradient(90deg, var(--accent-primary), var(--category-3));
-    border-radius: 2px;
+    border-radius: 3px;
     transition: width 0.3s ease;
   }
 
-  .source-meta {
+  .source-stats {
     display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    min-width: 50px;
     justify-content: flex-end;
   }
 
+  .source-count {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+  }
+
   .source-articles {
-    font-size: 0.6875rem;
+    font-size: 0.625rem;
     color: var(--text-muted);
   }
 
   .source-more {
     text-align: center;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     color: var(--text-muted);
-    padding-top: 0.5rem;
+    padding-top: 0.375rem;
     border-top: 1px solid var(--border-default);
     margin-top: 0.25rem;
+  }
+
+  /* Empty Placeholder */
+  .empty-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+  }
+
+  .empty-placeholder .empty-icon {
+    font-size: 2rem;
+    opacity: 0.3;
+    margin-bottom: 0.75rem;
+  }
+
+  .empty-placeholder p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .empty-placeholder .empty-hint {
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+    opacity: 0.7;
+  }
+
+  .greyface-empty {
+    display: flex;
+    flex-direction: column;
   }
 
   /* Greyface Index Card */
@@ -1351,7 +1400,7 @@
 
   .category-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 1rem;
   }
 
@@ -1401,13 +1450,11 @@
   }
 
   .card-title-text {
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--text-primary);
     flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.2;
   }
 
   .expand-icon {

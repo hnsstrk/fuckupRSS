@@ -490,7 +490,9 @@
       "rightExtreme": "Strong right",
       "alert": "Greyface Alert",
       "balanced": "Balanced",
-      "unbalanced": "Unbalanced"
+      "unbalanced": "Unbalanced",
+      "noData": "No bias data",
+      "noDataHint": "Run AI analysis first"
     },
     "topKeywords": "Top Keywords",
     "trend": "Trend",

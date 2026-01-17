@@ -490,7 +490,9 @@
       "rightExtreme": "Stark rechts",
       "alert": "Greyface Alert",
       "balanced": "Ausgewogen",
-      "unbalanced": "Unausgewogen"
+      "unbalanced": "Unausgewogen",
+      "noData": "Keine Bias-Daten",
+      "noDataHint": "Führe die KI-Analyse durch"
     },
     "topKeywords": "Top Keywords",
     "trend": "Trend",
