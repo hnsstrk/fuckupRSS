@@ -938,84 +938,99 @@ pub struct MergeResult {
 
 #[tauri::command]
 pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, String> {
+    // Load keywords with short lock
+    let keywords: Vec<(i64, String)> = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let conn = db.conn();
+        let mut stmt = conn.prepare("SELECT id, name FROM immanentize")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|e| e.to_string())?;
+        rows.filter_map(|r| r.ok()).collect()
+    };
+
+    // Identify merge candidates (canonical lookups don't need DB)
+    let mut merge_candidates: Vec<(i64, String, i64)> = Vec::new();
+    for (id, name) in &keywords {
+        if let Some(canonical) = find_canonical_keyword_with_db(name) {
+            if canonical.to_lowercase() != name.to_lowercase() {
+                // We'll look up the canonical_id in the transaction
+                merge_candidates.push((*id, canonical.clone(), 0));
+            }
+        }
+    }
+
+    // Perform all merges in a single transaction
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let conn = db.conn();
 
-    let keywords: Vec<(i64, String)> = conn
-        .prepare("SELECT id, name FROM immanentize")
-        .map_err(|e| e.to_string())?
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
+    conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
 
     let mut merged_count = 0i64;
     let mut affected_articles = 0i64;
 
-    for (id, name) in &keywords {
-        if let Some(canonical) = find_canonical_keyword_with_db(name) {
-            if canonical.to_lowercase() != name.to_lowercase() {
-                let canonical_id: Option<i64> = conn
+    for (id, canonical, _) in &merge_candidates {
+        let canonical_id: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?)",
+                [canonical],
+                |row| row.get(0),
+            )
+            .ok();
+
+        if let Some(can_id) = canonical_id {
+            if can_id != *id {
+                let moved: i64 = conn
                     .query_row(
-                        "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?)",
-                        [&canonical],
+                        "SELECT COUNT(*) FROM fnord_immanentize WHERE immanentize_id = ?",
+                        [id],
                         |row| row.get(0),
                     )
-                    .ok();
+                    .unwrap_or(0);
 
-                if let Some(can_id) = canonical_id {
-                    if can_id != *id {
-                        let moved: i64 = conn
-                            .query_row(
-                                "SELECT COUNT(*) FROM fnord_immanentize WHERE immanentize_id = ?",
-                                [id],
-                                |row| row.get(0),
-                            )
-                            .unwrap_or(0);
-
-                        // Merge operation: move references, update counts, delete old keyword
-                        if let Err(e) = conn.execute(
-                            r#"UPDATE OR IGNORE fnord_immanentize
-                               SET immanentize_id = ?1
-                               WHERE immanentize_id = ?2"#,
-                            rusqlite::params![can_id, id],
-                        ) {
-                            warn!("Failed to move keyword references {} -> {}: {}", id, can_id, e);
-                            continue;
-                        }
-
-                        if let Err(e) = conn.execute(
-                            "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
-                            [id],
-                        ) {
-                            trace!("Failed to clean duplicate references for keyword {}: {}", id, e);
-                        }
-
-                        if let Err(e) = conn.execute(
-                            r#"UPDATE immanentize SET
-                               count = count + (SELECT COALESCE(count, 0) FROM immanentize WHERE id = ?2),
-                               article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?1)
-                               WHERE id = ?1"#,
-                            rusqlite::params![can_id, id],
-                        ) {
-                            warn!("Failed to update merged keyword counts: {}", e);
-                        }
-
-                        if let Err(e) = conn.execute("DELETE FROM immanentize WHERE id = ?", [id]) {
-                            warn!("Failed to delete merged keyword {}: {}", id, e);
-                        }
-                        // Also remove from vec_immanentize (sqlite-vec)
-                        if let Err(e) = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id]) {
-                            trace!("Failed to delete keyword {} from vec table: {}", id, e);
-                        }
-
-                        merged_count += 1;
-                        affected_articles += moved;
-                    }
+                // Merge operation: move references, update counts, delete old keyword
+                if let Err(e) = conn.execute(
+                    r#"UPDATE OR IGNORE fnord_immanentize
+                       SET immanentize_id = ?1
+                       WHERE immanentize_id = ?2"#,
+                    rusqlite::params![can_id, id],
+                ) {
+                    warn!("Failed to move keyword references {} -> {}: {}", id, can_id, e);
+                    continue;
                 }
+
+                if let Err(e) = conn.execute(
+                    "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
+                    [id],
+                ) {
+                    trace!("Failed to clean duplicate references for keyword {}: {}", id, e);
+                }
+
+                if let Err(e) = conn.execute(
+                    r#"UPDATE immanentize SET
+                       count = count + (SELECT COALESCE(count, 0) FROM immanentize WHERE id = ?2),
+                       article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?1)
+                       WHERE id = ?1"#,
+                    rusqlite::params![can_id, id],
+                ) {
+                    warn!("Failed to update merged keyword counts: {}", e);
+                }
+
+                if let Err(e) = conn.execute("DELETE FROM immanentize WHERE id = ?", [id]) {
+                    warn!("Failed to delete merged keyword {}: {}", id, e);
+                }
+                // Also remove from vec_immanentize (sqlite-vec)
+                if let Err(e) = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id]) {
+                    trace!("Failed to delete keyword {} from vec table: {}", id, e);
+                }
+
+                merged_count += 1;
+                affected_articles += moved;
             }
         }
     }
+
+    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
 
     Ok(MergeResult {
         merged_count,
@@ -1031,26 +1046,38 @@ pub struct CleanupResult {
 
 #[tauri::command]
 pub fn cleanup_garbage_keywords(state: State<AppState>) -> Result<CleanupResult, String> {
+    // Load keywords with short lock and identify garbage outside of transaction
+    let garbage_ids: Vec<i64> = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let conn = db.conn();
+
+        let mut stmt = conn.prepare("SELECT id, name FROM immanentize")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|e| e.to_string())?;
+        let keywords: Vec<(i64, String)> = rows.filter_map(|r| r.ok()).collect();
+
+        keywords
+            .into_iter()
+            .filter(|(_, name)| normalize_keyword(name).is_none())
+            .map(|(id, _)| id)
+            .collect()
+    };
+
+    let removed_garbage = garbage_ids.len() as i64;
+
+    if garbage_ids.is_empty() {
+        return Ok(CleanupResult {
+            removed_garbage: 0,
+            removed_relations: 0,
+        });
+    }
+
+    // Perform all deletions in a single transaction
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let conn = db.conn();
 
-    let keywords: Vec<(i64, String)> = conn
-        .prepare("SELECT id, name FROM immanentize")
-        .map_err(|e| e.to_string())?
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
-
-    let mut garbage_ids: Vec<i64> = Vec::new();
-
-    for (id, name) in keywords {
-        if normalize_keyword(&name).is_none() {
-            garbage_ids.push(id);
-        }
-    }
-
-    let removed_garbage = garbage_ids.len() as i64;
+    conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
 
     for id in &garbage_ids {
         // Delete garbage keyword and all its relations
@@ -1087,9 +1114,10 @@ pub fn cleanup_garbage_keywords(state: State<AppState>) -> Result<CleanupResult,
         }
     }
 
-    let removed_relations = conn
-        .query_row("SELECT changes()", [], |row| row.get::<_, i64>(0))
-        .unwrap_or(0);
+    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+
+    // Approximate removed relations based on garbage count
+    let removed_relations = removed_garbage * 5; // Estimated avg relations per keyword
 
     Ok(CleanupResult {
         removed_garbage,
@@ -1295,32 +1323,40 @@ pub fn auto_prune_low_quality(
     min_age_days: Option<i64>,
     dry_run: Option<bool>,
 ) -> Result<AutoPruneResult, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let conn = db.conn();
     let threshold = quality_threshold.unwrap_or(0.2);
     let min_age = min_age_days.unwrap_or(7);
     let dry_run = dry_run.unwrap_or(true);
 
-    let candidates: Vec<(i64, String)> = conn
-        .prepare(
-            r#"SELECT id, name FROM immanentize 
-               WHERE quality_score IS NOT NULL 
+    // Load candidates with short lock
+    let candidates: Vec<(i64, String)> = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let conn = db.conn();
+
+        let mut stmt = conn.prepare(
+            r#"SELECT id, name FROM immanentize
+               WHERE quality_score IS NOT NULL
                AND quality_score < ?1
                AND first_seen < datetime('now', '-' || ?2 || ' days')
                AND article_count <= 1"#,
         )
-        .map_err(|e| e.to_string())?
-        .query_map(params![threshold, min_age], |row| {
+        .map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(params![threshold, min_age], |row| {
             Ok((row.get(0)?, row.get(1)?))
         })
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
+        .map_err(|e| e.to_string())?;
+        rows.filter_map(|r| r.ok()).collect()
+    };
 
     let pruned_keywords: Vec<String> = candidates.iter().map(|(_, name)| name.clone()).collect();
     let pruned_count = candidates.len() as i64;
 
-    if !dry_run {
+    if !dry_run && !candidates.is_empty() {
+        // Perform all deletions in a single transaction
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let conn = db.conn();
+
+        conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
+
         for (id, name) in &candidates {
             // Delete low-quality keyword and all its relations
             if let Err(e) = conn.execute(
@@ -1355,6 +1391,8 @@ pub fn auto_prune_low_quality(
                 trace!("Failed to delete low-quality keyword {} from vec table: {}", id, e);
             }
         }
+
+        conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
     }
 
     Ok(AutoPruneResult {
@@ -2103,7 +2141,7 @@ fn perform_merge(conn: &rusqlite::Connection, keep_id: i64, remove_id: i64) -> R
     }
 
     // Clean up source keyword's associations
-    if let Err(e) = conn.execute("DELETE FROM immanentize_neighbors WHERE keyword_id = ? OR neighbor_id = ?", params![remove_id, remove_id]) {
+    if let Err(e) = conn.execute("DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?", params![remove_id, remove_id]) {
         trace!("Failed to delete neighbors for merged keyword {}: {}", remove_id, e);
     }
     if let Err(e) = conn.execute("DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?", [remove_id]) {

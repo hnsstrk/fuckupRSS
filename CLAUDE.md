@@ -419,6 +419,148 @@ The codebase uses terms from the Illuminatus! trilogy:
 Schema-Definition: `src-tauri/src/db/schema.rs`
 Dokumentation: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
 
+## Database Patterns & Best Practices
+
+Dieses Projekt verwendet SQLite mit einem `Arc<Mutex<Connection>>` Pattern. Bei unsachgemaesser Verwendung koennen Database-Locks, Race Conditions und inkonsistente Daten entstehen.
+
+### Lock-Halte-Regeln
+
+**WICHTIG:** Database Locks muessen so kurz wie moeglich gehalten werden.
+
+| Regel | Beschreibung |
+|-------|--------------|
+| **Kurze Locks** | Lock nur fuer die tatsaechliche DB-Operation halten |
+| **Keine I/O waehrend Lock** | Keine Netzwerk-Requests, File-I/O oder LLM-Calls waehrend der Lock gehalten wird |
+| **Pro-Item Locks** | In Loops: Lock pro Item, nicht fuer gesamte Schleife |
+| **Yield nach Release** | Nach Lock-Release `tokio::task::yield_now().await` fuer bessere Concurrency |
+
+**Korrektes Pattern (pro Item):**
+```rust
+for item in items {
+    // Lock nur fuer DB-Operation
+    {
+        let conn = db.lock().unwrap();
+        conn.execute("UPDATE ...", params![item.id])?;
+    } // Lock wird hier released
+
+    // Yield fuer andere Tasks
+    tokio::task::yield_now().await;
+
+    // Externe Operationen OHNE Lock
+    let result = external_api_call().await?;
+}
+```
+
+**Anti-Pattern (gesamte Schleife):**
+```rust
+// FALSCH: Lock fuer gesamte Operation
+let conn = db.lock().unwrap();
+for item in items {
+    conn.execute("UPDATE ...", params![item.id])?;
+    external_api_call().await?; // Lock blockiert andere!
+}
+```
+
+### Transaction-Regeln
+
+**WICHTIG:** Zusammengehoerige DB-Operationen MUESSEN in einer Transaction erfolgen.
+
+| Regel | Beschreibung |
+|-------|--------------|
+| **Atomare Operationen** | INSERT/UPDATE/DELETE Gruppen in Transaction wrappen |
+| **ROLLBACK bei Fehler** | Bei Fehlern explizit ROLLBACK ausfuehren |
+| **Pro-Item Transactions** | In Batch-Operationen: Transaction pro Item, nicht global |
+
+**Korrektes Transaction-Pattern:**
+```rust
+{
+    let conn = db.lock().unwrap();
+    conn.execute("BEGIN", [])?;
+
+    match do_operations(&conn) {
+        Ok(_) => conn.execute("COMMIT", [])?,
+        Err(e) => {
+            conn.execute("ROLLBACK", [])?;
+            return Err(e);
+        }
+    };
+}
+```
+
+**Pattern fuer Batch-Operationen:**
+```rust
+for item in items {
+    {
+        let conn = db.lock().unwrap();
+        conn.execute("BEGIN", [])?;
+
+        // Alle zusammengehoerigen Operationen fuer dieses Item
+        conn.execute("UPDATE fnords SET ...", params![item.id])?;
+        conn.execute("INSERT INTO fnord_immanentize ...", params![...])?;
+        conn.execute("UPDATE processed_at ...", params![item.id])?;
+
+        conn.execute("COMMIT", [])?;
+    } // Lock released
+
+    tokio::task::yield_now().await;
+}
+```
+
+### Kritische Bug-Fixes (Januar 2025)
+
+Folgende kritische Bugs wurden in den Datenbank-Operationen behoben:
+
+#### 1. immanentize.rs - perform_merge()
+**Problem:** Falsche Spaltennamen `keyword_id`/`neighbor_id` fuer `immanentize_neighbors` Tabelle.
+**Fix:** Korrekte Spaltennamen `immanentize_id_a`/`immanentize_id_b` verwendet.
+
+#### 2. immanentize.rs - merge_synonym_keywords()
+**Problem:** Lock wurde waehrend gesamter Merge-Operation gehalten.
+**Fix:** Refactored zu:
+- Keywords mit kurzem Lock laden, dann Lock releasen
+- Merge-Kandidaten ausserhalb des Locks identifizieren
+- Lock erneut akquirieren, alle Merges in einer Transaction
+
+#### 3. immanentize.rs - cleanup_garbage_keywords()
+**Problem:** Mehrere DELETE-Operationen ohne Transaction.
+**Fix:** Transaction-Wrapper (BEGIN/COMMIT) um alle Delete-Operationen.
+
+#### 4. immanentize.rs - auto_prune_low_quality()
+**Problem:** Delete-Operationen ohne Transaction-Safety.
+**Fix:** Transaction-Wrapper um Delete-Operationen hinzugefuegt.
+
+#### 5. batch_processor.rs - transfer_keywords_to_cluster_members()
+**Problem:** Lock fuer gesamte Batch-Operation gehalten.
+**Fix:**
+- Lock-Akquirierung in die Loop verschoben (pro Artikel)
+- Transaction-Wrapper pro Artikel
+- Lock wird nach jedem Artikel released
+
+#### 6. sync/mod.rs - store_feed()
+**Problem:** Mehrere INSERT/UPDATE ohne Transaction, kein ROLLBACK bei Fehlern.
+**Fix:**
+- Gesamte Funktion in Transaction gewrappt (BEGIN/COMMIT)
+- ROLLBACK bei Fehler-Pfaden
+- Aufgeteilt in `store_feed()` (Transaction-Wrapper) und `store_feed_inner()` (Implementierung)
+
+#### 7. article_analysis.rs - process_statistical_batch()
+**Problem:** Lock waehrend gesamter Batch-Verarbeitung gehalten.
+**Fix:**
+- Lock zwischen Artikeln released
+- `processed_at` Update nach jedem Artikel
+- Transaction pro Artikel
+- `tokio::task::yield_now().await` fuer Concurrency
+
+### Relevante Module fuer DB-Operationen
+
+| Modul | Funktion | Kritische Patterns |
+|-------|----------|-------------------|
+| `src-tauri/src/db/mod.rs` | Database Struct | Lock-Verwaltung |
+| `src-tauri/src/immanentize.rs` | Keyword-Operationen | Merge, Cleanup, Prune |
+| `src-tauri/src/sync/mod.rs` | Feed-Sync | store_feed Transaction |
+| `src-tauri/src/commands/batch_processor.rs` | Batch-Verarbeitung | Per-Item Locks |
+| `src-tauri/src/commands/article_analysis.rs` | Artikel-Analyse | Statistical Batch |
+
 ## Tauri Commands (Frontend → Backend)
 
 ### Pentacles (Feeds)

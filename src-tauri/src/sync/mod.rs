@@ -144,6 +144,26 @@ impl FeedSyncer {
         let entry_count = feed.entries.len();
         debug!("Storing {} entries for pentacle {}", entry_count, pentacle_id);
 
+        // Begin transaction for atomic feed storage
+        conn.execute("BEGIN TRANSACTION", [])?;
+
+        let result = Self::store_feed_inner(conn, feed);
+
+        match &result {
+            Ok(_) => {
+                conn.execute("COMMIT", [])?;
+            }
+            Err(_) => {
+                let _ = conn.execute("ROLLBACK", []);
+            }
+        }
+
+        result
+    }
+
+    /// Inner implementation of store_feed, separated for transaction handling
+    fn store_feed_inner(conn: &Connection, feed: FetchedFeed) -> Result<SyncResult, SyncError> {
+        let pentacle_id = feed.pentacle_id;
         let mut new_articles = 0;
         let mut updated_articles = 0;
 

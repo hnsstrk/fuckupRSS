@@ -712,42 +712,47 @@ pub async fn process_statistical_batch(
     state: State<'_, AppState>,
     limit: Option<i64>,
 ) -> Result<BatchStatisticalResult, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    // Phase 1: Load articles and config (short lock)
+    let (articles, bias, user_stopwords) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
 
-    // Load bias weights once
-    let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
+        // Load bias weights
+        let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
 
-    // Load user stopwords once
-    let user_stopwords = load_user_stopwords(db.conn()).unwrap_or_default();
+        // Load user stopwords
+        let user_stopwords = load_user_stopwords(db.conn()).unwrap_or_default();
 
-    // Get unprocessed articles with full content (including title for progress)
-    let limit_val = limit.unwrap_or(10000);
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
-            SELECT id, title, COALESCE(content_full, '') as content
-            FROM fnords
-            WHERE processed_at IS NULL
-              AND content_full IS NOT NULL
-              AND content_full != ''
-            ORDER BY published_at DESC
-            LIMIT ?
-            "#,
-        )
-        .map_err(|e| e.to_string())?;
+        // Get unprocessed articles with full content
+        let limit_val = limit.unwrap_or(10000);
+        let mut stmt = db
+            .conn()
+            .prepare(
+                r#"
+                SELECT id, title, COALESCE(content_full, '') as content
+                FROM fnords
+                WHERE processed_at IS NULL
+                  AND content_full IS NOT NULL
+                  AND content_full != ''
+                ORDER BY published_at DESC
+                LIMIT ?
+                "#,
+            )
+            .map_err(|e| e.to_string())?;
 
-    let articles: Vec<(i64, String, String)> = stmt
-        .query_map([limit_val], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        let articles: Vec<(i64, String, String)> = stmt
+            .query_map([limit_val], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        (articles, bias, user_stopwords)
+    }; // Lock released here!
 
     let total = articles.len() as i64;
     let mut processed = 0usize;
     let mut errors = Vec::new();
 
-    // Emit initial progress
+    // Emit initial progress (no lock needed)
     let _ = window.emit("statistical-progress", StatisticalProgress {
         current: 0,
         total,
@@ -757,124 +762,158 @@ pub async fn process_statistical_batch(
         error: None,
     });
 
-    // Create extractors
+    // Create extractors (no DB needed)
     let extractor = TfIdfExtractor::new().with_max_keywords(10);
     let matcher = CategoryMatcher::new().with_max_categories(3);
 
+    // Phase 2: Process each article with individual lock acquisition
     for (idx, (fnord_id, title, content)) in articles.into_iter().enumerate() {
         if content.is_empty() {
             continue;
         }
 
-        // Extract keywords
+        // CPU-bound extraction (no lock needed)
         let keywords = extractor.extract_simple_with_stopwords(&content, &user_stopwords);
-
-        // Match categories
         let categories = matcher.score_categories(&content, Some(&bias));
 
-        // Store keywords with source='statistical'
+        // Prepare keyword data before acquiring lock
+        let mut keyword_ops: Vec<(String, f64)> = Vec::new();
         for kc in keywords.iter().take(10) {
             let adjusted_score = bias.apply_to_keyword(&kc.term, kc.score);
             if adjusted_score < 0.05 {
-                continue; // Skip very low scoring keywords
-            }
-
-            // Step 1: Normalize keyword to canonical form if available (static + DB synonyms)
-            // e.g., "european" -> "Europäische Union", "russian" -> "Russland"
-            let keyword_name = find_canonical_keyword_with_db(&kc.term)
-                .unwrap_or_else(|| kc.term.clone());
-
-            // Step 2: Try to find existing keyword (learning from existing data)
-            // Priority: exact match > case-insensitive match > similar embedding
-            let keyword_id: i64 = db
-                .conn()
-                .query_row(
-                    // First try exact match
-                    "SELECT id FROM immanentize WHERE name = ?",
-                    [&keyword_name],
-                    |row| row.get(0),
-                )
-                .or_else(|_| {
-                    // Try case-insensitive match - prefer the existing capitalized version
-                    db.conn().query_row(
-                        "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?) ORDER BY name = name COLLATE NOCASE DESC LIMIT 1",
-                        [&keyword_name],
-                        |row| row.get(0),
-                    )
-                })
-                .or_else(|_| {
-                    // No match found - create new keyword with proper capitalization
-                    // Capitalize first letter of each word for German nouns
-                    let normalized_name = capitalize_keyword(&keyword_name);
-                    db.conn().execute(
-                        "INSERT INTO immanentize (name, count, article_count, first_seen, last_used) VALUES (?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-                        [&normalized_name],
-                    )?;
-                    Ok::<i64, rusqlite::Error>(db.conn().last_insert_rowid())
-                })
-                .unwrap_or(0);
-
-            if keyword_id > 0 {
-                // Insert with source='statistical', only if not already present
-                let _ = db.conn().execute(
-                    "INSERT OR IGNORE INTO fnord_immanentize (fnord_id, immanentize_id, source, confidence)
-                     VALUES (?, ?, 'statistical', ?)",
-                    params![fnord_id, keyword_id, adjusted_score.min(1.0)],
-                );
-
-                // Update article_count
-                let _ = db.conn().execute(
-                    "UPDATE immanentize SET
-                        article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?),
-                        last_used = CURRENT_TIMESTAMP
-                     WHERE id = ?",
-                    params![keyword_id, keyword_id],
-                );
-            }
-        }
-
-        // Store categories with source='statistical' (only subcategories, level=1)
-        for cs in categories.iter().take(3) {
-            if cs.confidence < 0.3 {
-                continue; // Skip low-confidence categories
-            }
-
-            // Check if this is a subcategory (level=1)
-            let is_subcategory: bool = db
-                .conn()
-                .query_row(
-                    "SELECT level = 1 FROM sephiroth WHERE id = ?",
-                    [cs.sephiroth_id],
-                    |row| row.get(0),
-                )
-                .unwrap_or(false);
-
-            if !is_subcategory {
                 continue;
             }
-
-            // Insert with source='ai' (statistical categories use same source as AI for now)
-            let _ = db.conn().execute(
-                "INSERT OR IGNORE INTO fnord_sephiroth (fnord_id, sephiroth_id, source, confidence, assigned_at)
-                 VALUES (?, ?, 'ai', ?, CURRENT_TIMESTAMP)",
-                params![fnord_id, cs.sephiroth_id, cs.confidence],
-            );
+            let keyword_name = find_canonical_keyword_with_db(&kc.term)
+                .unwrap_or_else(|| kc.term.clone());
+            keyword_ops.push((keyword_name, adjusted_score));
         }
 
-        processed += 1;
+        // Prepare category data
+        let category_ops: Vec<(i64, f64)> = categories
+            .iter()
+            .take(3)
+            .filter(|cs| cs.confidence >= 0.3)
+            .map(|cs| (cs.sephiroth_id, cs.confidence))
+            .collect();
 
-        // Emit progress every article (fast enough for statistical analysis)
+        // Phase 3: Database operations with transaction (short lock per article)
+        let article_result = {
+            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let conn = db.conn();
+
+            // Use transaction for atomicity
+            conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
+
+            let mut success = true;
+            let mut error_msg: Option<String> = None;
+
+            // Store keywords
+            for (keyword_name, adjusted_score) in &keyword_ops {
+                // Find or create keyword
+                let keyword_id: i64 = conn
+                    .query_row(
+                        "SELECT id FROM immanentize WHERE name = ?",
+                        [keyword_name],
+                        |row| row.get(0),
+                    )
+                    .or_else(|_| {
+                        conn.query_row(
+                            "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?) ORDER BY name = name COLLATE NOCASE DESC LIMIT 1",
+                            [keyword_name],
+                            |row| row.get(0),
+                        )
+                    })
+                    .or_else(|_| {
+                        let normalized_name = capitalize_keyword(keyword_name);
+                        conn.execute(
+                            "INSERT INTO immanentize (name, count, article_count, first_seen, last_used) VALUES (?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                            [&normalized_name],
+                        )?;
+                        Ok::<i64, rusqlite::Error>(conn.last_insert_rowid())
+                    })
+                    .unwrap_or(0);
+
+                if keyword_id > 0 {
+                    let _ = conn.execute(
+                        "INSERT OR IGNORE INTO fnord_immanentize (fnord_id, immanentize_id, source, confidence)
+                         VALUES (?, ?, 'statistical', ?)",
+                        params![fnord_id, keyword_id, adjusted_score.min(1.0)],
+                    );
+
+                    let _ = conn.execute(
+                        "UPDATE immanentize SET
+                            article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?),
+                            last_used = CURRENT_TIMESTAMP
+                         WHERE id = ?",
+                        params![keyword_id, keyword_id],
+                    );
+                }
+            }
+
+            // Store categories (only subcategories)
+            for (sephiroth_id, confidence) in &category_ops {
+                let is_subcategory: bool = conn
+                    .query_row(
+                        "SELECT level = 1 FROM sephiroth WHERE id = ?",
+                        [sephiroth_id],
+                        |row| row.get(0),
+                    )
+                    .unwrap_or(false);
+
+                if is_subcategory {
+                    let _ = conn.execute(
+                        "INSERT OR IGNORE INTO fnord_sephiroth (fnord_id, sephiroth_id, source, confidence, assigned_at)
+                         VALUES (?, ?, 'statistical', ?, CURRENT_TIMESTAMP)",
+                        params![fnord_id, sephiroth_id, confidence],
+                    );
+                }
+            }
+
+            // CRITICAL: Mark article as processed to prevent re-processing
+            if let Err(e) = conn.execute(
+                "UPDATE fnords SET processed_at = CURRENT_TIMESTAMP WHERE id = ?",
+                [fnord_id],
+            ) {
+                success = false;
+                error_msg = Some(format!("Failed to mark as processed: {}", e));
+            }
+
+            // Commit or rollback
+            if success {
+                if let Err(e) = conn.execute("COMMIT", []) {
+                    let _ = conn.execute("ROLLBACK", []);
+                    success = false;
+                    error_msg = Some(format!("Commit failed: {}", e));
+                }
+            } else {
+                let _ = conn.execute("ROLLBACK", []);
+            }
+
+            (success, error_msg)
+        }; // Lock released here!
+
+        let (success, error_msg) = article_result;
+        if success {
+            processed += 1;
+        } else if let Some(ref err) = error_msg {
+            errors.push(format!("{}: {}", title, err));
+        }
+
+        // Emit progress (no lock held)
         let _ = window.emit("statistical-progress", StatisticalProgress {
             current: (idx + 1) as i64,
             total,
             fnord_id,
             title: title.clone(),
-            success: true,
-            error: None,
+            success,
+            error: error_msg.clone(),
         });
+
+        // Yield to allow other tasks (embedding worker, UI) to run
+        tokio::task::yield_now().await;
     }
 
-    // Emit completion
+    // Emit completion (no lock needed)
     let _ = window.emit("statistical-progress", StatisticalProgress {
         current: total,
         total,

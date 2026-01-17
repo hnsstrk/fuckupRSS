@@ -738,7 +738,6 @@ fn transfer_keywords_to_cluster_members(
     keywords: &[String],
     categories: &[i64],
 ) -> Result<usize, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut transferred = 0;
 
     for &article_id in &cluster.article_ids {
@@ -747,50 +746,74 @@ fn transfer_keywords_to_cluster_members(
             continue;
         }
 
-        // Save keywords for this article
-        for keyword in keywords {
-            let _ = db.conn().execute(
-                r#"INSERT OR IGNORE INTO immanentize (name) VALUES (?1)"#,
-                [keyword],
-            );
+        // Acquire lock for this article only, use transaction for atomicity
+        {
+            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let conn = db.conn();
 
-            let keyword_id: i64 = db.conn().query_row(
-                "SELECT id FROM immanentize WHERE name = ?1",
-                [keyword],
-                |row| row.get(0),
-            ).unwrap_or(0);
+            conn.execute("BEGIN TRANSACTION", [])
+                .map_err(|e| e.to_string())?;
 
-            if keyword_id > 0 {
-                let _ = db.conn().execute(
-                    r#"INSERT OR REPLACE INTO fnord_immanentize
-                       (fnord_id, immanentize_id, source, confidence)
-                       VALUES (?1, ?2, 'cluster', 0.85)"#,
-                    (article_id, keyword_id),
+            let result: Result<(), String> = (|| {
+                // Save keywords for this article
+                for keyword in keywords {
+                    let _ = conn.execute(
+                        r#"INSERT OR IGNORE INTO immanentize (name) VALUES (?1)"#,
+                        [keyword],
+                    );
+
+                    let keyword_id: i64 = conn
+                        .query_row(
+                            "SELECT id FROM immanentize WHERE name = ?1",
+                            [keyword],
+                            |row| row.get(0),
+                        )
+                        .unwrap_or(0);
+
+                    if keyword_id > 0 {
+                        let _ = conn.execute(
+                            r#"INSERT OR REPLACE INTO fnord_immanentize
+                               (fnord_id, immanentize_id, source, confidence)
+                               VALUES (?1, ?2, 'cluster', 0.85)"#,
+                            (article_id, keyword_id),
+                        );
+                    }
+                }
+
+                // Save categories for this article
+                for &category_id in categories {
+                    let _ = conn.execute(
+                        r#"INSERT OR REPLACE INTO fnord_sephiroth
+                           (fnord_id, sephiroth_id, source, confidence)
+                           VALUES (?1, ?2, 'cluster', 0.85)"#,
+                        (article_id, category_id),
+                    );
+                }
+
+                // Mark as processed (via cluster)
+                let _ = conn.execute(
+                    r#"UPDATE fnords SET
+                       processed_at = CURRENT_TIMESTAMP,
+                       analysis_attempts = 0,
+                       analysis_error = 'Processed via cluster transfer'
+                    WHERE id = ?1"#,
+                    [article_id],
                 );
+
+                Ok(())
+            })();
+
+            match result {
+                Ok(()) => {
+                    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+                    transferred += 1;
+                }
+                Err(e) => {
+                    let _ = conn.execute("ROLLBACK", []);
+                    return Err(e);
+                }
             }
-        }
-
-        // Save categories for this article
-        for &category_id in categories {
-            let _ = db.conn().execute(
-                r#"INSERT OR REPLACE INTO fnord_sephiroth
-                   (fnord_id, sephiroth_id, source, confidence)
-                   VALUES (?1, ?2, 'cluster', 0.85)"#,
-                (article_id, category_id),
-            );
-        }
-
-        // Mark as processed (via cluster)
-        let _ = db.conn().execute(
-            r#"UPDATE fnords SET
-               processed_at = CURRENT_TIMESTAMP,
-               analysis_attempts = 0,
-               analysis_error = 'Processed via cluster transfer'
-            WHERE id = ?1"#,
-            [article_id],
-        );
-
-        transferred += 1;
+        } // Lock released here
     }
 
     Ok(transferred)
