@@ -222,7 +222,11 @@
       "hardwareProfile": "Performance Profile (AI Concurrency)",
       "profileDescription": "Controls the number of concurrent AI analyses. 'High-End' requires >12GB VRAM.",
       "contextLength": "Context Length (num_ctx)",
-      "contextLengthDescription": "Higher values allow longer articles but require more VRAM. 4K is sufficient for most articles."
+      "contextLengthDescription": "Higher values allow longer articles but require more VRAM. 4K is sufficient for most articles.",
+      "loadedModels": "Loaded Models (VRAM)",
+      "loadModels": "Load Models into VRAM",
+      "loadingModels": "Loading models...",
+      "loadModelsDescription": "Loads the selected models into graphics memory. The selection is saved automatically."
     },
     "prompts": {
       "title": "AI Prompts",

@@ -222,7 +222,11 @@
       "hardwareProfile": "Leistungsprofil (AI Parallelität)",
       "profileDescription": "Steuert die Anzahl gleichzeitiger KI-Analysen. 'High-End' erfordert >12GB VRAM.",
       "contextLength": "Kontext-Länge (num_ctx)",
-      "contextLengthDescription": "Höhere Werte erlauben längere Artikel, benötigen aber mehr VRAM. 4K ist für die meisten Artikel ausreichend."
+      "contextLengthDescription": "Höhere Werte erlauben längere Artikel, benötigen aber mehr VRAM. 4K ist für die meisten Artikel ausreichend.",
+      "loadedModels": "Geladene Modelle (VRAM)",
+      "loadModels": "Modelle in VRAM laden",
+      "loadingModels": "Lade Modelle...",
+      "loadModelsDescription": "Lädt die ausgewählten Modelle in den Grafikspeicher. Die Auswahl wird automatisch gespeichert."
     },
     "prompts": {
       "title": "KI-Prompts",
