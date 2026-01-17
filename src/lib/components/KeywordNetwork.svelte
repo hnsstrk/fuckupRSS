@@ -256,11 +256,19 @@
     }
   }
 
+  // Graph filter settings
+  let graphMinArticleCount = $state(3);
+  let graphMinWeight = $state(0.1);
+
   async function loadGraphDataAsync(forceRefresh = false) {
     if (graphData && !forceRefresh) return;
     graphLoading = true;
     try {
-      graphData = await invoke<NetworkGraphType>('get_network_graph', { limit: 100, minWeight: 0.01 });
+      graphData = await invoke<NetworkGraphType>('get_network_graph', {
+        limit: 100,
+        minWeight: graphMinWeight,
+        minArticleCount: graphMinArticleCount,
+      });
     } catch (e) {
       console.error('Failed to load graph:', e);
     } finally {
@@ -718,6 +726,36 @@
   {:else if activeTab === 'graph'}
   <!-- Graph View -->
   <div class="graph-view">
+    <div class="graph-filters">
+      <label class="filter-item">
+        <span class="filter-label">{$_('network.minArticles') || 'Min. Artikel'}:</span>
+        <input
+          type="range"
+          min="1"
+          max="10"
+          bind:value={graphMinArticleCount}
+          onchange={() => loadGraphDataAsync(true)}
+        />
+        <span class="filter-value">{graphMinArticleCount}</span>
+      </label>
+      <label class="filter-item">
+        <span class="filter-label">{$_('network.minWeight') || 'Min. Gewicht'}:</span>
+        <input
+          type="range"
+          min="0.05"
+          max="0.5"
+          step="0.05"
+          bind:value={graphMinWeight}
+          onchange={() => loadGraphDataAsync(true)}
+        />
+        <span class="filter-value">{graphMinWeight.toFixed(2)}</span>
+      </label>
+      {#if graphData}
+        <span class="graph-info">
+          {graphData.nodes.length} {$_('network.nodes') || 'Knoten'}, {graphData.edges.length} {$_('network.edges') || 'Kanten'}
+        </span>
+      {/if}
+    </div>
     <NetworkGraph
       graphData={graphData || emptyGraphData}
       onNodeClick={handleGraphNodeClick}
@@ -818,6 +856,50 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+  }
+
+  .graph-filters {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0.75rem 1rem;
+    background-color: var(--bg-surface);
+    border-radius: 0.5rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .filter-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .filter-label {
+    white-space: nowrap;
+  }
+
+  .filter-item input[type="range"] {
+    width: 100px;
+    accent-color: var(--accent-primary);
+  }
+
+  .filter-value {
+    min-width: 2.5rem;
+    text-align: right;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .graph-info {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background-color: var(--bg-overlay);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
   }
 
   .graph-view :global(.network-graph-container) {

@@ -67,6 +67,28 @@ static UNIFIED_STOPWORDS: Lazy<HashSet<String>> = Lazy::new(|| {
     STOPWORDS.iter().map(|s| s.to_string()).collect()
 });
 
+/// Stopwords that commonly appear at edges of keywords and should be stripped
+/// These include articles, prepositions, and conjunctions in German and English
+static EDGE_STOPWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    let words = [
+        // German articles
+        "der", "die", "das", "den", "dem", "des", "ein", "eine", "einer", "einem", "eines", "einen",
+        // German prepositions
+        "in", "im", "an", "am", "auf", "aus", "bei", "durch", "für", "gegen", "hinter", "mit",
+        "nach", "neben", "ohne", "über", "um", "unter", "von", "vor", "während", "wegen", "zu", "zum", "zur",
+        // German conjunctions
+        "und", "oder", "aber", "sondern", "denn", "doch", "sowie",
+        // English articles
+        "the", "a", "an",
+        // English prepositions
+        "on", "at", "to", "for", "of", "by", "with", "from", "into", "through", "during",
+        "before", "after", "above", "below", "between", "under", "over",
+        // English conjunctions
+        "and", "or", "but",
+    ];
+    words.into_iter().collect()
+});
+
 static ORG_SUFFIXES: Lazy<Vec<&str>> = Lazy::new(|| {
     vec![
         "gmbh",
@@ -1027,8 +1049,51 @@ static VALID_SINGLE_WORDS: Lazy<HashSet<String>> = Lazy::new(|| {
     set
 });
 
+/// Strip leading and trailing stopwords from a keyword
+/// Returns the cleaned keyword, preserving the original case of remaining words
+fn strip_edge_stopwords(keyword: &str) -> String {
+    let words: Vec<&str> = keyword.split_whitespace().collect();
+    if words.len() <= 1 {
+        return keyword.to_string();
+    }
+
+    let mut start = 0;
+    let mut end = words.len();
+
+    // Strip from the beginning
+    while start < end {
+        let word_lower = words[start].to_lowercase();
+        if EDGE_STOPWORDS.contains(word_lower.as_str()) {
+            start += 1;
+        } else {
+            break;
+        }
+    }
+
+    // Strip from the end
+    while end > start {
+        let word_lower = words[end - 1].to_lowercase();
+        if EDGE_STOPWORDS.contains(word_lower.as_str()) {
+            end -= 1;
+        } else {
+            break;
+        }
+    }
+
+    if start >= end {
+        // All words were stopwords, return the original
+        return keyword.to_string();
+    }
+
+    words[start..end].join(" ")
+}
+
 pub fn normalize_keyword(keyword: &str) -> Option<String> {
     let trimmed = keyword.trim();
+
+    // Strip leading/trailing stopwords first
+    let cleaned = strip_edge_stopwords(trimmed);
+    let trimmed = cleaned.as_str();
     let lower = trimmed.to_lowercase();
 
     if trimmed.len() < 3 || trimmed.len() > 50 {

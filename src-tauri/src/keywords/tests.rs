@@ -595,3 +595,67 @@ fn test_is_garbage_keyword_valid_keywords() {
     assert!(!is_garbage_keyword("Angela Merkel"));
     assert!(!is_garbage_keyword("Künstliche Intelligenz"));
 }
+
+// ============================================================
+// STRIP_EDGE_STOPWORDS TESTS
+// ============================================================
+
+#[test]
+fn test_strip_edge_stopwords_german_articles() {
+    assert_eq!(strip_edge_stopwords("Kopenhagen die"), "Kopenhagen");
+    assert_eq!(strip_edge_stopwords("der Bundestag"), "Bundestag");
+    assert_eq!(strip_edge_stopwords("die Regierung das"), "Regierung");
+    assert_eq!(strip_edge_stopwords("Die Bundesregierung"), "Bundesregierung");
+}
+
+#[test]
+fn test_strip_edge_stopwords_german_prepositions() {
+    assert_eq!(strip_edge_stopwords("In Kopenhagen"), "Kopenhagen");
+    assert_eq!(strip_edge_stopwords("nach Berlin"), "Berlin");
+    assert_eq!(strip_edge_stopwords("von Deutschland"), "Deutschland");
+    assert_eq!(strip_edge_stopwords("Berlin und"), "Berlin");
+}
+
+#[test]
+fn test_strip_edge_stopwords_english() {
+    assert_eq!(strip_edge_stopwords("the President"), "President");
+    assert_eq!(strip_edge_stopwords("to Washington"), "Washington");
+    assert_eq!(strip_edge_stopwords("London and"), "London");
+    assert_eq!(strip_edge_stopwords("The White House"), "White House");
+}
+
+#[test]
+fn test_strip_edge_stopwords_multiple() {
+    assert_eq!(strip_edge_stopwords("In der Bundesregierung von"), "Bundesregierung");
+    assert_eq!(strip_edge_stopwords("die und der"), "die und der"); // All stopwords, keep original
+}
+
+#[test]
+fn test_strip_edge_stopwords_preserves_middle() {
+    // Stopwords in the middle should be preserved
+    assert_eq!(strip_edge_stopwords("Angela von der Leyen"), "Angela von der Leyen");
+    assert_eq!(strip_edge_stopwords("Ursula von der Leyen"), "Ursula von der Leyen");
+}
+
+#[test]
+fn test_strip_edge_stopwords_single_word() {
+    // Single words should be unchanged
+    assert_eq!(strip_edge_stopwords("Berlin"), "Berlin");
+    assert_eq!(strip_edge_stopwords("Politik"), "Politik");
+}
+
+#[test]
+fn test_normalize_keyword_strips_stopwords() {
+    // normalize_keyword should strip edge stopwords before validation
+    let result = normalize_keyword("Kopenhagen die");
+    assert!(result.is_some());
+    assert_eq!(result.unwrap(), "Kopenhagen");
+
+    let result = normalize_keyword("In Berlin");
+    assert!(result.is_some());
+    assert_eq!(result.unwrap(), "Berlin");
+
+    let result = normalize_keyword("der Bundestag");
+    assert!(result.is_some());
+    assert_eq!(result.unwrap(), "Bundestag");
+}

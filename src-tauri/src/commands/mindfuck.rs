@@ -369,6 +369,7 @@ fn get_sachlichkeit_stats(
 pub struct BlindSpot {
     pub spot_type: String, // "category", "bias", "sachlichkeit"
     pub name: String,
+    pub icon: Option<String>, // Font Awesome icon class
     pub description: String,
     pub severity: String, // "low", "medium", "high"
     pub available_count: i64,
@@ -448,11 +449,11 @@ fn detect_category_blind_spots(
 
             Ok(Some(BlindSpot {
                 spot_type: "category".to_string(),
-                name: format!("{} {}", icon.unwrap_or_default(), name),
+                name,
+                icon,
                 description: format!(
-                    "Du hast nur {}% der verfügbaren {} Artikel gelesen",
-                    (read_ratio * 100.0).round(),
-                    name
+                    "Du hast nur {}% der verfügbaren Artikel gelesen",
+                    (read_ratio * 100.0).round()
                 ),
                 severity: severity.to_string(),
                 available_count: total_count,
@@ -501,6 +502,7 @@ fn detect_bias_blind_spots(
                 spots.push(BlindSpot {
                     spot_type: "bias".to_string(),
                     name: "Konservative Perspektiven".to_string(),
+                    icon: Some("fa-solid fa-landmark".to_string()),
                     description: format!(
                         "Du liest überwiegend links-orientierte Artikel. {} konservative Artikel warten auf dich.",
                         right_count
@@ -527,6 +529,7 @@ fn detect_bias_blind_spots(
                 spots.push(BlindSpot {
                     spot_type: "bias".to_string(),
                     name: "Progressive Perspektiven".to_string(),
+                    icon: Some("fa-solid fa-seedling".to_string()),
                     description: format!(
                         "Du liest überwiegend rechts-orientierte Artikel. {} progressive Artikel warten auf dich.",
                         left_count

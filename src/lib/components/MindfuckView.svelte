@@ -361,7 +361,12 @@
               <div class="blind-spot-item" style="border-left-color: {spot.main_category_color || getSeverityColor(spot.severity)}">
                 <div class="blind-spot-header">
                   <div class="blind-spot-name-wrapper">
-                    <span class="blind-spot-name">{spot.name}</span>
+                    <div class="blind-spot-name-row">
+                      {#if spot.icon}
+                        <i class="{spot.icon} blind-spot-icon" style="color: {spot.main_category_color || 'var(--accent-primary)'}"></i>
+                      {/if}
+                      <span class="blind-spot-name">{spot.name}</span>
+                    </div>
                     {#if spot.main_category}
                       <span class="blind-spot-main-category" style="color: {spot.main_category_color || 'var(--text-muted)'}">
                         {spot.main_category}
@@ -836,6 +841,17 @@
     display: flex;
     flex-direction: column;
     gap: 0.125rem;
+  }
+
+  .blind-spot-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .blind-spot-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
   }
 
   .blind-spot-name {

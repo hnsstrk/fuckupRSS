@@ -366,6 +366,7 @@ export interface ReadingProfile {
 export interface BlindSpot {
   spot_type: string;
   name: string;
+  icon: string | null;
   description: string;
   severity: string;
   available_count: number;

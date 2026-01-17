@@ -438,6 +438,8 @@ pub struct GraphNode {
     pub count: i64,
     pub article_count: i64,
     pub cluster_id: Option<i64>,
+    pub primary_category_id: Option<i64>,
+    pub primary_category_name: Option<String>,
 }
 
 /// Graph edge for Cytoscape visualization
@@ -514,34 +516,51 @@ pub fn get_network_graph(
     state: State<AppState>,
     limit: Option<i64>,
     min_weight: Option<f64>,
+    min_article_count: Option<i64>,
 ) -> Result<NetworkGraph, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let limit = limit.unwrap_or(100);
     let min_weight = min_weight.unwrap_or(0.1);
+    let min_article_count = min_article_count.unwrap_or(3);
 
-    // Get top keywords as nodes
+    // Get top keywords as nodes (filtered by min_article_count) with primary category
     let mut node_stmt = db
         .conn()
         .prepare(
             r#"
-            SELECT id, name, count, article_count, cluster_id
-            FROM immanentize
-            WHERE (is_canonical = TRUE OR is_canonical IS NULL)
-            AND article_count > 0
-            ORDER BY article_count DESC
+            SELECT
+                i.id,
+                i.name,
+                i.count,
+                i.article_count,
+                i.cluster_id,
+                pc.sephiroth_id as primary_category_id,
+                s.name as primary_category_name
+            FROM immanentize i
+            LEFT JOIN (
+                SELECT immanentize_id, sephiroth_id, weight,
+                       ROW_NUMBER() OVER (PARTITION BY immanentize_id ORDER BY weight DESC) as rn
+                FROM immanentize_sephiroth
+            ) pc ON pc.immanentize_id = i.id AND pc.rn = 1
+            LEFT JOIN sephiroth s ON s.id = pc.sephiroth_id
+            WHERE (i.is_canonical = TRUE OR i.is_canonical IS NULL)
+            AND i.article_count >= ?
+            ORDER BY i.article_count DESC
             LIMIT ?
             "#,
         )
         .map_err(|e| e.to_string())?;
 
     let nodes: Vec<GraphNode> = node_stmt
-        .query_map([limit], |row| {
+        .query_map([min_article_count, limit], |row| {
             Ok(GraphNode {
                 id: row.get(0)?,
                 name: row.get(1)?,
                 count: row.get(2)?,
                 article_count: row.get::<_, Option<i64>>(3)?.unwrap_or(0),
                 cluster_id: row.get(4)?,
+                primary_category_id: row.get(5)?,
+                primary_category_name: row.get(6)?,
             })
         })
         .map_err(|e| e.to_string())?
