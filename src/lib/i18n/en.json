@@ -625,6 +625,8 @@
     "type": "Type",
     "actions": "Actions",
     "showArticles": "Show articles with this keyword",
+    "detectTypes": "Detect types",
+    "detectTypesTitle": "Detects keyword types for unclassified keywords",
     "keywordType": {
       "concept": "Concept",
       "person": "Person",

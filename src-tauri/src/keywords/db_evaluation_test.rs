@@ -189,8 +189,13 @@ mod tests {
         println!("==========================================================================\n");
 
         for (idx, (id, title, content)) in articles.iter().take(10).enumerate() {
+            // Safely truncate at char boundary
             let truncated_content = if content.len() > 5000 {
-                &content[..5000]
+                let mut end = 5000;
+                while !content.is_char_boundary(end) && end > 0 {
+                    end -= 1;
+                }
+                &content[..end]
             } else {
                 content.as_str()
             };

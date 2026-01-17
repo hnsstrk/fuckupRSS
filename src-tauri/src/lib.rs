@@ -214,6 +214,8 @@ pub fn run() {
             commands::immanentize::auto_merge_similar_keywords,
             // Keyword Type Batch Update
             commands::immanentize::update_keyword_types,
+            // Keyword Cleanup (stopwords, seeds, type detection)
+            commands::immanentize::cleanup_keywords,
             // Embedding Queue
             commands::embedding::get_embedding_queue_status,
             commands::embedding::process_embedding_queue_now,
@@ -265,6 +267,8 @@ pub fn run() {
             commands::keyword_type_detection::generate_keyword_type_prototypes,
             commands::keyword_type_detection::detect_single_keyword_type,
             commands::keyword_type_detection::update_keyword_types_hybrid,
+            commands::keyword_type_detection::count_untyped_keywords,
+            commands::keyword_type_detection::update_untyped_keywords,
             commands::keyword_type_detection::get_prototype_stats,
         ])
         .build(tauri::generate_context!())

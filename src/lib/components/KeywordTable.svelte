@@ -26,6 +26,10 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
 
+  // Untyped keywords detection
+  let untypedCount = $state(0);
+  let detectingTypes = $state(false);
+
   // Sorting
   type SortColumn = 'name' | 'keyword_type' | 'article_count' | 'first_seen' | 'last_used';
   type SortDirection = 'asc' | 'desc';
@@ -192,8 +196,33 @@
     minArticleCount = parseInt(target.value) || 0;
   }
 
+  async function loadUntypedCount() {
+    try {
+      untypedCount = await invoke<number>('count_untyped_keywords');
+    } catch (e) {
+      console.error('Failed to load untyped count:', e);
+      untypedCount = 0;
+    }
+  }
+
+  async function detectUntypedKeywords() {
+    if (detectingTypes || untypedCount === 0) return;
+    detectingTypes = true;
+
+    try {
+      await invoke('update_untyped_keywords');
+      await loadUntypedCount();
+      await loadKeywords(true);
+    } catch (e) {
+      console.error('Failed to detect keyword types:', e);
+    } finally {
+      detectingTypes = false;
+    }
+  }
+
   onMount(() => {
     loadKeywords(true);
+    loadUntypedCount();
   });
 </script>
 
@@ -236,6 +265,26 @@
         </button>
       {/if}
     </div>
+
+    <!-- Detect untyped keywords -->
+    {#if untypedCount > 0}
+      <div class="filter-group filter-group-right">
+        <button
+          onclick={detectUntypedKeywords}
+          disabled={detectingTypes}
+          class="detect-types-btn"
+          title={$_('network.detectTypesTitle') || 'Erkennt Keyword-Typen fuer noch nicht klassifizierte Keywords'}
+        >
+          {#if detectingTypes}
+            <i class="fa-solid fa-spinner fa-spin"></i>
+          {:else}
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+          {/if}
+          <span>{$_('network.detectTypes') || 'Typen erkennen'}</span>
+          <span class="untyped-badge">{untypedCount}</span>
+        </button>
+      </div>
+    {/if}
   </div>
 
   <!-- Table -->
@@ -485,6 +534,49 @@
   .clear-filter-btn:hover {
     color: var(--accent-error);
     border-color: var(--accent-error);
+  }
+
+  /* Detect types button */
+  .filter-group-right {
+    margin-left: auto;
+  }
+
+  .detect-types-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--bg-overlay);
+    border: 1px solid var(--accent-primary);
+    border-radius: 0.375rem;
+    color: var(--accent-primary);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .detect-types-btn:hover:not(:disabled) {
+    background-color: var(--accent-primary);
+    color: var(--bg-surface);
+  }
+
+  .detect-types-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .untyped-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    height: 1.25rem;
+    padding: 0 0.375rem;
+    background-color: var(--accent-warning);
+    color: var(--bg-surface);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    border-radius: 0.75rem;
   }
 
   /* Table Wrapper */

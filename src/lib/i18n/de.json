@@ -625,6 +625,8 @@
     "type": "Typ",
     "actions": "Aktionen",
     "showArticles": "Artikel mit diesem Keyword anzeigen",
+    "detectTypes": "Typen erkennen",
+    "detectTypesTitle": "Erkennt Keyword-Typen für noch nicht klassifizierte Keywords",
     "keywordType": {
       "concept": "Konzept",
       "person": "Person",

@@ -449,17 +449,17 @@ mod tests {
     #[test]
     fn test_tokenize_filters_short_words() {
         let extractor = TfIdfExtractor::new().with_min_word_length(4);
-        let tokens = extractor.tokenize("Das ist ein Test für kurze Wörter");
+        let tokens = extractor.tokenize("Das ist ein Test für schnelle Maschinen");
 
         // Should filter out words shorter than 4 chars
         assert!(!tokens.contains(&"ist".to_string()));
         assert!(!tokens.contains(&"ein".to_string()));
         assert!(!tokens.contains(&"für".to_string()));
 
-        // Should keep longer words
+        // Should keep longer words (not in stopwords)
         assert!(tokens.contains(&"test".to_string()));
-        assert!(tokens.contains(&"kurze".to_string()));
-        assert!(tokens.contains(&"wörter".to_string()));
+        assert!(tokens.contains(&"schnelle".to_string()));
+        assert!(tokens.contains(&"maschinen".to_string()));
     }
 
     #[test]

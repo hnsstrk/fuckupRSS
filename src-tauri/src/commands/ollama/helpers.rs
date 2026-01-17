@@ -792,8 +792,9 @@ pub fn detect_keyword_type(keyword: &str) -> String {
                 // Events (specific patterns)
                 " cup", "cup ", " open", "open ", " slam", "slam ",
                 " tour", "tour ", " prix", "prix ", " award", "awards",
-                // Organizations patterns
-                " fc", "fc ", " sc", "sc ", " ac", "ac ",
+                // Organizations patterns - only prefix patterns, not suffix
+                // (suffix patterns like " sc", " fc" removed - they break names like "Olaf Scholz")
+                "fc ", "sc ", "ac ",
                 "united", "city ", " city", "palace", "villa", "milan",
                 "rovers", "wanderers", "athletic",
                 // News/Media
@@ -808,6 +809,12 @@ pub fn detect_keyword_type(keyword: &str) -> String {
             ];
 
             if non_person_patterns.iter().any(|pat| keyword_lower.contains(pat)) {
+                return "concept".to_string();
+            }
+
+            // Sports club suffixes - only match at end of keyword as whole word
+            let sports_club_suffixes = [" fc", " sc", " ac"];
+            if sports_club_suffixes.iter().any(|suf| keyword_lower.ends_with(suf)) {
                 return "concept".to_string();
             }
 

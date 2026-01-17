@@ -1,4 +1,13 @@
 use crate::text_analysis::STOPWORDS;
+use crate::text_analysis::keyword_seeds::{
+    KNOWN_ACRONYMS as SEED_ACRONYMS,
+    KNOWN_CONCEPTS as SEED_CONCEPTS,
+    KNOWN_LOCATIONS as SEED_LOCATIONS,
+    KNOWN_ORGANIZATIONS as SEED_ORGANIZATIONS,
+    KNOWN_PERSONS as SEED_PERSONS,
+    KNOWN_SPORTS as SEED_SPORTS,
+    get_known_keyword_type,
+};
 use keyword_extraction::rake::{Rake, RakeParams};
 use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
@@ -89,15 +98,21 @@ static ORG_SUFFIXES: Lazy<Vec<&str>> = Lazy::new(|| {
     ]
 });
 
+/// Known acronyms from seed data - used for keyword validation
 static KNOWN_ACRONYMS: Lazy<HashSet<&str>> = Lazy::new(|| {
-    [
-        "USA", "EU", "UN", "NATO", "SPD", "CDU", "CSU", "AFD", "FDP", "EZB", "EKD", "BMW", "VW",
-        "BASF", "SAP", "DFB", "FIFA", "UEFA", "IOC", "WHO", "WTO", "FBI", "CIA", "NSA", "BND",
-        "BKA", "LKA", "BBC", "CNN", "ARD", "ZDF",
-    ]
-    .iter()
-    .copied()
-    .collect()
+    SEED_ACRONYMS.iter().copied().collect()
+});
+
+/// Known entities from seed data - used for validation
+static KNOWN_ENTITIES: Lazy<HashSet<&str>> = Lazy::new(|| {
+    let mut set = HashSet::new();
+    for &s in SEED_PERSONS.iter() { set.insert(s); }
+    for &s in SEED_ORGANIZATIONS.iter() { set.insert(s); }
+    for &s in SEED_LOCATIONS.iter() { set.insert(s); }
+    for &s in SEED_ACRONYMS.iter() { set.insert(s); }
+    for &s in SEED_CONCEPTS.iter() { set.insert(s); }
+    for &s in SEED_SPORTS.iter() { set.insert(s); }
+    set
 });
 
 pub struct KeywordExtractor {
@@ -1002,47 +1017,14 @@ pub fn is_garbage_keyword(keyword: &str) -> bool {
     false
 }
 
-static VALID_SINGLE_WORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-    [
-        "nato",
-        "eu",
-        "un",
-        "usa",
-        "cdu",
-        "csu",
-        "spd",
-        "fdp",
-        "afd",
-        "dax",
-        "iran",
-        "irak",
-        "gaza",
-        "israel",
-        "china",
-        "japan",
-        "trump",
-        "biden",
-        "putin",
-        "scholz",
-        "merz",
-        "habeck",
-        "lindner",
-        "tesla",
-        "apple",
-        "google",
-        "amazon",
-        "microsoft",
-        "meta",
-        "bitcoin",
-        "corona",
-        "covid",
-        "klima",
-        "ukraine",
-        "russland",
-    ]
-    .iter()
-    .copied()
-    .collect()
+/// Valid single words from seed data (lowercase for matching)
+static VALID_SINGLE_WORDS: Lazy<HashSet<String>> = Lazy::new(|| {
+    let mut set = HashSet::new();
+    // Add all known entities in lowercase for matching
+    for &s in KNOWN_ENTITIES.iter() {
+        set.insert(s.to_lowercase());
+    }
+    set
 });
 
 pub fn normalize_keyword(keyword: &str) -> Option<String> {
@@ -1096,11 +1078,11 @@ pub fn normalize_keyword(keyword: &str) -> Option<String> {
     let words: Vec<&str> = trimmed.split_whitespace().collect();
 
     if words.len() == 1 {
-        if lower.len() < 4 && !VALID_SINGLE_WORDS.contains(lower.as_str()) {
+        if lower.len() < 4 && !VALID_SINGLE_WORDS.contains(&lower) {
             return None;
         }
 
-        if !VALID_SINGLE_WORDS.contains(lower.as_str())
+        if !VALID_SINGLE_WORDS.contains(&lower)
             && !trimmed
                 .chars()
                 .next()
@@ -1125,7 +1107,7 @@ pub fn normalize_keyword(keyword: &str) -> Option<String> {
         return Some(trimmed.to_string());
     }
 
-    if words.len() == 1 && VALID_SINGLE_WORDS.contains(lower.as_str()) {
+    if words.len() == 1 && VALID_SINGLE_WORDS.contains(&lower) {
         return Some(trimmed.to_string());
     }
 

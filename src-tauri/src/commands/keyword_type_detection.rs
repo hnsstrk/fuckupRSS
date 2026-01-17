@@ -346,6 +346,110 @@ pub async fn update_keyword_types_hybrid(
     })
 }
 
+/// Count keywords without a type
+#[tauri::command]
+pub fn count_untyped_keywords(state: State<AppState>) -> Result<i64, String> {
+    let db = state.db.lock().map_err(|e: PoisonError<_>| e.to_string())?;
+    let count: i64 = db
+        .conn()
+        .query_row(
+            "SELECT COUNT(*) FROM immanentize WHERE keyword_type IS NULL",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    Ok(count)
+}
+
+/// Update only keywords that don't have a type yet
+#[tauri::command]
+pub async fn update_untyped_keywords(
+    state: State<'_, AppState>,
+) -> Result<KeywordTypeBatchResult, String> {
+    // Get only keywords without a type
+    let keywords: Vec<(i64, String)> = {
+        let db = state.db.lock().map_err(|e: PoisonError<_>| e.to_string())?;
+        let mut stmt = db
+            .conn()
+            .prepare("SELECT id, name FROM immanentize WHERE keyword_type IS NULL")
+            .map_err(|e| e.to_string())?;
+
+        let result: Vec<(i64, String)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        result
+    };
+
+    let total = keywords.len() as i64;
+    let mut processed = 0i64;
+    let mut updated = 0i64;
+    let mut errors = 0i64;
+    let mut by_type = TypeCounts::default();
+    let mut by_method = MethodCounts::default();
+
+    for (id, name) in keywords {
+        processed += 1;
+
+        let detection = detect_keyword_type_with_confidence(&name);
+
+        // Update database
+        let update_result = {
+            let db = state.db.lock().map_err(|e: PoisonError<_>| e.to_string())?;
+            db.conn().execute(
+                "UPDATE immanentize SET keyword_type = ?1 WHERE id = ?2",
+                params![&detection.keyword_type, id],
+            )
+        };
+
+        match update_result {
+            Ok(_) => {
+                updated += 1;
+
+                // Count by type
+                match detection.keyword_type.as_str() {
+                    "person" => by_type.person += 1,
+                    "organization" => by_type.organization += 1,
+                    "location" => by_type.location += 1,
+                    "acronym" => by_type.acronym += 1,
+                    _ => by_type.concept += 1,
+                }
+
+                // Count by method
+                by_method.heuristic += 1;
+            }
+            Err(e) => {
+                warn!("Failed to update type for keyword {}: {}", id, e);
+                errors += 1;
+            }
+        }
+    }
+
+    info!(
+        "Untyped keyword batch: {} total, {} updated, {} errors",
+        total, updated, errors
+    );
+    info!(
+        "By type: {} person, {} org, {} location, {} acronym, {} concept",
+        by_type.person,
+        by_type.organization,
+        by_type.location,
+        by_type.acronym,
+        by_type.concept
+    );
+
+    Ok(KeywordTypeBatchResult {
+        total,
+        processed,
+        updated,
+        errors,
+        by_type,
+        by_method,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -373,5 +477,40 @@ mod tests {
 
         // Check all 5 types are represented
         assert_eq!(TYPE_PROTOTYPES.len(), 5);
+    }
+
+    #[test]
+    fn test_real_world_keywords() {
+        // Test keywords from actual database
+        let test_cases = [
+            // Locations
+            ("Berlin", "location"),
+            ("Deutschland", "location"),
+            ("München", "location"),
+            // Acronyms
+            ("CDU", "acronym"),
+            ("SPD", "acronym"),
+            ("EU", "acronym"),
+            ("NATO", "acronym"),
+            // Persons (including names starting with Sc, Fc, Ac)
+            ("Donald Trump", "person"),
+            ("Elon Musk", "person"),
+            ("Olaf Scholz", "person"),
+            ("Joe Biden", "person"),
+            ("Angela Merkel", "person"),
+            ("Friedrich Merz", "person"),
+            // Organizations
+            ("Deutsche Bank", "organization"),
+            ("Bundesregierung", "organization"),
+            // Sports clubs (organization, not person)
+            ("Bayern SC", "organization"),  // ends with " sc" -> org pattern
+            ("FC Bayern", "organization"),  // starts with "fc " -> org pattern
+        ];
+
+        for (keyword, expected_type) in test_cases {
+            let result = detect_keyword_type_with_confidence(keyword);
+            println!("{:30} -> {} (expected: {})", keyword, result.keyword_type, expected_type);
+            assert_eq!(result.keyword_type, expected_type, "Failed for: {}", keyword);
+        }
     }
 }

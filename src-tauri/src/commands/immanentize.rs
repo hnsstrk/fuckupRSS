@@ -3,6 +3,7 @@ use crate::{find_canonical_keyword_with_db, normalize_keyword, AppState};
 use log::{trace, warn};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use tauri::State;
 
 // ============================================================
@@ -2244,5 +2245,128 @@ pub fn update_keyword_types(state: State<AppState>) -> Result<KeywordTypeUpdateR
         organization_count,
         location_count,
         acronym_count,
+    })
+}
+
+/// Result of keyword cleanup operation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeywordCleanupResult {
+    pub stopwords_refreshed: i64,
+    pub stopword_keywords_deleted: i64,
+    pub seeds_inserted: i64,
+    pub types_updated_from_seeds: i64,
+    pub types_updated_from_heuristics: i64,
+}
+
+/// Comprehensive keyword cleanup: refresh stopwords, delete stopword-only keywords,
+/// seed known entities, and update keyword types
+#[tauri::command]
+pub fn cleanup_keywords(state: State<AppState>) -> Result<KeywordCleanupResult, String> {
+    use crate::text_analysis::{STOPWORDS, seed_known_keywords, update_types_from_seeds};
+    use super::ollama::helpers::detect_keyword_type;
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Step 1: Refresh system stopwords in database
+    // First, get current count
+    let old_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM stopwords WHERE source = 'system'", [], |row| row.get(0))
+        .unwrap_or(0);
+
+    // Delete old system stopwords and re-insert
+    conn.execute("DELETE FROM stopwords WHERE source = 'system'", [])
+        .map_err(|e| e.to_string())?;
+
+    let mut stopwords_inserted = 0i64;
+    for word in STOPWORDS.iter() {
+        if conn.execute(
+            "INSERT OR IGNORE INTO stopwords (word, source, language) VALUES (?1, 'system', NULL)",
+            params![word.to_lowercase()],
+        ).is_ok() {
+            stopwords_inserted += 1;
+        }
+    }
+
+    log::info!("Stopwords refreshed: {} old -> {} new", old_count, stopwords_inserted);
+
+    // Step 2: Delete keywords that are pure stopwords
+    // Get all stopwords from DB for comparison
+    let db_stopwords: HashSet<String> = conn
+        .prepare("SELECT word FROM stopwords")
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Find keywords that are stopwords (case-insensitive)
+    let keywords_to_check: Vec<(i64, String)> = conn
+        .prepare("SELECT id, name FROM immanentize")
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut stopword_keywords_deleted = 0i64;
+    for (id, name) in &keywords_to_check {
+        let name_lower = name.to_lowercase();
+        // Check if the keyword is a single stopword
+        if db_stopwords.contains(&name_lower) {
+            // Delete the keyword and its associations
+            conn.execute("DELETE FROM fnord_immanentize WHERE immanentize_id = ?1", params![id])
+                .ok();
+            conn.execute("DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?1", params![id])
+                .ok();
+            conn.execute("DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ?1 OR immanentize_id_b = ?1", params![id])
+                .ok();
+            if conn.execute("DELETE FROM immanentize WHERE id = ?1", params![id]).is_ok() {
+                stopword_keywords_deleted += 1;
+            }
+        }
+    }
+
+    log::info!("Deleted {} stopword-only keywords", stopword_keywords_deleted);
+
+    // Step 3: Seed known keywords
+    let seeds_inserted = seed_known_keywords(conn).unwrap_or(0) as i64;
+    log::info!("Seeded {} known keywords", seeds_inserted);
+
+    // Step 4: Update types from seed data (for existing keywords)
+    let types_updated_from_seeds = update_types_from_seeds(conn).unwrap_or(0) as i64;
+    log::info!("Updated {} keyword types from seeds", types_updated_from_seeds);
+
+    // Step 5: Run heuristic type detection on remaining keywords
+    let keywords_needing_update: Vec<(i64, String)> = conn
+        .prepare("SELECT id, name FROM immanentize WHERE keyword_type IS NULL OR keyword_type = 'concept'")
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut types_updated_from_heuristics = 0i64;
+    for (id, name) in &keywords_needing_update {
+        let detected_type = detect_keyword_type(name);
+        // Only update if not concept (we want to keep specific types)
+        if detected_type != "concept" {
+            if conn.execute(
+                "UPDATE immanentize SET keyword_type = ?1 WHERE id = ?2",
+                params![&detected_type, id],
+            ).is_ok() {
+                types_updated_from_heuristics += 1;
+            }
+        }
+    }
+
+    log::info!("Updated {} keyword types from heuristics", types_updated_from_heuristics);
+
+    Ok(KeywordCleanupResult {
+        stopwords_refreshed: stopwords_inserted,
+        stopword_keywords_deleted,
+        seeds_inserted,
+        types_updated_from_seeds,
+        types_updated_from_heuristics,
     })
 }

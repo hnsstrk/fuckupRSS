@@ -9,6 +9,7 @@ mod stopwords;
 mod tfidf;
 mod category_matcher;
 mod bias;
+pub mod keyword_seeds;
 
 // Export public API
 pub use tfidf::{TfIdfExtractor, CorpusStats};
@@ -20,4 +21,8 @@ pub use stopwords::{
     add_user_stopword, remove_user_stopword, remove_stopword,
     get_all_stopwords, get_stopword_stats, StopwordStats, is_stopword,
     count_user_stopwords, count_system_stopwords, count_all_stopwords,
+};
+pub use keyword_seeds::{
+    seed_known_keywords, update_types_from_seeds, get_known_keyword_type,
+    KNOWN_PERSONS, KNOWN_ORGANIZATIONS, KNOWN_LOCATIONS, KNOWN_ACRONYMS,
 };

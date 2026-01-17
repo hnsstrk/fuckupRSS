@@ -35,83 +35,574 @@ pub static STOPWORDS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
 });
 
 static GERMAN_STOPWORDS: &[&str] = &[
-    // Articles
+    // ========================================
+    // ARTICLES
+    // ========================================
     "der", "die", "das", "den", "dem", "des", "ein", "eine", "einer", "einem", "einen", "eines",
-    // Pronouns
-    "ich", "du", "er", "sie", "es", "wir", "ihr", "sie", "mich", "dich", "sich", "uns", "euch",
-    "mir", "dir", "ihm", "ihr", "ihnen", "mein", "dein", "sein", "unser", "euer",
+
+    // ========================================
+    // PRONOUNS (all cases and forms)
+    // ========================================
+    "ich", "du", "er", "sie", "es", "wir", "ihr", "mich", "dich", "sich", "uns", "euch",
+    "mir", "dir", "ihm", "ihnen", "mein", "dein", "sein", "unser", "euer",
     "meiner", "deiner", "seiner", "unserer", "eurer", "meinen", "deinen", "seinen",
-    // Prepositions
+    "meine", "deine", "seine", "unsere", "eure", "meines", "deines", "seines",
+    "meinem", "deinem", "seinem", "unserem", "eurem", "unseren", "euren",
+    "ihre", "ihrer", "ihren", "ihrem", "ihres", "dessen", "deren", "derer",
+    "man", "jemand", "niemand", "etwas", "nichts", "alles", "wer", "was",
+
+    // ========================================
+    // PREPOSITIONS
+    // ========================================
     "in", "an", "auf", "aus", "bei", "mit", "nach", "über", "unter", "vor", "zwischen",
     "durch", "für", "gegen", "ohne", "um", "von", "zu", "bis", "seit", "während",
-    // Conjunctions
+    "wegen", "trotz", "statt", "anstatt", "außer", "binnen", "dank", "entlang",
+    "gegenüber", "gemäß", "infolge", "inmitten", "innerhalb", "jenseits", "kraft",
+    "längs", "laut", "mangels", "mittels", "oberhalb", "seitens", "unterhalb",
+    "unweit", "vermöge", "zufolge", "zugunsten", "zuliebe", "zwecks",
+    // Contracted forms
+    "im", "am", "ans", "aufs", "beim", "durchs", "fürs", "hinters", "ins", "übers",
+    "ums", "unters", "vom", "vors", "zum", "zur",
+
+    // ========================================
+    // CONJUNCTIONS
+    // ========================================
     "und", "oder", "aber", "denn", "weil", "wenn", "als", "ob", "dass", "damit", "obwohl",
     "sondern", "sowohl", "weder", "noch", "entweder", "bevor", "nachdem", "sobald",
-    // Auxiliary verbs
-    "sein", "haben", "werden", "ist", "sind", "war", "waren", "hat", "hatte", "hatten",
-    "wird", "wurde", "wurden", "kann", "können", "konnte", "konnten", "muss", "müssen",
-    "musste", "mussten", "soll", "sollen", "sollte", "sollten", "will", "wollen",
-    "wollte", "wollten", "darf", "dürfen", "durfte", "durften", "mag", "mögen",
-    // Adverbs
+    "solange", "sofern", "soweit", "falls", "obgleich", "obschon", "obzwar",
+    "wenngleich", "während", "indem", "wobei", "weshalb", "weswegen", "worauf",
+    "woraufhin", "wohingegen", "zumal", "da",
+
+    // ========================================
+    // AUXILIARY & MODAL VERBS (all forms)
+    // ========================================
+    // sein
+    "sein", "bin", "bist", "ist", "sind", "seid", "war", "warst", "waren", "wart",
+    "gewesen", "sei", "seist", "seien", "seiet", "wäre", "wärst", "wären", "wäret",
+    // haben
+    "haben", "habe", "hast", "hat", "habt", "hatte", "hattest", "hatten", "hattet",
+    "gehabt", "hätte", "hättest", "hätten", "hättet",
+    // werden
+    "werden", "werde", "wirst", "wird", "werdet", "wurde", "wurdest", "wurden", "wurdet",
+    "geworden", "worden", "würde", "würdest", "würden", "würdet",
+    // können
+    "können", "kann", "kannst", "könnt", "konnte", "konntest", "konnten", "konntet",
+    "gekonnt", "könnte", "könntest", "könnten", "könntet",
+    // müssen
+    "müssen", "muss", "musst", "müsst", "musste", "musstest", "mussten", "musstet",
+    "gemusst", "müsste", "müsstest", "müssten", "müsstet",
+    // sollen
+    "sollen", "soll", "sollst", "sollt", "sollte", "solltest", "sollten", "solltet", "gesollt",
+    // wollen
+    "wollen", "will", "willst", "wollt", "wollte", "wolltest", "wollten", "wolltet", "gewollt",
+    // dürfen
+    "dürfen", "darf", "darfst", "dürft", "durfte", "durftest", "durften", "durftet",
+    "gedurft", "dürfte", "dürftest", "dürften", "dürftet",
+    // mögen
+    "mögen", "mag", "magst", "mögt", "mochte", "mochtest", "mochten", "mochtet",
+    "gemocht", "möchte", "möchtest", "möchten", "möchtet",
+    // lassen
+    "lassen", "lasse", "lässt", "lasst", "ließ", "ließt", "ließen", "gelassen",
+
+    // ========================================
+    // COMMON VERBS (all forms) - NEWS CRITICAL
+    // ========================================
+    // sagen (say)
+    "sagen", "sage", "sagst", "sagt", "sagte", "sagtest", "sagten", "sagtet", "gesagt",
+    // geben (give)
+    "geben", "gebe", "gibst", "gibt", "gebt", "gab", "gabst", "gaben", "gabt", "gegeben",
+    // gehen (go)
+    "gehen", "gehe", "gehst", "geht", "ging", "gingst", "gingen", "gingt", "gegangen",
+    // kommen (come)
+    "kommen", "komme", "kommst", "kommt", "kam", "kamst", "kamen", "kamt", "gekommen",
+    // machen (make/do)
+    "machen", "mache", "machst", "macht", "machte", "machtest", "machten", "machtet", "gemacht",
+    // nehmen (take)
+    "nehmen", "nehme", "nimmst", "nimmt", "nehmt", "nahm", "nahmst", "nahmen", "nahmt", "genommen",
+    // stehen (stand)
+    "stehen", "stehe", "stehst", "steht", "stand", "standst", "standen", "standet", "gestanden",
+    // bleiben (stay)
+    "bleiben", "bleibe", "bleibst", "bleibt", "blieb", "bliebst", "blieben", "bliebt", "geblieben",
+    // heißen (be called)
+    "heißen", "heiße", "heißt", "hieß", "hießt", "hießen", "geheißen",
+    // liegen (lie)
+    "liegen", "liege", "liegst", "liegt", "lag", "lagst", "lagen", "lagt", "gelegen",
+    // sehen (see)
+    "sehen", "sehe", "siehst", "sieht", "seht", "sah", "sahst", "sahen", "saht", "gesehen",
+    // wissen (know)
+    "wissen", "weiß", "weißt", "wisst", "wusste", "wusstest", "wussten", "wusstet", "gewusst",
+    // zeigen (show)
+    "zeigen", "zeige", "zeigst", "zeigt", "zeigte", "zeigtest", "zeigten", "zeigtet", "gezeigt",
+    // führen (lead)
+    "führen", "führe", "führst", "führt", "führte", "führtest", "führten", "führtet", "geführt",
+    // halten (hold)
+    "halten", "halte", "hältst", "hält", "haltet", "hielt", "hieltest", "hielten", "hieltet", "gehalten",
+    // bringen (bring)
+    "bringen", "bringe", "bringst", "bringt", "brachte", "brachtest", "brachten", "brachtet", "gebracht",
+    // finden (find)
+    "finden", "finde", "findest", "findet", "fand", "fandst", "fanden", "fandet", "gefunden",
+    // tragen (carry)
+    "tragen", "trage", "trägst", "trägt", "tragt", "trug", "trugst", "trugen", "trugt", "getragen",
+    // setzen (set)
+    "setzen", "setze", "setzt", "setzte", "setztest", "setzten", "setztet", "gesetzt",
+    // sprechen (speak)
+    "sprechen", "spreche", "sprichst", "spricht", "sprecht", "sprach", "sprachst", "sprachen", "spracht", "gesprochen",
+    // schreiben (write)
+    "schreiben", "schreibe", "schreibst", "schreibt", "schrieb", "schriebst", "schrieben", "schriebt", "geschrieben",
+    // lesen (read)
+    "lesen", "lese", "liest", "lest", "las", "last", "lasen", "gelesen",
+    // erklären (explain)
+    "erklären", "erkläre", "erklärst", "erklärt", "erklärte", "erklärtest", "erklärten", "erklärtet",
+    // berichten (report)
+    "berichten", "berichte", "berichtest", "berichtet", "berichtete", "berichtetest", "berichteten", "berichtetet",
+    // meinen (mean/think)
+    "meinen", "meine", "meinst", "meint", "meinte", "meintest", "meinten", "meintet", "gemeint",
+    // glauben (believe)
+    "glauben", "glaube", "glaubst", "glaubt", "glaubte", "glaubtest", "glaubten", "glaubtet", "geglaubt",
+    // denken (think)
+    "denken", "denke", "denkst", "denkt", "dachte", "dachtest", "dachten", "dachtet", "gedacht",
+    // scheinen (seem)
+    "scheinen", "scheine", "scheinst", "scheint", "schien", "schienst", "schienen", "schient", "geschienen",
+    // beginnen (begin)
+    "beginnen", "beginne", "beginnst", "beginnt", "begann", "begannst", "begannen", "begannt", "begonnen",
+    // enden (end)
+    "enden", "ende", "endest", "endet", "endete", "endetest", "endeten", "endetet", "geendet",
+    // folgen (follow)
+    "folgen", "folge", "folgst", "folgt", "folgte", "folgtest", "folgten", "folgtet", "gefolgt",
+    // betreffen (concern)
+    "betreffen", "betreffe", "betriffst", "betrifft", "betraft", "betraf", "betrafen", "betroffen",
+    // erwarten (expect)
+    "erwarten", "erwarte", "erwartest", "erwartet", "erwartete", "erwartetest", "erwarteten", "erwartet",
+    // fordern (demand)
+    "fordern", "fordere", "forderst", "fordert", "forderte", "fordertest", "forderten", "gefordert",
+    // warnen (warn)
+    "warnen", "warne", "warnst", "warnt", "warnte", "warntest", "warnten", "gewarnt",
+    // bestätigen (confirm)
+    "bestätigen", "bestätige", "bestätigst", "bestätigt", "bestätigte", "bestätigtest", "bestätigten", "bestätigt",
+    // mitteilen (inform)
+    "mitteilen", "teile", "teilst", "teilt", "teilte", "teiltest", "teilten", "mitgeteilt",
+    // hinweisen (point out)
+    "hinweisen", "hinweise", "hinweist", "wies", "wiesen", "hingewiesen",
+    // bekannt (known)
+    "bekannt", "bekanntgeben", "bekanntgegeben",
+
+    // ========================================
+    // ADVERBS
+    // ========================================
     "auch", "noch", "schon", "nur", "sehr", "so", "wie", "hier", "dort", "da", "dann",
     "wann", "wo", "warum", "weshalb", "wieso", "jetzt", "nun", "immer", "nie", "oft",
     "manchmal", "vielleicht", "bestimmt", "sicher", "etwa", "ungefähr", "fast", "ganz",
     "gar", "ziemlich", "recht", "eher", "mehr", "weniger", "meist", "mindestens",
-    // Adjectives (common)
+    "wieder", "bereits", "bisher", "künftig", "insgesamt", "insbesondere",
+    "außerdem", "zudem", "dabei", "dafür", "dagegen", "danach", "davor", "dazu",
+    "darauf", "darin", "darüber", "darunter", "davon", "damit", "daran", "darum",
+    "deshalb", "deswegen", "daher", "dadurch", "dennoch", "trotzdem", "allerdings",
+    "jedoch", "freilich", "jedenfalls", "übrigens", "nämlich", "eigentlich", "überhaupt",
+    "sozusagen", "gleichsam", "gewissermaßen", "offenbar", "anscheinend", "vermutlich",
+    "wahrscheinlich", "möglicherweise", "eventuell", "tatsächlich", "wirklich",
+    "zuletzt", "zunächst", "zuerst", "schließlich", "endlich", "letztlich", "letztendlich",
+    "inzwischen", "mittlerweile", "unterdessen", "derweil", "derzeit", "zurzeit",
+    "sofort", "gleich", "bald", "später", "früher", "vorher", "nachher", "daneben",
+    "daraufhin", "dementsprechend", "demzufolge", "folglich", "somit", "demnach",
+    "hierzulande", "anderorts", "anderswo", "überall", "nirgends", "irgendwo",
+
+    // ========================================
+    // ADJECTIVES (common forms)
+    // ========================================
     "andere", "anderer", "anderes", "anderen", "anderem", "alle", "aller", "alles", "allem",
     "viel", "viele", "vieler", "vielen", "vielem", "wenig", "wenige", "weniger",
     "einige", "einiger", "einiges", "einigen", "einigem", "manche", "mancher", "manches",
     "jede", "jeder", "jedes", "jeden", "jedem", "keine", "keiner", "keines", "keinen", "keinem",
-    // Numbers
-    "eins", "zwei", "drei", "vier", "fünf", "erste", "zweite", "dritte",
-    // Question words
-    "was", "wer", "wen", "wem", "wessen", "welche", "welcher", "welches", "welchen", "welchem",
-    // Demonstratives
+    "solche", "solcher", "solches", "solchen", "solchem", "gleiche", "gleicher", "gleiches",
+    "gleichen", "gleichem", "eigene", "eigener", "eigenes", "eigenen", "eigenem",
+    "selbe", "selber", "selbes", "selben", "selbem", "selbst",
+    "letzte", "letzter", "letztes", "letzten", "letztem", "nächste", "nächster", "nächstes",
+    "nächsten", "nächstem", "erste", "erster", "erstes", "ersten", "erstem",
+    "zweite", "zweiter", "zweites", "zweiten", "zweitem",
+    "dritte", "dritter", "drittes", "dritten", "drittem",
+    "beide", "beider", "beiden", "beidem", "beides",
+    "weitere", "weiterer", "weiteres", "weiteren", "weiterem",
+    "neue", "neuer", "neues", "neuen", "neuem",
+    "alte", "alter", "altes", "alten", "altem",
+    "große", "großer", "großes", "großen", "großem",
+    "kleine", "kleiner", "kleines", "kleinen", "kleinem",
+    "hohe", "hoher", "hohes", "hohen", "hohem",
+    "lange", "langer", "langes", "langen", "langem",
+    "kurze", "kurzer", "kurzes", "kurzen", "kurzem",
+    "gute", "guter", "gutes", "guten", "gutem",
+    "wichtige", "wichtiger", "wichtiges", "wichtigen", "wichtigem",
+    "verschiedene", "verschiedener", "verschiedenes", "verschiedenen", "verschiedenem",
+    "bestimmte", "bestimmter", "bestimmtes", "bestimmten", "bestimmtem",
+    "gewisse", "gewisser", "gewisses", "gewissen", "gewissem",
+    "genaue", "genauer", "genaues", "genauen", "genauem",
+    "richtige", "richtiger", "richtiges", "richtigen", "richtigem",
+    "falsche", "falscher", "falsches", "falschen", "falschem",
+    "schlecht", "schlechte", "schlechter", "schlechtes", "schlechten", "schlechtem",
+
+    // ========================================
+    // DEMONSTRATIVES
+    // ========================================
     "diese", "dieser", "dieses", "diesen", "diesem", "jene", "jener", "jenes", "jenen", "jenem",
-    // Other common words
+
+    // ========================================
+    // NUMBERS
+    // ========================================
+    "null", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn",
+    "elf", "zwölf", "dreizehn", "vierzehn", "fünfzehn", "sechzehn", "siebzehn", "achtzehn",
+    "neunzehn", "zwanzig", "dreißig", "vierzig", "fünfzig", "sechzig", "siebzig", "achtzig",
+    "neunzig", "hundert", "tausend", "million", "millionen", "milliarde", "milliarden",
+
+    // ========================================
+    // QUESTION WORDS
+    // ========================================
+    "was", "wer", "wen", "wem", "wessen", "welche", "welcher", "welches", "welchen", "welchem",
+    "wieviel", "wieviele", "wieso", "weshalb", "weswegen", "womit", "wofür", "wogegen",
+    "worüber", "worunter", "wovon", "wovor", "wozu", "wodurch", "woher", "wohin",
+
+    // ========================================
+    // PARTICLES & FILLERS
+    // ========================================
     "nicht", "kein", "nein", "ja", "doch", "mal", "halt", "eben", "wohl", "zwar",
-    "jedoch", "allerdings", "freilich", "jedenfalls", "übrigens", "nämlich",
-    "eigentlich", "überhaupt", "sozusagen", "gleichsam", "gewissermaßen",
-    // Web/article common words
+    "bloß", "nur", "ruhig", "schon", "etwa", "vielleicht", "wirklich", "eigentlich",
+
+    // ========================================
+    // TIME-RELATED
+    // ========================================
+    "jahr", "jahre", "jahren", "jahres", "monat", "monate", "monaten", "monats",
+    "woche", "wochen", "tag", "tage", "tagen", "tages", "stunde", "stunden",
+    "minute", "minuten", "sekunde", "sekunden",
+    "zeit", "zeiten", "ende", "anfang", "mitte", "beginn",
+    "heute", "gestern", "morgen", "vorgestern", "übermorgen",
+    "montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag", "sonntag",
+    "januar", "februar", "märz", "april", "mai", "juni", "juli", "august",
+    "september", "oktober", "november", "dezember",
+    "frühjahr", "frühling", "sommer", "herbst", "winter",
+
+    // ========================================
+    // GENERIC NOUNS (often meaningless as keywords)
+    // ========================================
+    "fall", "fälle", "fällen", "grund", "gründe", "gründen", "art", "arten",
+    "teil", "teile", "teilen", "seite", "seiten", "platz", "plätze", "stelle", "stellen",
+    "punkt", "punkte", "weg", "wege", "mal", "ort", "orte", "orten",
+    "sache", "sachen", "ding", "dinge", "dingen",
+    "person", "personen", "mensch", "menschen", "leute", "leuten",
+    "frau", "frauen", "mann", "männer", "kind", "kinder", "kindern",
+    "frage", "fragen", "antwort", "antworten",
+    "problem", "probleme", "problemen", "lösung", "lösungen",
+    "möglichkeit", "möglichkeiten", "chance", "chancen",
+    "situation", "grund", "gründe", "ursache", "ursachen",
+    "folge", "folgen", "auswirkung", "auswirkungen",
+    "entwicklung", "entwicklungen", "veränderung", "veränderungen",
+    "bereich", "bereiche", "bereichen", "ebene", "ebenen",
+    "rahmen", "rahmens", "zusammenhang", "zusammenhänge",
+    "hinblick", "bezug", "hinsicht",
+    "zahl", "zahlen", "anzahl", "menge", "mengen",
+    "form", "formen", "weise", "art", "arten",
+    "maßnahme", "maßnahmen", "schritt", "schritte", "schritten",
+
+    // ========================================
+    // WEB/ARTICLE COMMON WORDS
+    // ========================================
     "mehr", "lesen", "artikel", "seite", "weitere", "weiteren", "neuen", "neue", "neuer",
-    "aktuell", "aktuelle", "aktuellen", "heute", "gestern", "morgen",
+    "aktuell", "aktuelle", "aktuellen", "aktueller",
+    "beitrag", "beiträge", "inhalt", "inhalte", "text", "texte",
+    "link", "links", "quelle", "quellen", "video", "videos", "bild", "bilder",
+    "foto", "fotos", "grafik", "grafiken",
 ];
 
 static ENGLISH_STOPWORDS: &[&str] = &[
-    // Articles
-    "a", "an", "the",
-    // Pronouns
-    "i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your", "yours",
-    "yourself", "yourselves", "he", "him", "his", "himself", "she", "her", "hers",
-    "herself", "it", "its", "itself", "they", "them", "their", "theirs", "themselves",
-    "what", "which", "who", "whom", "this", "that", "these", "those",
-    // Prepositions
+    // ========================================
+    // ARTICLES & DETERMINERS
+    // ========================================
+    "a", "an", "the", "this", "that", "these", "those",
+    "some", "any", "no", "every", "each", "either", "neither",
+    "both", "all", "half", "several", "few", "many", "much",
+    "most", "more", "less", "least", "enough", "plenty",
+
+    // ========================================
+    // PRONOUNS
+    // ========================================
+    "i", "me", "my", "myself", "mine",
+    "you", "your", "yours", "yourself", "yourselves",
+    "he", "him", "his", "himself",
+    "she", "her", "hers", "herself",
+    "it", "its", "itself",
+    "we", "us", "our", "ours", "ourselves",
+    "they", "them", "their", "theirs", "themselves",
+    "who", "whom", "whose", "which", "what", "that",
+    "whoever", "whomever", "whatever", "whichever",
+    "someone", "somebody", "something", "somewhere",
+    "anyone", "anybody", "anything", "anywhere",
+    "everyone", "everybody", "everything", "everywhere",
+    "no one", "nobody", "nothing", "nowhere",
+    "one", "ones", "other", "others", "another",
+
+    // ========================================
+    // PREPOSITIONS
+    // ========================================
     "in", "on", "at", "by", "for", "with", "about", "against", "between", "into",
     "through", "during", "before", "after", "above", "below", "to", "from", "up",
     "down", "out", "off", "over", "under", "again", "further", "then", "once",
-    // Conjunctions
-    "and", "but", "if", "or", "because", "as", "until", "while", "of", "although",
-    "though", "whereas", "whether", "unless", "since", "so", "than",
-    // Auxiliary verbs
-    "am", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
-    "having", "do", "does", "did", "doing", "would", "should", "could", "ought",
-    "can", "cannot", "will", "shall", "may", "might", "must",
-    // Adverbs
-    "here", "there", "when", "where", "why", "how", "all", "each", "every", "both",
-    "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only",
-    "own", "same", "too", "very", "just", "also", "now", "even", "still", "already",
-    // Common adjectives
-    "any", "many", "much", "another", "one", "two", "three", "first", "second", "third",
-    // Contractions (without apostrophe)
+    "across", "along", "among", "around", "behind", "beside", "besides", "beyond",
+    "despite", "except", "inside", "near", "outside", "past", "since", "toward",
+    "towards", "upon", "within", "without", "throughout", "underneath", "via",
+
+    // ========================================
+    // CONJUNCTIONS
+    // ========================================
+    "and", "but", "or", "nor", "for", "yet", "so",
+    "if", "because", "as", "until", "while", "of", "although", "though",
+    "whereas", "whether", "unless", "since", "than", "when", "where",
+    "after", "before", "once", "whenever", "wherever", "while", "whilst",
+    "provided", "supposing", "unless", "until", "lest",
+
+    // ========================================
+    // AUXILIARY & MODAL VERBS (all forms)
+    // ========================================
+    // be
+    "be", "am", "is", "are", "was", "were", "been", "being",
+    // have
+    "have", "has", "had", "having",
+    // do
+    "do", "does", "did", "doing", "done",
+    // modals
+    "can", "cannot", "could", "will", "would", "shall", "should",
+    "may", "might", "must", "ought",
+    // contractions (without apostrophe)
     "dont", "doesnt", "didnt", "wont", "wouldnt", "shouldnt", "couldnt", "cant",
-    "cannot", "isnt", "arent", "wasnt", "werent", "hasnt", "havent", "hadnt",
-    // Other common words
-    "get", "got", "getting", "make", "made", "making", "let", "say", "said", "saying",
-    "go", "going", "went", "gone", "come", "coming", "came", "take", "taken", "taking",
-    "took", "see", "seen", "seeing", "saw", "know", "known", "knowing", "knew",
-    "think", "thought", "thinking", "want", "wanted", "wanting", "use", "used", "using",
-    // Web/article common words
-    "read", "more", "article", "page", "new", "click", "share", "comment", "comments",
+    "isnt", "arent", "wasnt", "werent", "hasnt", "havent", "hadnt", "mustnt",
+    "ive", "youve", "weve", "theyve", "hes", "shes", "its", "whats", "thats",
+    "whos", "heres", "theres", "wheres", "lets", "ill", "youll", "hell", "shell",
+    "well", "theyll", "id", "youd", "hed", "shed", "wed", "theyd",
+
+    // ========================================
+    // COMMON VERBS (all forms) - NEWS CRITICAL
+    // ========================================
+    // say
+    "say", "says", "said", "saying",
+    // tell
+    "tell", "tells", "told", "telling",
+    // report
+    "report", "reports", "reported", "reporting",
+    // announce
+    "announce", "announces", "announced", "announcing",
+    // claim
+    "claim", "claims", "claimed", "claiming",
+    // state
+    "state", "states", "stated", "stating",
+    // confirm
+    "confirm", "confirms", "confirmed", "confirming",
+    // deny
+    "deny", "denies", "denied", "denying",
+    // warn
+    "warn", "warns", "warned", "warning",
+    // reveal
+    "reveal", "reveals", "revealed", "revealing",
+    // show
+    "show", "shows", "showed", "shown", "showing",
+    // find
+    "find", "finds", "found", "finding",
+    // note
+    "note", "notes", "noted", "noting",
+    // add
+    "add", "adds", "added", "adding",
+    // suggest
+    "suggest", "suggests", "suggested", "suggesting",
+    // believe
+    "believe", "believes", "believed", "believing",
+    // think
+    "think", "thinks", "thought", "thinking",
+    // know
+    "know", "knows", "knew", "known", "knowing",
+    // see
+    "see", "sees", "saw", "seen", "seeing",
+    // go
+    "go", "goes", "went", "gone", "going",
+    // come
+    "come", "comes", "came", "coming",
+    // get
+    "get", "gets", "got", "gotten", "getting",
+    // make
+    "make", "makes", "made", "making",
+    // take
+    "take", "takes", "took", "taken", "taking",
+    // give
+    "give", "gives", "gave", "given", "giving",
+    // use
+    "use", "uses", "used", "using",
+    // want
+    "want", "wants", "wanted", "wanting",
+    // need
+    "need", "needs", "needed", "needing",
+    // seem
+    "seem", "seems", "seemed", "seeming",
+    // appear
+    "appear", "appears", "appeared", "appearing",
+    // become
+    "become", "becomes", "became", "becoming",
+    // remain
+    "remain", "remains", "remained", "remaining",
+    // keep
+    "keep", "keeps", "kept", "keeping",
+    // let
+    "let", "lets", "letting",
+    // begin
+    "begin", "begins", "began", "begun", "beginning",
+    // start
+    "start", "starts", "started", "starting",
+    // call
+    "call", "calls", "called", "calling",
+    // ask
+    "ask", "asks", "asked", "asking",
+    // seek
+    "seek", "seeks", "sought", "seeking",
+    // plan
+    "plan", "plans", "planned", "planning",
+    // look
+    "look", "looks", "looked", "looking",
+    // feel
+    "feel", "feels", "felt", "feeling",
+    // try
+    "try", "tries", "tried", "trying",
+    // leave
+    "leave", "leaves", "left", "leaving",
+    // put
+    "put", "puts", "putting",
+    // mean
+    "mean", "means", "meant", "meaning",
+    // turn
+    "turn", "turns", "turned", "turning",
+    // move
+    "move", "moves", "moved", "moving",
+    // continue
+    "continue", "continues", "continued", "continuing",
+    // provide
+    "provide", "provides", "provided", "providing",
+    // help
+    "help", "helps", "helped", "helping",
+    // set
+    "set", "sets", "setting",
+    // run
+    "run", "runs", "ran", "running",
+    // hold
+    "hold", "holds", "held", "holding",
+    // bring
+    "bring", "brings", "brought", "bringing",
+    // happen
+    "happen", "happens", "happened", "happening",
+    // write
+    "write", "writes", "wrote", "written", "writing",
+    // read (verb)
+    "read", "reads", "reading",
+    // play
+    "play", "plays", "played", "playing",
+    // stand
+    "stand", "stands", "stood", "standing",
+    // lose
+    "lose", "loses", "lost", "losing",
+    // win
+    "win", "wins", "won", "winning",
+    // pay
+    "pay", "pays", "paid", "paying",
+    // meet
+    "meet", "meets", "met", "meeting",
+    // include
+    "include", "includes", "included", "including",
+    // expect
+    "expect", "expects", "expected", "expecting",
+    // follow
+    "follow", "follows", "followed", "following",
+
+    // ========================================
+    // ADVERBS
+    // ========================================
+    "here", "there", "when", "where", "why", "how",
+    "now", "then", "always", "never", "often", "sometimes", "usually",
+    "already", "still", "yet", "ever", "just", "only", "even",
+    "also", "too", "very", "really", "quite", "rather", "fairly",
+    "almost", "nearly", "hardly", "barely", "scarcely",
+    "perhaps", "maybe", "probably", "possibly", "certainly", "definitely",
+    "actually", "basically", "essentially", "generally", "specifically",
+    "particularly", "especially", "mainly", "mostly", "largely", "partly",
+    "completely", "entirely", "totally", "absolutely", "perfectly",
+    "exactly", "precisely", "approximately", "roughly",
+    "soon", "later", "early", "late", "recently", "currently", "previously",
+    "eventually", "finally", "ultimately", "immediately", "suddenly",
+    "gradually", "slowly", "quickly", "rapidly", "fast",
+    "well", "better", "best", "badly", "worse", "worst",
+    "far", "near", "close", "away", "back", "forward", "ahead",
+    "together", "apart", "alone", "otherwise", "instead", "anyway",
+    "however", "therefore", "thus", "hence", "consequently", "accordingly",
+    "meanwhile", "moreover", "furthermore", "nevertheless", "nonetheless",
+    "regardless", "overall", "indeed", "apparently",
+
+    // ========================================
+    // ADJECTIVES (common forms)
+    // ========================================
+    "new", "old", "good", "bad", "great", "little", "big", "small",
+    "large", "long", "short", "high", "low", "young", "best", "worst",
+    "first", "last", "next", "same", "different", "other", "another",
+    "own", "certain", "particular", "specific", "general", "main", "major",
+    "important", "significant", "various", "several", "few", "many", "much",
+    "more", "most", "less", "least", "enough", "such", "whole", "entire",
+    "full", "empty", "true", "false", "right", "wrong", "real", "actual",
+    "possible", "likely", "unlikely", "available", "necessary", "able",
+    "unable", "similar", "different", "common", "recent", "current", "former",
+    "latter", "previous", "following", "early", "late", "open", "closed",
+    "public", "private", "free", "clear", "sure", "ready", "hard", "easy",
+
+    // ========================================
+    // NUMBERS
+    // ========================================
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+    "nine", "ten", "eleven", "twelve", "hundred", "thousand", "million", "billion",
+    "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth",
+    "ninth", "tenth", "once", "twice",
+
+    // ========================================
+    // TIME-RELATED
+    // ========================================
+    "time", "times", "day", "days", "week", "weeks", "month", "months",
+    "year", "years", "hour", "hours", "minute", "minutes", "second", "seconds",
+    "today", "yesterday", "tomorrow", "tonight", "morning", "afternoon", "evening",
+    "night", "now", "then", "ago", "later", "soon", "early", "late",
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "january", "february", "march", "april", "may", "june", "july", "august",
+    "september", "october", "november", "december",
+    "spring", "summer", "autumn", "fall", "winter",
+
+    // ========================================
+    // GENERIC NOUNS
+    // ========================================
+    "way", "ways", "thing", "things", "case", "cases", "fact", "facts",
+    "point", "points", "part", "parts", "place", "places", "side", "sides",
+    "end", "ends", "start", "beginning", "middle",
+    "person", "people", "man", "men", "woman", "women", "child", "children",
+    "world", "life", "lives", "hand", "hands", "work", "works",
+    "number", "numbers", "group", "groups", "area", "areas",
+    "problem", "problems", "question", "questions", "issue", "issues",
+    "reason", "reasons", "result", "results", "example", "examples",
+    "kind", "kinds", "type", "types", "sort", "sorts", "form", "forms",
+    "level", "levels", "state", "states", "situation", "situations",
+    "matter", "matters", "idea", "ideas", "view", "views", "opinion", "opinions",
+
+    // ========================================
+    // WEB/ARTICLE COMMON WORDS
+    // ========================================
+    "article", "articles", "page", "pages", "read", "more", "click", "here",
+    "share", "comment", "comments", "subscribe", "newsletter", "follow",
+    "link", "links", "source", "sources", "photo", "photos", "image", "images",
+    "video", "videos", "content", "contents", "post", "posts",
+    "breaking", "exclusive", "update", "updates", "latest", "trending",
+    "featured", "popular", "top", "best", "new", "related",
+
+    // ========================================
+    // TECHNICAL/WEB FRAGMENTS
+    // ========================================
+    "path", "file", "data", "type", "name", "value", "key", "item", "items",
+    "list", "view", "show", "hide", "open", "close", "add", "remove", "delete",
+    "edit", "update", "create", "set", "get", "put", "post", "send", "receive",
+    "true", "false", "null", "undefined", "error", "success", "failed",
 ];
 
 /// HTML tags, attributes, and web-related technical terms
@@ -192,53 +683,22 @@ static HTML_STOPWORDS: &[&str] = &[
     "medium", "campaign", "term", "cookie", "session", "storage", "local", "cache",
 ];
 
-/// News-specific stopwords (journalistic terms, news agencies, common filler words)
+/// News-specific stopwords (journalistic terms, generic filler - NOT media outlet names as keywords)
+/// NOTE: Media outlets and acronyms are valid KEYWORDS when they're the topic of an article.
+/// This list is for generic news language that appears in article text/attribution.
 static NEWS_STOPWORDS: &[&str] = &[
     // === German News Terms ===
-    "bericht", "sagt", "laut", "unterdessen", "heute", "gestern", "video", "update",
+    "bericht", "laut", "unterdessen", "video", "update",
     "interview", "kommentar", "mehr", "neue", "ersten", "lesen", "artikel", "news",
     "uhr", "foto", "quelle", "aktualisiert", "redaktion",
     "meldung", "nachricht", "pressemitteilung", "mitteilung", "stellungnahme",
     // German generic news filler
     "beitrag", "eilmeldung", "liveticker", "zur", "beim", "vom", "zum",
     // === English News Terms ===
-    "report", "says", "according", "today", "yesterday", "comment", "read", "article",
+    "according", "comment", "read", "article",
     "source", "photo", "breaking", "exclusive", "update", "live", "developing",
     "correspondent", "reporter", "editor", "editorial", "opinion", "analysis",
     "wire", "featured", "trending", "viral", "latest",
-    // === News Agencies and Wire Services ===
-    "dpa", "afp", "reuters", "ap", "upi", "epa", "apa", "sid",
-    // === German Media Outlets (Feed Names) ===
-    "deutschlandfunk", "programm deutschlandfunk", "dlf", "dlf kultur", "dlf nova",
-    "tagesschau", "tagesthemen", "tagesschau24", "ard", "ard aktuell",
-    "zdf", "zdf heute", "heute journal", "heute show",
-    "spiegel", "spiegel online", "der spiegel", "spon",
-    "zeit", "zeit online", "die zeit",
-    "faz", "frankfurter allgemeine", "frankfurter allgemeine zeitung",
-    "sueddeutsche", "süddeutsche", "sz", "süddeutsche zeitung",
-    "welt", "die welt", "welt online",
-    "bild", "bild zeitung",
-    "focus", "focus online",
-    "stern", "stern online",
-    "handelsblatt", "wiwo", "wirtschaftswoche",
-    "n-tv", "ntv", "n24", "welt nachrichtensender",
-    "heise", "heise online", "golem", "golem.de",
-    "netzpolitik", "netzpolitik.org",
-    "taz", "die tageszeitung",
-    "fr", "frankfurter rundschau",
-    "rp", "rheinische post",
-    "rnd", "redaktionsnetzwerk deutschland",
-    // === International Media Outlets ===
-    "bbc", "bbc news", "bbc world", "bbc world service",
-    "cnn", "cnn international",
-    "nyt", "new york times", "the new york times",
-    "wapo", "washington post", "the washington post",
-    "guardian", "the guardian",
-    "ft", "financial times",
-    "economist", "the economist",
-    "politico", "euronews", "france24", "al jazeera", "rt",
-    "nzz", "neue zürcher zeitung",
-    "orf", "derstandard", "der standard", "kurier", "krone",
     // === Generic Article/Content Terms ===
     "weiterlesen", "mehr lesen", "read more", "continue reading",
     "abonnieren", "subscribe", "newsletter", "rss feed",
@@ -246,6 +706,9 @@ static NEWS_STOPWORDS: &[&str] = &[
     "kommentare", "comments", "diskussion", "discussion",
     "anzeige", "werbung", "sponsored", "ad", "advertisement",
     "premium", "plus", "abo", "paywall",
+    // === Attribution markers (but not the outlet names themselves) ===
+    "exklusiv", "breaking news", "eilmeldung", "liveticker",
+    "aktualisiert am", "stand", "veröffentlicht", "published",
 ];
 
 // ============================================================
@@ -429,34 +892,17 @@ mod tests {
     }
 
     #[test]
-    fn test_stopwords_contains_news_agencies() {
-        // News agencies should be filtered
-        assert!(STOPWORDS.contains("dpa"));
-        assert!(STOPWORDS.contains("afp"));
-        assert!(STOPWORDS.contains("reuters"));
-        assert!(STOPWORDS.contains("ap"));
-        assert!(STOPWORDS.contains("upi"));
-    }
-
-    #[test]
-    fn test_stopwords_contains_german_media_outlets() {
-        // German media outlet names should be filtered
-        assert!(STOPWORDS.contains("deutschlandfunk"));
-        assert!(STOPWORDS.contains("tagesschau"));
-        assert!(STOPWORDS.contains("spiegel"));
-        assert!(STOPWORDS.contains("zeit"));
-        assert!(STOPWORDS.contains("faz"));
-        assert!(STOPWORDS.contains("sueddeutsche"));
-        assert!(STOPWORDS.contains("heise"));
-    }
-
-    #[test]
-    fn test_stopwords_contains_international_media() {
-        // International media outlet names should be filtered
-        assert!(STOPWORDS.contains("bbc"));
-        assert!(STOPWORDS.contains("cnn"));
-        assert!(STOPWORDS.contains("guardian"));
-        assert!(STOPWORDS.contains("nzz"));
+    fn test_media_outlets_are_not_stopwords() {
+        // Media outlets are valid KEYWORDS (organizations), not stopwords!
+        // They should be extracted when they're topics of articles
+        assert!(!STOPWORDS.contains("bbc"));
+        assert!(!STOPWORDS.contains("cnn"));
+        assert!(!STOPWORDS.contains("ard"));
+        assert!(!STOPWORDS.contains("zdf"));
+        assert!(!STOPWORDS.contains("deutschlandfunk"));
+        assert!(!STOPWORDS.contains("spiegel"));
+        assert!(!STOPWORDS.contains("reuters"));
+        assert!(!STOPWORDS.contains("dpa"));
     }
 
     #[test]
