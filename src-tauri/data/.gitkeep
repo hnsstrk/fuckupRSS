@@ -1,0 +1,2 @@
+# This file ensures the data directory exists in the repository.
+# The actual database files (*.db, *.db-shm, *.db-wal) are ignored.
