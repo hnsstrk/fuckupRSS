@@ -26,6 +26,8 @@
 
   // Dropdown open states
   let langDropdownOpen = $state(false);
+  let darkThemeDropdownOpen = $state(false);
+  let lightThemeDropdownOpen = $state(false);
   let logLevelDropdownOpen = $state(false);
 
   // OPML Import state
@@ -106,6 +108,8 @@
 
   export function closeAllDropdowns() {
     langDropdownOpen = false;
+    darkThemeDropdownOpen = false;
+    lightThemeDropdownOpen = false;
     logLevelDropdownOpen = false;
   }
 
@@ -137,11 +141,13 @@
 
   function selectDarkTheme(value: DarkTheme) {
     selectedDarkTheme = value;
+    darkThemeDropdownOpen = false;
     settings.darkTheme = value;
   }
 
   function selectLightTheme(value: LightTheme) {
     selectedLightTheme = value;
+    lightThemeDropdownOpen = false;
     settings.lightTheme = value;
   }
 
@@ -153,12 +159,30 @@
 
   function toggleLangDropdown() {
     langDropdownOpen = !langDropdownOpen;
+    darkThemeDropdownOpen = false;
+    lightThemeDropdownOpen = false;
+    logLevelDropdownOpen = false;
+  }
+
+  function toggleDarkThemeDropdown() {
+    darkThemeDropdownOpen = !darkThemeDropdownOpen;
+    langDropdownOpen = false;
+    lightThemeDropdownOpen = false;
+    logLevelDropdownOpen = false;
+  }
+
+  function toggleLightThemeDropdown() {
+    lightThemeDropdownOpen = !lightThemeDropdownOpen;
+    langDropdownOpen = false;
+    darkThemeDropdownOpen = false;
     logLevelDropdownOpen = false;
   }
 
   function toggleLogLevelDropdown() {
     logLevelDropdownOpen = !logLevelDropdownOpen;
     langDropdownOpen = false;
+    darkThemeDropdownOpen = false;
+    lightThemeDropdownOpen = false;
   }
 
   function getLocaleLabelKey(value: string): string {
@@ -332,16 +356,29 @@
 <!-- Dark Theme Selection -->
 <div class="setting-group">
   <span class="label">{$_("settings.darkTheme")}</span>
-  <div class="theme-grid">
-    {#each darkThemeOptions as option (option.value)}
-      <button
-        type="button"
-        class="theme-btn {selectedDarkTheme === option.value ? 'active' : ''}"
-        onclick={() => selectDarkTheme(option.value)}
-      >
-        {getThemeDisplayName(option.value, darkThemeOptions)}
-      </button>
-    {/each}
+  <div class="custom-select">
+    <button
+      type="button"
+      class="select-trigger"
+      aria-label={$_("settings.darkTheme")}
+      onclick={toggleDarkThemeDropdown}
+    >
+      <span>{getThemeDisplayName(selectedDarkTheme, darkThemeOptions)}</span>
+      <i class="arrow fa-solid {darkThemeDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
+    </button>
+    {#if darkThemeDropdownOpen}
+      <div class="select-options">
+        {#each darkThemeOptions as option (option.value)}
+          <button
+            type="button"
+            class="select-option {selectedDarkTheme === option.value ? 'selected' : ''}"
+            onclick={() => selectDarkTheme(option.value)}
+          >
+            {getThemeDisplayName(option.value, darkThemeOptions)}
+          </button>
+        {/each}
+      </div>
+    {/if}
   </div>
   <p class="setting-description">{$_("settings.darkThemeDescription")}</p>
 </div>
@@ -349,16 +386,29 @@
 <!-- Light Theme Selection -->
 <div class="setting-group">
   <span class="label">{$_("settings.lightTheme")}</span>
-  <div class="theme-grid">
-    {#each lightThemeOptions as option (option.value)}
-      <button
-        type="button"
-        class="theme-btn {selectedLightTheme === option.value ? 'active' : ''}"
-        onclick={() => selectLightTheme(option.value)}
-      >
-        {getThemeDisplayName(option.value, lightThemeOptions)}
-      </button>
-    {/each}
+  <div class="custom-select">
+    <button
+      type="button"
+      class="select-trigger"
+      aria-label={$_("settings.lightTheme")}
+      onclick={toggleLightThemeDropdown}
+    >
+      <span>{getThemeDisplayName(selectedLightTheme, lightThemeOptions)}</span>
+      <i class="arrow fa-solid {lightThemeDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
+    </button>
+    {#if lightThemeDropdownOpen}
+      <div class="select-options">
+        {#each lightThemeOptions as option (option.value)}
+          <button
+            type="button"
+            class="select-option {selectedLightTheme === option.value ? 'selected' : ''}"
+            onclick={() => selectLightTheme(option.value)}
+          >
+            {getThemeDisplayName(option.value, lightThemeOptions)}
+          </button>
+        {/each}
+      </div>
+    {/if}
   </div>
   <p class="setting-description">{$_("settings.lightThemeDescription")}</p>
 </div>
@@ -675,36 +725,6 @@
   }
 
   .theme-mode-btn.active {
-    background-color: var(--accent-primary);
-    color: var(--text-on-accent);
-    border-color: var(--accent-primary);
-  }
-
-  /* Theme Grid */
-  .theme-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .theme-btn {
-    padding: 0.5rem 0.75rem;
-    background-color: var(--bg-overlay);
-    border: 1px solid var(--border-default);
-    border-radius: 0.375rem;
-    color: var(--text-primary);
-    font-size: 0.8125rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-  }
-
-  .theme-btn:hover {
-    border-color: var(--accent-primary);
-    background-color: var(--bg-muted);
-  }
-
-  .theme-btn.active {
     background-color: var(--accent-primary);
     color: var(--text-on-accent);
     border-color: var(--accent-primary);
