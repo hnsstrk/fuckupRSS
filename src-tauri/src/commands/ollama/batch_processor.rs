@@ -41,7 +41,11 @@ struct BatchContext {
 }
 
 /// Configuration for cluster-based batch processing
+///
+/// NOTE: This is used by `process_batch_clustered` which is implemented but
+/// not yet exposed to the frontend. Planned for Phase 3 optimization.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ClusterBatchConfig {
     /// Whether to use clustering optimization
     pub use_clustering: bool,
@@ -66,7 +70,11 @@ impl Default for ClusterBatchConfig {
 }
 
 /// Result of cluster-optimized batch processing
+///
+/// NOTE: Used by `process_batch_clustered` which is implemented but
+/// not yet exposed to the frontend. Planned for Phase 3 optimization.
 #[derive(Debug, Clone, serde::Serialize)]
+#[allow(dead_code)]
 pub struct ClusterBatchResult {
     /// Standard batch result
     pub processed: i64,
@@ -79,6 +87,10 @@ pub struct ClusterBatchResult {
 }
 
 /// Load articles with embeddings for clustering
+///
+/// NOTE: Used by `process_batch_clustered` which is implemented but
+/// not yet exposed to the frontend. Planned for Phase 3 optimization.
+#[allow(dead_code)]
 fn load_articles_for_clustering(
     state: &AppState,
     limit: Option<i64>,
@@ -142,6 +154,10 @@ fn load_articles_for_clustering(
 }
 
 /// Apply clustering to articles and return optimized processing plan
+///
+/// NOTE: Used by `process_batch_clustered` which is implemented but
+/// not yet exposed to the frontend. Planned for Phase 3 optimization.
+#[allow(dead_code)]
 fn apply_clustering(
     articles: Vec<(BatchArticle, Option<Vec<f32>>)>,
     config: &ClusterBatchConfig,
@@ -980,7 +996,11 @@ fn transfer_keywords_to_cluster_members(
 /// This command groups similar articles together based on embeddings,
 /// runs LLM analysis only on cluster representatives, and transfers
 /// keywords to all cluster members.
+///
+/// NOTE: This command is implemented but not yet registered in the Tauri handler.
+/// Planned for Phase 3 batch processing optimization.
 #[tauri::command]
+#[allow(dead_code)]
 pub async fn process_batch_clustered(
     window: Window,
     state: State<'_, AppState>,

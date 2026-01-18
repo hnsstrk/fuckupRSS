@@ -7,6 +7,13 @@
 //! 3. Transferring keywords to all articles in the cluster
 //!
 //! Clustering algorithm: Agglomerative Hierarchical Clustering with cosine distance
+//!
+//! NOTE: This module is currently not exposed to the frontend but is planned
+//! for future batch processing optimization. The `process_batch_clustered`
+//! command exists but is not yet registered in the Tauri handler.
+
+// Allow dead code - this module is planned for Phase 3 but not yet exposed to frontend
+#![allow(dead_code)]
 
 use std::collections::{HashMap, HashSet};
 
