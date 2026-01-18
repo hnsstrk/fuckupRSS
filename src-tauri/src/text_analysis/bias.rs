@@ -313,6 +313,8 @@ pub struct BiasStats {
     pub total_corrections: i64,
     pub keyword_boost_count: i64,
     pub category_term_count: i64,
+    /// Number of articles with political_bias data (for recommendations)
+    pub articles_with_bias: i64,
 }
 
 pub fn get_bias_stats(conn: &Connection) -> Result<BiasStats, rusqlite::Error> {
@@ -340,11 +342,19 @@ pub fn get_bias_stats(conn: &Connection) -> Result<BiasStats, rusqlite::Error> {
         |row| row.get(0),
     )?;
 
+    // Count articles with political_bias data (needed for recommendations feature)
+    let articles_with_bias: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM fnords WHERE political_bias IS NOT NULL",
+        [],
+        |row| row.get(0),
+    )?;
+
     Ok(BiasStats {
         total_weights,
         total_corrections,
         keyword_boost_count,
         category_term_count,
+        articles_with_bias,
     })
 }
 

@@ -513,6 +513,8 @@ export interface BiasStats {
   total_corrections: number;
   keyword_boost_count: number;
   category_term_count: number;
+  /** Number of articles with political_bias data (for recommendations) */
+  articles_with_bias: number;
 }
 
 export interface CorrectionInput {
