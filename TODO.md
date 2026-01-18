@@ -284,4 +284,4 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 
 ---
 
-*Dokumentation basiert auf: `fuckupRSS-Anforderungen.md`, `README.md`, `CLAUDE.md`, `AGENTS.md`, `QUALITY_CHECKLIST.md`*
+*Dokumentation basiert auf: `fuckupRSS-Anforderungen.md`, `README.md`, `CLAUDE.md`, `QUALITY_CHECKLIST.md`*
