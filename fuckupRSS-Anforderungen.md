@@ -1,8 +1,8 @@
 # fuckupRSS – Anforderungsdokument
 
-**Version:** 0.5
-**Datum:** 2026-01-05
-**Status:** Phase 2 abgeschlossen (Core Features)
+**Version:** 0.6
+**Datum:** 2026-01-18
+**Status:** Phase 3 abgeschlossen (Semantic Search, Recommendations), Phase 4 (Polish) in Entwicklung
 
 ---
 

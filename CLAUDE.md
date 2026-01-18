@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U.C.K.U.P. from the Illuminatus! trilogy. It uses Ollama for local AI processing with no cloud dependencies.
 
-**Status:** Phase 2 abgeschlossen, Phase 3 in Entwicklung
+**Status:** Phase 3 abgeschlossen, Phase 4 (Polish) in Entwicklung
 
 **Planung:** Alle Phasen und Tasks sind in [`fuckupRSS-Anforderungen.md`](fuckupRSS-Anforderungen.md#20-nächste-schritte) dokumentiert.
 
@@ -406,7 +406,20 @@ The codebase uses terms from the Illuminatus! trilogy:
 ### Embeddings & Vector Search
 - Keywords: Embeddings als BLOB in `immanentize.embedding` (1024-dim, snowflake-arctic-embed2)
 - Vector Index: `vec_immanentize` (sqlite-vec virtual table, cosine distance, O(log n) KNN)
-- Artikel: ⏳ Phase 3 - `fnords.embedding` geplant
+- Artikel: `fnords.embedding` (1024-dim) + `vec_fnords` Vector Index ✅
+
+### Stopwords
+- `stopwords` - Stopwort-Management (word, is_system, created_at)
+
+### Article Tags
+- `fnord_tags` - Benutzer-definierte Tags für Artikel
+- `tags` - Tag-Definitionen (name, color)
+
+### Recommendations (Operation Mindfuck)
+- `recommendation_feedback` - Benutzer-Feedback (fnord_id, action: 'save'|'hide'|'click')
+
+### Keyword Type Detection
+- `keyword_type_prototype` - Prototyp-Embeddings für Keyword-Typen (person, organization, location, etc.)
 
 ### Statistische Analyse & Lernsystem
 - `corpus_stats` - Document Frequencies für corpus-weite TF-IDF
@@ -692,6 +705,166 @@ struct ArticleKeyword {
     confidence: f64,     // 0.0-1.0
 }
 ```
+
+### Stopwords Management
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_user_stopwords` | - | `Vec<UserStopword>` | Benutzer-Stopwords |
+| `get_system_stopwords` | - | `Vec<UserStopword>` | System-Stopwords |
+| `get_all_stopwords_list` | - | `Vec<UserStopword>` | Alle Stopwords |
+| `add_stopword` | `word` | `bool` | Stopword hinzufügen |
+| `add_stopwords_batch` | `words` | `i64` | Mehrere hinzufügen |
+| `remove_stopword` | `word` | `bool` | Stopword entfernen |
+| `get_stopwords_stats` | - | `StopwordStatsResponse` | Statistiken |
+| `is_stopword_check` | `word` | `bool` | Prüfen ob Stopword |
+| `search_stopwords` | `query`, `limit?` | `Vec<UserStopword>` | Stopwords suchen |
+| `clear_user_stopwords` | - | `i64` | Benutzer-Stopwords löschen |
+| `reset_stopwords` | - | `ResetStopwordsResult` | Alle zurücksetzen |
+| `restore_system_stopwords` | - | `ResetStopwordsResult` | System wiederherstellen |
+| `export_stopwords` | - | `String` | JSON-Export |
+| `import_stopwords` | `json` | `i64` | JSON-Import |
+
+### Article Tags
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_all_tags` | `limit?` | `Vec<Tag>` | Alle Tags |
+| `get_article_tags` | `fnord_id` | `Vec<Tag>` | Tags eines Artikels |
+| `add_article_tag` | `fnord_id`, `tag_name` | `Tag` | Tag hinzufügen |
+| `remove_article_tag` | `fnord_id`, `tag_id` | - | Tag entfernen |
+| `set_article_tags` | `fnord_id`, `tag_names` | - | Tags setzen |
+
+### Operation Mindfuck (Recommendations)
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_recommendations` | `limit?` | `Vec<Recommendation>` | Personalisierte Empfehlungen |
+| `get_reading_profile` | - | `ReadingProfile` | Leseprofil des Benutzers |
+| `get_blind_spots` | - | `Vec<BlindSpot>` | Vernachlässigte Themen |
+| `get_counter_perspectives` | `fnord_id` | `Vec<CounterPerspective>` | Alternative Perspektiven |
+| `get_reading_trends` | `days?` | `ReadingTrends` | Lesetrends |
+| `save_article` | `fnord_id` | - | Artikel speichern (positives Feedback) |
+| `unsave_article` | `fnord_id` | - | Speicherung aufheben |
+| `hide_recommendation` | `fnord_id` | - | Empfehlung ausblenden |
+| `get_saved_articles` | `limit?` | `Vec<SavedArticle>` | Gespeicherte Artikel |
+| `get_recommendation_stats` | - | `RecommendationStats` | Empfehlungsstatistiken |
+
+### Keyword Network (Extended)
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_keywords` | `limit?`, `offset?`, `sort?` | `Vec<Keyword>` | Keywords paginiert |
+| `get_keyword` | `id` | `Option<Keyword>` | Einzelnes Keyword |
+| `get_keyword_neighbors` | `id`, `limit?` | `Vec<KeywordNeighbor>` | Nachbar-Keywords |
+| `get_keyword_categories` | `id` | `Vec<KeywordCategory>` | Kategorien eines Keywords |
+| `get_category_keywords` | `sephiroth_id`, `limit?` | `Vec<Keyword>` | Keywords einer Kategorie |
+| `get_trending_keywords` | `days?`, `limit?` | `Vec<TrendingKeyword>` | Trending Keywords |
+| `get_network_stats` | - | `NetworkStats` | Netzwerk-Statistiken |
+| `search_keywords` | `query`, `limit?` | `Vec<Keyword>` | Keywords suchen |
+| `get_keyword_trend` | `id`, `days?` | `Vec<TrendPoint>` | Trend eines Keywords |
+| `get_network_graph` | `limit?` | `NetworkGraph` | Graph-Daten für Visualisierung |
+| `get_trending_comparison` | `keyword_ids`, `days?` | `TrendComparison` | Trends vergleichen |
+| `get_keyword_articles` | `id`, `limit?` | `Vec<Fnord>` | Artikel eines Keywords |
+| `get_cooccurring_keywords` | `id`, `limit?` | `Vec<CooccurringKeyword>` | Kookkurrierende Keywords |
+| `create_keyword` | `name` | `CreateKeywordResult` | Keyword erstellen |
+| `delete_keyword` | `id` | - | Keyword löschen |
+| `rename_keyword` | `id`, `new_name` | `String` | Keyword umbenennen |
+| `prune_keywords` | `min_quality?`, `max_age_days?` | `PruneResult` | Keywords bereinigen |
+| `get_keyword_health` | - | `KeywordHealthStats` | Gesundheitsstatistiken |
+| `merge_synonym_keywords` | - | `MergeResult` | Auto-Merge Synonyme |
+| `cleanup_garbage_keywords` | - | `CleanupResult` | Müll-Keywords entfernen |
+| `find_similar_keywords` | `id`, `threshold?` | `Vec<SimilarKeyword>` | Ähnliche Keywords |
+| `auto_merge_similar_keywords` | `threshold?`, `dry_run?` | `AutoMergeResult` | Auto-Merge ähnliche |
+| `update_keyword_types` | - | `KeywordTypeUpdateResult` | Keyword-Typen aktualisieren |
+| `cleanup_keywords` | - | `KeywordCleanupResult` | Komplette Bereinigung |
+
+### Keyword Type Detection
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `init_keyword_type_prototypes` | - | - | Prototypen initialisieren |
+| `get_prototype_stats` | - | `PrototypeStats` | Prototyp-Statistiken |
+| `generate_keyword_type_prototypes` | - | `PrototypeGenerationResult` | Prototypen generieren (async) |
+| `detect_single_keyword_type` | `keyword_id` | `KeywordType` | Typ eines Keywords erkennen |
+| `update_keyword_types_hybrid` | `limit?` | `HybridUpdateResult` | Hybrid-Update (async) |
+| `count_untyped_keywords` | - | `i64` | Untypisierte zählen |
+| `update_untyped_keywords` | `limit?` | `i64` | Untypisierte aktualisieren |
+
+### Fnord Statistics
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_fnords_count` | `filter?` | `i64` | Artikel zählen |
+| `get_changed_count` | - | `i64` | Geänderte zählen |
+| `reset_all_changes` | - | `i64` | Alle Änderungen zurücksetzen |
+| `get_fnord_stats` | - | `FnordStats` | Allgemeine Statistiken |
+| `get_subcategory_stats` | `sephiroth_id` | `Vec<SubcategoryStat>` | Unterkategorie-Stats |
+| `get_article_timeline` | `days?` | `Vec<TimelineEntry>` | Artikel-Timeline |
+| `get_greyface_index` | - | `GreyfaceIndex` | Bias-Index |
+| `get_top_keywords_stats` | `limit?` | `Vec<KeywordStat>` | Top-Keywords |
+| `get_feed_activity` | `days?` | `Vec<FeedActivity>` | Feed-Aktivität |
+| `get_bias_heatmap` | - | `Vec<BiasHeatmapEntry>` | Bias-Heatmap |
+| `get_keyword_cloud` | `limit?` | `Vec<KeywordCloudEntry>` | Keyword-Cloud |
+
+### Categories (Extended)
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_all_categories` | - | `Vec<Sephiroth>` | Alle Kategorien |
+| `get_main_categories` | - | `Vec<Sephiroth>` | Hauptkategorien |
+| `get_subcategories` | - | `Vec<Sephiroth>` | Unterkategorien |
+| `get_categories_with_stats` | - | `Vec<MainCategory>` | Mit Statistiken |
+| `get_article_categories` | `fnord_id` | `Vec<Sephiroth>` | Kategorien eines Artikels |
+| `set_article_categories` | `fnord_id`, `category_ids` | - | Kategorien setzen |
+| `get_subcategory_names` | - | `Vec<String>` | Unterkategorie-Namen |
+
+### Embedding Management
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_embedding_queue_status` | - | `EmbeddingQueueStatus` | Queue-Status |
+| `process_embedding_queue_now` | `limit?` | `EmbeddingQueueResult` | Queue verarbeiten (async) |
+| `queue_missing_embeddings` | - | `i64` | Fehlende einreihen |
+| `get_embedding_queue_details` | `limit?` | `Vec<EmbeddingQueueItem>` | Queue-Details |
+| `calculate_neighbor_similarities` | `limit?` | `NeighborSimilarityResult` | Nachbar-Ähnlichkeiten |
+
+### Model Management (Extended)
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `check_ollama` | - | `OllamaStatus` | Ollama-Status |
+| `get_loaded_models` | - | `LoadedModelsResponse` | Geladene Modelle |
+| `load_model` | `model` | `bool` | Modell laden |
+| `unload_model` | `model` | `bool` | Modell entladen |
+| `ensure_models_loaded` | `main_model`, `embed_model` | `bool` | Modelle sicherstellen |
+| `pull_model` | `model` | `ModelPullResult` | Modell herunterladen |
+
+### Batch Processing
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_unprocessed_count` | - | `UnprocessedCount` | Unverarbeitete zählen |
+| `get_failed_count` | - | `FailedCount` | Fehlgeschlagene zählen |
+| `get_hopeless_count` | - | `HopelessCount` | Hoffnungslose zählen |
+| `process_batch` | `limit?` | `BatchResult` | Batch verarbeiten (async) |
+| `cancel_batch` | - | - | Batch abbrechen |
+
+### OPML Import/Export
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `parse_opml_preview` | `content` | `OpmlPreview` | OPML-Vorschau |
+| `import_opml` | `content`, `selected_feeds?` | `ImportResult` | OPML importieren |
+| `export_opml` | - | `String` | OPML exportieren |
+
+### Settings (Extended)
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_settings` | - | `HashMap<String, Value>` | Alle Einstellungen |
+| `set_setting` | `key`, `value` | - | Einstellung speichern |
+| `get_setting` | `key` | `Option<String>` | Einstellung laden |
+| `get_system_theme` | - | `String` | System-Theme |
+| `get_log_levels` | - | `Vec<String>` | Verfügbare Log-Level |
+| `set_log_level` | `level` | - | Log-Level setzen |
+
+### Prompts (Extended)
+| Command | Parameter | Return | Beschreibung |
+|---------|-----------|--------|--------------|
+| `get_default_prompts` | - | `DefaultPrompts` | Standard-Prompts |
+| `get_prompts` | - | `PromptTemplates` | Aktuelle Prompts |
+| `set_prompts` | `summary_prompt`, `analysis_prompt` | - | Prompts speichern |
+| `reset_prompts` | - | `PromptTemplates` | Prompts zurücksetzen |
+| `reset_articles_for_reprocessing` | `fnord_ids?` | `i64` | Artikel zum Neu-Verarbeiten |
 
 ## AI Processing Pipeline
 

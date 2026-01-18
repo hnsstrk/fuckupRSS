@@ -36,7 +36,7 @@ Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
 - **Automatische Zusammenfassungen** – 2-3 Sätze pro Artikel
 - **Kategorisierung** – Artikel werden Themen zugeordnet
 - **Stichwort-Extraktion** – Wichtige Begriffe, Personen, Orte
-- **Semantische Suche** – Finde Artikel nach Bedeutung, nicht nur Keywords *– Coming Soon*
+- **Semantische Suche** – Finde Artikel nach Bedeutung, nicht nur Keywords
 
 ### ⚠️ Bias-Erkennung (Greyface Alert)
 - **Politische Tendenz** – Links ↔ Rechts Spektrum
@@ -58,13 +58,14 @@ Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
 - **Bias-Gewichtungen:** Aus Korrekturen gelernte Präferenzen
 - **Source-Gewichtungen:** Manuelle Einträge werden höher gewichtet als statistische
 
-### 🎯 Personalisierung (Operation Mindfuck) *– Coming Soon*
-- Definiere deine Interessen
-- Relevanz-Scoring basierend auf Leseverhalten
-- Priorisierte Übersichten
+### 🎯 Personalisierung (Operation Mindfuck)
+- Personalisierte Empfehlungen basierend auf Leseverhalten
+- Relevanz-Scoring mit Embedding-Similarity und Keyword-Overlap
+- Quellenvielfalt durch Diversity-Reranking
+- Artikel speichern und ausblenden für Feedback-Loop
 
-### 🔗 Ähnliche Artikel *– Coming Soon*
-- Vektorbasierte Ähnlichkeitssuche
+### 🔗 Ähnliche Artikel
+- Vektorbasierte Ähnlichkeitssuche mit snowflake-arctic-embed2
 - Thematisch verwandte Artikel entdecken
 - Auch ohne gemeinsame Keywords
 
@@ -327,7 +328,7 @@ Die Sprache kann in den Einstellungen gewechselt werden.
 
 ## Roadmap
 
-**Aktueller Status:** Phase 2 abgeschlossen, Phase 3 in Entwicklung
+**Aktueller Status:** Phase 3 abgeschlossen, Phase 4 (Polish) in Entwicklung
 
 Detaillierte Planung und Phasen-Übersicht: siehe [`fuckupRSS-Anforderungen.md`](fuckupRSS-Anforderungen.md#20-nächste-schritte)
 
