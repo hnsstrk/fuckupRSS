@@ -876,12 +876,12 @@ pub fn get_top_keywords_stats(
                     SELECT COUNT(*)
                     FROM fnord_immanentize fi2
                     JOIN fnords f2 ON f2.id = fi2.fnord_id
-                    WHERE fi2.keyword_id = i.id
+                    WHERE fi2.immanentize_id = i.id
                     AND f2.published_at >= date('now', '-' || (?1 * 2) || ' days')
                     AND f2.published_at < date('now', '-' || ?1 || ' days')
                 ) as prev_count
             FROM immanentize i
-            JOIN fnord_immanentize fi ON fi.keyword_id = i.id
+            JOIN fnord_immanentize fi ON fi.immanentize_id = i.id
             JOIN fnords f ON f.id = fi.fnord_id
             WHERE f.published_at >= date('now', '-' || ?1 || ' days')
             GROUP BY i.id
@@ -1040,7 +1040,7 @@ pub fn get_keyword_cloud(
                 i.keyword_type,
                 COUNT(fi.fnord_id) as count
             FROM immanentize i
-            JOIN fnord_immanentize fi ON fi.keyword_id = i.id
+            JOIN fnord_immanentize fi ON fi.immanentize_id = i.id
             JOIN fnords f ON f.id = fi.fnord_id
             WHERE f.published_at >= date('now', '-' || ?1 || ' days')
             GROUP BY i.id

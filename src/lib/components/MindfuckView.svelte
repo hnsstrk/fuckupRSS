@@ -191,11 +191,11 @@
 
   function getBiasColor(bias: number | null): string {
     if (bias === null) return "var(--text-muted)";
-    if (bias <= -1.5) return "var(--ctp-red)";
-    if (bias <= -0.5) return "var(--ctp-maroon)";
-    if (bias <= 0.5) return "var(--ctp-green)";
-    if (bias <= 1.5) return "var(--ctp-blue)";
-    return "var(--ctp-sapphire)";
+    if (bias <= -1.5) return "var(--bias-strong-left)";
+    if (bias <= -0.5) return "var(--bias-lean-left)";
+    if (bias <= 0.5) return "var(--bias-center)";
+    if (bias <= 1.5) return "var(--bias-lean-right)";
+    return "var(--bias-strong-right)";
   }
 
   function getSeverityColor(severity: string): string {
@@ -446,21 +446,81 @@
         <!-- Sachlichkeit Distribution -->
         <div class="section">
           <h3>{$_("mindfuck.sachlichkeit.title")}</h3>
-          <div class="sachlichkeit-distribution">
-            {#each readingProfile.by_sachlichkeit as sach (sach.sachlichkeit_value)}
-              <div class="sach-bar-row">
-                <div class="sach-label">{sach.label}</div>
-                <div class="bar-container">
-                  <div class="bar-background">
-                    <div
-                      class="bar-fill sachlichkeit"
-                      style="width: {sach.percentage}%"
-                    ></div>
-                  </div>
-                  <span class="bar-value">{sach.read_count} ({sach.percentage.toFixed(1)}%)</span>
+          <div class="sachlichkeit-spectrum-card">
+            <!-- Spectrum Header -->
+            <div class="sachlichkeit-header">
+              <span class="sachlichkeit-label-header emotional">{$_("mindfuck.sachlichkeit.emotional")}</span>
+              <span class="sachlichkeit-label-header mixed">{$_("mindfuck.sachlichkeit.mixed")}</span>
+              <span class="sachlichkeit-label-header objective">{$_("mindfuck.sachlichkeit.objective")}</span>
+            </div>
+
+            <!-- Main Spectrum Bar -->
+            {#if readingProfile.by_sachlichkeit.reduce((sum, s) => sum + s.read_count, 0) > 0}
+              {@const totalSachReads = readingProfile.by_sachlichkeit.reduce((sum, s) => sum + s.read_count, 0)}
+              <div class="sachlichkeit-bar-container">
+                <div class="sachlichkeit-spectrum-bar">
+                  {#each readingProfile.by_sachlichkeit as sach (sach.sachlichkeit_value)}
+                    {@const segmentClass = sach.sachlichkeit_value <= 0.5 ? 'highly-emotional' :
+                                           sach.sachlichkeit_value <= 1.5 ? 'emotional' :
+                                           sach.sachlichkeit_value <= 2.5 ? 'mixed' :
+                                           sach.sachlichkeit_value <= 3.5 ? 'mostly-objective' : 'objective'}
+                    {#if sach.read_count > 0}
+                      <div
+                        class="sachlichkeit-segment {segmentClass}"
+                        style="width: {sach.percentage}%"
+                        title="{sach.label}: {sach.read_count} ({sach.percentage.toFixed(1)}%)"
+                      >
+                        {#if sach.percentage > 10}
+                          <span class="segment-label">{sach.percentage.toFixed(0)}%</span>
+                        {/if}
+                      </div>
+                    {/if}
+                  {/each}
                 </div>
               </div>
-            {/each}
+
+              <!-- Scale Markers -->
+              <div class="sachlichkeit-scale">
+                <span class="scale-mark">0</span>
+                <span class="scale-mark">1</span>
+                <span class="scale-mark">2</span>
+                <span class="scale-mark">3</span>
+                <span class="scale-mark">4</span>
+              </div>
+
+              <!-- Detailed Breakdown -->
+              <div class="sachlichkeit-details">
+                {#each readingProfile.by_sachlichkeit as sach (sach.sachlichkeit_value)}
+                  {@const segmentClass = sach.sachlichkeit_value <= 0.5 ? 'highly-emotional' :
+                                         sach.sachlichkeit_value <= 1.5 ? 'emotional' :
+                                         sach.sachlichkeit_value <= 2.5 ? 'mixed' :
+                                         sach.sachlichkeit_value <= 3.5 ? 'mostly-objective' : 'objective'}
+                  <div class="detail-item">
+                    <span class="detail-dot {segmentClass}"></span>
+                    <span class="detail-label">{sach.label}</span>
+                    <span class="detail-count">{sach.read_count}</span>
+                    <span class="detail-percent">({sach.percentage.toFixed(1)}%)</span>
+                  </div>
+                {/each}
+              </div>
+
+              <!-- Summary -->
+              <div class="sachlichkeit-summary">
+                <div class="summary-indicator" style="color: var(--sach-objective)">
+                  <i class="fa-solid fa-gauge-high"></i>
+                  <span>{$_("mindfuck.sachlichkeit.title")}</span>
+                </div>
+                <div class="summary-stat">
+                  <span class="summary-value">{totalSachReads}</span>
+                  <span class="summary-label">{$_("mindfuck.bias.articlesAnalyzed")}</span>
+                </div>
+              </div>
+            {:else}
+              <div class="sachlichkeit-empty">
+                <i class="fa-solid fa-gauge-high"></i>
+                <p>{$_("mindfuck.bias.noData") || "Noch keine Sachlichkeits-Daten vorhanden"}</p>
+              </div>
+            {/if}
           </div>
         </div>
       {/if}
@@ -1112,31 +1172,161 @@
     color: var(--text-faint);
   }
 
-  /* Bias Distribution - using bar styles */
-  .bar-fill.sachlichkeit {
-    background-color: var(--ctp-teal);
+  /* Sachlichkeit Spectrum Card */
+  .sachlichkeit-spectrum-card {
+    background-color: var(--bg-overlay);
+    border-radius: 0.75rem;
+    border: 1px solid var(--border-default);
+    padding: 1.25rem;
   }
 
-  /* Bias Distribution */
-  .bias-distribution,
-  .sachlichkeit-distribution {
+  .sachlichkeit-header {
     display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
   }
 
-  .bias-bar-row,
-  .sach-bar-row {
+  .sachlichkeit-label-header {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .sachlichkeit-label-header.emotional {
+    color: var(--sach-emotional);
+  }
+
+  .sachlichkeit-label-header.mixed {
+    color: var(--sach-mixed);
+  }
+
+  .sachlichkeit-label-header.objective {
+    color: var(--sach-objective);
+  }
+
+  .sachlichkeit-bar-container {
+    position: relative;
+    margin-bottom: 0.5rem;
+  }
+
+  .sachlichkeit-spectrum-bar {
+    display: flex;
+    height: 2rem;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background: linear-gradient(
+      90deg,
+      var(--sach-emotional) 0%,
+      color-mix(in srgb, var(--sach-emotional) 50%, var(--bg-surface)) 25%,
+      var(--sach-mixed) 50%,
+      color-mix(in srgb, var(--sach-objective) 50%, var(--bg-surface)) 75%,
+      var(--sach-objective) 100%
+    );
+    opacity: 0.15;
+  }
+
+  .sachlichkeit-spectrum-bar:has(.sachlichkeit-segment) {
+    background: var(--bg-base);
+    opacity: 1;
+  }
+
+  .sachlichkeit-segment {
+    height: 100%;
     display: flex;
     align-items: center;
-    gap: 1rem;
+    justify-content: center;
+    transition: width 0.3s ease, opacity 0.2s ease;
+    min-width: 2px;
+    position: relative;
   }
 
-  .bias-label,
-  .sach-label {
-    min-width: 140px;
+  .sachlichkeit-segment:hover {
+    filter: brightness(1.1);
+  }
+
+  .sachlichkeit-segment.highly-emotional {
+    background: var(--sach-emotional);
+  }
+
+  .sachlichkeit-segment.emotional {
+    background: color-mix(in srgb, var(--sach-emotional) 70%, var(--sach-mixed));
+  }
+
+  .sachlichkeit-segment.mixed {
+    background: var(--sach-mixed);
+  }
+
+  .sachlichkeit-segment.mostly-objective {
+    background: color-mix(in srgb, var(--sach-objective) 60%, var(--sach-mixed));
+  }
+
+  .sachlichkeit-segment.objective {
+    background: var(--sach-objective);
+  }
+
+  .sachlichkeit-scale {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 0.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .sachlichkeit-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background-color: var(--bg-base);
+    border-radius: 0.5rem;
+  }
+
+  .sachlichkeit-details .detail-dot.highly-emotional {
+    background: var(--sach-emotional);
+  }
+
+  .sachlichkeit-details .detail-dot.emotional {
+    background: color-mix(in srgb, var(--sach-emotional) 70%, var(--sach-mixed));
+  }
+
+  .sachlichkeit-details .detail-dot.mixed {
+    background: var(--sach-mixed);
+  }
+
+  .sachlichkeit-details .detail-dot.mostly-objective {
+    background: color-mix(in srgb, var(--sach-objective) 60%, var(--sach-mixed));
+  }
+
+  .sachlichkeit-details .detail-dot.objective {
+    background: var(--sach-objective);
+  }
+
+  .sachlichkeit-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-default);
+  }
+
+  .sachlichkeit-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    color: var(--text-muted);
+    gap: 0.75rem;
+  }
+
+  .sachlichkeit-empty i {
+    font-size: 2rem;
+    opacity: 0.5;
+  }
+
+  .sachlichkeit-empty p {
+    margin: 0;
     font-size: 0.875rem;
-    color: var(--text-primary);
   }
 
   /* Political Spectrum Card */

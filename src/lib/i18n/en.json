@@ -680,7 +680,9 @@
       "strongRight": "Strong right",
       "balanced": "Balanced",
       "leaningLeft": "Left-leaning",
-      "leaningRight": "Right-leaning"
+      "leaningRight": "Right-leaning",
+      "yourPosition": "Your position",
+      "articlesAnalyzed": "Articles with bias analysis"
     },
     "sachlichkeit": {
       "title": "Objectivity",
