@@ -1,7 +1,6 @@
 <script lang="ts">
   import { _, locale } from 'svelte-i18n';
   import { appState } from "../stores/state.svelte";
-  import Tooltip from "./Tooltip.svelte";
   import { ArticleItemCompact, ArticleItemSearch } from "./article";
   import type { SearchResult } from "../types";
 
@@ -131,7 +130,7 @@
         <div class="empty-state">
           {$_('articleList.noArticles')}<br />
           {#if appState.pentacles.length === 0}
-            <Tooltip termKey="pentacle">{$_('sidebar.addFeed')}</Tooltip>
+            {$_('sidebar.addFeed')}
           {:else}
             {$_('articleList.selectFeed')}
           {/if}

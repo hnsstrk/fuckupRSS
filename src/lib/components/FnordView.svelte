@@ -207,9 +207,7 @@
   <!-- Header -->
   <div class="fnord-header">
     <div class="header-top">
-      <h2 class="view-title">
-        <Tooltip termKey="fnord">{$_('fnordView.title') || 'Fnord-Statistiken'}</Tooltip>
-      </h2>
+      <h2 class="view-title">{$_('fnordView.title') || 'Fnord-Statistiken'}</h2>
       {#if stats}
         <div class="fnord-summary">
           <span class="summary-item">
@@ -252,7 +250,7 @@
             <div class="stats-card greyface-card">
               <h3 class="card-title">
                 <i class="fa-solid fa-triangle-exclamation"></i>
-                <Tooltip termKey="greyface">{$_('fnordView.greyface.title') || 'Greyface-Index'}</Tooltip>
+                {$_('fnordView.greyface.title') || 'Greyface-Index'}
                 <Tooltip content={$_('fnordView.greyface.help') || 'Misst die durchschnittliche politische Tendenz und Sachlichkeit deiner gelesenen Artikel.'}>
                   <i class="fa-solid fa-circle-info help-icon"></i>
                 </Tooltip>
@@ -329,7 +327,7 @@
             <div class="stats-card greyface-card greyface-empty">
               <h3 class="card-title">
                 <i class="fa-solid fa-triangle-exclamation"></i>
-                <Tooltip termKey="greyface">{$_('fnordView.greyface.title') || 'Greyface-Index'}</Tooltip>
+                {$_('fnordView.greyface.title') || 'Greyface-Index'}
                 <Tooltip content={$_('fnordView.greyface.help') || 'Misst die durchschnittliche politische Tendenz und Sachlichkeit deiner gelesenen Artikel.'}>
                   <i class="fa-solid fa-circle-info help-icon"></i>
                 </Tooltip>
@@ -348,7 +346,7 @@
             <div class="stats-card source-card">
               <h3 class="card-title">
                 <i class="fa-solid fa-rss"></i>
-                <Tooltip termKey="pentacle">{$_('fnordView.bySource') || 'Nach Quelle'}</Tooltip>
+                {$_('fnordView.bySource') || 'Nach Quelle'}
                 <Tooltip content={$_('fnordView.bySource.help') || 'Zeigt die Anzahl der Revisionen und Artikel pro Feed-Quelle.'}>
                   <i class="fa-solid fa-circle-info help-icon"></i>
                 </Tooltip>
@@ -435,7 +433,7 @@
           {@const maxRevisions = Math.max(...stats.by_category.map(c => c.revision_count), 1)}
           <div class="stats-section">
             <h3 class="section-title">
-              <Tooltip termKey="sephiroth">{$_('fnordView.byCategory') || 'Nach Kategorie'}</Tooltip>
+              {$_('fnordView.byCategory') || 'Nach Kategorie'}
               <Tooltip content={$_('fnordView.byCategory.help') || 'Verteilung der Revisionen nach Themengebiet. Klicke auf eine Kategorie um Unterkategorien zu sehen.'}>
                 <i class="fa-solid fa-circle-info help-icon"></i>
               </Tooltip>

@@ -3,7 +3,6 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import type { Keyword, KeywordNeighbor, KeywordCategory, TrendingKeyword, NetworkStats, NetworkGraph as NetworkGraphType } from '../stores/state.svelte.ts';
-  import Tooltip from './Tooltip.svelte';
   import NetworkGraph from './NetworkGraph.svelte';
   import KeywordTrendChart from './KeywordTrendChart.svelte';
   import KeywordTable from './KeywordTable.svelte';
@@ -588,9 +587,7 @@
   <!-- Header with Stats and Tabs -->
   <div class="network-header">
     <div class="header-top">
-      <h2 class="view-title">
-        <Tooltip termKey="immanentize">{$_('network.title')}</Tooltip>
-      </h2>
+      <h2 class="view-title">{$_('network.title')}</h2>
       {#if networkStats}
         <div class="network-stats">
           <span class="stat">{$_('network.keywords')}: <strong>{networkStats.total_keywords}</strong></span>

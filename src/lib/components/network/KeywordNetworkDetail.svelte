@@ -267,7 +267,7 @@
       {#if groupedCategories.length > 0}
         <div class="detail-section">
           <h4 class="section-title">
-            <Tooltip termKey="sephiroth">{$_('network.categories')}</Tooltip>
+            {$_('network.categories')}
             <Tooltip content={$_('network.categoriesHelp')}>
               <i class="fa-solid fa-circle-info help-icon"></i>
             </Tooltip>

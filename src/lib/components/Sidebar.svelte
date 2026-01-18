@@ -251,13 +251,13 @@
       class="toggle-btn {sidebarMode === 'pentacles' ? 'active' : ''}"
       onclick={() => sidebarMode = 'pentacles'}
     >
-      <Tooltip termKey="pentacle">{$_('sidebar.title')}</Tooltip>
+      {$_('sidebar.title')}
     </button>
     <button
       class="toggle-btn {sidebarMode === 'sephiroth' ? 'active' : ''}"
       onclick={() => sidebarMode = 'sephiroth'}
     >
-      <Tooltip termKey="sephiroth">{$_('sidebar.sephiroth')}</Tooltip>
+      {$_('sidebar.sephiroth')}
     </button>
   </div>
 
@@ -324,7 +324,7 @@
       {#if appState.pentacles.length === 0 && !appState.loading}
         <div class="empty-state">
           {$_('articleList.noArticles')}<br />
-          <Tooltip termKey="pentacle">{$_('sidebar.addFeed')}</Tooltip>
+          {$_('sidebar.addFeed')}
         </div>
       {/if}
     {:else}
@@ -408,7 +408,7 @@
       </form>
     {:else}
       <button onclick={() => (showAddForm = true)} class="btn-add">
-        + <Tooltip termKey="pentacle">{$_('sidebar.addFeed')}</Tooltip>
+        + {$_('sidebar.addFeed')}
       </button>
     {/if}
   </div>
@@ -417,7 +417,7 @@
   <div class="batch-section">
     {#if appState.batchProcessing}
       <button onclick={handleCancelBatch} class="btn-batch processing" title={$_('batch.cancel')}>
-        <Tooltip termKey="discordian">{$_('batch.title')}</Tooltip>
+        {$_('batch.title')}
         <i class="cancel-icon fa-solid fa-xmark"></i>
       </button>
     {:else if appState.ollamaStatus.available}
@@ -426,14 +426,14 @@
         class="btn-batch"
         disabled={appState.batchProcessing || appState.unprocessedCount.with_content === 0}
       >
-        <Tooltip termKey="discordian">{$_('batch.title')}</Tooltip>
+        {$_('batch.title')}
         {#if appState.unprocessedCount.with_content > 0}
           <span class="unprocessed-badge">{appState.unprocessedCount.with_content}</span>
         {/if}
       </button>
     {:else}
       <button class="btn-batch" disabled title={$_('batch.noOllama')}>
-        <Tooltip termKey="discordian">{$_('batch.title')}</Tooltip>
+        {$_('batch.title')}
       </button>
     {/if}
   </div>

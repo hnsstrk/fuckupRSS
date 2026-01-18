@@ -4,7 +4,6 @@
   import { invoke } from '@tauri-apps/api/core';
   import { appState, toasts, type FnordRevision, type ArticleCategory, type Tag, type SimilarArticle } from "../stores/state.svelte";
   import type { ArticleKeyword, ArticleCategoryDetailed } from '$lib/types';
-  import Tooltip from "./Tooltip.svelte";
   import RevisionView from "./RevisionView.svelte";
   import { ArticleCard, ArticleKeywords, ArticleCategories } from "./article";
   import StatisticalPreview from "./article/StatisticalPreview.svelte";
@@ -432,10 +431,8 @@
             onclick={() => appState.toggleGoldenApple(fnord.id)}
             class="btn {fnord.status === 'golden_apple' ? 'btn-golden' : 'btn-default'}"
           >
-            <Tooltip termKey="golden_apple">
-              <i class="btn-icon {fnord.status === 'golden_apple' ? 'fa-solid fa-apple-whole' : 'fa-regular fa-star'}"></i>
-              <span>{fnord.status === "golden_apple" ? $_('terminology.golden_apple.term') : $_('actions.favorite')}</span>
-            </Tooltip>
+            <i class="btn-icon {fnord.status === 'golden_apple' ? 'fa-solid fa-apple-whole' : 'fa-regular fa-star'}"></i>
+            <span>{fnord.status === "golden_apple" ? $_('terminology.golden_apple.term') : $_('actions.favorite')}</span>
           </button>
           {#if !fnord.content_full}
             <button
@@ -447,9 +444,7 @@
               {#if appState.retrieving}
                 <i class="spinner fa-solid fa-rotate fa-spin"></i>
               {/if}
-              <Tooltip termKey="hagbard">
-                <span>{$_('articleView.fullText')}</span>
-              </Tooltip>
+              <span>{$_('articleView.fullText')}</span>
             </button>
           {/if}
           {#if appState.ollamaStatus.available}
@@ -462,9 +457,7 @@
               {#if appState.analyzing}
                 <i class="spinner fa-solid fa-rotate fa-spin"></i>
               {/if}
-              <Tooltip termKey="discordian">
-                <span>{fnord.summary ? $_('articleView.reanalyze') : $_('articleView.analyze')}</span>
-              </Tooltip>
+              <span>{fnord.summary ? $_('articleView.reanalyze') : $_('articleView.analyze')}</span>
             </button>
           {/if}
           <button onclick={openInBrowser} class="btn btn-default">
@@ -481,7 +474,7 @@
           <button class="revision-header" onclick={toggleRevisions}>
             <i class="revision-icon fa-solid {showRevisions ? 'fa-caret-down' : 'fa-caret-right'}"></i>
             <span class="revision-title">
-              <Tooltip termKey="fnord">{$_('articleView.changes.revisions')}</Tooltip> ({fnord.revision_count})
+              {$_('articleView.changes.revisions')} ({fnord.revision_count})
             </span>
           </button>
 
@@ -504,7 +497,7 @@
         <div class="section-content">
           <div class="greyface-row">
             <div class="greyface-label">
-              <Tooltip termKey="greyface">{$_('articleView.greyface.title')}</Tooltip>
+              {$_('articleView.greyface.title')}
             </div>
             <div class="greyface-indicators">
               {#if fnord.political_bias !== null}
@@ -535,7 +528,7 @@
       <div class="summary-section">
         <div class="section-content">
           <div class="section-header">
-            <Tooltip termKey="discordian">{$_('terminology.discordian.term')}</Tooltip>
+            {$_('terminology.discordian.term')}
           </div>
           <p class="summary-text">{stripHtml(fnord.summary)}</p>
         </div>
@@ -558,7 +551,7 @@
           {#if articleCategoriesDetailed.length > 0 || categories.length > 0}
             <div class="meta-row">
               <div class="meta-label">
-                <Tooltip termKey="sephiroth">{$_('articleView.categories')}</Tooltip>
+                {$_('articleView.categories')}
               </div>
               <div class="meta-content">
                 {#if articleCategoriesDetailed.length > 0}
@@ -594,7 +587,7 @@
           {#if articleKeywords.length > 0 || tags.length > 0}
             <div class="meta-row">
               <div class="meta-label">
-                <Tooltip termKey="immanentize">{$_('articleView.keywords')}</Tooltip>
+                {$_('articleView.keywords')}
               </div>
               <div class="meta-content">
                 {#if articleKeywords.length > 0}
@@ -680,7 +673,7 @@
     <div class="empty-state">
       <i class="empty-icon fa-solid fa-eye"></i>
       <h2 class="empty-title">
-        <Tooltip termKey="fnord">{$_('articleView.noSelection')}</Tooltip>
+        {$_('articleView.noSelection')}
       </h2>
       <p class="empty-text">
         {$_('articleView.selectArticle')}<br />
