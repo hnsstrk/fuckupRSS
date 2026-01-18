@@ -141,6 +141,8 @@ pub fn run() {
             commands::ollama::batch_processor::get_unprocessed_count,
             commands::ollama::batch_processor::get_hopeless_count,
             commands::ollama::batch_processor::get_failed_count,
+            commands::ollama::batch_processor::get_failed_articles,
+            commands::ollama::batch_processor::get_hopeless_articles,
             commands::ollama::batch_processor::process_batch,
             commands::ollama::batch_processor::cancel_batch,
             // Prompts

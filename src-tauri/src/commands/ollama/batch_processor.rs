@@ -261,6 +261,96 @@ pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount,
     Ok(UnprocessedCount { total, with_content })
 }
 
+/// Get failed articles (attempted but not processed successfully, not hopeless)
+#[tauri::command]
+pub fn get_failed_articles(
+    state: State<AppState>,
+    limit: Option<i64>,
+) -> Result<Vec<super::types::AnalysisStatusArticle>, String> {
+    let limit = limit.unwrap_or(100);
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"SELECT
+                f.id, f.title, f.pentacle_id, p.title as pentacle_title,
+                f.summary, f.published_at, f.status, f.analysis_attempts, f.analysis_error
+            FROM fnords f
+            LEFT JOIN pentacles p ON p.id = f.pentacle_id
+            WHERE f.analysis_attempts > 0
+              AND f.processed_at IS NULL
+              AND (f.analysis_hopeless IS NULL OR f.analysis_hopeless = FALSE)
+            ORDER BY f.analysis_attempts DESC, f.published_at DESC
+            LIMIT ?"#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let articles: Vec<super::types::AnalysisStatusArticle> = stmt
+        .query_map([limit], |row| {
+            Ok(super::types::AnalysisStatusArticle {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                pentacle_id: row.get(2)?,
+                pentacle_title: row.get(3)?,
+                summary: row.get(4)?,
+                published_at: row.get(5)?,
+                status: row.get(6)?,
+                analysis_attempts: row.get(7)?,
+                last_error: row.get(8)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(articles)
+}
+
+/// Get hopeless articles (failed 3+ times, marked as hopeless)
+#[tauri::command]
+pub fn get_hopeless_articles(
+    state: State<AppState>,
+    limit: Option<i64>,
+) -> Result<Vec<super::types::AnalysisStatusArticle>, String> {
+    let limit = limit.unwrap_or(100);
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"SELECT
+                f.id, f.title, f.pentacle_id, p.title as pentacle_title,
+                f.summary, f.published_at, f.status, f.analysis_attempts, f.analysis_error
+            FROM fnords f
+            LEFT JOIN pentacles p ON p.id = f.pentacle_id
+            WHERE f.analysis_hopeless = TRUE
+            ORDER BY f.analysis_attempts DESC, f.published_at DESC
+            LIMIT ?"#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let articles: Vec<super::types::AnalysisStatusArticle> = stmt
+        .query_map([limit], |row| {
+            Ok(super::types::AnalysisStatusArticle {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                pentacle_id: row.get(2)?,
+                pentacle_title: row.get(3)?,
+                summary: row.get(4)?,
+                published_at: row.get(5)?,
+                status: row.get(6)?,
+                analysis_attempts: row.get(7)?,
+                last_error: row.get(8)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(articles)
+}
+
 /// Process a single article with full statistical + LLM pipeline
 async fn process_single_article(
     client: &OllamaClient,

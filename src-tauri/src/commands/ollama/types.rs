@@ -142,6 +142,20 @@ pub struct FailedCount {
     pub count: i64,
 }
 
+/// Article with analysis status info for ErisianArchives view
+#[derive(serde::Serialize, Clone)]
+pub struct AnalysisStatusArticle {
+    pub id: i64,
+    pub title: String,
+    pub pentacle_id: i64,
+    pub pentacle_title: Option<String>,
+    pub summary: Option<String>,
+    pub published_at: Option<String>,
+    pub status: String,
+    pub analysis_attempts: i64,
+    pub last_error: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct BatchArticle {
     pub fnord_id: i64,
