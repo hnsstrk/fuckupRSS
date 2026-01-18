@@ -588,7 +588,7 @@
   <!-- Header with Stats and Tabs -->
   <div class="network-header">
     <div class="header-top">
-      <h2 class="network-title">
+      <h2 class="view-title">
         <Tooltip termKey="immanentize">{$_('network.title')}</Tooltip>
       </h2>
       {#if networkStats}
@@ -820,12 +820,7 @@
     margin-bottom: 0.75rem;
   }
 
-  .network-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-  }
+  /* .network-title removed - now uses global .view-title class */
 
   .network-stats {
     display: flex;

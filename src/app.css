@@ -1079,3 +1079,43 @@ body,
 /* Hover states */
 .hover-overlay:hover { background-color: var(--bg-overlay); }
 .hover-surface:hover { background-color: var(--bg-surface); }
+
+/* ===========================================
+   Unified Heading System
+   =========================================== */
+
+/* Main view title - used at the top of each main view (Settings, Network, FnordView, MindfuckView) */
+.view-title {
+  font-size: 1.25rem;
+  font-weight: 300;
+  color: var(--accent-warning);
+  margin: 0;
+  padding-bottom: 0.25rem;
+  border-bottom: 2px dotted var(--accent-warning);
+  display: inline-block;
+}
+
+/* Section title - used for card/section headers within a view */
+.section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 1rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Card title - used inside cards */
+.card-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-title i {
+  color: var(--accent-primary);
+}

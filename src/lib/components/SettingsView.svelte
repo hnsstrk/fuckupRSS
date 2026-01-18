@@ -82,7 +82,7 @@
 
 <div class="settings-view">
   <div class="settings-header">
-    <h2>{$_("settings.title")}</h2>
+    <h2 class="view-title">{$_("settings.title")}</h2>
   </div>
 
   <!-- Tabs -->
@@ -122,11 +122,7 @@
     border-bottom: 1px solid var(--border-default);
   }
 
-  .settings-header h2 {
-    margin: 0;
-    font-size: 1.25rem;
-    color: var(--accent-primary);
-  }
+  /* .settings-header h2 removed - now uses global .view-title class */
 
   /* Tabs */
   .tabs-wrapper {

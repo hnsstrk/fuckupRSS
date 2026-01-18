@@ -233,7 +233,7 @@
 
 <div class="mindfuck-view">
   <div class="mindfuck-header">
-    <h2>{$_("mindfuck.title")}</h2>
+    <h2 class="view-title">{$_("mindfuck.title")}</h2>
     <p class="subtitle">{$_("mindfuck.subtitle")}</p>
   </div>
 
@@ -862,11 +862,7 @@
     border-bottom: 1px solid var(--border-default);
   }
 
-  .mindfuck-header h2 {
-    margin: 0;
-    font-size: 1.25rem;
-    color: var(--accent-primary);
-  }
+  /* .mindfuck-header h2 removed - now uses global .view-title class */
 
   .subtitle {
     margin: 0.25rem 0 0 0;

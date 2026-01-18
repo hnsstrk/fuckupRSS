@@ -207,7 +207,7 @@
   <!-- Header -->
   <div class="fnord-header">
     <div class="header-top">
-      <h2 class="fnord-title">
+      <h2 class="view-title">
         <Tooltip termKey="fnord">{$_('fnordView.title') || 'Fnord-Statistiken'}</Tooltip>
       </h2>
       {#if stats}
@@ -749,12 +749,7 @@
     margin-bottom: 0.75rem;
   }
 
-  .fnord-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-  }
+  /* .fnord-title removed - now uses global .view-title class */
 
   .fnord-summary {
     display: flex;
