@@ -8,7 +8,7 @@
     "sephiroth": "Sephiroth",
     "addFeed": "Add Feed",
     "addFeedPlaceholder": "Enter feed URL...",
-    "allFeeds": "All Feeds",
+    "allFeeds": "Erisian Archives",
     "unreadCount": "{count} unread"
   },
   "articleList": {
@@ -150,6 +150,11 @@
   },
   "settings": {
     "title": "Settings",
+    "stats": {
+      "feeds": "Feeds",
+      "syncInterval": "Min. Sync",
+      "ollama": "Ollama"
+    },
     "language": "Language",
     "languageGerman": "Deutsch",
     "languageEnglish": "English",
@@ -404,6 +409,22 @@
     "mindfuck": {
       "term": "Operation Mindfuck",
       "description": "Bias mirror. Shows you your filter bubble and suggests articles that challenge your worldview."
+    },
+    "immanentize_network": {
+      "term": "Immanentize Network",
+      "description": "The keyword knowledge network. 'Immanentize the Eschaton' is a central motif in Illuminatus! - here all terms connect into a network."
+    },
+    "fnord_stats": {
+      "term": "Fnord Statistics",
+      "description": "Overview of changed articles. Fnords are hidden words that cause fear - here we reveal changes in your articles."
+    },
+    "erisian_archives": {
+      "term": "Erisian Archives",
+      "description": "The archive of all articles. Eris is the goddess of discord - patron of Discordianism and namesake of this collection."
+    },
+    "settings_view": {
+      "term": "Settings",
+      "description": "Configure F.U.C.K.U.P. to your will. Even chaos sometimes needs order."
     }
   },
   "actions": {
@@ -586,7 +607,7 @@
     "days7": "7 days",
     "days30": "30 days",
     "days90": "90 days",
-    "days": "Tage",
+    "days": "Days",
     "selectKeywordForTrend": "Select a keyword from the Keywords tab to see its trend",
     "trendComparison": "Trend Comparison",
     "comparedWith": "Co-occurring",
@@ -764,6 +785,27 @@
       "recommendations": "Recommendations",
       "trends": "Trends"
     }
+  },
+  "erisianArchives": {
+    "title": "Erisian Archives",
+    "subtitle": "The Chaos Archive of All Articles",
+    "tabs": {
+      "articles": "Articles",
+      "unread": "Unread",
+      "goldenApple": "Golden Apple",
+      "failed": "Failed",
+      "hopeless": "Hopeless"
+    },
+    "stats": {
+      "total": "Total",
+      "unread": "Unread",
+      "favorites": "Favorites"
+    },
+    "noArticles": "No articles available",
+    "noUnread": "All articles have been read - Enlightenment achieved!",
+    "noFavorites": "No Golden Apples - mark articles as favorites!",
+    "noFailed": "No failed analyses",
+    "noHopeless": "No hopeless cases - the AI has mastered everything!"
   },
   "recommendations": {
     "title": "Recommendations",

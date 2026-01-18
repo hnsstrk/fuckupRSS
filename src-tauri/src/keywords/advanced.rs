@@ -96,9 +96,15 @@ fn is_valid_ngram_sequence(words: &[String], lang: Language) -> bool {
         return false;
     }
 
+    // Guard against empty words (defensive check)
+    if words.is_empty() {
+        return false;
+    }
+
     // First and last word should preferably not be stopwords
-    let first_is_stop = stopwords.contains(&words.first().unwrap().to_lowercase());
-    let last_is_stop = stopwords.contains(&words.last().unwrap().to_lowercase());
+    // Safe: words is guaranteed non-empty after the guard above
+    let first_is_stop = stopwords.contains(&words[0].to_lowercase());
+    let last_is_stop = stopwords.contains(&words[words.len() - 1].to_lowercase());
 
     if first_is_stop && last_is_stop {
         return false;

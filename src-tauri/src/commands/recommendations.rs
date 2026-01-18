@@ -174,8 +174,12 @@ pub fn get_recommendations(
     let scoring_time = scoring_start.elapsed();
     debug!("[{}] Scored candidates in {:?}", request_id, scoring_time);
 
-    // Sort by score
-    candidates.sort_by(|a, b| b.final_score.partial_cmp(&a.final_score).unwrap());
+    // Sort by score (NaN-safe: treat NaN as equal to avoid panic)
+    candidates.sort_by(|a, b| {
+        b.final_score
+            .partial_cmp(&a.final_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     // Rerank for diversity
     let rerank_start = Instant::now();
@@ -889,8 +893,12 @@ fn rerank_for_diversity(mut candidates: Vec<Candidate>, limit: usize) -> Vec<Can
     let mut seen_sources: HashSet<i64> = HashSet::new();
 
     while selected.len() < limit && !candidates.is_empty() {
-        // Sort remaining by score
-        candidates.sort_by(|a, b| b.final_score.partial_cmp(&a.final_score).unwrap());
+        // Sort remaining by score (NaN-safe)
+        candidates.sort_by(|a, b| {
+            b.final_score
+                .partial_cmp(&a.final_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Find best candidate with source diversity
         let mut best_idx = 0;
