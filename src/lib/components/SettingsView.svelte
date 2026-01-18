@@ -2,7 +2,9 @@
   import { _ } from "svelte-i18n";
   import { onMount, tick } from "svelte";
   import { appState } from "../stores/state.svelte";
+  import { settings } from "../stores/settings.svelte";
   import Tabs, { type Tab } from "./Tabs.svelte";
+  import Tooltip from "./Tooltip.svelte";
   import SettingsGeneral from "./settings/SettingsGeneral.svelte";
   import SettingsOllama from "./settings/SettingsOllama.svelte";
   import SettingsPrompts from "./settings/SettingsPrompts.svelte";
@@ -82,11 +84,31 @@
 
 <div class="settings-view">
   <div class="settings-header">
-    <h2 class="view-title">{$_("settings.title")}</h2>
-  </div>
-
-  <!-- Tabs -->
-  <div class="tabs-wrapper">
+    <div class="header-top">
+      <h2 class="view-title">
+        <i class="fa-solid fa-gear nav-icon"></i>
+        {$_("settings.title")}
+        <Tooltip termKey="settings_view">
+          <i class="fa-solid fa-circle-info info-icon"></i>
+        </Tooltip>
+      </h2>
+      <div class="settings-stats">
+        <span class="stat-item">
+          <span class="stat-value">{appState.pentacles.length}</span>
+          <span class="stat-label">{$_('settings.stats.feeds')}</span>
+        </span>
+        <span class="stat-item">
+          <span class="stat-value">{settings.syncInterval}</span>
+          <span class="stat-label">{$_('settings.stats.syncInterval')}</span>
+        </span>
+        <span class="stat-item ollama-status" class:available={ollamaAvailable}>
+          <span class="stat-value">
+            <i class="fa-solid {ollamaAvailable ? 'fa-check-circle' : 'fa-times-circle'}"></i>
+          </span>
+          <span class="stat-label">{$_('settings.stats.ollama')}</span>
+        </span>
+      </div>
+    </div>
     <Tabs {tabs} bind:activeTab onchange={handleTabChange} />
   </div>
 
@@ -115,19 +137,61 @@
   }
 
   .settings-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     padding: 1rem 1.5rem;
     border-bottom: 1px solid var(--border-default);
   }
 
-  /* .settings-header h2 removed - now uses global .view-title class */
-
-  /* Tabs */
-  .tabs-wrapper {
-    padding: 0 1.5rem;
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
   }
+
+  .settings-stats {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-end;
+  }
+
+  .settings-stats .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    min-width: 4rem;
+  }
+
+  .settings-stats .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+    line-height: 1;
+  }
+
+  .settings-stats .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .settings-stats .ollama-status .stat-value {
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    height: 1.5rem;
+  }
+
+  .settings-stats .ollama-status.available .stat-value {
+    color: var(--accent-success, #10b981);
+  }
+
+  .settings-stats .ollama-status:not(.available) .stat-value {
+    color: var(--accent-error, #ef4444);
+  }
+
+  /* .settings-header h2 removed - now uses global .view-title class */
 
   .tab-content {
     flex: 1;

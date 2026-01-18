@@ -12,14 +12,16 @@
     onfnord?: () => void;
     onmindfuck?: () => void;
     onarticles?: () => void;
+    onerisianArchives?: () => void;
     settingsActive?: boolean;
     networkActive?: boolean;
     fnordActive?: boolean;
     mindfuckActive?: boolean;
     articlesActive?: boolean;
+    erisianArchivesActive?: boolean;
   }
 
-  let { onsettings, onnetwork, onfnord, onmindfuck, onarticles, settingsActive = false, networkActive = false, fnordActive = false, mindfuckActive = false, articlesActive = true }: Props = $props();
+  let { onsettings, onnetwork, onfnord, onmindfuck, onarticles, onerisianArchives, settingsActive = false, networkActive = false, fnordActive = false, mindfuckActive = false, articlesActive = false, erisianArchivesActive = true }: Props = $props();
 
   let showAddForm = $state(false);
   let newFeedUrl = $state("");
@@ -123,16 +125,18 @@
     appState.selectedView = "all";
     appState.selectedPentacleId = null;
     appState.selectedSephirothId = null;
-    appState.loadFnords();
+    onerisianArchives?.();
   }
 
   function handleSelectPentacle(id: number) {
     appState.selectedView = "pentacle";
     appState.selectPentacle(id);
+    onarticles?.();
   }
 
   function handleSelectSephiroth(id: number) {
     appState.selectSephiroth(id);
+    onarticles?.();
   }
 
   async function handleDeletePentacle(id: number) {
@@ -227,7 +231,7 @@
     <p class="tagline">Immanentize the Eschaton</p>
     <!-- Navigation: Alle Feeds → Immanentize Network → Operation Mindfuck → Fnord-Statistiken → Einstellungen -->
     <div class="nav-bar">
-      <button onclick={onarticles} class="nav-btn {articlesActive ? 'active' : ''}" title={$_('sidebar.allFeeds')} aria-label={$_('sidebar.allFeeds')}>
+      <button onclick={onerisianArchives} class="nav-btn {erisianArchivesActive ? 'active' : ''}" title={$_('sidebar.allFeeds')} aria-label={$_('sidebar.allFeeds')}>
         <i class="icon fa-solid fa-newspaper"></i>
       </button>
       <button onclick={onnetwork} class="nav-btn {networkActive ? 'active' : ''}" title={$_('network.title')} aria-label={$_('network.title')}>

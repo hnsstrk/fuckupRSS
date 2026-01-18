@@ -9,6 +9,7 @@
     ReadingTrend,
   } from "../types";
   import Tabs, { type Tab } from "./Tabs.svelte";
+  import Tooltip from "./Tooltip.svelte";
   import { ArticleCard } from "./article";
   import { RecommendationList } from "./recommendation";
 
@@ -234,12 +235,27 @@
 
 <div class="mindfuck-view">
   <div class="mindfuck-header">
-    <h2 class="view-title">{$_("mindfuck.title")}</h2>
-    <p class="subtitle">{$_("mindfuck.subtitle")}</p>
-  </div>
-
-  <!-- Tabs -->
-  <div class="tabs-wrapper">
+    <div class="header-top">
+      <h2 class="view-title">
+        <i class="fa-solid fa-brain nav-icon"></i>
+        {$_("mindfuck.title")}
+        <Tooltip termKey="mindfuck">
+          <i class="fa-solid fa-circle-info info-icon"></i>
+        </Tooltip>
+      </h2>
+      {#if readingProfile}
+        <div class="mindfuck-stats">
+          <span class="stat">
+            <span class="stat-value">{readingProfile.total_read}</span>
+            <span class="stat-label">{$_("mindfuck.profile.totalRead")}</span>
+          </span>
+          <span class="stat">
+            <span class="stat-value">{readingProfile.total_articles}</span>
+            <span class="stat-label">{$_("mindfuck.profile.totalArticles")}</span>
+          </span>
+        </div>
+      {/if}
+    </div>
     <Tabs {tabs} bind:activeTab onchange={handleTabChange} />
   </div>
 
@@ -728,17 +744,36 @@
     border-bottom: 1px solid var(--border-default);
   }
 
-  /* .mindfuck-header h2 removed - now uses global .view-title class */
-
-  .subtitle {
-    margin: 0.25rem 0 0 0;
-    font-size: 0.875rem;
-    color: var(--text-muted);
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
   }
 
-  /* Tabs */
-  .tabs-wrapper {
-    padding: 0 1.5rem;
+  .mindfuck-stats {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-end;
+  }
+
+  .mindfuck-stats .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .mindfuck-stats .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+  }
+
+  .mindfuck-stats .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
   }
 
   .tab-content {

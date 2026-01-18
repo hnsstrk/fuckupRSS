@@ -4,6 +4,7 @@
   import Sidebar from "./lib/components/Sidebar.svelte";
   import ArticleList from "./lib/components/ArticleList.svelte";
   import ArticleView from "./lib/components/ArticleView.svelte";
+  import ErisianArchives from "./lib/components/ErisianArchives.svelte";
   import KeywordNetwork from "./lib/components/KeywordNetwork.svelte";
   import FnordView from "./lib/components/FnordView.svelte";
   import MindfuckView from "./lib/components/MindfuckView.svelte";
@@ -14,7 +15,7 @@
   import { initLocaleFromDb } from "./lib/i18n";
   import { networkStore, appState } from "./lib/stores/state.svelte";
 
-  let mainView = $state<'articles' | 'network' | 'fnord' | 'mindfuck' | 'settings'>('articles');
+  let mainView = $state<'articles' | 'erisianArchives' | 'network' | 'fnord' | 'mindfuck' | 'settings'>('erisianArchives');
 
   // Listen for navigation events from other components
   function handleNavigateToNetwork(event: CustomEvent<{ keywordId?: number }>) {
@@ -57,11 +58,13 @@
     <div class="main-content">
       <!-- Sidebar: Feed list (Pentacles) -->
       <Sidebar
+        onerisianArchives={() => mainView = 'erisianArchives'}
         onarticles={() => mainView = 'articles'}
         onfnord={() => mainView = 'fnord'}
         onnetwork={() => mainView = 'network'}
         onmindfuck={() => mainView = 'mindfuck'}
         onsettings={() => mainView = 'settings'}
+        erisianArchivesActive={mainView === 'erisianArchives'}
         articlesActive={mainView === 'articles'}
         fnordActive={mainView === 'fnord'}
         networkActive={mainView === 'network'}
@@ -71,7 +74,10 @@
 
       <!-- Main content area -->
       <div class="content-area">
-        {#if mainView === 'articles'}
+        {#if mainView === 'erisianArchives'}
+          <!-- Erisian Archives: All articles with tabs -->
+          <ErisianArchives />
+        {:else if mainView === 'articles'}
           <!-- Article list + Article view -->
           <ArticleList />
           <ArticleView />

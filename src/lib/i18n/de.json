@@ -8,7 +8,7 @@
     "sephiroth": "Sephiroth",
     "addFeed": "Feed hinzufügen",
     "addFeedPlaceholder": "Feed-URL eingeben...",
-    "allFeeds": "Alle Feeds",
+    "allFeeds": "Erisian Archives",
     "unreadCount": "{count} ungelesen"
   },
   "articleList": {
@@ -150,6 +150,11 @@
   },
   "settings": {
     "title": "Einstellungen",
+    "stats": {
+      "feeds": "Feeds",
+      "syncInterval": "Min. Sync",
+      "ollama": "Ollama"
+    },
     "language": "Sprache",
     "languageGerman": "Deutsch",
     "languageEnglish": "English",
@@ -404,6 +409,22 @@
     "mindfuck": {
       "term": "Operation Mindfuck",
       "description": "Bias-Spiegel. Zeigt dir deine Filterblase und schlägt Artikel vor, die dein Weltbild herausfordern."
+    },
+    "immanentize_network": {
+      "term": "Immanentize Network",
+      "description": "Das Stichwort-Wissensnetz. 'Immanentize the Eschaton' ist ein zentrales Motiv in Illuminatus! - hier verbinden sich alle Begriffe zu einem Netzwerk."
+    },
+    "fnord_stats": {
+      "term": "Fnord-Statistiken",
+      "description": "Übersicht über geänderte Artikel. Fnords sind versteckte Wörter, die Angst erzeugen - hier enthüllen wir Änderungen in deinen Artikeln."
+    },
+    "erisian_archives": {
+      "term": "Erisian Archives",
+      "description": "Das Archiv aller Artikel. Eris ist die Göttin der Zwietracht - Patronin des Discordianismus und Namensgeberin dieser Sammlung."
+    },
+    "settings_view": {
+      "term": "Einstellungen",
+      "description": "Konfiguriere F.U.C.K.U.P. nach deinem Willen. Auch Chaos braucht manchmal Ordnung."
     }
   },
   "actions": {
@@ -764,6 +785,27 @@
       "recommendations": "Empfehlungen",
       "trends": "Trends"
     }
+  },
+  "erisianArchives": {
+    "title": "Erisian Archives",
+    "subtitle": "Das Chaos-Archiv aller Artikel",
+    "tabs": {
+      "articles": "Artikel",
+      "unread": "Ungelesen",
+      "goldenApple": "Golden Apple",
+      "failed": "Fehlgeschlagen",
+      "hopeless": "Hoffnungslos"
+    },
+    "stats": {
+      "total": "Gesamt",
+      "unread": "Ungelesen",
+      "favorites": "Favoriten"
+    },
+    "noArticles": "Keine Artikel vorhanden",
+    "noUnread": "Alle Artikel wurden gelesen - Erleuchtung erreicht!",
+    "noFavorites": "Keine Golden Apples - markiere Artikel als Favorit!",
+    "noFailed": "Keine fehlgeschlagenen Analysen",
+    "noHopeless": "Keine hoffnungslosen Fälle - die KI hat alles gemeistert!"
   },
   "recommendations": {
     "title": "Empfehlungen",

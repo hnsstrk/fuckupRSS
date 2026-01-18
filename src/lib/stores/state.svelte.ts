@@ -967,18 +967,5 @@ class AppState {
 
 export const appState = new AppState();
 
-// Export selected state for components
-export const selectedPentacle = {
-  get current() {
-    return appState.selectedPentacle;
-  },
-};
-
-export const selectedFnord = {
-  get current() {
-    return appState.selectedFnord;
-  },
-};
-
 export { networkStore } from "./network.svelte";
 export { navigationStore } from "./navigation.svelte";

@@ -207,7 +207,13 @@
   <!-- Header -->
   <div class="fnord-header">
     <div class="header-top">
-      <h2 class="view-title">{$_('fnordView.title') || 'Fnord-Statistiken'}</h2>
+      <h2 class="view-title">
+        <i class="fa-solid fa-clipboard-list nav-icon"></i>
+        {$_('fnordView.title') || 'Fnord-Statistiken'}
+        <Tooltip termKey="fnord_stats">
+          <i class="fa-solid fa-circle-info info-icon"></i>
+        </Tooltip>
+      </h2>
       {#if stats}
         <div class="fnord-summary">
           <span class="summary-item">

@@ -1090,9 +1090,37 @@ body,
   font-weight: 300;
   color: var(--accent-warning);
   margin: 0;
-  padding-bottom: 0.25rem;
-  border-bottom: 2px dotted var(--accent-warning);
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Navigation icon in view title (matches sidebar nav icons) */
+.view-title .nav-icon {
+  font-size: 1rem;
+  color: var(--accent-warning);
+  opacity: 0.8;
+}
+
+/* Info icon next to view title - for terminology tooltips */
+.view-title .info-icon {
+  font-size: 0.5rem;
+  color: var(--text-faint);
+  cursor: help;
+  transition: color 0.15s ease;
+  opacity: 0.4;
+}
+
+.view-title .info-icon:hover {
+  color: var(--accent-primary);
+  opacity: 1;
+}
+
+/* Tooltip trigger in view-title - position info icon higher */
+.view-title .tooltip-trigger {
+  border-bottom: none !important;
+  align-self: flex-start;
+  margin-top: -0.15rem;
 }
 
 /* Section title - used for card/section headers within a view */

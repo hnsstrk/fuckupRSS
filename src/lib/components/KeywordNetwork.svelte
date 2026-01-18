@@ -7,6 +7,7 @@
   import KeywordTrendChart from './KeywordTrendChart.svelte';
   import KeywordTable from './KeywordTable.svelte';
   import Tabs, { type Tab } from './Tabs.svelte';
+  import Tooltip from './Tooltip.svelte';
   import KeywordNetworkDetail from './network/KeywordNetworkDetail.svelte';
   import KeywordNetworkSynonyms from './network/KeywordNetworkSynonyms.svelte';
 
@@ -587,12 +588,27 @@
   <!-- Header with Stats and Tabs -->
   <div class="network-header">
     <div class="header-top">
-      <h2 class="view-title">{$_('network.title')}</h2>
+      <h2 class="view-title">
+        <i class="fa-solid fa-circle-nodes nav-icon"></i>
+        {$_('network.title')}
+        <Tooltip termKey="immanentize_network">
+          <i class="fa-solid fa-circle-info info-icon"></i>
+        </Tooltip>
+      </h2>
       {#if networkStats}
         <div class="network-stats">
-          <span class="stat">{$_('network.keywords')}: <strong>{networkStats.total_keywords}</strong></span>
-          <span class="stat">{$_('network.connections')}: <strong>{networkStats.total_connections}</strong></span>
-          <span class="stat">{$_('network.avgNeighbors')}: <strong>{networkStats.avg_neighbors_per_keyword.toFixed(1)}</strong></span>
+          <span class="stat-item">
+            <span class="stat-value">{networkStats.total_keywords}</span>
+            <span class="stat-label">{$_('network.keywords')}</span>
+          </span>
+          <span class="stat-item">
+            <span class="stat-value">{networkStats.total_connections}</span>
+            <span class="stat-label">{$_('network.connections')}</span>
+          </span>
+          <span class="stat-item">
+            <span class="stat-value">{networkStats.avg_neighbors_per_keyword.toFixed(1)}</span>
+            <span class="stat-label">{$_('network.avgNeighbors')}</span>
+          </span>
         </div>
       {/if}
     </div>
@@ -822,12 +838,24 @@
   .network-stats {
     display: flex;
     gap: 1.5rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
+    align-items: flex-end;
   }
 
-  .network-stats .stat strong {
-    color: var(--text-secondary);
+  .network-stats .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .network-stats .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+  }
+
+  .network-stats .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
   }
 
   /* Table View */
