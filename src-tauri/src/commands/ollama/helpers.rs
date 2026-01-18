@@ -136,6 +136,7 @@ pub fn get_discordian_prompt(state: &State<'_, AppState>) -> Option<String> {
 }
 
 /// Get discordian prompt from database or default (returns the actual prompt string)
+#[allow(dead_code)] // Public API for prompt customization
 pub fn get_discordian_prompt_or_default(state: &State<'_, AppState>) -> String {
     get_discordian_prompt(state).unwrap_or_else(|| DEFAULT_DISCORDIAN_PROMPT_WITH_STATS.to_string())
 }
@@ -195,6 +196,7 @@ pub fn validate_and_merge_categories(
 }
 
 /// Statistical keyword info with type
+#[allow(dead_code)] // Public API for type-aware keyword processing
 pub struct StatKeywordInfo {
     pub name: String,
     pub keyword_type: String,
@@ -224,6 +226,7 @@ pub fn determine_keyword_sources(
 }
 
 /// Determine source for each keyword by comparing with statistical suggestions (with type info)
+#[allow(dead_code)] // Public API for type-aware source determination
 pub fn determine_keyword_sources_with_types(
     final_keywords: &[String],
     stat_keywords_with_types: &[StatKeywordInfo],

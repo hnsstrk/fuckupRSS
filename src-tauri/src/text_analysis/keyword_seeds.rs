@@ -463,6 +463,7 @@ pub fn update_types_from_seeds(conn: &Connection) -> Result<usize, rusqlite::Err
 }
 
 /// Check if a keyword matches a known entity and return its type
+#[allow(dead_code)] // Public API for keyword type lookup
 pub fn get_known_keyword_type(keyword: &str) -> Option<&'static str> {
     let keyword_lower = keyword.to_lowercase();
 

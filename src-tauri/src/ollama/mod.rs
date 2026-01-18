@@ -50,6 +50,7 @@ mod flexible_deser {
     }
 
     /// Deserialize an optional string that might be an object with a text field
+    #[allow(dead_code)] // Serde helper for JSON robustness
     pub fn flexible_string_optional<'de, D>(deserializer: D) -> Result<String, D::Error>
     where
         D: Deserializer<'de>,
@@ -90,6 +91,7 @@ mod flexible_deser {
     }
 
     /// Deserialize an optional Vec<String> where items might be objects
+    #[allow(dead_code)] // Serde helper for JSON robustness
     pub fn flexible_string_vec_optional<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
     where
         D: Deserializer<'de>,
@@ -599,6 +601,7 @@ Content: {}"#,
     ///
     /// If `custom_prompt` is provided, it will be used instead of the default prompt.
     /// The prompt template should contain placeholders: {language}, {title}, {content}, {stat_keywords}, {stat_categories}
+    #[allow(dead_code)] // Public API for statistical-first analysis workflow
     pub async fn discordian_analysis_with_stats(
         &self,
         model: &str,

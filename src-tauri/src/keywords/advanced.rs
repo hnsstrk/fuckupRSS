@@ -415,6 +415,8 @@ fn pagerank(
 // ============================================================
 
 /// Enhanced NER patterns
+/// Used for future NER improvements in keyword extraction
+#[allow(dead_code)]
 static LOCATION_INDICATORS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
         // German
@@ -429,6 +431,8 @@ static LOCATION_INDICATORS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     .collect()
 });
 
+/// Person titles for NER - used for future improvements
+#[allow(dead_code)]
 static PERSON_TITLES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
         // German titles
@@ -445,6 +449,8 @@ static PERSON_TITLES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     .collect()
 });
 
+/// Event patterns for NER - used for future improvements
+#[allow(dead_code)]
 static EVENT_PATTERNS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
         // German
@@ -621,6 +627,7 @@ fn extract_temporal_entities(text: &str) -> Vec<ExtractedKeyword> {
 // ============================================================
 
 /// Candidate for semantic scoring
+#[allow(dead_code)] // Public API for semantic keyword scoring with embeddings
 #[derive(Debug, Clone)]
 pub struct SemanticCandidate {
     pub text: String,
@@ -631,6 +638,7 @@ pub struct SemanticCandidate {
 
 /// Prepare candidates for semantic scoring
 /// This returns candidates that can be scored against the full document embedding
+#[allow(dead_code)] // Public API for semantic keyword scoring with embeddings
 pub fn prepare_semantic_candidates(keywords: &[ExtractedKeyword]) -> Vec<SemanticCandidate> {
     keywords
         .iter()
@@ -645,6 +653,7 @@ pub fn prepare_semantic_candidates(keywords: &[ExtractedKeyword]) -> Vec<Semanti
 
 /// Apply semantic scores to candidates
 /// similarity_scores is a map from keyword text to similarity score (0-1)
+#[allow(dead_code)] // Public API for semantic keyword scoring with embeddings
 pub fn apply_semantic_scores(
     candidates: Vec<SemanticCandidate>,
     similarity_scores: &HashMap<String, f64>,
@@ -913,6 +922,7 @@ pub fn is_near_duplicate(s1: &str, s2: &str, max_distance: usize) -> bool {
 // ============================================================
 
 /// Centrality scores from TRISUM analysis
+#[allow(dead_code)] // Public API for TRISUM centrality-based keyword ranking
 #[derive(Debug, Clone, Default)]
 pub struct CentralityScores {
     /// PageRank-style score (already implemented)
@@ -1173,6 +1183,7 @@ pub fn extract_textrank_trisum(
 }
 
 /// Get detailed centrality scores for analysis
+#[allow(dead_code)] // Public API for TRISUM centrality analysis
 pub fn get_centrality_scores(
     text: &str,
     window_size: usize,

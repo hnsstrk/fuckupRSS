@@ -23,6 +23,10 @@ pub use stopwords::{
     count_user_stopwords, count_system_stopwords, count_all_stopwords,
 };
 pub use keyword_seeds::{
-    seed_known_keywords, update_types_from_seeds, get_known_keyword_type,
-    KNOWN_PERSONS, KNOWN_ORGANIZATIONS, KNOWN_LOCATIONS, KNOWN_ACRONYMS,
+    seed_known_keywords, update_types_from_seeds,
+};
+// Re-export known keyword collections and lookup function for external use
+#[allow(unused_imports)] // Public API for keyword type lookup and seeding
+pub use keyword_seeds::{
+    get_known_keyword_type, KNOWN_PERSONS, KNOWN_ORGANIZATIONS, KNOWN_LOCATIONS, KNOWN_ACRONYMS,
 };

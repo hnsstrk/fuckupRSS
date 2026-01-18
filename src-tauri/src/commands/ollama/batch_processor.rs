@@ -904,6 +904,10 @@ pub fn cancel_batch(state: State<AppState>) -> Result<(), String> {
 }
 
 /// Transfer keywords from representative to cluster members
+///
+/// NOTE: Used by `process_batch_clustered` which is implemented but
+/// not yet exposed to the frontend. Planned for Phase 3 optimization.
+#[allow(dead_code)]
 fn transfer_keywords_to_cluster_members(
     state: &AppState,
     cluster: &crate::keywords::ArticleCluster,

@@ -151,6 +151,7 @@ impl BiasWeights {
     }
 
     /// Apply category-term weight to a score
+    #[allow(dead_code)] // Public API for category score adjustment
     pub fn apply_to_category(&self, category_id: i64, term: &str, base_score: f64) -> f64 {
         base_score * self.get_category_term_weight(category_id, term)
     }

@@ -163,6 +163,10 @@ pub struct BatchArticle {
     pub content: String,
     pub article_date: Option<String>,
     pub attempts: i64,
+    /// Previous error message from failed analysis attempts.
+    /// Read from database but not currently used in processing logic.
+    /// Kept for potential future retry strategies and debugging.
+    #[allow(dead_code)]
     pub previous_error: Option<String>,
 }
 

@@ -37,6 +37,8 @@ pub struct CorpusStats {
 }
 
 impl CorpusStats {
+    /// Create a new empty CorpusStats
+    #[allow(dead_code)] // Public API for in-memory corpus building
     pub fn new() -> Self {
         Self::default()
     }
@@ -100,6 +102,7 @@ impl CorpusStats {
     }
 
     /// Update corpus stats with terms from a document (in-memory)
+    #[allow(dead_code)] // Public API for in-memory corpus building
     pub fn add_document(&mut self, terms: &[String]) {
         self.total_documents += 1;
         let unique_terms: std::collections::HashSet<_> = terms.iter().collect();
@@ -143,6 +146,7 @@ impl TfIdfExtractor {
     }
 
     /// Configure minimum word length
+    #[allow(dead_code)] // Builder API for TF-IDF configuration
     pub fn with_min_word_length(mut self, len: usize) -> Self {
         self.min_word_length = len;
         self
@@ -155,6 +159,7 @@ impl TfIdfExtractor {
     }
 
     /// Enable or disable stemming
+    #[allow(dead_code)] // Builder API for TF-IDF configuration
     pub fn with_stemming(mut self, enabled: bool) -> Self {
         self.use_stemming = enabled;
         self
@@ -338,6 +343,7 @@ impl TfIdfExtractor {
     }
 
     /// Extract keywords with user-defined stopwords
+    #[allow(dead_code)] // Public API for custom stopword filtering
     pub fn extract_with_stopwords(
         &self,
         text: &str,
@@ -373,6 +379,7 @@ impl TfIdfExtractor {
     }
 
     /// Smart extraction with user stopwords
+    #[allow(dead_code)] // Public API for custom stopword filtering with fallback
     pub fn extract_smart_with_stopwords(
         &self,
         text: &str,
@@ -421,6 +428,7 @@ impl TfIdfExtractor {
     }
 
     /// Get tokens with user stopwords filtered (useful for corpus building)
+    #[allow(dead_code)] // Public API for corpus building with custom stopwords
     pub fn get_tokens_with_stopwords(&self, text: &str, user_stopwords: &HashSet<String>) -> Vec<String> {
         self.tokenize_with_stopwords(text, Some(user_stopwords))
     }

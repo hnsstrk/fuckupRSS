@@ -6,7 +6,6 @@ use crate::text_analysis::keyword_seeds::{
     KNOWN_ORGANIZATIONS as SEED_ORGANIZATIONS,
     KNOWN_PERSONS as SEED_PERSONS,
     KNOWN_SPORTS as SEED_SPORTS,
-    get_known_keyword_type,
 };
 use keyword_extraction::rake::{Rake, RakeParams};
 use once_cell::sync::Lazy;
@@ -30,9 +29,12 @@ pub mod config;
 pub mod types;
 
 // Re-export for external use - internal usage via advanced:: prefix
+// Note: TrisumConfig is used internally via advanced::TrisumConfig in extract()
+#[allow(unused_imports)] // Reserved for future API exposure
 pub use advanced::TrisumConfig;
+// Clustering types are used by batch_processor.rs for cluster-based batch processing
 pub use clustering::{
-    cluster_articles, get_representatives, transfer_keywords_to_cluster, calculate_savings,
+    cluster_articles, get_representatives, calculate_savings,
     ArticleCluster, ArticleForClustering, ClusterConfig, ClusteringResult,
 };
 pub use config::{KeywordConfig, defaults as keyword_defaults};
@@ -525,6 +527,7 @@ pub fn extract_keywords(title: &str, content: &str, max_keywords: usize) -> Vec<
 }
 
 /// Extract keywords with full configuration control
+#[allow(dead_code)] // Public API for advanced keyword extraction with custom config
 pub fn extract_keywords_with_config(
     title: &str,
     content: &str,
@@ -539,6 +542,7 @@ pub fn extract_keywords_with_config(
 }
 
 /// Extract keywords with MMR diversification enabled
+#[allow(dead_code)] // Public API for diverse keyword extraction
 pub fn extract_keywords_diverse(title: &str, content: &str, max_keywords: usize) -> Vec<String> {
     let config = config::KeywordConfig::standard()
         .with_max_keywords(max_keywords)
@@ -548,6 +552,7 @@ pub fn extract_keywords_diverse(title: &str, content: &str, max_keywords: usize)
 }
 
 /// Extract keywords using TRISUM multi-centrality
+#[allow(dead_code)] // Public API for TRISUM-based keyword extraction
 pub fn extract_keywords_trisum(title: &str, content: &str, max_keywords: usize) -> Vec<String> {
     let config = config::KeywordConfig::standard()
         .with_max_keywords(max_keywords)
@@ -556,6 +561,7 @@ pub fn extract_keywords_trisum(title: &str, content: &str, max_keywords: usize) 
 }
 
 /// Extract keywords with full metadata including source and type
+#[allow(dead_code)] // Public API for metadata-rich keyword extraction
 pub fn extract_keywords_with_metadata(
     title: &str,
     content: &str,
@@ -566,6 +572,7 @@ pub fn extract_keywords_with_metadata(
 }
 
 /// Result of semantic keyword extraction
+#[allow(dead_code)] // Public API for semantic keyword results with embedding scores
 #[derive(Debug, Clone)]
 pub struct SemanticKeywordResult {
     pub text: String,
@@ -598,6 +605,7 @@ impl From<ExtractedKeyword> for SemanticKeywordResult {
 /// 2. Generate embeddings for each candidate and the full document
 /// 3. Calculate cosine similarity between each candidate and the document
 /// 4. Call this function again with the semantic scores
+#[allow(dead_code)] // Public API for KeyBERT-style semantic keyword extraction
 pub fn extract_keywords_with_semantic_scoring(
     title: &str,
     content: &str,
@@ -1256,6 +1264,7 @@ pub fn normalize_and_dedupe_keywords_with_levenshtein(
 ///
 /// # Returns
 /// Deduplicated list of (keyword, score) tuples
+#[allow(dead_code)] // Public API for score-aware keyword deduplication
 pub fn normalize_and_dedupe_keywords_with_scores(
     keywords: &[(String, f64)],
     max_distance: usize,
@@ -1734,6 +1743,7 @@ pub fn find_canonical_keyword_with_db(keyword: &str) -> Option<String> {
 }
 
 /// Get all known synonyms for a keyword (static + dynamic)
+#[allow(dead_code)] // Public API for synonym lookup with database integration
 pub fn get_all_synonyms_with_db(keyword: &str) -> Vec<String> {
     let lower = keyword.to_lowercase();
     let mut result: Vec<String> = Vec::new();
@@ -1761,6 +1771,7 @@ pub fn get_all_synonyms_with_db(keyword: &str) -> Vec<String> {
 }
 
 /// Clear the dynamic synonyms cache
+#[allow(dead_code)] // Public API for cache management
 pub fn clear_dynamic_synonyms_cache() {
     if let Ok(mut cache) = DYNAMIC_SYNONYMS.write() {
         cache.clear();
