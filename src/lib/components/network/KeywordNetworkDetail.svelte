@@ -268,9 +268,9 @@
         <div class="detail-section">
           <h4 class="section-title">
             <Tooltip termKey="sephiroth">{$_('network.categories')}</Tooltip>
-            <span class="help-icon" title={$_('network.categoriesHelp')}>
-              <i class="fa-solid fa-circle-info"></i>
-            </span>
+            <Tooltip content={$_('network.categoriesHelp')}>
+              <i class="fa-solid fa-circle-info help-icon"></i>
+            </Tooltip>
           </h4>
           <div class="category-cards">
             {#each groupedCategories as group (group.id)}
@@ -357,9 +357,9 @@
         <h4 class="section-title">
           <i class="fa-solid fa-diagram-project section-icon"></i>
           {$_('network.similarKeywords') || 'Aehnliche Keywords'}
-          <span class="section-help" title={$_('network.similarKeywordsHelp') || 'Keywords mit ähnlicher semantischer Bedeutung basierend auf Embeddings'}>
-            <i class="fa-solid fa-circle-info"></i>
-          </span>
+          <Tooltip content={$_('network.similarKeywordsHelp') || 'Keywords mit aehnlicher semantischer Bedeutung basierend auf Embeddings'}>
+            <i class="fa-solid fa-circle-info help-icon"></i>
+          </Tooltip>
         </h4>
         {#if similarKeywordsLoading}
           <div class="loading-similar">
@@ -586,19 +586,6 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-  }
-
-  .help-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.875rem;
-    color: var(--text-muted);
-    cursor: help;
-  }
-
-  .help-icon:hover {
-    color: var(--accent-primary);
   }
 
   /* Category Cards (matching FnordView) */
@@ -968,17 +955,6 @@
   .section-icon {
     font-size: 0.875rem;
     color: var(--accent-primary);
-  }
-
-  .section-help {
-    margin-left: auto;
-    font-size: 0.75rem;
-    color: var(--text-faint);
-    cursor: help;
-  }
-
-  .section-help:hover {
-    color: var(--text-muted);
   }
 
   .similar-keywords-list {

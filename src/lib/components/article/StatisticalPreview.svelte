@@ -159,7 +159,7 @@
           {/if}
 
           <div class="preview-note">
-            <i class="fa-solid fa-info-circle"></i>
+            <i class="fa-solid fa-circle-info"></i>
             <span>
               {$_('articleView.statisticalNote') || 'Diese Vorschau zeigt die statistische Analyse vor der LLM-Validierung.'}
             </span>

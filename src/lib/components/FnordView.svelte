@@ -253,6 +253,9 @@
               <h3 class="card-title">
                 <i class="fa-solid fa-triangle-exclamation"></i>
                 <Tooltip termKey="greyface">{$_('fnordView.greyface.title') || 'Greyface-Index'}</Tooltip>
+                <Tooltip content={$_('fnordView.greyface.help') || 'Misst die durchschnittliche politische Tendenz und Sachlichkeit deiner gelesenen Artikel.'}>
+                  <i class="fa-solid fa-circle-info help-icon"></i>
+                </Tooltip>
               </h3>
               <div class="greyface-content">
                 <div class="greyface-gauge">
@@ -327,6 +330,9 @@
               <h3 class="card-title">
                 <i class="fa-solid fa-triangle-exclamation"></i>
                 <Tooltip termKey="greyface">{$_('fnordView.greyface.title') || 'Greyface-Index'}</Tooltip>
+                <Tooltip content={$_('fnordView.greyface.help') || 'Misst die durchschnittliche politische Tendenz und Sachlichkeit deiner gelesenen Artikel.'}>
+                  <i class="fa-solid fa-circle-info help-icon"></i>
+                </Tooltip>
               </h3>
               <div class="empty-placeholder">
                 <i class="fa-solid fa-chart-pie empty-icon"></i>
@@ -343,6 +349,9 @@
               <h3 class="card-title">
                 <i class="fa-solid fa-rss"></i>
                 <Tooltip termKey="pentacle">{$_('fnordView.bySource') || 'Nach Quelle'}</Tooltip>
+                <Tooltip content={$_('fnordView.bySource.help') || 'Zeigt die Anzahl der Revisionen und Artikel pro Feed-Quelle.'}>
+                  <i class="fa-solid fa-circle-info help-icon"></i>
+                </Tooltip>
               </h3>
               <div class="source-list">
                 {#each stats.by_source.slice(0, 6) as source (source.pentacle_id)}
@@ -427,6 +436,9 @@
           <div class="stats-section">
             <h3 class="section-title">
               <Tooltip termKey="sephiroth">{$_('fnordView.byCategory') || 'Nach Kategorie'}</Tooltip>
+              <Tooltip content={$_('fnordView.byCategory.help') || 'Verteilung der Revisionen nach Themengebiet. Klicke auf eine Kategorie um Unterkategorien zu sehen.'}>
+                <i class="fa-solid fa-circle-info help-icon"></i>
+              </Tooltip>
             </h3>
             <div class="category-cards">
               {#each stats.by_category as cat (cat.sephiroth_id)}

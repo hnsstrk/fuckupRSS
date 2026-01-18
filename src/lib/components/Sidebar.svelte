@@ -649,9 +649,7 @@
   .toggle-btn {
     flex: 1;
     padding: 0.375rem 0.5rem;
-    font-size: 0.6875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 0.75rem;
     color: var(--text-muted);
     background: none;
     border: none;
@@ -684,6 +682,7 @@
     margin-right: 0.375rem;
     text-align: center;
     display: inline-block;
+    color: var(--category-color);
   }
 
   .category-count {
@@ -778,6 +777,7 @@
     text-align: center;
     display: inline-block;
     font-size: 0.6875rem;
+    color: var(--category-color);
     opacity: 0.8;
   }
 

@@ -608,7 +608,7 @@
 
                 <!-- Severity explanation -->
                 <div class="blind-spot-explanation">
-                  <i class="fa-solid fa-info-circle"></i>
+                  <i class="fa-solid fa-circle-info"></i>
                   <span>{$_(`mindfuck.blindSpots.severityDescription.${spot.severity}`)}</span>
                 </div>
 

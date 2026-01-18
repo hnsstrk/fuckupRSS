@@ -183,7 +183,7 @@
     {#if selectedKeepKeyword && selectedRemoveKeyword}
       <div class="merge-preview">
         <div class="preview-text">
-          <i class="fa-solid fa-info-circle"></i>
+          <i class="fa-solid fa-circle-info"></i>
           <span>
             <strong>"{selectedRemoveKeyword.name}"</strong> wird geloescht.
             Alle {selectedRemoveKeyword.article_count} Artikel werden zu <strong>"{selectedKeepKeyword.name}"</strong> uebertragen.
@@ -257,7 +257,7 @@
                   title="{candidate.keyword_b_name} -> {candidate.keyword_a_name}"
                   disabled={synonymsLoading}
                 >
-                  &#8592;
+                  <i class="fa-solid fa-arrow-left"></i>
                 </button>
                 <button
                   class="merge-btn right"
@@ -265,14 +265,14 @@
                   title="{candidate.keyword_a_name} -> {candidate.keyword_b_name}"
                   disabled={synonymsLoading}
                 >
-                  &#8594;
+                  <i class="fa-solid fa-arrow-right"></i>
                 </button>
                 <button
                   class="dismiss-btn"
                   onclick={() => onDismissSynonymPair(candidate.keyword_a_id, candidate.keyword_b_id)}
                   title={$_('network.dismissSynonym') || 'Ignorieren'}
                 >
-                  &#10005;
+                  <i class="fa-solid fa-xmark"></i>
                 </button>
               </div>
             </div>

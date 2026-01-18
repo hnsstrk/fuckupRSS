@@ -1119,3 +1119,16 @@ body,
 .card-title i {
   color: var(--accent-primary);
 }
+
+/* Help icon - used for info tooltips in section/card headings */
+.help-icon {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  cursor: help;
+  margin-left: auto;
+  transition: color 0.15s ease;
+}
+
+.help-icon:hover {
+  color: var(--accent-primary);
+}
