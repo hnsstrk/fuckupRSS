@@ -598,17 +598,27 @@ pub async fn process_batch(
     let batch_context = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
-        let corpus_stats = CorpusStats::load_from_db(db.conn()).ok();
+        let corpus_stats = match CorpusStats::load_from_db(db.conn()) {
+            Ok(stats) => Some(stats),
+            Err(e) => {
+                warn!("Failed to load corpus stats, using fallback TF-IDF: {}", e);
+                None
+            }
+        };
 
         // Load custom discordian prompt from settings (if set)
-        let discordian_prompt: Option<String> = db
-            .conn()
-            .query_row(
-                "SELECT value FROM settings WHERE key = 'discordian_prompt'",
-                [],
-                |row| row.get(0),
-            )
-            .ok();
+        let discordian_prompt: Option<String> = match db.conn().query_row(
+            "SELECT value FROM settings WHERE key = 'discordian_prompt'",
+            [],
+            |row| row.get(0),
+        ) {
+            Ok(prompt) => Some(prompt),
+            Err(rusqlite::Error::QueryReturnedNoRows) => None, // Expected when not set
+            Err(e) => {
+                warn!("Failed to load custom discordian prompt: {}", e);
+                None
+            }
+        };
 
         BatchContext {
             bias_weights,
@@ -991,17 +1001,27 @@ pub async fn process_batch_clustered(
     let batch_context = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
-        let corpus_stats = CorpusStats::load_from_db(db.conn()).ok();
+        let corpus_stats = match CorpusStats::load_from_db(db.conn()) {
+            Ok(stats) => Some(stats),
+            Err(e) => {
+                warn!("Failed to load corpus stats for clustered batch: {}", e);
+                None
+            }
+        };
 
         // Load custom discordian prompt from settings (if set)
-        let discordian_prompt: Option<String> = db
-            .conn()
-            .query_row(
-                "SELECT value FROM settings WHERE key = 'discordian_prompt'",
-                [],
-                |row| row.get(0),
-            )
-            .ok();
+        let discordian_prompt: Option<String> = match db.conn().query_row(
+            "SELECT value FROM settings WHERE key = 'discordian_prompt'",
+            [],
+            |row| row.get(0),
+        ) {
+            Ok(prompt) => Some(prompt),
+            Err(rusqlite::Error::QueryReturnedNoRows) => None,
+            Err(e) => {
+                warn!("Failed to load custom discordian prompt for clustered batch: {}", e);
+                None
+            }
+        };
 
         BatchContext {
             bias_weights,
@@ -1150,37 +1170,50 @@ pub async fn process_batch_clustered(
                             let (keywords, categories) = {
                                 let db = match state.db.lock() {
                                     Ok(db) => db,
-                                    Err(_) => {
+                                    Err(e) => {
+                                        warn!("Failed to acquire DB lock for cluster transfer: {}", e);
                                         return (idx, title, fnord_id, success, error, 0);
                                     }
                                 };
 
-                                let keywords: Vec<String> = db.conn()
-                                    .prepare(
-                                        r#"SELECT i.name FROM immanentize i
-                                           JOIN fnord_immanentize fi ON fi.immanentize_id = i.id
-                                           WHERE fi.fnord_id = ?1"#
-                                    )
-                                    .ok()
-                                    .and_then(|mut stmt| {
-                                        stmt.query_map([fnord_id], |row| row.get(0))
-                                            .ok()
-                                            .map(|rows| rows.filter_map(|r| r.ok()).collect())
-                                    })
-                                    .unwrap_or_default();
+                                let keywords: Vec<String> = match db.conn().prepare(
+                                    r#"SELECT i.name FROM immanentize i
+                                       JOIN fnord_immanentize fi ON fi.immanentize_id = i.id
+                                       WHERE fi.fnord_id = ?1"#
+                                ) {
+                                    Ok(mut stmt) => {
+                                        match stmt.query_map([fnord_id], |row| row.get(0)) {
+                                            Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+                                            Err(e) => {
+                                                warn!("Failed to query keywords for article {}: {}", fnord_id, e);
+                                                vec![]
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        warn!("Failed to prepare keyword query for article {}: {}", fnord_id, e);
+                                        vec![]
+                                    }
+                                };
 
-                                let categories: Vec<i64> = db.conn()
-                                    .prepare(
-                                        r#"SELECT sephiroth_id FROM fnord_sephiroth
-                                           WHERE fnord_id = ?1"#
-                                    )
-                                    .ok()
-                                    .and_then(|mut stmt| {
-                                        stmt.query_map([fnord_id], |row| row.get(0))
-                                            .ok()
-                                            .map(|rows| rows.filter_map(|r| r.ok()).collect())
-                                    })
-                                    .unwrap_or_default();
+                                let categories: Vec<i64> = match db.conn().prepare(
+                                    r#"SELECT sephiroth_id FROM fnord_sephiroth
+                                       WHERE fnord_id = ?1"#
+                                ) {
+                                    Ok(mut stmt) => {
+                                        match stmt.query_map([fnord_id], |row| row.get(0)) {
+                                            Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+                                            Err(e) => {
+                                                warn!("Failed to query categories for article {}: {}", fnord_id, e);
+                                                vec![]
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        warn!("Failed to prepare category query for article {}: {}", fnord_id, e);
+                                        vec![]
+                                    }
+                                };
 
                                 (keywords, categories)
                             };

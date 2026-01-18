@@ -7,9 +7,47 @@
 //! - Enhanced Named Entity Recognition
 
 use once_cell::sync::Lazy;
+use regex::Regex;
 use std::collections::{HashMap, HashSet};
 
 use super::{ExtractedKeyword, KeywordType, Language, UNIFIED_STOPWORDS};
+
+// Cached regex patterns for Enhanced NER (compiled once)
+static TITLE_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?i)\b((?:herr|frau|dr\.?|prof\.?|minister(?:in)?|präsident(?:in)?|kanzler(?:in)?|mr\.?|mrs\.?|ms\.?|president|chancellor|senator)\s+)([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+){0,2})\b"
+    ).unwrap()
+});
+
+static ORG_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"\b([A-ZÄÖÜ][a-zäöüß]*(?:\s+[A-ZÄÖÜ&][a-zäöüß]*){0,4})\s+(GmbH|AG|Inc\.?|Ltd\.?|Corp\.?|Co\.?|KG|e\.V\.?|SE)\b"
+    ).unwrap()
+});
+
+static MINISTRY_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"\b((?:Bundes)?[A-ZÄÖÜ][a-zäöüß]*(?:ministerium|ministry|department|behörde|amt|agency))\b"
+    ).unwrap()
+});
+
+static LOCATION_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?i)\b(?:in|aus|nach|from|to|at)\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\b"
+    ).unwrap()
+});
+
+static EVENT_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"\b([A-ZÄÖÜ][a-zäöüß]*[-\s]?(?:gipfel|konferenz|summit|conference|wahlen?|election|treffen|meeting))\b"
+    ).unwrap()
+});
+
+static YEAR_CONTEXT_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"\b([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\s+(20\d{2}|19\d{2})\b"
+    ).unwrap()
+});
 
 // ============================================================
 // N-GRAM EXTRACTION
@@ -453,12 +491,8 @@ pub fn extract_enhanced_entities(text: &str) -> Vec<ExtractedKeyword> {
 fn extract_persons_with_titles(text: &str) -> Vec<ExtractedKeyword> {
     let mut persons = Vec::new();
 
-    // Pattern: Title + Capitalized Name(s)
-    let title_pattern = regex::Regex::new(
-        r"(?i)\b((?:herr|frau|dr\.?|prof\.?|minister(?:in)?|präsident(?:in)?|kanzler(?:in)?|mr\.?|mrs\.?|ms\.?|president|chancellor|senator)\s+)([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+){0,2})\b"
-    ).unwrap();
-
-    for cap in title_pattern.captures_iter(text) {
+    // Use cached regex pattern for titles
+    for cap in TITLE_PATTERN.captures_iter(text) {
         if let Some(name_match) = cap.get(2) {
             let name = name_match.as_str().to_string();
             if name.split_whitespace().count() >= 1 && name.len() >= 4 {
@@ -479,12 +513,8 @@ fn extract_persons_with_titles(text: &str) -> Vec<ExtractedKeyword> {
 fn extract_organizations(text: &str) -> Vec<ExtractedKeyword> {
     let mut orgs = Vec::new();
 
-    // Pattern: Capitalized words + legal form
-    let org_pattern = regex::Regex::new(
-        r"\b([A-ZÄÖÜ][a-zäöüß]*(?:\s+[A-ZÄÖÜ&][a-zäöüß]*){0,4})\s+(GmbH|AG|Inc\.?|Ltd\.?|Corp\.?|Co\.?|KG|e\.V\.?|SE)\b"
-    ).unwrap();
-
-    for cap in org_pattern.captures_iter(text) {
+    // Use cached regex pattern for organizations with legal forms
+    for cap in ORG_PATTERN.captures_iter(text) {
         if let (Some(name), Some(form)) = (cap.get(1), cap.get(2)) {
             let full_name = format!("{} {}", name.as_str(), form.as_str());
             orgs.push(ExtractedKeyword {
@@ -496,12 +526,8 @@ fn extract_organizations(text: &str) -> Vec<ExtractedKeyword> {
         }
     }
 
-    // Pattern: Ministry/Department names
-    let ministry_pattern = regex::Regex::new(
-        r"\b((?:Bundes)?[A-ZÄÖÜ][a-zäöüß]*(?:ministerium|ministry|department|behörde|amt|agency))\b"
-    ).unwrap();
-
-    for cap in ministry_pattern.captures_iter(text) {
+    // Use cached regex pattern for ministry/department names
+    for cap in MINISTRY_PATTERN.captures_iter(text) {
         if let Some(m) = cap.get(1) {
             orgs.push(ExtractedKeyword {
                 text: m.as_str().to_string(),
@@ -519,12 +545,8 @@ fn extract_organizations(text: &str) -> Vec<ExtractedKeyword> {
 fn extract_locations(text: &str) -> Vec<ExtractedKeyword> {
     let mut locations = Vec::new();
 
-    // Pattern: "in/aus/nach [Location]"
-    let loc_pattern = regex::Regex::new(
-        r"(?i)\b(?:in|aus|nach|from|to|at)\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\b"
-    ).unwrap();
-
-    for cap in loc_pattern.captures_iter(text) {
+    // Use cached regex pattern for location prepositions
+    for cap in LOCATION_PATTERN.captures_iter(text) {
         if let Some(loc) = cap.get(1) {
             let location = loc.as_str().to_string();
             // Filter out common non-locations
@@ -556,12 +578,8 @@ fn is_common_non_location(word: &str) -> bool {
 fn extract_events(text: &str) -> Vec<ExtractedKeyword> {
     let mut events = Vec::new();
 
-    // Pattern: Event type + location/year
-    let event_pattern = regex::Regex::new(
-        r"\b([A-ZÄÖÜ][a-zäöüß]*[-\s]?(?:gipfel|konferenz|summit|conference|wahlen?|election|treffen|meeting))\b"
-    ).unwrap();
-
-    for cap in event_pattern.captures_iter(text) {
+    // Use cached regex pattern for event types
+    for cap in EVENT_PATTERN.captures_iter(text) {
         if let Some(event) = cap.get(1) {
             events.push(ExtractedKeyword {
                 text: event.as_str().to_string(),
@@ -579,12 +597,8 @@ fn extract_events(text: &str) -> Vec<ExtractedKeyword> {
 fn extract_temporal_entities(text: &str) -> Vec<ExtractedKeyword> {
     let mut temporal = Vec::new();
 
-    // Year patterns
-    let year_context_pattern = regex::Regex::new(
-        r"\b([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\s+(20\d{2}|19\d{2})\b"
-    ).unwrap();
-
-    for cap in year_context_pattern.captures_iter(text) {
+    // Use cached regex pattern for year contexts
+    for cap in YEAR_CONTEXT_PATTERN.captures_iter(text) {
         if let (Some(context), Some(year)) = (cap.get(1), cap.get(2)) {
             let entity = format!("{} {}", context.as_str(), year.as_str());
             // Only include if context is meaningful (not just a preposition)

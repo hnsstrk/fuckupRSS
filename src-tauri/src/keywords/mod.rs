@@ -10,9 +10,19 @@ use crate::text_analysis::keyword_seeds::{
 };
 use keyword_extraction::rake::{Rake, RakeParams};
 use once_cell::sync::Lazy;
+use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use whatlang::{detect, Lang};
 use yake_rust::{get_n_best, Config, StopWords};
+
+// Cached regex patterns for entity extraction (compiled once)
+static CAPITALIZED_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\b([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+){0,3})\b").unwrap()
+});
+
+static ACRONYM_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\b([A-Z]{2,6})\b").unwrap()
+});
 
 pub mod advanced;
 pub mod clustering;
@@ -373,10 +383,9 @@ impl KeywordExtractor {
 
     fn extract_entities(&self, text: &str) -> Vec<ExtractedKeyword> {
         let mut entities = Vec::new();
-        let cap_pattern =
-            regex::Regex::new(r"\b([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+){0,3})\b").unwrap();
 
-        for cap in cap_pattern.captures_iter(text) {
+        // Use cached regex pattern for capitalized words
+        for cap in CAPITALIZED_PATTERN.captures_iter(text) {
             let phrase = cap.get(1).unwrap().as_str().to_string();
             if phrase.len() >= 3
                 && !UNIFIED_STOPWORDS.contains(&phrase.to_lowercase())
@@ -393,8 +402,8 @@ impl KeywordExtractor {
             }
         }
 
-        let acronym_pattern = regex::Regex::new(r"\b([A-Z]{2,6})\b").unwrap();
-        for cap in acronym_pattern.captures_iter(text) {
+        // Use cached regex pattern for acronyms
+        for cap in ACRONYM_PATTERN.captures_iter(text) {
             let acronym = cap.get(1).unwrap().as_str();
             if KNOWN_ACRONYMS.contains(acronym) {
                 entities.push(ExtractedKeyword {
