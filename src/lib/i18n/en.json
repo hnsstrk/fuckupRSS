@@ -770,17 +770,40 @@
     "subtitle": "Based on your interests",
     "loading": "Loading recommendations...",
     "refresh": "Load new recommendations",
+    "load": "Load recommendations",
     "save": "Save",
     "saved": "Saved",
     "unsave": "Unsave",
     "hide": "Hide",
+    "cancelled": "Request cancelled",
+    "try_again": "Try again",
+    "show_diagnostics": "Show diagnostics",
+    "phase": {
+      "init": "Initializing...",
+      "loading_profile": "Loading reading profile...",
+      "generating_candidates": "Finding candidates...",
+      "scoring": "Calculating relevance...",
+      "finalizing": "Preparing recommendations..."
+    },
+    "error": {
+      "title": "Error loading recommendations"
+    },
+    "timeout": {
+      "title": "Request timed out",
+      "message": "The request took too long."
+    },
     "empty": {
       "title": "No recommendations yet",
       "description": "We need more information about your interests to suggest relevant articles.",
       "tips_title": "How to get recommendations:",
-      "tip_read": "Read at least 5 articles",
+      "tip_read": "Read at least 5-10 articles",
       "tip_feeds": "Add more feeds",
-      "tip_ollama": "Make sure Ollama is running"
+      "tip_ollama": "Enable Ollama for AI analysis",
+      "reason_not_enough": "You haven't read enough articles yet.",
+      "reason_no_embeddings": "Article embeddings are still being generated.",
+      "reason_no_candidates": "All available articles have already been read or hidden.",
+      "reason_no_matches": "No matching recommendations found.",
+      "reason_no_stats": "Statistics could not be loaded."
     },
     "explanations": {
       "keywords": "Based on: {keywords}",
@@ -798,6 +821,7 @@
     }
   },
   "common": {
+    "cancel": "Cancel",
     "retry": "Retry"
   }
 }

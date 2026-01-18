@@ -14,6 +14,8 @@ export interface Pentacle {
   default_quality: number;
   article_count: number;
   unread_count: number;
+  illuminated_count: number;
+  golden_apple_count: number;
 }
 
 export interface FnordCategoryInfo {
@@ -640,4 +642,25 @@ export interface RecommendationStats {
   articles_read: number;
   articles_with_embedding: number;
   profile_strength: string;
+  // Extended diagnostics from backend
+  top_keywords: { name: string; weight: number; article_count: number }[];
+  top_categories: { id: number; name: string; weight: number }[];
+  candidate_pool_size: number;
 }
+
+// Recommendation loading state machine
+export type RecommendationLoadState =
+  | { status: 'idle' }
+  | { status: 'loading'; phase: RecommendationPhase; startedAt: number }
+  | { status: 'success'; recommendations: Recommendation[]; loadedAt: number }
+  | { status: 'empty'; stats: RecommendationStats | null; reason: string }
+  | { status: 'error'; code: string; message: string; retryable: boolean }
+  | { status: 'timeout'; elapsedMs: number }
+  | { status: 'cancelled' };
+
+export type RecommendationPhase =
+  | 'init'
+  | 'loading_profile'
+  | 'generating_candidates'
+  | 'scoring'
+  | 'finalizing';

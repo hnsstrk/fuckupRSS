@@ -1,10 +1,120 @@
 use log::{debug, warn};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 use std::time::Duration;
 use thiserror::Error;
 
 #[cfg(test)]
 mod tests;
+
+/// Custom deserializers to handle LLM responses that may return objects instead of strings.
+/// For example, the LLM might return {"name": "keyword"} instead of just "keyword".
+mod flexible_deser {
+    use super::*;
+
+    /// Extract a string from a Value that could be:
+    /// - A plain string
+    /// - An object with "name", "text", "value", or "content" field
+    fn extract_string_from_value(v: &Value) -> Option<String> {
+        match v {
+            Value::String(s) => Some(s.clone()),
+            Value::Object(map) => {
+                // Try common field names
+                for key in &["name", "text", "value", "content", "keyword", "category"] {
+                    if let Some(Value::String(s)) = map.get(*key) {
+                        return Some(s.clone());
+                    }
+                }
+                // Last resort: take the first string value in the object
+                for val in map.values() {
+                    if let Value::String(s) = val {
+                        return Some(s.clone());
+                    }
+                }
+                None
+            }
+            Value::Number(n) => Some(n.to_string()),
+            _ => None,
+        }
+    }
+
+    /// Deserialize a string that might be an object with a text field
+    pub fn flexible_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v = Value::deserialize(deserializer)?;
+        extract_string_from_value(&v).ok_or_else(|| {
+            serde::de::Error::custom(format!("cannot extract string from {:?}", v))
+        })
+    }
+
+    /// Deserialize an optional string that might be an object with a text field
+    pub fn flexible_string_optional<'de, D>(deserializer: D) -> Result<String, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v = Option::<Value>::deserialize(deserializer)?;
+        match v {
+            Some(val) => extract_string_from_value(&val).ok_or_else(|| {
+                serde::de::Error::custom(format!("cannot extract string from {:?}", val))
+            }),
+            None => Ok(String::new()),
+        }
+    }
+
+    /// Deserialize a Vec<String> where items might be objects with text fields
+    pub fn flexible_string_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v = Value::deserialize(deserializer)?;
+        match v {
+            Value::Array(arr) => {
+                let mut result = Vec::with_capacity(arr.len());
+                for item in arr {
+                    if let Some(s) = extract_string_from_value(&item) {
+                        if !s.is_empty() {
+                            result.push(s);
+                        }
+                    }
+                }
+                Ok(result)
+            }
+            Value::Null => Ok(Vec::new()),
+            _ => Err(serde::de::Error::custom(format!(
+                "expected array, got {:?}",
+                v
+            ))),
+        }
+    }
+
+    /// Deserialize an optional Vec<String> where items might be objects
+    pub fn flexible_string_vec_optional<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v = Option::<Value>::deserialize(deserializer)?;
+        match v {
+            Some(Value::Array(arr)) => {
+                let mut result = Vec::with_capacity(arr.len());
+                for item in arr {
+                    if let Some(s) = extract_string_from_value(&item) {
+                        if !s.is_empty() {
+                            result.push(s);
+                        }
+                    }
+                }
+                Ok(result)
+            }
+            Some(Value::Null) | None => Ok(Vec::new()),
+            Some(other) => Err(serde::de::Error::custom(format!(
+                "expected array or null, got {:?}",
+                other
+            ))),
+        }
+    }
+}
 
 /// Safely truncate a string to at most `max_bytes` bytes at a character boundary
 fn truncate_str(s: &str, max_bytes: usize) -> &str {
@@ -662,15 +772,18 @@ impl Default for OllamaClient {
 }
 
 /// Raw Discordian analysis from LLM (accepts floats)
+/// Uses flexible deserializers to handle LLM responses that return objects instead of strings
 #[derive(Deserialize, Debug)]
 struct RawDiscordianAnalysis {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "flexible_deser::flexible_string")]
     summary: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "flexible_deser::flexible_string_vec")]
     categories: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "flexible_deser::flexible_string_vec")]
     keywords: Vec<String>,
+    #[serde(default)]
     political_bias: f64,
+    #[serde(default)]
     sachlichkeit: f64,
 }
 
@@ -697,19 +810,22 @@ impl From<RawDiscordianAnalysis> for DiscordianAnalysis {
 }
 
 /// Raw Discordian analysis with rejections from LLM (for statistical validation workflow)
+/// Uses flexible deserializers to handle LLM responses that return objects instead of strings
 #[derive(Deserialize, Debug)]
 struct RawDiscordianAnalysisWithRejections {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "flexible_deser::flexible_string")]
     summary: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "flexible_deser::flexible_string_vec")]
     categories: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "flexible_deser::flexible_string_vec")]
     keywords: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "flexible_deser::flexible_string_vec")]
     rejected_keywords: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "flexible_deser::flexible_string_vec")]
     rejected_categories: Vec<String>,
+    #[serde(default)]
     political_bias: f64,
+    #[serde(default)]
     sachlichkeit: f64,
 }
 

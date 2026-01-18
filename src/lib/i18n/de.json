@@ -770,17 +770,40 @@
     "subtitle": "Basierend auf deinen Interessen",
     "loading": "Empfehlungen werden geladen...",
     "refresh": "Neue Empfehlungen laden",
+    "load": "Empfehlungen laden",
     "save": "Merken",
     "saved": "Gemerkt",
     "unsave": "Nicht mehr merken",
     "hide": "Nicht mehr anzeigen",
+    "cancelled": "Anfrage abgebrochen",
+    "try_again": "Nochmal versuchen",
+    "show_diagnostics": "Diagnose anzeigen",
+    "phase": {
+      "init": "Initialisiere...",
+      "loading_profile": "Lade Leseprofil...",
+      "generating_candidates": "Ermittle Kandidaten...",
+      "scoring": "Berechne Relevanz...",
+      "finalizing": "Bereite Empfehlungen auf..."
+    },
+    "error": {
+      "title": "Fehler beim Laden"
+    },
+    "timeout": {
+      "title": "Zeitüberschreitung",
+      "message": "Die Anfrage hat zu lange gedauert."
+    },
     "empty": {
       "title": "Noch keine Empfehlungen",
       "description": "Wir brauchen mehr Informationen über deine Interessen, um passende Artikel vorzuschlagen.",
       "tips_title": "So bekommst du Empfehlungen:",
-      "tip_read": "Lies mindestens 5 Artikel",
+      "tip_read": "Lies mindestens 5-10 Artikel",
       "tip_feeds": "Füge mehr Feeds hinzu",
-      "tip_ollama": "Stelle sicher, dass Ollama läuft"
+      "tip_ollama": "Aktiviere Ollama für KI-Analyse",
+      "reason_not_enough": "Du hast noch nicht genug Artikel gelesen.",
+      "reason_no_embeddings": "Artikel-Embeddings werden noch generiert.",
+      "reason_no_candidates": "Alle verfügbaren Artikel wurden bereits gelesen oder ausgeblendet.",
+      "reason_no_matches": "Keine passenden Empfehlungen gefunden.",
+      "reason_no_stats": "Statistiken konnten nicht geladen werden."
     },
     "explanations": {
       "keywords": "Basierend auf: {keywords}",
@@ -791,13 +814,14 @@
     },
     "stats": {
       "title": "Dein Profil",
-      "articles_read": "Artikel gelesen",
+      "articles_read": "Gelesene Artikel",
       "articles_saved": "gemerkt",
       "top_interests": "Top Interessen",
-      "profile_strength": "Profil-Stärke"
+      "profile_strength": "Profilstärke"
     }
   },
   "common": {
+    "cancel": "Abbrechen",
     "retry": "Erneut versuchen"
   }
 }

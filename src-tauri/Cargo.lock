@@ -1085,6 +1085,7 @@ dependencies = [
  "tokio-test",
  "unicode-segmentation",
  "url",
+ "uuid",
  "whatlang",
  "yake-rust",
  "zerocopy",

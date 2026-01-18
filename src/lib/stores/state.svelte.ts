@@ -147,6 +147,14 @@ class AppState {
     return this.pentacles.reduce((sum, p) => sum + p.unread_count, 0);
   }
 
+  get totalIlluminated(): number {
+    return this.pentacles.reduce((sum, p) => sum + p.illuminated_count, 0);
+  }
+
+  get totalGoldenApple(): number {
+    return this.pentacles.reduce((sum, p) => sum + p.golden_apple_count, 0);
+  }
+
   get changedCount(): number {
     return this.changedFnords.length;
   }

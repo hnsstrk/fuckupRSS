@@ -7,11 +7,13 @@
 //! - Freshness and source diversity
 
 use crate::AppState;
-use log::{debug, info};
+use log::{debug, info, warn};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::time::Instant;
 use tauri::State;
+use uuid::Uuid;
 
 // ============================================================
 // Data Structures
@@ -63,15 +65,19 @@ pub struct SavedArticle {
 }
 
 /// Statistics about the recommendation system
+/// Must match frontend type in src/lib/types.ts:RecommendationStats
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RecommendationStats {
+    pub total_saved: i64,
+    pub total_hidden: i64,
+    pub total_clicks: i64,
     pub articles_read: i64,
-    pub articles_saved: i64,
-    pub articles_hidden: i64,
+    pub articles_with_embedding: i64,
+    pub profile_strength: String,
+    // Extended stats for diagnostics
     pub top_keywords: Vec<KeywordWeight>,
     pub top_categories: Vec<CategoryWeight>,
     pub candidate_pool_size: i64,
-    pub embedding_coverage: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -123,44 +129,79 @@ pub fn get_recommendations(
     state: State<AppState>,
     limit: Option<i32>,
 ) -> Result<Vec<Recommendation>, String> {
+    let request_id = Uuid::new_v4().to_string()[..8].to_string();
+    let start_time = Instant::now();
+
+    info!("[{}] Starting recommendation generation", request_id);
+
     let limit = limit.unwrap_or(10).min(50) as usize;
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db.lock().map_err(|e| {
+        warn!("[{}] Failed to acquire DB lock: {}", request_id, e);
+        e.to_string()
+    })?;
+
+    let lock_time = start_time.elapsed();
+    debug!("[{}] DB lock acquired in {:?}", request_id, lock_time);
 
     // Build user profile
+    let profile_start = Instant::now();
     let profile = build_user_profile(db.conn())?;
+    let profile_time = profile_start.elapsed();
+    debug!("[{}] Profile built in {:?} (read: {}, saved: {})",
+           request_id, profile_time, profile.total_read, profile.saved_article_ids.len());
 
     // Cold start check
     if profile.total_read == 0 {
-        info!("Cold start: returning popular articles");
-        return get_cold_start_recommendations(db.conn(), limit);
+        info!("[{}] Cold start: returning popular articles", request_id);
+        let result = get_cold_start_recommendations(db.conn(), limit);
+        info!("[{}] Cold start completed in {:?}", request_id, start_time.elapsed());
+        return result;
     }
 
     // Generate candidates
+    let candidates_start = Instant::now();
     let mut candidates = generate_candidates(db.conn(), &profile, 100)?;
+    let candidates_time = candidates_start.elapsed();
+    debug!("[{}] Generated {} candidates in {:?}",
+           request_id, candidates.len(), candidates_time);
 
     // Score candidates
+    let scoring_start = Instant::now();
     for c in &mut candidates {
         score_candidate(c, &profile);
     }
+    let scoring_time = scoring_start.elapsed();
+    debug!("[{}] Scored candidates in {:?}", request_id, scoring_time);
 
     // Sort by score
     candidates.sort_by(|a, b| b.final_score.partial_cmp(&a.final_score).unwrap());
 
     // Rerank for diversity
+    let rerank_start = Instant::now();
     let reranked = rerank_for_diversity(candidates, limit);
+    let rerank_time = rerank_start.elapsed();
+    debug!("[{}] Reranked to {} results in {:?}", request_id, reranked.len(), rerank_time);
 
     // Convert to recommendations
+    let build_start = Instant::now();
     let mut recommendations = Vec::new();
     for candidate in reranked {
         let rec = build_recommendation(db.conn(), candidate, &profile)?;
         recommendations.push(rec);
     }
+    let build_time = build_start.elapsed();
+    debug!("[{}] Built {} recommendations in {:?}", request_id, recommendations.len(), build_time);
 
+    let total_time = start_time.elapsed();
     info!(
-        "Generated {} recommendations for user (read: {}, saved: {})",
+        "[{}] Completed: {} recommendations in {:?} (profile: {:?}, candidates: {:?}, scoring: {:?}, build: {:?})",
+        request_id,
         recommendations.len(),
-        profile.total_read,
-        profile.saved_article_ids.len()
+        total_time,
+        profile_time,
+        candidates_time,
+        scoring_time,
+        build_time
     );
 
     Ok(recommendations)
@@ -265,7 +306,14 @@ pub fn get_saved_articles(
 /// Get recommendation statistics
 #[tauri::command]
 pub fn get_recommendation_stats(state: State<AppState>) -> Result<RecommendationStats, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let request_id = Uuid::new_v4().to_string()[..8].to_string();
+    let start_time = Instant::now();
+    debug!("[{}] Loading recommendation stats", request_id);
+
+    let db = state.db.lock().map_err(|e| {
+        warn!("[{}] Failed to acquire DB lock: {}", request_id, e);
+        e.to_string()
+    })?;
 
     let articles_read: i64 = db
         .conn()
@@ -276,7 +324,7 @@ pub fn get_recommendation_stats(state: State<AppState>) -> Result<Recommendation
         )
         .unwrap_or(0);
 
-    let articles_saved: i64 = db
+    let total_saved: i64 = db
         .conn()
         .query_row(
             "SELECT COUNT(*) FROM recommendation_feedback WHERE action = 'save'",
@@ -285,10 +333,19 @@ pub fn get_recommendation_stats(state: State<AppState>) -> Result<Recommendation
         )
         .unwrap_or(0);
 
-    let articles_hidden: i64 = db
+    let total_hidden: i64 = db
         .conn()
         .query_row(
             "SELECT COUNT(*) FROM recommendation_feedback WHERE action = 'hide'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    let total_clicks: i64 = db
+        .conn()
+        .query_row(
+            "SELECT COUNT(*) FROM recommendation_feedback WHERE action = 'click'",
             [],
             |row| row.get(0),
         )
@@ -299,7 +356,7 @@ pub fn get_recommendation_stats(state: State<AppState>) -> Result<Recommendation
         .query_row("SELECT COUNT(*) FROM fnords", [], |row| row.get(0))
         .unwrap_or(0);
 
-    let with_embedding: i64 = db
+    let articles_with_embedding: i64 = db
         .conn()
         .query_row(
             "SELECT COUNT(*) FROM fnords WHERE embedding IS NOT NULL",
@@ -308,13 +365,16 @@ pub fn get_recommendation_stats(state: State<AppState>) -> Result<Recommendation
         )
         .unwrap_or(0);
 
-    let embedding_coverage = if total_articles > 0 {
-        with_embedding as f64 / total_articles as f64
+    // Calculate profile strength based on read articles
+    let profile_strength = if articles_read >= 50 {
+        "Hot".to_string()
+    } else if articles_read >= 10 {
+        "Warm".to_string()
     } else {
-        0.0
+        "Cold".to_string()
     };
 
-    let candidate_pool_size = total_articles - articles_read - articles_hidden;
+    let candidate_pool_size = total_articles - articles_read - total_hidden;
 
     // Top keywords from read articles
     let top_keywords = get_top_user_keywords(db.conn(), 10)?;
@@ -322,15 +382,28 @@ pub fn get_recommendation_stats(state: State<AppState>) -> Result<Recommendation
     // Top categories
     let top_categories = get_top_user_categories(db.conn(), 5)?;
 
-    Ok(RecommendationStats {
+    let stats = RecommendationStats {
+        total_saved,
+        total_hidden,
+        total_clicks,
         articles_read,
-        articles_saved,
-        articles_hidden,
+        articles_with_embedding,
+        profile_strength: profile_strength.clone(),
         top_keywords,
         top_categories,
         candidate_pool_size,
-        embedding_coverage,
-    })
+    };
+
+    debug!(
+        "[{}] Stats loaded in {:?} (read: {}, pool: {}, profile: {})",
+        request_id,
+        start_time.elapsed(),
+        articles_read,
+        candidate_pool_size,
+        profile_strength
+    );
+
+    Ok(stats)
 }
 
 // ============================================================

@@ -446,11 +446,11 @@
     </div>
     <div class="stat-row">
       <span><i class="stat-icon fa-solid fa-check illuminated"></i> <Tooltip termKey="illuminated">{$_('terminology.illuminated.term')}</Tooltip></span>
-      <span>{appState.fnords.filter((f) => f.status === "illuminated").length}</span>
+      <span>{appState.totalIlluminated}</span>
     </div>
     <div class="stat-row">
       <span><i class="stat-icon fa-solid fa-apple-whole golden"></i> <Tooltip termKey="golden_apple">{$_('terminology.golden_apple.term')}</Tooltip></span>
-      <span>{appState.fnords.filter((f) => f.status === "golden_apple").length}</span>
+      <span>{appState.totalGoldenApple}</span>
     </div>
   </div>
 </aside>

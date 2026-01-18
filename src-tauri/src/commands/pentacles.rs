@@ -13,6 +13,8 @@ pub struct Pentacle {
     pub default_quality: i32,
     pub article_count: i64,
     pub unread_count: i64,
+    pub illuminated_count: i64,
+    pub golden_apple_count: i64,
 }
 
 #[tauri::command]
@@ -32,7 +34,9 @@ pub fn get_pentacles(state: State<AppState>) -> Result<Vec<Pentacle>, String> {
                 p.icon_url,
                 p.default_quality,
                 COUNT(f.id) as article_count,
-                COUNT(CASE WHEN f.status = 'concealed' THEN 1 END) as unread_count
+                COUNT(CASE WHEN f.status = 'concealed' THEN 1 END) as unread_count,
+                COUNT(CASE WHEN f.status = 'illuminated' THEN 1 END) as illuminated_count,
+                COUNT(CASE WHEN f.status = 'golden_apple' THEN 1 END) as golden_apple_count
             FROM pentacles p
             LEFT JOIN fnords f ON f.pentacle_id = p.id
             GROUP BY p.id
@@ -53,6 +57,8 @@ pub fn get_pentacles(state: State<AppState>) -> Result<Vec<Pentacle>, String> {
                 default_quality: row.get(6)?,
                 article_count: row.get(7)?,
                 unread_count: row.get(8)?,
+                illuminated_count: row.get(9)?,
+                golden_apple_count: row.get(10)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -85,6 +91,8 @@ pub fn add_pentacle(state: State<AppState>, url: String, title: Option<String>) 
         default_quality: 3,
         article_count: 0,
         unread_count: 0,
+        illuminated_count: 0,
+        golden_apple_count: 0,
     })
 }
 

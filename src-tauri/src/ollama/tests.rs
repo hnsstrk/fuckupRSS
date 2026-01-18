@@ -229,3 +229,110 @@ fn test_model_info_deserialize_no_size() {
     assert_eq!(info.name, "test-model");
     assert_eq!(info.size, None);
 }
+
+// ============================================================
+// Flexible deserializer tests
+// ============================================================
+
+#[test]
+fn test_flexible_deserializer_plain_strings() {
+    // Test that normal string arrays still work
+    let json = r#"{
+        "summary": "Test summary",
+        "categories": ["Politik", "Wirtschaft"],
+        "keywords": ["keyword1", "keyword2"],
+        "political_bias": 0.0,
+        "sachlichkeit": 2.0
+    }"#;
+    let analysis: RawDiscordianAnalysis =
+        serde_json::from_str(json).expect("Deserialization failed");
+    assert_eq!(analysis.summary, "Test summary");
+    assert_eq!(analysis.categories, vec!["Politik", "Wirtschaft"]);
+    assert_eq!(analysis.keywords, vec!["keyword1", "keyword2"]);
+}
+
+#[test]
+fn test_flexible_deserializer_objects_with_name() {
+    // Test that objects with "name" field are correctly extracted
+    let json = r#"{
+        "summary": "Test summary",
+        "categories": [{"name": "Politik"}, {"name": "Wirtschaft"}],
+        "keywords": [{"name": "keyword1"}, {"name": "keyword2"}],
+        "political_bias": 0.0,
+        "sachlichkeit": 2.0
+    }"#;
+    let analysis: RawDiscordianAnalysis =
+        serde_json::from_str(json).expect("Deserialization failed");
+    assert_eq!(analysis.summary, "Test summary");
+    assert_eq!(analysis.categories, vec!["Politik", "Wirtschaft"]);
+    assert_eq!(analysis.keywords, vec!["keyword1", "keyword2"]);
+}
+
+#[test]
+fn test_flexible_deserializer_objects_with_text() {
+    // Test that objects with "text" field are correctly extracted
+    let json = r#"{
+        "summary": {"text": "Test summary object"},
+        "categories": [{"text": "Politik"}],
+        "keywords": [{"text": "keyword"}],
+        "political_bias": 0.0,
+        "sachlichkeit": 2.0
+    }"#;
+    let analysis: RawDiscordianAnalysis =
+        serde_json::from_str(json).expect("Deserialization failed");
+    assert_eq!(analysis.summary, "Test summary object");
+    assert_eq!(analysis.categories, vec!["Politik"]);
+    assert_eq!(analysis.keywords, vec!["keyword"]);
+}
+
+#[test]
+fn test_flexible_deserializer_mixed_array() {
+    // Test that mixed arrays (strings and objects) work
+    let json = r#"{
+        "summary": "Test",
+        "categories": ["Politik", {"name": "Wirtschaft"}],
+        "keywords": [{"keyword": "kw1"}, "kw2"],
+        "political_bias": 0.0,
+        "sachlichkeit": 2.0
+    }"#;
+    let analysis: RawDiscordianAnalysis =
+        serde_json::from_str(json).expect("Deserialization failed");
+    assert_eq!(analysis.categories, vec!["Politik", "Wirtschaft"]);
+    assert_eq!(analysis.keywords, vec!["kw1", "kw2"]);
+}
+
+#[test]
+fn test_flexible_deserializer_empty_arrays() {
+    // Test that empty arrays work
+    let json = r#"{
+        "summary": "Test",
+        "categories": [],
+        "keywords": [],
+        "political_bias": 0.0,
+        "sachlichkeit": 2.0
+    }"#;
+    let analysis: RawDiscordianAnalysis =
+        serde_json::from_str(json).expect("Deserialization failed");
+    assert!(analysis.categories.is_empty());
+    assert!(analysis.keywords.is_empty());
+}
+
+#[test]
+fn test_flexible_deserializer_with_rejections() {
+    // Test the RawDiscordianAnalysisWithRejections struct
+    let json = r#"{
+        "summary": "Test",
+        "categories": ["Politik"],
+        "keywords": [{"name": "keyword1"}],
+        "rejected_keywords": ["bad_keyword"],
+        "rejected_categories": [{"name": "BadCategory"}],
+        "political_bias": -1.0,
+        "sachlichkeit": 3.0
+    }"#;
+    let analysis: RawDiscordianAnalysisWithRejections =
+        serde_json::from_str(json).expect("Deserialization failed");
+    assert_eq!(analysis.categories, vec!["Politik"]);
+    assert_eq!(analysis.keywords, vec!["keyword1"]);
+    assert_eq!(analysis.rejected_keywords, vec!["bad_keyword"]);
+    assert_eq!(analysis.rejected_categories, vec!["BadCategory"]);
+}
