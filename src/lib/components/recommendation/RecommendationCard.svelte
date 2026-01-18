@@ -36,7 +36,6 @@
     compact?: boolean;
     onsave?: (fnordId: number) => void;
     onunsave?: (fnordId: number) => void;
-    onhide?: (fnordId: number) => void;
     onclick?: (fnordId: number) => void;
   }
 
@@ -46,12 +45,10 @@
     compact = false,
     onsave,
     onunsave,
-    onhide,
     onclick
   }: Props = $props();
 
   let isSaving = $state(false);
-  let isHiding = $state(false);
 
   const currentLocale = $derived($locale || 'de');
 
@@ -67,13 +64,6 @@
     }
 
     isSaving = false;
-  }
-
-  async function handleHide(e: MouseEvent) {
-    e.stopPropagation();
-    if (isHiding) return;
-    isHiding = true;
-    onhide?.(recommendation.fnord_id);
   }
 
   function handleClick() {
@@ -164,18 +154,6 @@
     </div>
 
     <div class="card-actions">
-      <Tooltip text={$_('recommendations.hide')}>
-        <button
-          type="button"
-          class="action-btn hide-btn"
-          onclick={handleHide}
-          disabled={isHiding}
-          aria-label={$_('recommendations.hide')}
-        >
-          <i class="fa-regular fa-eye-slash"></i>
-        </button>
-      </Tooltip>
-
       <Tooltip text={recommendation.is_saved ? $_('recommendations.unsave') : $_('recommendations.save')}>
         <button
           type="button"
@@ -381,11 +359,6 @@
     background: var(--accent-primary);
     border-color: var(--accent-primary);
     color: var(--text-on-accent);
-  }
-
-  .hide-btn:hover {
-    border-color: var(--status-error);
-    color: var(--status-error);
   }
 
   /* Compact Mode */

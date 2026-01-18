@@ -228,22 +228,6 @@
     }
   }
 
-  async function handleHide(fnordId: number) {
-    try {
-      await invoke('hide_recommendation', { fnordId });
-      recommendations = recommendations.filter(r => r.fnord_id !== fnordId);
-
-      if (recommendations.length < 5) {
-        const newRecs = await invoke<Recommendation[]>('get_recommendations', { limit: 5 });
-        const existingIds = new Set(recommendations.map(r => r.fnord_id));
-        const toAdd = newRecs.filter(r => !existingIds.has(r.fnord_id));
-        recommendations = [...recommendations, ...toAdd.slice(0, 5 - recommendations.length)];
-      }
-    } catch (e) {
-      console.error('Failed to hide recommendation:', e);
-    }
-  }
-
   function handleClick(fnordId: number) {
     onArticleClick?.(fnordId);
   }
@@ -424,7 +408,6 @@
           {recommendation}
           onsave={handleSave}
           onunsave={handleUnsave}
-          onhide={handleHide}
           onclick={handleClick}
         />
       {/each}
