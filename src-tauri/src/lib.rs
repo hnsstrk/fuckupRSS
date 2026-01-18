@@ -231,6 +231,13 @@ pub fn run() {
             commands::mindfuck::get_blind_spots,
             commands::mindfuck::get_counter_perspectives,
             commands::mindfuck::get_reading_trends,
+            // Recommendations (Operation Mindfuck - Personalized)
+            commands::recommendations::get_recommendations,
+            commands::recommendations::save_article,
+            commands::recommendations::unsave_article,
+            commands::recommendations::hide_recommendation,
+            commands::recommendations::get_saved_articles,
+            commands::recommendations::get_recommendation_stats,
             // Article Analysis (Statistical Keywords/Categories)
             commands::article_analysis::get_article_keywords,
             commands::article_analysis::add_article_keyword,

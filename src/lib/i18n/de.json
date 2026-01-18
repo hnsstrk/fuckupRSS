@@ -764,5 +764,40 @@
       "recommendations": "Empfehlungen",
       "trends": "Trends"
     }
+  },
+  "recommendations": {
+    "title": "Empfehlungen",
+    "subtitle": "Basierend auf deinen Interessen",
+    "loading": "Empfehlungen werden geladen...",
+    "refresh": "Neue Empfehlungen laden",
+    "save": "Merken",
+    "saved": "Gemerkt",
+    "unsave": "Nicht mehr merken",
+    "hide": "Nicht mehr anzeigen",
+    "empty": {
+      "title": "Noch keine Empfehlungen",
+      "description": "Wir brauchen mehr Informationen über deine Interessen, um passende Artikel vorzuschlagen.",
+      "tips_title": "So bekommst du Empfehlungen:",
+      "tip_read": "Lies mindestens 5 Artikel",
+      "tip_feeds": "Füge mehr Feeds hinzu",
+      "tip_ollama": "Stelle sicher, dass Ollama läuft"
+    },
+    "explanations": {
+      "keywords": "Basierend auf: {keywords}",
+      "category": "Aus deinem Interessenbereich: {category}",
+      "similar": "Ähnlich zu Artikeln die du gelesen hast",
+      "popular": "Beliebt diese Woche",
+      "explore": "Erweitere deinen Horizont"
+    },
+    "stats": {
+      "title": "Dein Profil",
+      "articles_read": "Artikel gelesen",
+      "articles_saved": "gemerkt",
+      "top_interests": "Top Interessen",
+      "profile_strength": "Profil-Stärke"
+    }
+  },
+  "common": {
+    "retry": "Erneut versuchen"
   }
 }

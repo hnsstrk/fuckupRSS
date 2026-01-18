@@ -824,6 +824,24 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 18: Create recommendation_feedback table for user feedback on recommendations
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS recommendation_feedback (
+            id INTEGER PRIMARY KEY,
+            fnord_id INTEGER NOT NULL,
+            action TEXT NOT NULL CHECK(action IN ('save', 'hide', 'click')),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(fnord_id, action),
+            FOREIGN KEY (fnord_id) REFERENCES fnords(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_action ON recommendation_feedback(action);
+        CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_fnord ON recommendation_feedback(fnord_id);
+        CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_created ON recommendation_feedback(created_at DESC);
+        "#,
+    )?;
+
     Ok(())
 }
 

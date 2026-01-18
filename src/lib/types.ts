@@ -592,3 +592,52 @@ export interface KeywordCloudEntry {
   weight: number;
   keyword_type: string | null;
 }
+
+// Recommendations (Operation Mindfuck - Personalized)
+export interface RecommendationCategoryInfo {
+  sephiroth_id: number;
+  name: string;
+  icon: string | null;
+  color: string | null;
+}
+
+export interface Recommendation {
+  fnord_id: number;
+  title: string;
+  summary: string | null;
+  url: string;
+  image_url: string | null;
+  pentacle_id: number;
+  pentacle_title: string | null;
+  pentacle_icon: string | null;
+  published_at: string | null;
+  relevance_score: number;
+  freshness_score: number;
+  political_bias: number | null;
+  sachlichkeit: number | null;
+  categories: RecommendationCategoryInfo[];
+  matching_keywords: string[];
+  explanation: string;
+  is_saved: boolean;
+}
+
+export interface SavedArticle {
+  fnord_id: number;
+  title: string;
+  summary: string | null;
+  url: string;
+  image_url: string | null;
+  pentacle_title: string | null;
+  published_at: string | null;
+  saved_at: string;
+  categories: RecommendationCategoryInfo[];
+}
+
+export interface RecommendationStats {
+  total_saved: number;
+  total_hidden: number;
+  total_clicks: number;
+  articles_read: number;
+  articles_with_embedding: number;
+  profile_strength: string;
+}

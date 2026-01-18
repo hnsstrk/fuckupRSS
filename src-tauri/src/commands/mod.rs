@@ -9,6 +9,7 @@ pub mod ollama;
 pub mod opml;
 pub mod pentacles;
 pub mod profiles;
+pub mod recommendations;
 pub mod retrieval;
 pub mod settings;
 pub mod stopwords;

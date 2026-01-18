@@ -764,5 +764,40 @@
       "recommendations": "Recommendations",
       "trends": "Trends"
     }
+  },
+  "recommendations": {
+    "title": "Recommendations",
+    "subtitle": "Based on your interests",
+    "loading": "Loading recommendations...",
+    "refresh": "Load new recommendations",
+    "save": "Save",
+    "saved": "Saved",
+    "unsave": "Unsave",
+    "hide": "Hide",
+    "empty": {
+      "title": "No recommendations yet",
+      "description": "We need more information about your interests to suggest relevant articles.",
+      "tips_title": "How to get recommendations:",
+      "tip_read": "Read at least 5 articles",
+      "tip_feeds": "Add more feeds",
+      "tip_ollama": "Make sure Ollama is running"
+    },
+    "explanations": {
+      "keywords": "Based on: {keywords}",
+      "category": "From your interest area: {category}",
+      "similar": "Similar to articles you've read",
+      "popular": "Popular this week",
+      "explore": "Expand your horizons"
+    },
+    "stats": {
+      "title": "Your Profile",
+      "articles_read": "Articles read",
+      "articles_saved": "saved",
+      "top_interests": "Top interests",
+      "profile_strength": "Profile strength"
+    }
+  },
+  "common": {
+    "retry": "Retry"
   }
 }
