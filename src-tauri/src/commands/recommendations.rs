@@ -49,9 +49,10 @@ pub struct Recommendation {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CategoryInfo {
-    pub id: i64,
+    pub sephiroth_id: i64,
     pub name: String,
     pub icon: Option<String>,
+    pub color: Option<String>,
 }
 
 /// Saved article info
@@ -992,7 +993,7 @@ fn get_article_categories(
 ) -> Result<Vec<CategoryInfo>, String> {
     let mut stmt = conn
         .prepare(
-            r#"SELECT DISTINCT m.id, m.name, m.icon
+            r#"SELECT DISTINCT m.id, m.name, m.icon, m.color
                FROM sephiroth m
                JOIN sephiroth s ON (s.parent_id = m.id OR s.id = m.id)
                JOIN fnord_sephiroth fs ON fs.sephiroth_id = s.id
@@ -1004,9 +1005,10 @@ fn get_article_categories(
     let categories: Vec<CategoryInfo> = stmt
         .query_map([fnord_id], |row| {
             Ok(CategoryInfo {
-                id: row.get(0)?,
+                sephiroth_id: row.get(0)?,
                 name: row.get(1)?,
                 icon: row.get(2)?,
+                color: row.get(3)?,
             })
         })
         .map_err(|e| e.to_string())?
