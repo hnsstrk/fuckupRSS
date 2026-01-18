@@ -290,8 +290,8 @@ regex::Regex::new(r"...").unwrap();
 
 - [x] **Backend:** `get_failed_articles()` Command implementieren
 - [x] **Backend:** `get_hopeless_articles()` Command implementieren
-- [ ] **Tests:** ErisianArchives Unit-Tests schreiben (optional, empfohlen)
-- [ ] **Tests:** E2E-Tests für neue Views (optional, empfohlen)
+- [x] **Tests:** ErisianArchives Unit-Tests schreiben (11 Tests hinzugefügt)
+- [ ] **Tests:** E2E-Tests für neue Views (optional)
 
 ### Phase 4: Code Cleanup (4-8 Stunden) ✅ ABGESCHLOSSEN
 
@@ -300,11 +300,11 @@ regex::Regex::new(r"...").unwrap();
 - [x] **Unused Exports:** state.svelte.ts bereinigt
 - [ ] **Clustering-Modul:** Feature-Flag oder entfernen (niedriger Priorität, kann bleiben)
 
-### Phase 5: Code-Qualität (2-4 Stunden) ℹ️ ANALYSIERT
+### Phase 5: Code-Qualität (2-4 Stunden) ✅ ABGESCHLOSSEN
 
 - [x] **Lock-Pattern:** Geprüft - aktuelles Pattern ist akzeptabel (DB-only Locks)
-- [ ] **Regex-Caching:** lazy_static einführen (niedrige Priorität, Performance-Optimierung)
-- [ ] **Logging:** Silent failures dokumentieren (niedrige Priorität)
+- [x] **Regex-Caching:** once_cell::Lazy eingeführt (8 Patterns in keywords/ gecached)
+- [x] **Logging:** Silent failures mit warn!() Logging versehen
 
 ---
 
@@ -317,6 +317,8 @@ regex::Regex::new(r"...").unwrap();
 2. `7b94905` - docs: Comprehensive documentation update
 3. `954b50c` - feat: Add get_failed_articles and get_hopeless_articles commands
 4. `0cdd0a6` - refactor: Remove dead code and unused exports
+5. `bf8e078` - docs: Finalize analysis report with completion status
+6. `1061831` - perf: Regex caching + tests + logging improvements
 
 **Kritische Fixes behoben:**
 - NaN-Panic in recommendations.rs (2 Stellen)
@@ -337,11 +339,17 @@ regex::Regex::new(r"...").unwrap();
 - CategoryBadge.svelte (171 Zeilen)
 - Ungenutzte State-Exports (selectedPentacle, selectedFnord)
 
+**Performance & Qualität:**
+- 8 Regex-Patterns in keywords/ mit once_cell::Lazy gecached
+- 11 Unit-Tests für ErisianArchives.svelte hinzugefügt
+- Silent failures in batch_processor.rs mit warn!() Logging versehen
+
 ### Verbleibende Empfehlungen (niedrige Priorität)
 
-1. **Tests schreiben** für neue Features (empfohlen)
-2. **Regex-Caching** mit lazy_static (Performance-Optimierung)
+1. ~~**Tests schreiben** für neue Features~~ ✅ Erledigt
+2. ~~**Regex-Caching** mit lazy_static~~ ✅ Erledigt (mit once_cell)
 3. **Clustering-Modul** evaluieren (Phase 3 Feature, kann bleiben)
+4. **E2E-Tests** für neue Views (optional)
 
 ---
 
