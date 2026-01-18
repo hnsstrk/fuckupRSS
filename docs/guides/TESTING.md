@@ -1,7 +1,7 @@
 # Testing Guide
 
 > **This is the dedicated Testing Guide for fuckupRSS.**
-> For the full developer context, see [CLAUDE.md](../CLAUDE.md).
+> For the full developer context, see [CLAUDE.md](../../CLAUDE.md).
 
 ---
 
@@ -312,6 +312,6 @@ mod tests {
 
 ## Related Documentation
 
-- [CLAUDE.md](../CLAUDE.md) - Full developer context and project guidelines
-- [fuckupRSS-Anforderungen.md](../fuckupRSS-Anforderungen.md) - Technical specification
-- [README.md](../README.md) - Project overview and installation
+- [CLAUDE.md](../../CLAUDE.md) - Full developer context and project guidelines
+- [fuckupRSS-Anforderungen.md](../../fuckupRSS-Anforderungen.md) - Technical specification
+- [README.md](../../README.md) - Project overview and installation

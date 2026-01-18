@@ -336,7 +336,7 @@ Detaillierte Planung und Phasen-Übersicht: siehe [`fuckupRSS-Anforderungen.md`]
 
 ## Contributing
 
-Contributions sind willkommen! Bitte lies zuerst [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions sind willkommen! Siehe [CLAUDE.md](CLAUDE.md) für Entwickler-Richtlinien.
 
 ```bash
 # Entwicklungsumgebung aufsetzen

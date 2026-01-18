@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `fuckupRSS-Anforderungen.md` | Technische Spezifikation, Architektur, Entscheidungen | Architekturaenderungen, neue Komponenten, Abweichungen vom Plan |
 | `CLAUDE.md` | Entwickler-Kontext fuer Claude Code | Build-Aenderungen, neue Patterns, Strukturaenderungen |
 | `TODO.md` | Zentrale Aufgabenliste, Entscheidungen | Neue Tasks, abgeschlossene Tasks, technische Entscheidungen |
-| `QUALITY_CHECKLIST.md` | Frontend-Backend-Kommunikation Checkliste | Neue invoke-Calls, Event-Listener, State-Updates |
+| `docs/guides/QUALITY_CHECKLIST.md` | Frontend-Backend-Kommunikation Checkliste | Neue invoke-Calls, Event-Listener, State-Updates |
 
 ### Dokumentations-Workflow
 
@@ -25,10 +25,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Dokument | Inhalt |
 |----------|--------|
-| [docs/TAURI_COMMANDS_REFERENCE.md](docs/TAURI_COMMANDS_REFERENCE.md) | Alle Tauri Commands (Frontend -> Backend) |
-| [docs/AI_PROCESSING_PIPELINE.md](docs/AI_PROCESSING_PIPELINE.md) | KI-Pipeline, Statistische Analyse, Bias-Lernen, Keyword-Extraktion |
-| [docs/TESTING.md](docs/TESTING.md) | Test-Befehle, Patterns, Anforderungen |
-| [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | Datenbank-Tabellen Uebersicht |
+| [docs/api/TAURI_COMMANDS_REFERENCE.md](docs/api/TAURI_COMMANDS_REFERENCE.md) | Alle Tauri Commands (Frontend -> Backend) |
+| [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md) | KI-Pipeline, Statistische Analyse, Bias-Lernen, Keyword-Extraktion |
+| [docs/guides/TESTING.md](docs/guides/TESTING.md) | Test-Befehle, Patterns, Anforderungen |
+| [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md) | Datenbank-Tabellen Uebersicht |
 | [README.md](README.md) | Technology Stack, Illuminatus! Terminologie, Ollama Setup |
 
 ## Project Overview
@@ -57,7 +57,7 @@ npm run dev
 
 ## Testing
 
-Siehe [docs/TESTING.md](docs/TESTING.md) fuer die vollstaendige Test-Dokumentation.
+Siehe [docs/guides/TESTING.md](docs/guides/TESTING.md) fuer die vollstaendige Test-Dokumentation.
 
 **Quick Commands:**
 ```bash
@@ -201,10 +201,14 @@ fuckupRSS/
 │   │       └── fnords.rs         # Artikel-Operationen
 │   └── Cargo.toml
 ├── docs/                         # Referenzdokumentation
-│   ├── TAURI_COMMANDS_REFERENCE.md
-│   ├── AI_PROCESSING_PIPELINE.md
-│   ├── TESTING.md
-│   └── DATABASE_SCHEMA.md
+│   ├── api/
+│   │   └── TAURI_COMMANDS_REFERENCE.md
+│   ├── architecture/
+│   │   ├── AI_PROCESSING_PIPELINE.md
+│   │   └── DATABASE_SCHEMA.md
+│   └── guides/
+│       ├── TESTING.md
+│       └── QUALITY_CHECKLIST.md
 ├── fuckupRSS-Anforderungen.md    # Technische Spezifikation
 ├── README.md                     # Projekt-Dokumentation
 ├── CLAUDE.md                     # Diese Datei
@@ -258,7 +262,7 @@ Siehe [README.md](README.md#illuminatus-terminology) fuer die vollstaendige Term
 
 ## Tauri Commands
 
-Siehe [docs/TAURI_COMMANDS_REFERENCE.md](docs/TAURI_COMMANDS_REFERENCE.md) fuer die vollstaendige Command-Referenz.
+Siehe [docs/api/TAURI_COMMANDS_REFERENCE.md](docs/api/TAURI_COMMANDS_REFERENCE.md) fuer die vollstaendige Command-Referenz.
 
 **Haeufig verwendete Commands:**
 ```typescript
@@ -278,7 +282,7 @@ await invoke('check_ollama');
 
 ## Database Schema
 
-Siehe [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) fuer die vollstaendige Schema-Dokumentation.
+Siehe [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md) fuer die vollstaendige Schema-Dokumentation.
 
 **Kern-Tabellen:**
 - `pentacles` - Feed-Quellen
@@ -432,7 +436,7 @@ Folgende kritische Bugs wurden in den Datenbank-Operationen behoben:
 
 ## AI Processing Pipeline
 
-Siehe [docs/AI_PROCESSING_PIPELINE.md](docs/AI_PROCESSING_PIPELINE.md) fuer die vollstaendige Pipeline-Dokumentation.
+Siehe [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md) fuer die vollstaendige Pipeline-Dokumentation.
 
 **Kurzuebersicht:**
 1. **Hagbard's Retrieval** - Volltext abrufen (automatisch nach Sync)

@@ -218,7 +218,7 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
   - 78 invoke-Calls analysiert
   - State-Konsistenz-Probleme behoben (5 Fixes)
   - Error-Handling in SettingsView verbessert
-  - Checkliste erstellt: `QUALITY_CHECKLIST.md`
+  - Checkliste erstellt: `docs/guides/QUALITY_CHECKLIST.md`
 
 ---
 
@@ -284,4 +284,4 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 
 ---
 
-*Dokumentation basiert auf: `fuckupRSS-Anforderungen.md`, `README.md`, `CLAUDE.md`, `QUALITY_CHECKLIST.md`*
+*Dokumentation basiert auf: `fuckupRSS-Anforderungen.md`, `README.md`, `CLAUDE.md`, `docs/guides/QUALITY_CHECKLIST.md`*

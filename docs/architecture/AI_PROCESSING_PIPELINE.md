@@ -1,7 +1,7 @@
 # AI Processing Pipeline Reference
 
 > This document provides a comprehensive reference for the AI processing pipeline in fuckupRSS.
-> For the main developer guide, see [CLAUDE.md](../CLAUDE.md).
+> For the main developer guide, see [CLAUDE.md](../../CLAUDE.md).
 
 ## Table of Contents
 
@@ -419,7 +419,7 @@ await invoke('process_batch_clustered', {
 
 ## Related Documentation
 
-- [CLAUDE.md](../CLAUDE.md) - Main developer guide
-- [fuckupRSS-Anforderungen.md](../fuckupRSS-Anforderungen.md) - Technical specification
-- [KEYWORDS_SCHEMA.md](./KEYWORDS_SCHEMA.md) - Keyword database schema
-- [STOPWORD_KEYWORD_REPORT.md](./STOPWORD_KEYWORD_REPORT.md) - Stopword and keyword analysis report
+- [CLAUDE.md](../../CLAUDE.md) - Main developer guide
+- [fuckupRSS-Anforderungen.md](../../fuckupRSS-Anforderungen.md) - Technical specification
+- [KEYWORDS_SCHEMA.md](../features/immanentize/KEYWORDS_SCHEMA.md) - Keyword database schema
+- [STOPWORD_KEYWORD_REPORT.md](../archive/STOPWORD_KEYWORD_REPORT.md) - Stopword and keyword analysis report

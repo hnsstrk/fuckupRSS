@@ -2,7 +2,7 @@
 
 This document provides a comprehensive reference for all Tauri commands available in fuckupRSS. These commands define the IPC (Inter-Process Communication) interface between the Svelte 5 frontend and the Rust backend.
 
-> **Note:** For development guidelines, database patterns, and project overview, see [CLAUDE.md](../CLAUDE.md).
+> **Note:** For development guidelines, database patterns, and project overview, see [CLAUDE.md](../../CLAUDE.md).
 
 ---
 
@@ -454,4 +454,4 @@ const searchResults = await invoke<SemanticSearchResponse>('semantic_search', {
 
 *Last updated: January 2025*
 
-*For development guidelines, database patterns, and project architecture, see [CLAUDE.md](../CLAUDE.md).*
+*For development guidelines, database patterns, and project architecture, see [CLAUDE.md](../../CLAUDE.md).*
