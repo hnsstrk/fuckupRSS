@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
   import { appState, type Fnord } from '../stores/state.svelte';
   import Tabs, { type Tab } from './Tabs.svelte';
   import Tooltip from './Tooltip.svelte';
   import { ArticleItemCompact } from './article';
+  import ArticleView from './ArticleView.svelte';
 
   // Type for analysis status articles from backend
   interface AnalysisStatusArticle {
@@ -22,9 +23,44 @@
 
   // State
   let loading = $state(false);
-  let articles = $state<Fnord[]>([]);
   let activeTab = $state<string>('articles');
-  let selectedArticleId = $state<number | null>(null);
+
+  // Special articles for failed/hopeless tabs (loaded separately)
+  let specialArticles = $state<Fnord[]>([]);
+
+  // Derived from appState - single source of truth
+  let selectedId = $derived(appState.selectedFnordId);
+
+  // Derived: Current source/category name for header display
+  let currentSourceName = $derived.by(() => {
+    if (appState.selectedPentacleId !== null) {
+      return appState.selectedPentacle?.title || 'Feed';
+    }
+    if (appState.selectedSephirothId !== null) {
+      return appState.selectedSephirothCategory?.name || 'Kategorie';
+    }
+    return null; // "Alle Artikel"
+  });
+
+  // Derived: Filter appState.fnords by active tab status
+  let archiveArticles = $derived.by(() => {
+    // For failed/hopeless tabs, use specialArticles
+    if (activeTab === 'failed' || activeTab === 'hopeless') {
+      return specialArticles;
+    }
+
+    // Filter appState.fnords by tab
+    const fnords = appState.fnords;
+    switch (activeTab) {
+      case 'unread':
+        return fnords.filter(f => f.status === 'concealed');
+      case 'goldenApple':
+        return fnords.filter(f => f.status === 'golden_apple');
+      case 'articles':
+      default:
+        return fnords;
+    }
+  });
 
   // Stats
   let totalCount = $state(0);
@@ -33,18 +69,21 @@
   let failedCount = $state(0);
   let hopelessCount = $state(0);
 
-  // Tabs definition with badges
+  // Tabs definition (no badges as per user request)
   let tabs = $derived<Tab[]>([
     { id: 'articles', label: $_('erisianArchives.tabs.articles') || 'Artikel' },
-    { id: 'unread', label: $_('erisianArchives.tabs.unread') || 'Ungelesen', badge: unreadCount || undefined },
-    { id: 'goldenApple', label: $_('erisianArchives.tabs.goldenApple') || 'Golden Apple', badge: favoritesCount || undefined },
-    { id: 'failed', label: $_('erisianArchives.tabs.failed') || 'Fehlgeschlagen', badge: failedCount || undefined },
-    { id: 'hopeless', label: $_('erisianArchives.tabs.hopeless') || 'Hoffnungslos', badge: hopelessCount || undefined },
+    { id: 'unread', label: $_('erisianArchives.tabs.unread') || 'Ungelesen' },
+    { id: 'goldenApple', label: $_('erisianArchives.tabs.goldenApple') || 'Golden Apple' },
+    { id: 'failed', label: $_('erisianArchives.tabs.failed') || 'Fehlgeschlagen' },
+    { id: 'hopeless', label: $_('erisianArchives.tabs.hopeless') || 'Hoffnungslos' },
   ]);
 
   onMount(async () => {
     await loadStats();
-    await loadArticles();
+    // Load special tabs if needed
+    if (activeTab === 'failed' || activeTab === 'hopeless') {
+      await loadSpecialArticles();
+    }
   });
 
   async function loadStats() {
@@ -70,87 +109,69 @@
     }
   }
 
-  async function loadArticles() {
+  // Load special articles for failed/hopeless tabs (not available in appState.fnords)
+  async function loadSpecialArticles() {
+    if (activeTab !== 'failed' && activeTab !== 'hopeless') {
+      specialArticles = [];
+      return;
+    }
+
     loading = true;
     try {
-      let filter: { status?: string; limit?: number } | null = null;
-
-      switch (activeTab) {
-        case 'articles':
-          filter = { limit: 100 };
-          break;
-        case 'unread':
-          filter = { status: 'concealed', limit: 100 };
-          break;
-        case 'goldenApple':
-          filter = { status: 'golden_apple', limit: 100 };
-          break;
-        case 'failed':
-          {
-            const failedArticles = await invoke<AnalysisStatusArticle[]>('get_failed_articles', { limit: 100 });
-            // Map to Fnord-like structure for ArticleItemCompact
-            articles = failedArticles.map(a => ({
-              id: a.id,
-              pentacle_id: a.pentacle_id,
-              pentacle_title: a.pentacle_title,
-              guid: '',
-              url: '',
-              title: a.title,
-              author: null,
-              content_raw: null,
-              content_full: null,
-              summary: a.summary,
-              image_url: null,
-              published_at: a.published_at,
-              processed_at: null,
-              status: a.status,
-              political_bias: null,
-              sachlichkeit: null,
-              quality_score: null,
-              has_changes: false,
-              changed_at: null,
-              revision_count: 0,
-              categories: [],
-            } as Fnord));
-          }
-          loading = false;
-          return;
-        case 'hopeless':
-          {
-            const hopelessArticles = await invoke<AnalysisStatusArticle[]>('get_hopeless_articles', { limit: 100 });
-            // Map to Fnord-like structure for ArticleItemCompact
-            articles = hopelessArticles.map(a => ({
-              id: a.id,
-              pentacle_id: a.pentacle_id,
-              pentacle_title: a.pentacle_title,
-              guid: '',
-              url: '',
-              title: a.title,
-              author: null,
-              content_raw: null,
-              content_full: null,
-              summary: a.summary,
-              image_url: null,
-              published_at: a.published_at,
-              processed_at: null,
-              status: a.status,
-              political_bias: null,
-              sachlichkeit: null,
-              quality_score: null,
-              has_changes: false,
-              changed_at: null,
-              revision_count: 0,
-              categories: [],
-            } as Fnord));
-          }
-          loading = false;
-          return;
+      if (activeTab === 'failed') {
+        const failedArticles = await invoke<AnalysisStatusArticle[]>('get_failed_articles', { limit: 100 });
+        specialArticles = failedArticles.map(a => ({
+          id: a.id,
+          pentacle_id: a.pentacle_id,
+          pentacle_title: a.pentacle_title,
+          guid: '',
+          url: '',
+          title: a.title,
+          author: null,
+          content_raw: null,
+          content_full: null,
+          summary: a.summary,
+          image_url: null,
+          published_at: a.published_at,
+          processed_at: null,
+          status: a.status,
+          political_bias: null,
+          sachlichkeit: null,
+          quality_score: null,
+          has_changes: false,
+          changed_at: null,
+          revision_count: 0,
+          categories: [],
+        } as Fnord));
+      } else if (activeTab === 'hopeless') {
+        const hopelessArticles = await invoke<AnalysisStatusArticle[]>('get_hopeless_articles', { limit: 100 });
+        specialArticles = hopelessArticles.map(a => ({
+          id: a.id,
+          pentacle_id: a.pentacle_id,
+          pentacle_title: a.pentacle_title,
+          guid: '',
+          url: '',
+          title: a.title,
+          author: null,
+          content_raw: null,
+          content_full: null,
+          summary: a.summary,
+          image_url: null,
+          published_at: a.published_at,
+          processed_at: null,
+          status: a.status,
+          political_bias: null,
+          sachlichkeit: null,
+          quality_score: null,
+          has_changes: false,
+          changed_at: null,
+          revision_count: 0,
+          categories: [],
+        } as Fnord));
       }
-
-      articles = await invoke<Fnord[]>('get_fnords', { filter });
     } catch (e) {
-      console.error('[ErisianArchives] Error loading articles:', e);
-      articles = [];
+      console.error('[ErisianArchives] Error loading special articles:', e);
+      specialArticles = [];
     } finally {
       loading = false;
     }
@@ -158,14 +179,81 @@
 
   function handleTabChange(tabId: string) {
     activeTab = tabId;
-    loadArticles();
+    // Reset selection when changing tabs to avoid stale state
+    appState.selectedFnordId = null;
+    // Load special articles for failed/hopeless tabs
+    if (tabId === 'failed' || tabId === 'hopeless') {
+      loadSpecialArticles();
+    }
   }
 
-  function selectArticle(id: number) {
-    selectedArticleId = id;
-    appState.selectFnord(id);
-    window.dispatchEvent(new CustomEvent('navigate-to-article', { detail: { articleId: id } }));
+  // Select article with mark-on-switch logic
+  // Marks the PREVIOUS article as read when switching to a new one
+  async function selectArticle(id: number, markPreviousAsRead: boolean = false) {
+    const previousId = appState.selectedFnordId;
+
+    // Mark previous article as read if requested and it was unread
+    if (markPreviousAsRead && previousId !== null && previousId !== id) {
+      const previousFnord = appState.selectedFnord;
+      if (previousFnord && previousFnord.status === 'concealed') {
+        await appState.updateFnordStatus(previousId, 'illuminated');
+        // archiveArticles is derived and will auto-update when appState.fnords changes
+        // Refresh stats to update badge counts
+        loadStats();
+      }
+    }
+
+    // Ensure article data is loaded in appState
+    await appState.ensureFnordLoaded(id);
+    // Direct assignment - no auto-mark-as-read
+    appState.selectedFnordId = id;
   }
+
+  // Keyboard navigation (j/k/s like in ArticleList)
+  function handleKeydown(e: KeyboardEvent) {
+    // Ignore if typing in an input
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    if (e.key === 'j') {
+      e.preventDefault();
+      selectNextArticle();
+    } else if (e.key === 'k') {
+      e.preventDefault();
+      selectPrevArticle();
+    } else if (e.key === 's' && selectedId) {
+      e.preventDefault();
+      appState.toggleGoldenApple(selectedId);
+    }
+  }
+
+  function selectNextArticle() {
+    const currentIndex = archiveArticles.findIndex(a => a.id === selectedId);
+    if (currentIndex < archiveArticles.length - 1) {
+      // Mark previous as read when navigating to next
+      selectArticle(archiveArticles[currentIndex + 1].id, true);
+    } else if (currentIndex === -1 && archiveArticles.length > 0) {
+      selectArticle(archiveArticles[0].id, false);
+    }
+  }
+
+  function selectPrevArticle() {
+    const currentIndex = archiveArticles.findIndex(a => a.id === selectedId);
+    if (currentIndex > 0) {
+      // Mark previous as read when navigating
+      selectArticle(archiveArticles[currentIndex - 1].id, true);
+    }
+  }
+
+  // Sync with external navigation (e.g., from Similar Articles in ArticleView)
+  let unlistenNavigate: (() => void) | null = null;
+
+  onDestroy(() => {
+    if (unlistenNavigate) {
+      window.removeEventListener('navigate-to-article', unlistenNavigate as EventListener);
+    }
+  });
 
   // Empty state messages based on active tab
   let emptyMessage = $derived.by(() => {
@@ -185,22 +273,38 @@
     }
   });
 
-  // Check if current tab is a special analysis tab (not yet supported for listing)
-  let isAnalysisTab = $derived(activeTab === 'failed' || activeTab === 'hopeless');
-  let analysisTabCount = $derived(activeTab === 'failed' ? failedCount : hopelessCount);
 </script>
 
-<div class="erisian-archives">
+<!-- Global keyboard handler for j/k/s navigation -->
+<svelte:window onkeydown={handleKeydown} />
+
+<div class="erisian-archives" role="main">
   <!-- Header -->
   <div class="erisian-header">
     <div class="header-top">
-      <h2 class="view-title">
-        <i class="fa-solid fa-newspaper nav-icon"></i>
-        {$_('erisianArchives.title') || 'Erisian Archives'}
-        <Tooltip termKey="erisian_archives">
-          <i class="fa-solid fa-circle-info info-icon"></i>
-        </Tooltip>
-      </h2>
+      <div class="header-title-group">
+        <h2 class="view-title">
+          <i class="fa-solid fa-newspaper nav-icon"></i>
+          {$_('erisianArchives.title') || 'Erisian Archives'}
+          <Tooltip termKey="erisian_archives">
+            <i class="fa-solid fa-circle-info info-icon"></i>
+          </Tooltip>
+        </h2>
+        {#if currentSourceName}
+          <span class="source-filter">
+            <i class="fa-solid {appState.selectedPentacleId !== null ? 'fa-rss' : 'fa-folder'}"></i>
+            {currentSourceName}
+            <button
+              type="button"
+              class="clear-filter-btn"
+              onclick={() => appState.selectView('all')}
+              title={$_('erisianArchives.clearFilter') || 'Filter entfernen'}
+            >
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </span>
+        {/if}
+      </div>
       <div class="erisian-summary">
         <span class="summary-item">
           <span class="summary-value">{totalCount}</span>
@@ -221,57 +325,45 @@
     <Tabs {tabs} bind:activeTab onchange={handleTabChange} />
   </div>
 
-  <!-- Content -->
-  <div class="erisian-content">
-    {#if loading}
-      <div class="loading-state">
-        <div class="spinner"></div>
-        <span>{$_('fnordView.loading') || 'Laden...'}</span>
-      </div>
-    {:else if isAnalysisTab}
-      <!-- Special handling for failed/hopeless tabs -->
-      {#if analysisTabCount === 0}
+  <!-- 2-Column Body: Article List + Article View -->
+  <div class="erisian-body">
+    <!-- Left: Article List -->
+    <div class="article-list-column">
+      {#if loading}
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <span>{$_('fnordView.loading') || 'Laden...'}</span>
+        </div>
+      {:else if archiveArticles.length === 0}
         <div class="empty-state">
-          <i class="empty-icon fa-solid fa-check-circle"></i>
+          <i class="empty-icon fa-solid fa-box-open"></i>
           <p>{emptyMessage}</p>
         </div>
       {:else}
-        <div class="info-state">
-          <i class="info-icon fa-solid fa-info-circle"></i>
-          <p class="info-count">{analysisTabCount} {activeTab === 'failed' ? $_('statusBar.failed') : $_('statusBar.hopeless')}</p>
-          <p class="info-description">
-            {#if activeTab === 'failed'}
-              {$_('statusBar.failedTooltip') || 'Artikel, bei denen die KI-Analyse fehlgeschlagen ist, aber noch weitere Versuche ausstehen.'}
-            {:else}
-              {$_('statusBar.hopelessTooltip') || 'Artikel, deren KI-Analyse nach mehreren Versuchen fehlgeschlagen ist. Diese werden nicht mehr automatisch analysiert.'}
-            {/if}
-          </p>
+        <div class="articles-list">
+          {#each archiveArticles as article (article.id)}
+            <ArticleItemCompact
+              id={article.id}
+              title={article.title}
+              status={article.status}
+              pentacle_title={article.pentacle_title}
+              published_at={article.published_at}
+              categories={article.categories}
+              revision_count={article.revision_count}
+              quality_score={article.quality_score}
+              political_bias={article.political_bias}
+              active={selectedId === article.id}
+              onclick={() => selectArticle(article.id, true)}
+            />
+          {/each}
         </div>
       {/if}
-    {:else if articles.length === 0}
-      <div class="empty-state">
-        <i class="empty-icon fa-solid fa-box-open"></i>
-        <p>{emptyMessage}</p>
-      </div>
-    {:else}
-      <div class="articles-list">
-        {#each articles as article (article.id)}
-          <ArticleItemCompact
-            id={article.id}
-            title={article.title}
-            status={article.status}
-            pentacle_title={article.pentacle_title}
-            published_at={article.published_at}
-            categories={article.categories}
-            revision_count={article.revision_count}
-            quality_score={article.quality_score}
-            political_bias={article.political_bias}
-            active={selectedArticleId === article.id}
-            onclick={() => selectArticle(article.id)}
-          />
-        {/each}
-      </div>
-    {/if}
+    </div>
+
+    <!-- Right: Article View -->
+    <div class="article-view-column">
+      <ArticleView />
+    </div>
   </div>
 </div>
 
@@ -283,12 +375,14 @@
     height: 100%;
     flex: 1;
     background-color: var(--bg-base);
+    outline: none;
   }
 
   .erisian-header {
-    padding: 1rem 1.5rem;
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--border-default);
     background-color: var(--bg-surface);
+    flex-shrink: 0;
   }
 
   .header-top {
@@ -297,12 +391,61 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 0.5rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .header-title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .source-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    background-color: var(--accent-primary);
+    color: var(--bg-base);
+    border-radius: 0.25rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+
+  .source-filter i:first-child {
+    font-size: 0.75rem;
+  }
+
+  .clear-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    padding: 0;
+    margin-left: 0.25rem;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+  }
+
+  .clear-filter-btn:hover {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.1);
+  }
+
+  .clear-filter-btn i {
+    font-size: 0.625rem;
   }
 
   .erisian-summary {
     display: flex;
-    gap: 1.5rem;
+    gap: 1rem;
   }
 
   .summary-item {
@@ -312,63 +455,66 @@
   }
 
   .summary-value {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     font-weight: 700;
     color: var(--accent-primary);
   }
 
   .summary-label {
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     color: var(--text-muted);
   }
 
-  .erisian-content {
+  /* 2-Column Body Layout */
+  .erisian-body {
+    display: flex;
     flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .article-list-column {
+    width: 20rem;
+    flex-shrink: 0;
     overflow-y: auto;
-    padding: 1rem 1.5rem;
+    border-right: 1px solid var(--border-default);
+    background-color: var(--bg-base);
+  }
+
+  .article-view-column {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+  }
+
+  /* Override ArticleView styles to fit properly */
+  .article-view-column :global(.article-view) {
+    flex: 1;
   }
 
   .loading-state,
-  .empty-state,
-  .info-state {
+  .empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     height: 100%;
+    min-height: 200px;
     color: var(--text-muted);
-    gap: 1rem;
+    gap: 0.75rem;
     text-align: center;
+    padding: 1rem;
   }
 
-  .empty-icon,
-  .info-state .info-icon {
-    font-size: 3rem;
+  .empty-icon {
+    font-size: 2rem;
     opacity: 0.5;
   }
 
-  .info-state .info-icon {
-    color: var(--accent-primary);
-    opacity: 0.7;
-  }
-
-  .info-count {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
-  .info-description {
-    max-width: 400px;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin: 0;
-  }
-
   .spinner {
-    width: 2rem;
-    height: 2rem;
+    width: 1.5rem;
+    height: 1.5rem;
     border: 3px solid var(--border-default);
     border-top-color: var(--accent-primary);
     border-radius: 50%;
@@ -382,6 +528,5 @@
   .articles-list {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
   }
 </style>

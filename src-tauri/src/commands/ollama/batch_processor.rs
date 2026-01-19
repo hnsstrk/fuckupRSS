@@ -42,8 +42,14 @@ struct BatchContext {
 
 /// Configuration for cluster-based batch processing
 ///
-/// NOTE: This is used by `process_batch_clustered` which is implemented but
-/// not yet exposed to the frontend. Planned for Phase 3 optimization.
+/// Cluster-based batch processing - implemented but intentionally dormant.
+///
+/// This feature groups similar articles using embeddings and processes only
+/// cluster representatives via LLM, then transfers keywords to cluster members.
+///
+/// **Status:** Implemented but not exposed to frontend.
+/// **Trade-off:** Speed (~30-50% fewer LLM calls) vs. accuracy (cluster transfers use confidence=0.85).
+/// **To enable:** Register in invoke_handler (lib.rs), add frontend UI, write integration tests.
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct ClusterBatchConfig {
@@ -71,8 +77,8 @@ impl Default for ClusterBatchConfig {
 
 /// Result of cluster-optimized batch processing
 ///
-/// NOTE: Used by `process_batch_clustered` which is implemented but
-/// not yet exposed to the frontend. Planned for Phase 3 optimization.
+/// Part of the dormant cluster-based batch processing feature.
+/// See [`ClusterBatchConfig`] for full documentation on status and trade-offs.
 #[derive(Debug, Clone, serde::Serialize)]
 #[allow(dead_code)]
 pub struct ClusterBatchResult {
@@ -88,8 +94,8 @@ pub struct ClusterBatchResult {
 
 /// Load articles with embeddings for clustering
 ///
-/// NOTE: Used by `process_batch_clustered` which is implemented but
-/// not yet exposed to the frontend. Planned for Phase 3 optimization.
+/// Part of the dormant cluster-based batch processing feature.
+/// See [`ClusterBatchConfig`] for full documentation on status and trade-offs.
 #[allow(dead_code)]
 fn load_articles_for_clustering(
     state: &AppState,
@@ -155,8 +161,8 @@ fn load_articles_for_clustering(
 
 /// Apply clustering to articles and return optimized processing plan
 ///
-/// NOTE: Used by `process_batch_clustered` which is implemented but
-/// not yet exposed to the frontend. Planned for Phase 3 optimization.
+/// Part of the dormant cluster-based batch processing feature.
+/// See [`ClusterBatchConfig`] for full documentation on status and trade-offs.
 #[allow(dead_code)]
 fn apply_clustering(
     articles: Vec<(BatchArticle, Option<Vec<f32>>)>,
@@ -227,7 +233,7 @@ pub fn get_hopeless_count(state: State<AppState>) -> Result<HopelessCount, Strin
     Ok(HopelessCount { count })
 }
 
-/// Get count of failed articles (attempted but not hopeless)
+/// Get count of failed articles (attempted but not processed successfully, not hopeless)
 #[tauri::command]
 pub fn get_failed_count(state: State<AppState>) -> Result<FailedCount, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -237,6 +243,7 @@ pub fn get_failed_count(state: State<AppState>) -> Result<FailedCount, String> {
         .query_row(
             r#"SELECT COUNT(*) FROM fnords
                WHERE analysis_attempts > 0
+               AND processed_at IS NULL
                AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)"#,
             [],
             |row| row.get(0),
@@ -905,8 +912,8 @@ pub fn cancel_batch(state: State<AppState>) -> Result<(), String> {
 
 /// Transfer keywords from representative to cluster members
 ///
-/// NOTE: Used by `process_batch_clustered` which is implemented but
-/// not yet exposed to the frontend. Planned for Phase 3 optimization.
+/// Part of the dormant cluster-based batch processing feature.
+/// See [`ClusterBatchConfig`] for full documentation on status and trade-offs.
 #[allow(dead_code)]
 fn transfer_keywords_to_cluster_members(
     state: &AppState,
@@ -1001,8 +1008,11 @@ fn transfer_keywords_to_cluster_members(
 /// runs LLM analysis only on cluster representatives, and transfers
 /// keywords to all cluster members.
 ///
-/// NOTE: This command is implemented but not yet registered in the Tauri handler.
-/// Planned for Phase 3 batch processing optimization.
+/// Cluster-based batch processing - implemented but intentionally dormant.
+///
+/// **Status:** Implemented but not registered in invoke_handler (lib.rs).
+/// **Trade-off:** Speed (~30-50% fewer LLM calls) vs. accuracy (cluster transfers use confidence=0.85).
+/// **To enable:** Register in invoke_handler (lib.rs), add frontend UI, write integration tests.
 #[tauri::command]
 #[allow(dead_code)]
 pub async fn process_batch_clustered(

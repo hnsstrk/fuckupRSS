@@ -11,17 +11,15 @@
     onnetwork?: () => void;
     onfnord?: () => void;
     onmindfuck?: () => void;
-    onarticles?: () => void;
     onerisianArchives?: () => void;
     settingsActive?: boolean;
     networkActive?: boolean;
     fnordActive?: boolean;
     mindfuckActive?: boolean;
-    articlesActive?: boolean;
     erisianArchivesActive?: boolean;
   }
 
-  let { onsettings, onnetwork, onfnord, onmindfuck, onarticles, onerisianArchives, settingsActive = false, networkActive = false, fnordActive = false, mindfuckActive = false, articlesActive = false, erisianArchivesActive = true }: Props = $props();
+  let { onsettings, onnetwork, onfnord, onmindfuck, onerisianArchives, settingsActive = false, networkActive = false, fnordActive = false, mindfuckActive = false, erisianArchivesActive = true }: Props = $props();
 
   let showAddForm = $state(false);
   let newFeedUrl = $state("");
@@ -131,12 +129,12 @@
   function handleSelectPentacle(id: number) {
     appState.selectedView = "pentacle";
     appState.selectPentacle(id);
-    onarticles?.();
+    onerisianArchives?.();
   }
 
   function handleSelectSephiroth(id: number) {
     appState.selectSephiroth(id);
-    onarticles?.();
+    onerisianArchives?.();
   }
 
   async function handleDeletePentacle(id: number) {

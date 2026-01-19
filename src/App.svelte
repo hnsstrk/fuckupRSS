@@ -2,8 +2,6 @@
   import { onMount, onDestroy } from 'svelte';
   import { isLoading } from 'svelte-i18n';
   import Sidebar from "./lib/components/Sidebar.svelte";
-  import ArticleList from "./lib/components/ArticleList.svelte";
-  import ArticleView from "./lib/components/ArticleView.svelte";
   import ErisianArchives from "./lib/components/ErisianArchives.svelte";
   import KeywordNetwork from "./lib/components/KeywordNetwork.svelte";
   import FnordView from "./lib/components/FnordView.svelte";
@@ -15,7 +13,7 @@
   import { initLocaleFromDb } from "./lib/i18n";
   import { networkStore, appState } from "./lib/stores/state.svelte";
 
-  let mainView = $state<'articles' | 'erisianArchives' | 'network' | 'fnord' | 'mindfuck' | 'settings'>('erisianArchives');
+  let mainView = $state<'erisianArchives' | 'network' | 'fnord' | 'mindfuck' | 'settings'>('erisianArchives');
 
   // Listen for navigation events from other components
   function handleNavigateToNetwork(event: CustomEvent<{ keywordId?: number }>) {
@@ -25,12 +23,12 @@
     }
   }
 
-  // Listen for article navigation events
+  // Listen for article navigation events (e.g., from Similar Articles in ArticleView)
   async function handleNavigateToArticle(event: CustomEvent<{ articleId: number }>) {
-    mainView = 'articles';
-    // Reset filter
-    appState.selectedPentacleId = null;
-    appState.selectedSephirothId = null;
+    // Navigate to ErisianArchives if not already there
+    if (mainView !== 'erisianArchives') {
+      mainView = 'erisianArchives';
+    }
 
     // Ensure the article is loaded (fetch if not in current list)
     await appState.ensureFnordLoaded(event.detail.articleId);
@@ -59,13 +57,11 @@
       <!-- Sidebar: Feed list (Pentacles) -->
       <Sidebar
         onerisianArchives={() => mainView = 'erisianArchives'}
-        onarticles={() => mainView = 'articles'}
         onfnord={() => mainView = 'fnord'}
         onnetwork={() => mainView = 'network'}
         onmindfuck={() => mainView = 'mindfuck'}
         onsettings={() => mainView = 'settings'}
         erisianArchivesActive={mainView === 'erisianArchives'}
-        articlesActive={mainView === 'articles'}
         fnordActive={mainView === 'fnord'}
         networkActive={mainView === 'network'}
         mindfuckActive={mainView === 'mindfuck'}
@@ -75,12 +71,8 @@
       <!-- Main content area -->
       <div class="content-area">
         {#if mainView === 'erisianArchives'}
-          <!-- Erisian Archives: All articles with tabs -->
+          <!-- Erisian Archives: All articles with tabs and integrated reading pane -->
           <ErisianArchives />
-        {:else if mainView === 'articles'}
-          <!-- Article list + Article view -->
-          <ArticleList />
-          <ArticleView />
         {:else if mainView === 'network'}
           <!-- Keyword Network View -->
           <KeywordNetwork />
