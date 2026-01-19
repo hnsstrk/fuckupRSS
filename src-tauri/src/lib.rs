@@ -125,6 +125,8 @@ pub fn run() {
             commands::sync::sync_feed,
             commands::retrieval::fetch_full_content,
             commands::retrieval::fetch_truncated_articles,
+            commands::retrieval::refetch_short_articles,
+            commands::retrieval::get_short_content_stats,
             // Model Management
             commands::ollama::model_management::check_ollama,
             commands::ollama::model_management::get_loaded_models,

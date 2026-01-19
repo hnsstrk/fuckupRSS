@@ -334,7 +334,25 @@
       "generatePrototypes": "Prototypen generieren",
       "regeneratePrototypes": "Neu generieren",
       "prototypesGenerated": "{count} Prototypen generiert",
-      "prototypesGeneratedWithErrors": "{count} Prototypen generiert ({errors} Fehler)"
+      "prototypesGeneratedWithErrors": "{count} Prototypen generiert ({errors} Fehler)",
+      "shortContent": {
+        "title": "Kurze Artikel",
+        "analyze": "Kurze Artikel analysieren",
+        "analyzeDesc": "Findet Artikel mit unzureichendem Volltext-Inhalt",
+        "refetch": "Kurze Artikel neu laden",
+        "refetchDesc": "Versucht Artikel mit kurzem Content erneut abzurufen",
+        "found": "{count} Artikel mit zu kurzem Volltext",
+        "refetchResult": "{improved} von {total} verbessert",
+        "headlessRequired": "JavaScript-Rendering muss aktiviert sein",
+        "analyzing": "Analysiere...",
+        "refetching": "Lade neu...",
+        "breakdown": {
+          "nullEmpty": "Null/Leer",
+          "veryShort": "Sehr kurz (<200)",
+          "short": "Kurz (200-500)",
+          "ok": "OK (>500)"
+        }
+      }
     },
     "stopwords": {
       "title": "Stopwörter",
