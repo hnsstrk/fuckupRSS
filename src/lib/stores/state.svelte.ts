@@ -472,7 +472,7 @@ class AppState {
       this.retrieving = true;
       this.error = null;
       const results = await invoke<RetrievalResponse[]>("fetch_truncated_articles", {
-        pentacleId: pentacleId ?? null,
+        pentacle_id: pentacleId ?? null,
       });
 
       // Update local state for successful fetches

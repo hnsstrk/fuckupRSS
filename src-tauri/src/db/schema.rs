@@ -842,6 +842,29 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 19: Add full_text_fetch_error column to fnords table
+    // Tracks errors during full-text retrieval: NULL (no error), "404", "timeout", "parse_error", "blocked", etc.
+    let has_fetch_error: bool = conn
+        .prepare(
+            "SELECT COUNT(*) FROM pragma_table_info('fnords') WHERE name = 'full_text_fetch_error'",
+        )?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_fetch_error {
+        conn.execute_batch(
+            r#"
+            ALTER TABLE fnords ADD COLUMN full_text_fetch_error TEXT DEFAULT NULL;
+            "#,
+        )?;
+    }
+
+    // Create index for finding articles with fetch errors
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_fnords_fetch_error ON fnords(full_text_fetch_error) WHERE full_text_fetch_error IS NOT NULL;
+        "#,
+    )?;
+
     Ok(())
 }
 
@@ -928,6 +951,9 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             -- Embeddings (Phase 3)
             embedding BLOB DEFAULT NULL,
             embedding_at DATETIME DEFAULT NULL,
+
+            -- Full-text fetch error tracking
+            full_text_fetch_error TEXT DEFAULT NULL,
 
             -- Constraints
             FOREIGN KEY (pentacle_id) REFERENCES pentacles(id) ON DELETE CASCADE,

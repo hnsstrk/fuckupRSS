@@ -62,12 +62,11 @@
     }
   });
 
-  // Stats
+  // Stats (counts used for potential future badge display)
   let totalCount = $state(0);
   let unreadCount = $state(0);
   let favoritesCount = $state(0);
-  let failedCount = $state(0);
-  let hopelessCount = $state(0);
+  // Note: failedCount and hopelessCount are loaded but not displayed (badges removed per user request)
 
   // Tabs definition (no badges as per user request)
   let tabs = $derived<Tab[]>([
@@ -97,13 +96,8 @@
       // Get favorites count
       favoritesCount = await invoke<number>('get_fnords_count', { filter: { status: 'golden_apple' } });
 
-      // Get failed count
-      const failedResult = await invoke<{ count: number }>('get_failed_count');
-      failedCount = failedResult.count;
-
-      // Get hopeless count
-      const hopelessResult = await invoke<{ count: number }>('get_hopeless_count');
-      hopelessCount = hopelessResult.count;
+      // Note: failed/hopeless counts are available via get_failed_count/get_hopeless_count
+      // but not loaded here since badges were removed per user request
     } catch (e) {
       console.error('[ErisianArchives] Error loading stats:', e);
     }

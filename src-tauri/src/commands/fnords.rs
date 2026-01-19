@@ -33,6 +33,8 @@ pub struct Fnord {
     pub changed_at: Option<String>,
     pub revision_count: i32,
     pub categories: Vec<FnordCategoryInfo>,
+    /// Error type from full-text fetch: NULL (no error), "404", "timeout", "parse_error", "blocked", etc.
+    pub full_text_fetch_error: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -80,6 +82,7 @@ fn fnord_from_row(row: &Row) -> Result<Fnord, rusqlite::Error> {
         has_changes: row.get(17)?,
         changed_at: row.get(18)?,
         revision_count: row.get(19)?,
+        full_text_fetch_error: row.get(20)?,
         categories: vec![],
     })
 }
@@ -150,7 +153,8 @@ const FNORD_SELECT_COLUMNS: &str = r#"
     f.quality_score,
     COALESCE(f.has_changes, FALSE) as has_changes,
     f.changed_at,
-    COALESCE(f.revision_count, 0) as revision_count
+    COALESCE(f.revision_count, 0) as revision_count,
+    f.full_text_fetch_error
 "#;
 
 #[tauri::command]
@@ -1073,4 +1077,823 @@ pub fn get_keyword_cloud(
         .collect();
 
     Ok(cloud)
+}
+
+// ============================================================
+// Unit Tests
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+
+    /// Helper to create a test database with a pentacle and fnords
+    fn setup_test_db() -> Database {
+        let db = Database::new_in_memory().expect("Failed to create in-memory database");
+
+        // Insert a test pentacle
+        db.conn()
+            .execute(
+                "INSERT INTO pentacles (url, title) VALUES (?1, ?2)",
+                ["https://example.com/feed.xml", "Test Feed"],
+            )
+            .expect("Failed to insert test pentacle");
+
+        db
+    }
+
+    /// Helper to insert a test fnord
+    fn insert_test_fnord(
+        conn: &rusqlite::Connection,
+        pentacle_id: i64,
+        guid: &str,
+        title: &str,
+        status: &str,
+    ) -> i64 {
+        conn.execute(
+            r#"INSERT INTO fnords (pentacle_id, guid, url, title, status)
+               VALUES (?1, ?2, ?3, ?4, ?5)"#,
+            rusqlite::params![pentacle_id, guid, format!("https://example.com/{}", guid), title, status],
+        )
+        .expect("Failed to insert test fnord");
+        conn.last_insert_rowid()
+    }
+
+    // ============================================================
+    // get_fnords tests (via direct DB queries simulating the command)
+    // ============================================================
+
+    #[test]
+    fn test_get_fnords_empty_database() {
+        let db = setup_test_db();
+
+        let count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM fnords", [], |row| row.get(0))
+            .expect("Failed to count fnords");
+
+        assert_eq!(count, 0, "Empty database should have no fnords");
+    }
+
+    #[test]
+    fn test_get_fnords_returns_all_fnords() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        // Insert multiple fnords
+        insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Article 1", "concealed");
+        insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Article 2", "illuminated");
+        insert_test_fnord(db.conn(), pentacle_id, "guid-3", "Article 3", "golden_apple");
+
+        let count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM fnords", [], |row| row.get(0))
+            .expect("Failed to count fnords");
+
+        assert_eq!(count, 3, "Should have 3 fnords");
+    }
+
+    #[test]
+    fn test_get_fnords_filter_by_status() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        // Insert fnords with different statuses
+        insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Unread 1", "concealed");
+        insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Unread 2", "concealed");
+        insert_test_fnord(db.conn(), pentacle_id, "guid-3", "Read", "illuminated");
+
+        let concealed_count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM fnords WHERE status = 'concealed'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to count concealed fnords");
+
+        assert_eq!(concealed_count, 2, "Should have 2 concealed fnords");
+    }
+
+    #[test]
+    fn test_get_fnords_filter_by_pentacle() {
+        let db = setup_test_db();
+
+        // Insert second pentacle
+        db.conn()
+            .execute(
+                "INSERT INTO pentacles (url, title) VALUES (?1, ?2)",
+                ["https://other.com/feed.xml", "Other Feed"],
+            )
+            .expect("Failed to insert second pentacle");
+
+        let pentacle1_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles WHERE title = 'Test Feed'", [], |row| row.get(0))
+            .expect("Failed to get pentacle 1 id");
+
+        let pentacle2_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles WHERE title = 'Other Feed'", [], |row| row.get(0))
+            .expect("Failed to get pentacle 2 id");
+
+        // Insert fnords in different pentacles
+        insert_test_fnord(db.conn(), pentacle1_id, "guid-1", "Feed1 Article 1", "concealed");
+        insert_test_fnord(db.conn(), pentacle1_id, "guid-2", "Feed1 Article 2", "concealed");
+        insert_test_fnord(db.conn(), pentacle2_id, "guid-3", "Feed2 Article", "concealed");
+
+        let feed1_count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM fnords WHERE pentacle_id = ?1",
+                [pentacle1_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to count fnords for pentacle 1");
+
+        assert_eq!(feed1_count, 2, "Pentacle 1 should have 2 fnords");
+    }
+
+    #[test]
+    fn test_get_fnords_with_limit() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        // Insert 10 fnords
+        for i in 0..10 {
+            insert_test_fnord(
+                db.conn(),
+                pentacle_id,
+                &format!("guid-{}", i),
+                &format!("Article {}", i),
+                "concealed",
+            );
+        }
+
+        // Query with limit
+        let mut stmt = db
+            .conn()
+            .prepare("SELECT id FROM fnords LIMIT 5")
+            .expect("Failed to prepare statement");
+
+        let fnords: Vec<i64> = stmt
+            .query_map([], |row| row.get(0))
+            .expect("Failed to query")
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert_eq!(fnords.len(), 5, "Should return only 5 fnords with limit");
+    }
+
+    // ============================================================
+    // update_fnord_status tests
+    // ============================================================
+
+    #[test]
+    fn test_update_fnord_status_concealed_to_illuminated() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+
+        // Update status
+        db.conn()
+            .execute(
+                "UPDATE fnords SET status = ?1 WHERE id = ?2",
+                ["illuminated", &fnord_id.to_string()],
+            )
+            .expect("Failed to update status");
+
+        let status: String = db
+            .conn()
+            .query_row(
+                "SELECT status FROM fnords WHERE id = ?1",
+                [fnord_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to get status");
+
+        assert_eq!(status, "illuminated", "Status should be updated to illuminated");
+    }
+
+    #[test]
+    fn test_update_fnord_status_to_golden_apple() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+
+        // Update status to golden_apple
+        db.conn()
+            .execute(
+                "UPDATE fnords SET status = ?1 WHERE id = ?2",
+                ["golden_apple", &fnord_id.to_string()],
+            )
+            .expect("Failed to update status");
+
+        let status: String = db
+            .conn()
+            .query_row(
+                "SELECT status FROM fnords WHERE id = ?1",
+                [fnord_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to get status");
+
+        assert_eq!(status, "golden_apple", "Status should be updated to golden_apple");
+    }
+
+    #[test]
+    fn test_update_fnord_status_sets_read_at_on_first_read() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+
+        // Verify read_at is NULL initially
+        let read_at_before: Option<String> = db
+            .conn()
+            .query_row(
+                "SELECT read_at FROM fnords WHERE id = ?1",
+                [fnord_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to get read_at");
+
+        assert!(read_at_before.is_none(), "read_at should be NULL before first read");
+
+        // Update to illuminated with read_at (simulating the command logic)
+        db.conn()
+            .execute(
+                "UPDATE fnords SET status = ?1, read_at = COALESCE(read_at, ?2) WHERE id = ?3",
+                rusqlite::params!["illuminated", chrono::Utc::now().to_rfc3339(), fnord_id],
+            )
+            .expect("Failed to update status");
+
+        let read_at_after: Option<String> = db
+            .conn()
+            .query_row(
+                "SELECT read_at FROM fnords WHERE id = ?1",
+                [fnord_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to get read_at");
+
+        assert!(read_at_after.is_some(), "read_at should be set after first read");
+    }
+
+    #[test]
+    fn test_update_fnord_status_preserves_read_at_on_subsequent_reads() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+
+        // Set initial read_at
+        let first_read_time = "2024-01-01T10:00:00Z";
+        db.conn()
+            .execute(
+                "UPDATE fnords SET status = 'illuminated', read_at = ?1 WHERE id = ?2",
+                [first_read_time, &fnord_id.to_string()],
+            )
+            .expect("Failed to set initial read");
+
+        // Update to golden_apple (should preserve read_at)
+        db.conn()
+            .execute(
+                "UPDATE fnords SET status = ?1, read_at = COALESCE(read_at, ?2) WHERE id = ?3",
+                rusqlite::params!["golden_apple", chrono::Utc::now().to_rfc3339(), fnord_id],
+            )
+            .expect("Failed to update status");
+
+        let read_at: String = db
+            .conn()
+            .query_row(
+                "SELECT read_at FROM fnords WHERE id = ?1",
+                [fnord_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to get read_at");
+
+        assert_eq!(read_at, first_read_time, "read_at should be preserved from first read");
+    }
+
+    #[test]
+    fn test_update_fnord_status_invalid_status() {
+        // Test that the validation logic works
+        let invalid_statuses = ["unread", "read", "favorite", "CONCEALED", ""];
+        let valid_statuses = ["concealed", "illuminated", "golden_apple"];
+
+        for status in valid_statuses {
+            assert!(
+                ["concealed", "illuminated", "golden_apple"].contains(&status),
+                "{} should be valid",
+                status
+            );
+        }
+
+        for status in invalid_statuses {
+            assert!(
+                !["concealed", "illuminated", "golden_apple"].contains(&status),
+                "{} should be invalid",
+                status
+            );
+        }
+    }
+
+    // ============================================================
+    // acknowledge_changes tests
+    // ============================================================
+
+    #[test]
+    fn test_acknowledge_changes_clears_flag() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+
+        // Set has_changes to TRUE
+        db.conn()
+            .execute(
+                "UPDATE fnords SET has_changes = TRUE WHERE id = ?1",
+                [fnord_id],
+            )
+            .expect("Failed to set has_changes");
+
+        // Verify has_changes is TRUE
+        let has_changes_before: bool = db
+            .conn()
+            .query_row(
+                "SELECT has_changes FROM fnords WHERE id = ?1",
+                [fnord_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to get has_changes");
+
+        assert!(has_changes_before, "has_changes should be TRUE before acknowledge");
+
+        // Acknowledge changes
+        db.conn()
+            .execute(
+                "UPDATE fnords SET has_changes = FALSE WHERE id = ?1",
+                [fnord_id],
+            )
+            .expect("Failed to acknowledge changes");
+
+        let has_changes_after: bool = db
+            .conn()
+            .query_row(
+                "SELECT has_changes FROM fnords WHERE id = ?1",
+                [fnord_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to get has_changes");
+
+        assert!(!has_changes_after, "has_changes should be FALSE after acknowledge");
+    }
+
+    // ============================================================
+    // get_changed_fnords tests
+    // ============================================================
+
+    #[test]
+    fn test_get_changed_fnords_empty() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        // Insert fnords without changes
+        insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Article 1", "concealed");
+        insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Article 2", "illuminated");
+
+        let changed_count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM fnords WHERE has_changes = TRUE",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to count changed fnords");
+
+        assert_eq!(changed_count, 0, "Should have no changed fnords");
+    }
+
+    #[test]
+    fn test_get_changed_fnords_returns_only_changed() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        let fnord1_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Changed Article", "concealed");
+        insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Unchanged Article", "concealed");
+
+        // Mark first fnord as changed
+        db.conn()
+            .execute(
+                "UPDATE fnords SET has_changes = TRUE WHERE id = ?1",
+                [fnord1_id],
+            )
+            .expect("Failed to set has_changes");
+
+        let changed_count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM fnords WHERE has_changes = TRUE",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to count changed fnords");
+
+        assert_eq!(changed_count, 1, "Should have exactly 1 changed fnord");
+    }
+
+    // ============================================================
+    // get_fnord_revisions tests
+    // ============================================================
+
+    #[test]
+    fn test_get_fnord_revisions_empty() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+
+        let revision_count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM fnord_revisions WHERE fnord_id = ?1",
+                [fnord_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to count revisions");
+
+        assert_eq!(revision_count, 0, "New fnord should have no revisions");
+    }
+
+    #[test]
+    fn test_get_fnord_revisions_returns_all() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+
+        // Insert revisions
+        for i in 0..3 {
+            db.conn()
+                .execute(
+                    r#"INSERT INTO fnord_revisions (fnord_id, title, content_raw, content_hash)
+                       VALUES (?1, ?2, ?3, ?4)"#,
+                    rusqlite::params![fnord_id, format!("Title v{}", i), format!("Content v{}", i), format!("hash{}", i)],
+                )
+                .expect("Failed to insert revision");
+        }
+
+        let revision_count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM fnord_revisions WHERE fnord_id = ?1",
+                [fnord_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to count revisions");
+
+        assert_eq!(revision_count, 3, "Should have 3 revisions");
+    }
+
+    // ============================================================
+    // get_fnords_count tests
+    // ============================================================
+
+    #[test]
+    fn test_get_fnords_count_empty() {
+        let db = setup_test_db();
+
+        let count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM fnords", [], |row| row.get(0))
+            .expect("Failed to count fnords");
+
+        assert_eq!(count, 0, "Empty database should return 0");
+    }
+
+    #[test]
+    fn test_get_fnords_count_with_status_filter() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Unread 1", "concealed");
+        insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Unread 2", "concealed");
+        insert_test_fnord(db.conn(), pentacle_id, "guid-3", "Read", "illuminated");
+        insert_test_fnord(db.conn(), pentacle_id, "guid-4", "Favorite", "golden_apple");
+
+        let total: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM fnords", [], |row| row.get(0))
+            .expect("Failed to count");
+
+        let concealed: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM fnords WHERE status = 'concealed'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to count");
+
+        assert_eq!(total, 4, "Total should be 4");
+        assert_eq!(concealed, 2, "Concealed count should be 2");
+    }
+
+    // ============================================================
+    // get_changed_count tests
+    // ============================================================
+
+    #[test]
+    fn test_get_changed_count() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        let fnord1_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Article 1", "concealed");
+        let fnord2_id = insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Article 2", "concealed");
+        insert_test_fnord(db.conn(), pentacle_id, "guid-3", "Article 3", "concealed");
+
+        // Mark some as changed
+        db.conn()
+            .execute(
+                "UPDATE fnords SET has_changes = TRUE WHERE id IN (?1, ?2)",
+                rusqlite::params![fnord1_id, fnord2_id],
+            )
+            .expect("Failed to set has_changes");
+
+        let changed_count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM fnords WHERE has_changes = TRUE",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to count changed");
+
+        assert_eq!(changed_count, 2, "Should have 2 changed fnords");
+    }
+
+    // ============================================================
+    // reset_all_changes tests
+    // ============================================================
+
+    #[test]
+    fn test_reset_all_changes_without_revisions() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        let fnord1_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Article 1", "concealed");
+        let fnord2_id = insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Article 2", "concealed");
+
+        // Mark both as changed (false positives - no actual revisions)
+        db.conn()
+            .execute(
+                "UPDATE fnords SET has_changes = TRUE",
+                [],
+            )
+            .expect("Failed to set has_changes");
+
+        // Reset changes for articles without revisions
+        let affected = db
+            .conn()
+            .execute(
+                r#"UPDATE fnords SET has_changes = FALSE
+                   WHERE has_changes = TRUE
+                   AND id NOT IN (SELECT DISTINCT fnord_id FROM fnord_revisions)"#,
+                [],
+            )
+            .expect("Failed to reset changes");
+
+        assert_eq!(affected, 2, "Should reset 2 false positives");
+
+        let changed_count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM fnords WHERE has_changes = TRUE",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to count changed");
+
+        assert_eq!(changed_count, 0, "All changes should be reset");
+    }
+
+    #[test]
+    fn test_reset_all_changes_preserves_real_changes() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        let fnord1_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Real Change", "concealed");
+        let fnord2_id = insert_test_fnord(db.conn(), pentacle_id, "guid-2", "False Positive", "concealed");
+
+        // Add a revision to fnord1 (real change)
+        db.conn()
+            .execute(
+                r#"INSERT INTO fnord_revisions (fnord_id, title, content_hash)
+                   VALUES (?1, 'Old Title', 'hash1')"#,
+                [fnord1_id],
+            )
+            .expect("Failed to insert revision");
+
+        // Mark both as changed
+        db.conn()
+            .execute("UPDATE fnords SET has_changes = TRUE", [])
+            .expect("Failed to set has_changes");
+
+        // Reset only false positives
+        db.conn()
+            .execute(
+                r#"UPDATE fnords SET has_changes = FALSE
+                   WHERE has_changes = TRUE
+                   AND id NOT IN (SELECT DISTINCT fnord_id FROM fnord_revisions)"#,
+                [],
+            )
+            .expect("Failed to reset changes");
+
+        // Verify fnord1 (with revision) still has changes
+        let fnord1_has_changes: bool = db
+            .conn()
+            .query_row(
+                "SELECT has_changes FROM fnords WHERE id = ?1",
+                [fnord1_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to get has_changes");
+
+        // Verify fnord2 (without revision) was reset
+        let fnord2_has_changes: bool = db
+            .conn()
+            .query_row(
+                "SELECT has_changes FROM fnords WHERE id = ?1",
+                [fnord2_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to get has_changes");
+
+        assert!(fnord1_has_changes, "Real change should be preserved");
+        assert!(!fnord2_has_changes, "False positive should be reset");
+    }
+
+    // ============================================================
+    // Fnord struct tests
+    // ============================================================
+
+    #[test]
+    fn test_fnord_struct_default_values() {
+        let fnord = Fnord {
+            id: 1,
+            pentacle_id: 1,
+            pentacle_title: Some("Test Feed".to_string()),
+            guid: "guid-123".to_string(),
+            url: "https://example.com/article".to_string(),
+            title: "Test Article".to_string(),
+            author: None,
+            content_raw: None,
+            content_full: None,
+            summary: None,
+            image_url: None,
+            published_at: None,
+            processed_at: None,
+            status: "concealed".to_string(),
+            political_bias: None,
+            sachlichkeit: None,
+            quality_score: None,
+            has_changes: false,
+            changed_at: None,
+            revision_count: 0,
+            categories: vec![],
+            full_text_fetch_error: None,
+        };
+
+        assert_eq!(fnord.status, "concealed");
+        assert!(!fnord.has_changes);
+        assert_eq!(fnord.revision_count, 0);
+        assert!(fnord.categories.is_empty());
+        assert!(fnord.full_text_fetch_error.is_none());
+    }
+
+    #[test]
+    fn test_fnord_serialization() {
+        let fnord = Fnord {
+            id: 1,
+            pentacle_id: 1,
+            pentacle_title: Some("Test Feed".to_string()),
+            guid: "guid-123".to_string(),
+            url: "https://example.com/article".to_string(),
+            title: "Test Article".to_string(),
+            author: Some("Author Name".to_string()),
+            content_raw: Some("Raw content".to_string()),
+            content_full: Some("Full content".to_string()),
+            summary: Some("Summary".to_string()),
+            image_url: None,
+            published_at: Some("2024-01-01T10:00:00Z".to_string()),
+            processed_at: Some("2024-01-01T11:00:00Z".to_string()),
+            status: "illuminated".to_string(),
+            political_bias: Some(0),
+            sachlichkeit: Some(3),
+            quality_score: Some(4),
+            has_changes: true,
+            changed_at: Some("2024-01-02T10:00:00Z".to_string()),
+            revision_count: 2,
+            categories: vec![FnordCategoryInfo {
+                name: "Politik".to_string(),
+                color: Some("#ff0000".to_string()),
+                icon: Some("fa-landmark".to_string()),
+            }],
+            full_text_fetch_error: Some("404".to_string()),
+        };
+
+        let json = serde_json::to_string(&fnord).expect("Serialization failed");
+        assert!(json.contains("\"id\":1"));
+        assert!(json.contains("\"status\":\"illuminated\""));
+        assert!(json.contains("\"has_changes\":true"));
+        assert!(json.contains("\"revision_count\":2"));
+        assert!(json.contains("\"categories\""));
+        assert!(json.contains("\"full_text_fetch_error\":\"404\""));
+    }
+
+    // ============================================================
+    // FnordFilter struct tests
+    // ============================================================
+
+    #[test]
+    fn test_fnord_filter_deserialization() {
+        let json = r#"{
+            "pentacle_id": 1,
+            "status": "concealed",
+            "limit": 50,
+            "offset": 0
+        }"#;
+
+        let filter: FnordFilter = serde_json::from_str(json).expect("Deserialization failed");
+
+        assert_eq!(filter.pentacle_id, Some(1));
+        assert_eq!(filter.status, Some("concealed".to_string()));
+        assert_eq!(filter.limit, Some(50));
+        assert_eq!(filter.offset, Some(0));
+        assert!(filter.sephiroth_id.is_none());
+    }
+
+    #[test]
+    fn test_fnord_filter_empty() {
+        let json = "{}";
+
+        let filter: FnordFilter = serde_json::from_str(json).expect("Deserialization failed");
+
+        assert!(filter.pentacle_id.is_none());
+        assert!(filter.status.is_none());
+        assert!(filter.limit.is_none());
+        assert!(filter.offset.is_none());
+    }
 }

@@ -46,6 +46,8 @@ export interface Fnord {
   changed_at: string | null;
   revision_count: number;
   categories: FnordCategoryInfo[];
+  // Full text fetch error tracking
+  full_text_fetch_error: string | null;
 }
 
 export interface FnordRevision {

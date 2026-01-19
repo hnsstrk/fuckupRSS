@@ -300,6 +300,34 @@
     }
   }
 
+  // Get specific error message based on error content
+  function getSpecificFetchError(error: string): string {
+    const errorLower = error.toLowerCase();
+    // Check for specific HTTP status codes
+    if (errorLower.includes('404') || errorLower.includes('not found')) {
+      return $_('toast.fetchErrorNotFound');
+    }
+    if (errorLower.includes('403') || errorLower.includes('forbidden')) {
+      return $_('toast.fetchErrorBlocked');
+    }
+    if (errorLower.includes('timeout') || errorLower.includes('timed out')) {
+      return $_('toast.fetchErrorTimeout');
+    }
+    if (errorLower.includes('network') || errorLower.includes('connection') || errorLower.includes('unreachable')) {
+      return $_('toast.fetchErrorNetwork');
+    }
+    if (errorLower.includes('paywall') || errorLower.includes('subscription')) {
+      return $_('toast.fetchErrorPaywall');
+    }
+    // Check for 5xx server errors
+    const serverErrorMatch = error.match(/5\d{2}/);
+    if (serverErrorMatch) {
+      return $_('toast.fetchErrorServerError', { values: { code: serverErrorMatch[0] }});
+    }
+    // Fallback to generic error
+    return $_('toast.fetchError', { values: { error }});
+  }
+
   async function fetchFullContent() {
     const fnord = appState.selectedFnord;
     if (!fnord || !mounted) return;
@@ -314,14 +342,14 @@
       if (result?.success) {
         toasts.success($_('toast.fetchSuccess'));
       } else if (result?.error) {
-        toasts.error($_('toast.fetchError', { values: { error: result.error }}));
+        toasts.error(getSpecificFetchError(result.error));
       } else if (appState.error) {
-        toasts.error($_('toast.fetchError', { values: { error: appState.error }}));
+        toasts.error(getSpecificFetchError(appState.error));
       }
     } catch (e) {
       console.error('Fetch full content failed:', e);
       if (mounted) {
-        toasts.error($_('toast.fetchError', { values: { error: String(e) }}));
+        toasts.error(getSpecificFetchError(String(e)));
       }
     }
   }
@@ -395,14 +423,35 @@
     }
   }
 
-  function formatShortDate(dateStr: string | null): string {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    const currentLocale = $locale || 'de';
-    return date.toLocaleDateString(currentLocale.startsWith('de') ? "de-DE" : "en-US", {
-      day: "numeric",
-      month: "short",
-    });
+  // Check if article has sufficient content for AI analysis
+  function hasContentForAnalysis(fnord: typeof appState.selectedFnord): boolean {
+    if (!fnord) return false;
+    const content = fnord.content_full;
+    return !!content && content.length >= 100;
+  }
+
+  // Determine content status for badge display
+  type ContentStatus = 'full' | 'rss' | 'missing';
+  function getContentStatus(fnord: typeof appState.selectedFnord): ContentStatus {
+    if (!fnord) return 'missing';
+    // Full text: content_full exists and is > 500 characters
+    if (fnord.content_full && fnord.content_full.length > 500) {
+      return 'full';
+    }
+    // RSS only: has content_raw but no or short content_full
+    if (fnord.content_raw) {
+      return 'rss';
+    }
+    // Missing: neither content_full nor content_raw
+    return 'missing';
+  }
+
+  function getContentStatusLabel(status: ContentStatus): string {
+    switch (status) {
+      case 'full': return $_('articleView.contentStatus.full');
+      case 'rss': return $_('articleView.contentStatus.rss');
+      case 'missing': return $_('articleView.contentStatus.missing');
+    }
   }
 </script>
 
@@ -423,6 +472,10 @@
             <span class="separator">·</span>
             <span>{$_('articleView.by')} {fnord.author}</span>
           {/if}
+          <span class="separator">·</span>
+          <span class="content-status-badge content-status-{getContentStatus(fnord)}">
+            {getContentStatusLabel(getContentStatus(fnord))}
+          </span>
         </div>
 
         <h1 class="article-title">{fnord.title}</h1>
@@ -436,27 +489,55 @@
             <span>{fnord.status === "golden_apple" ? $_('terminology.golden_apple.term') : $_('actions.favorite')}</span>
           </button>
           {#if !fnord.content_full}
-            <button
-              onclick={fetchFullContent}
-              class="btn btn-default {appState.retrieving ? 'retrieving' : ''}"
-              disabled={appState.retrieving}
-              title="{$_('articleView.fetchFullText')} (r)"
-            >
-              {#if appState.retrieving}
+            {@const hasFetchError = fnord.full_text_fetch_error}
+            {#if appState.retrieving}
+              <!-- Loading state -->
+              <button
+                class="btn btn-default retrieving"
+                disabled
+                title={$_('articleView.fetchFetching')}
+              >
                 <i class="spinner fa-solid fa-rotate fa-spin"></i>
-              {/if}
-              <span>{$_('articleView.fullText')}</span>
-            </button>
+                <span>{$_('articleView.fetchFetching')}</span>
+              </button>
+            {:else if hasFetchError}
+              <!-- Error state -->
+              <div class="fetch-error-container">
+                <span class="btn btn-error" title={hasFetchError}>
+                  <i class="fa-solid fa-triangle-exclamation"></i>
+                  <span>{$_('articleView.fetchError')}</span>
+                </span>
+                <button
+                  onclick={fetchFullContent}
+                  class="btn-retry"
+                  title={$_('articleView.fetchFullText')}
+                >
+                  {$_('articleView.fetchRetry')}
+                </button>
+              </div>
+            {:else}
+              <!-- Normal state -->
+              <button
+                onclick={fetchFullContent}
+                class="btn btn-default"
+                title="{$_('articleView.fetchFullText')} (r)"
+              >
+                <span>{$_('articleView.fullText')}</span>
+              </button>
+            {/if}
           {/if}
           {#if appState.ollamaStatus.available}
+            {@const canAnalyze = hasContentForAnalysis(fnord)}
             <button
               onclick={analyzeWithAI}
-              class="btn btn-default {appState.analyzing ? 'retrieving' : ''}"
-              disabled={appState.analyzing}
-              title={$_('articleView.aiAnalysis')}
+              class="btn btn-default {appState.analyzing ? 'retrieving' : ''} {!canAnalyze ? 'btn-disabled-info' : ''}"
+              disabled={appState.analyzing || !canAnalyze}
+              title={canAnalyze ? $_('articleView.aiAnalysis') : $_('articleView.analyzeRequiresFulltext')}
             >
               {#if appState.analyzing}
                 <i class="spinner fa-solid fa-rotate fa-spin"></i>
+              {:else if !canAnalyze}
+                <i class="fa-solid fa-circle-info btn-info-icon"></i>
               {/if}
               <span>{fnord.summary ? $_('articleView.reanalyze') : $_('articleView.analyze')}</span>
             </button>
@@ -728,6 +809,33 @@
     color: var(--text-faint);
   }
 
+  /* Content Status Badge */
+  .content-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+  }
+
+  .content-status-full {
+    background-color: var(--accent-success);
+    color: var(--text-on-accent);
+  }
+
+  .content-status-rss {
+    background-color: var(--accent-warning);
+    color: var(--text-on-accent);
+  }
+
+  .content-status-missing {
+    background-color: var(--accent-error);
+    color: var(--text-on-accent);
+  }
+
   .article-title {
     font-size: 1.5rem;
     font-weight: 700;
@@ -772,6 +880,67 @@
   .btn.retrieving {
     opacity: 0.7;
     cursor: wait;
+  }
+
+  .btn.btn-disabled-info {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .btn.btn-disabled-info:hover {
+    background-color: var(--bg-surface);
+  }
+
+  .btn-info-icon {
+    color: var(--accent-info);
+    margin-right: 0.25rem;
+  }
+
+  /* Fetch error state */
+  .fetch-error-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .btn-error {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    background-color: var(--bg-surface);
+    color: var(--accent-error);
+    border: 1px solid var(--accent-error);
+    cursor: default;
+  }
+
+  .btn-retry {
+    padding: 0.375rem 0.625rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    background-color: transparent;
+    color: var(--accent-info);
+    border: 1px solid var(--accent-info);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-retry:hover {
+    background-color: var(--accent-info);
+    color: var(--text-on-accent);
+  }
+
+  /* Unavailable state */
+  .btn-unavailable {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .btn-unavailable i {
+    color: var(--text-muted);
+    margin-right: 0.25rem;
   }
 
   .spinner {

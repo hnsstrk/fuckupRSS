@@ -1,10 +1,64 @@
 use crate::retrieval::headless::HeadlessFetcher;
-use crate::retrieval::HagbardRetrieval;
+use crate::retrieval::{HagbardRetrieval, RetrievalError};
 use crate::AppState;
 use log::info;
 use once_cell::sync::OnceCell;
 use rusqlite::params;
-use tauri::State;
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, State};
+
+/// Categorize a retrieval error into a simple error type string for tracking.
+/// Returns error types like: "404", "403", "timeout", "dns_error", "connection_refused",
+/// "ssl_error", "parse_error", "blocked", "headless_error", "unknown"
+fn categorize_error(error: &RetrievalError) -> String {
+    let error_string = error.to_string().to_lowercase();
+
+    match error {
+        RetrievalError::Http(e) => {
+            // Check for HTTP status codes
+            if let Some(status) = e.status() {
+                return status.as_u16().to_string();
+            }
+
+            // Check for common error patterns
+            if e.is_timeout() {
+                return "timeout".to_string();
+            }
+            if e.is_connect() {
+                if error_string.contains("dns") || error_string.contains("name resolution") {
+                    return "dns_error".to_string();
+                }
+                if error_string.contains("refused") {
+                    return "connection_refused".to_string();
+                }
+                return "connection_error".to_string();
+            }
+            if error_string.contains("ssl") || error_string.contains("tls") || error_string.contains("certificate") {
+                return "ssl_error".to_string();
+            }
+
+            "http_error".to_string()
+        }
+        RetrievalError::UrlParse(_) => "invalid_url".to_string(),
+        RetrievalError::Extraction(_) => {
+            if error_string.contains("blocked") || error_string.contains("captcha") || error_string.contains("access denied") {
+                return "blocked".to_string();
+            }
+            "parse_error".to_string()
+        }
+        RetrievalError::Db(_) => "db_error".to_string(),
+        RetrievalError::Headless(e) => {
+            let headless_str = e.to_string().to_lowercase();
+            if headless_str.contains("timeout") {
+                return "headless_timeout".to_string();
+            }
+            if headless_str.contains("navigation") {
+                return "headless_navigation".to_string();
+            }
+            "headless_error".to_string()
+        }
+    }
+}
 
 /// Global HeadlessFetcher instance, lazily initialized on first use.
 /// The browser is not started until the first fetch operation that needs it.
@@ -69,11 +123,11 @@ pub async fn fetch_full_content(
         .await
     {
         Ok(extracted) => {
-            // Store in database (sync)
+            // Store in database (sync) - clear any previous error
             let db = state.db.lock().map_err(|e| e.to_string())?;
             db.conn()
                 .execute(
-                    "UPDATE fnords SET content_full = ?1, full_text_fetched = TRUE WHERE id = ?2",
+                    "UPDATE fnords SET content_full = ?1, full_text_fetched = TRUE, full_text_fetch_error = NULL WHERE id = ?2",
                     (&extracted.content, fnord_id),
                 )
                 .map_err(|e| e.to_string())?;
@@ -85,12 +139,23 @@ pub async fn fetch_full_content(
                 error: None,
             })
         }
-        Err(e) => Ok(RetrievalResponse {
-            fnord_id,
-            success: false,
-            content: None,
-            error: Some(e.to_string()),
-        }),
+        Err(e) => {
+            // Categorize and store the error type
+            let error_type = categorize_error(&e);
+            if let Ok(db) = state.db.lock() {
+                let _ = db.conn().execute(
+                    "UPDATE fnords SET full_text_fetched = TRUE, full_text_fetch_error = ?1 WHERE id = ?2",
+                    params![&error_type, fnord_id],
+                );
+            }
+
+            Ok(RetrievalResponse {
+                fnord_id,
+                success: false,
+                content: None,
+                error: Some(e.to_string()),
+            })
+        }
     }
 }
 
@@ -146,10 +211,10 @@ pub async fn fetch_truncated_articles(
             .await
         {
             Ok(extracted) => {
-                // Store in database (sync)
+                // Store in database (sync) - clear any previous error
                 if let Ok(db) = state.db.lock() {
                     let _ = db.conn().execute(
-                        "UPDATE fnords SET content_full = ?1, full_text_fetched = TRUE WHERE id = ?2",
+                        "UPDATE fnords SET content_full = ?1, full_text_fetched = TRUE, full_text_fetch_error = NULL WHERE id = ?2",
                         (&extracted.content, id),
                     );
                 }
@@ -162,11 +227,12 @@ pub async fn fetch_truncated_articles(
                 });
             }
             Err(e) => {
-                // Mark as attempted to avoid retrying
+                // Categorize and store the error type
+                let error_type = categorize_error(&e);
                 if let Ok(db) = state.db.lock() {
                     let _ = db.conn().execute(
-                        "UPDATE fnords SET full_text_fetched = TRUE WHERE id = ?1",
-                        [id],
+                        "UPDATE fnords SET full_text_fetched = TRUE, full_text_fetch_error = ?1 WHERE id = ?2",
+                        params![&error_type, id],
                     );
                 }
 
@@ -184,23 +250,37 @@ pub async fn fetch_truncated_articles(
 }
 
 /// Response for a single article refetch result
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct RefetchResult {
     pub fnord_id: i64,
     pub title: String,
     pub old_length: i64,
     pub new_length: i64,
     pub improved: bool,
+    /// Status: "improved", "unchanged", "failed"
+    pub status: String,
 }
 
 /// Response for batch refetch operation
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct RefetchResponse {
     pub total_found: i64,
     pub processed: i64,
     pub improved: i64,
+    pub unchanged: i64,
     pub failed: i64,
     pub results: Vec<RefetchResult>,
+}
+
+/// Progress event for refetch operation
+#[derive(Clone, Serialize)]
+pub struct RefetchProgress {
+    pub current: i64,
+    pub total: i64,
+    pub fnord_id: i64,
+    pub title: String,
+    pub success: bool,
+    pub error: Option<String>,
 }
 
 /// Re-fetch articles with content_full that is too short.
@@ -209,11 +289,12 @@ pub struct RefetchResponse {
 #[tauri::command]
 pub async fn refetch_short_articles(
     state: State<'_, AppState>,
+    app: AppHandle,
     min_content_length: Option<i64>,
     limit: Option<i64>,
 ) -> Result<RefetchResponse, String> {
     let min_length = min_content_length.unwrap_or(500);
-    let max_articles = limit.unwrap_or(50);
+    let max_articles = limit.unwrap_or(100);
 
     let retrieval = HagbardRetrieval::new();
 
@@ -260,6 +341,7 @@ pub async fn refetch_short_articles(
             total_found: 0,
             processed: 0,
             improved: 0,
+            unchanged: 0,
             failed: 0,
             results: Vec::new(),
         });
@@ -275,11 +357,22 @@ pub async fn refetch_short_articles(
     let mut results = Vec::new();
     let mut processed = 0i64;
     let mut improved = 0i64;
+    let mut unchanged = 0i64;
     let mut failed = 0i64;
 
     // Fetch each article (async)
     for (id, url, title, old_length) in articles.into_iter() {
         processed += 1;
+
+        // Emit progress event
+        let _ = app.emit("refetch-progress", RefetchProgress {
+            current: processed,
+            total: total_found,
+            fnord_id: id,
+            title: title.clone(),
+            success: true,
+            error: None,
+        });
 
         match retrieval
             .retrieve_with_fallback(&url, use_headless, headless_fetcher)
@@ -289,16 +382,20 @@ pub async fn refetch_short_articles(
                 let new_length = extracted.content.len() as i64;
                 let is_improved = new_length > old_length;
 
-                if is_improved {
+                let status = if is_improved {
                     improved += 1;
-                }
+                    "improved".to_string()
+                } else {
+                    unchanged += 1;
+                    "unchanged".to_string()
+                };
 
-                // Update in database (sync) - short lock
+                // Update in database (sync) - short lock, clear error on success
                 {
                     let db = state.db.lock().map_err(|e| e.to_string())?;
                     db.conn()
                         .execute(
-                            "UPDATE fnords SET content_full = ?1 WHERE id = ?2",
+                            "UPDATE fnords SET content_full = ?1, full_text_fetch_error = NULL WHERE id = ?2",
                             params![&extracted.content, id],
                         )
                         .map_err(|e| e.to_string())?;
@@ -313,6 +410,7 @@ pub async fn refetch_short_articles(
                     old_length,
                     new_length,
                     improved: is_improved,
+                    status,
                 });
 
                 info!(
@@ -326,28 +424,49 @@ pub async fn refetch_short_articles(
             Err(e) => {
                 failed += 1;
 
+                // Categorize and store the error type
+                let error_type = categorize_error(&e);
+                if let Ok(db) = state.db.lock() {
+                    let _ = db.conn().execute(
+                        "UPDATE fnords SET full_text_fetch_error = ?1 WHERE id = ?2",
+                        params![&error_type, id],
+                    );
+                }
+
+                // Emit error progress
+                let _ = app.emit("refetch-progress", RefetchProgress {
+                    current: processed,
+                    total: total_found,
+                    fnord_id: id,
+                    title: title.clone(),
+                    success: false,
+                    error: Some(e.to_string()),
+                });
+
                 results.push(RefetchResult {
                     fnord_id: id,
                     title,
                     old_length,
                     new_length: old_length, // unchanged
                     improved: false,
+                    status: "failed".to_string(),
                 });
 
-                info!("Failed to refetch article {}: {}", id, e);
+                info!("Failed to refetch article {}: {} ({})", id, e, error_type);
             }
         }
     }
 
     info!(
-        "Refetch complete: {} processed, {} improved, {} failed",
-        processed, improved, failed
+        "Refetch complete: {} processed, {} improved, {} unchanged, {} failed",
+        processed, improved, unchanged, failed
     );
 
     Ok(RefetchResponse {
         total_found,
         processed,
         improved,
+        unchanged,
         failed,
         results,
     })
@@ -486,5 +605,283 @@ pub async fn get_short_content_stats(
         content_200_to_500,
         content_over_500,
         by_feed,
+    })
+}
+
+/// Response for delete operation
+#[derive(Serialize)]
+pub struct DeleteResponse {
+    pub deleted_count: i64,
+}
+
+/// Delete all articles with NULL or empty content_full
+#[tauri::command]
+pub async fn delete_null_content_articles(
+    state: State<'_, AppState>,
+) -> Result<DeleteResponse, String> {
+    info!("Deleting articles with NULL or empty content_full");
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // First, delete related data from junction tables
+    conn.execute(
+        "DELETE FROM fnord_sephiroth WHERE fnord_id IN (
+            SELECT id FROM fnords
+            WHERE full_text_fetched = TRUE
+            AND (content_full IS NULL OR LENGTH(content_full) = 0)
+        )",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "DELETE FROM fnord_immanentize WHERE fnord_id IN (
+            SELECT id FROM fnords
+            WHERE full_text_fetched = TRUE
+            AND (content_full IS NULL OR LENGTH(content_full) = 0)
+        )",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "DELETE FROM fnord_revisions WHERE fnord_id IN (
+            SELECT id FROM fnords
+            WHERE full_text_fetched = TRUE
+            AND (content_full IS NULL OR LENGTH(content_full) = 0)
+        )",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Delete the articles
+    let deleted_count = conn
+        .execute(
+            "DELETE FROM fnords
+             WHERE full_text_fetched = TRUE
+             AND (content_full IS NULL OR LENGTH(content_full) = 0)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+
+    info!("Deleted {} articles with NULL or empty content", deleted_count);
+
+    Ok(DeleteResponse {
+        deleted_count: deleted_count as i64,
+    })
+}
+
+/// Exclude articles with short content from AI analysis by marking them as processed
+#[tauri::command]
+pub async fn exclude_short_from_ai(
+    state: State<'_, AppState>,
+    max_length: Option<i64>,
+) -> Result<i64, String> {
+    let threshold = max_length.unwrap_or(200);
+
+    info!(
+        "Excluding articles with content_full < {} chars from AI analysis",
+        threshold
+    );
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Mark short articles as processed so they won't be picked up by batch processing
+    // Set processed_at to now and retry_count to max (3) to prevent retries
+    let affected = conn
+        .execute(
+            "UPDATE fnords
+             SET processed_at = datetime('now'),
+                 ai_retry_count = 3
+             WHERE full_text_fetched = TRUE
+               AND processed_at IS NULL
+               AND (content_full IS NULL OR LENGTH(content_full) < ?1)",
+            params![threshold],
+        )
+        .map_err(|e| e.to_string())?;
+
+    info!("Excluded {} short articles from AI analysis", affected);
+
+    Ok(affected as i64)
+}
+
+/// Re-fetch short articles for a specific feed
+#[tauri::command]
+pub async fn refetch_feed_short_articles(
+    state: State<'_, AppState>,
+    app: AppHandle,
+    pentacle_id: i64,
+    min_content_length: Option<i64>,
+    limit: Option<i64>,
+) -> Result<RefetchResponse, String> {
+    let min_length = min_content_length.unwrap_or(500);
+    let max_articles = limit.unwrap_or(50);
+
+    let retrieval = HagbardRetrieval::new();
+
+    // Get articles with short content for specific feed (sync)
+    let (articles, use_headless): (Vec<(i64, String, String, i64)>, bool) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+
+        let sql = "
+            SELECT id, url, title, COALESCE(LENGTH(content_full), 0) as content_length
+            FROM fnords
+            WHERE pentacle_id = ?1
+              AND full_text_fetched = TRUE
+              AND (content_full IS NULL OR LENGTH(content_full) < ?2)
+            ORDER BY published_at DESC
+            LIMIT ?3
+        ";
+
+        let mut stmt = db.conn().prepare(sql).map_err(|e| e.to_string())?;
+
+        let rows: Vec<(i64, String, String, i64)> = stmt
+            .query_map(params![pentacle_id, min_length, max_articles], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let headless = is_headless_enabled(&db);
+        (rows, headless)
+    };
+
+    let total_found = articles.len() as i64;
+    info!(
+        "Found {} articles with content_full < {} characters for feed {}",
+        total_found, min_length, pentacle_id
+    );
+
+    if total_found == 0 {
+        return Ok(RefetchResponse {
+            total_found: 0,
+            processed: 0,
+            improved: 0,
+            unchanged: 0,
+            failed: 0,
+            results: Vec::new(),
+        });
+    }
+
+    // Get headless fetcher reference if enabled
+    let headless_fetcher = if use_headless {
+        Some(get_headless_fetcher())
+    } else {
+        None
+    };
+
+    let mut results = Vec::new();
+    let mut processed = 0i64;
+    let mut improved = 0i64;
+    let mut unchanged = 0i64;
+    let mut failed = 0i64;
+
+    // Fetch each article (async)
+    for (id, url, title, old_length) in articles.into_iter() {
+        processed += 1;
+
+        // Emit progress event
+        let _ = app.emit("refetch-progress", RefetchProgress {
+            current: processed,
+            total: total_found,
+            fnord_id: id,
+            title: title.clone(),
+            success: true,
+            error: None,
+        });
+
+        match retrieval
+            .retrieve_with_fallback(&url, use_headless, headless_fetcher)
+            .await
+        {
+            Ok(extracted) => {
+                let new_length = extracted.content.len() as i64;
+                let is_improved = new_length > old_length;
+
+                let status = if is_improved {
+                    improved += 1;
+                    "improved".to_string()
+                } else {
+                    unchanged += 1;
+                    "unchanged".to_string()
+                };
+
+                // Update in database (sync) - short lock, clear error on success
+                {
+                    let db = state.db.lock().map_err(|e| e.to_string())?;
+                    db.conn()
+                        .execute(
+                            "UPDATE fnords SET content_full = ?1, full_text_fetch_error = NULL WHERE id = ?2",
+                            params![&extracted.content, id],
+                        )
+                        .map_err(|e| e.to_string())?;
+                } // Lock released
+
+                // Yield for other tasks
+                tokio::task::yield_now().await;
+
+                results.push(RefetchResult {
+                    fnord_id: id,
+                    title,
+                    old_length,
+                    new_length,
+                    improved: is_improved,
+                    status,
+                });
+            }
+            Err(e) => {
+                failed += 1;
+
+                // Categorize and store the error type
+                let error_type = categorize_error(&e);
+                if let Ok(db) = state.db.lock() {
+                    let _ = db.conn().execute(
+                        "UPDATE fnords SET full_text_fetch_error = ?1 WHERE id = ?2",
+                        params![&error_type, id],
+                    );
+                }
+
+                // Emit error progress
+                let _ = app.emit("refetch-progress", RefetchProgress {
+                    current: processed,
+                    total: total_found,
+                    fnord_id: id,
+                    title: title.clone(),
+                    success: false,
+                    error: Some(e.to_string()),
+                });
+
+                results.push(RefetchResult {
+                    fnord_id: id,
+                    title,
+                    old_length,
+                    new_length: old_length,
+                    improved: false,
+                    status: "failed".to_string(),
+                });
+            }
+        }
+    }
+
+    info!(
+        "Feed {} refetch complete: {} processed, {} improved, {} unchanged, {} failed",
+        pentacle_id, processed, improved, unchanged, failed
+    );
+
+    Ok(RefetchResponse {
+        total_found,
+        processed,
+        improved,
+        unchanged,
+        failed,
+        results,
     })
 }
