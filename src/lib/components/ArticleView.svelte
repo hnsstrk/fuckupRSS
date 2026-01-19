@@ -545,45 +545,51 @@
       />
     </div>
 
-    <!-- Sephiroth (Categories) & Immanentize (Keywords) -->
-    {#if articleCategoriesDetailed.length > 0 || articleKeywords.length > 0 || categories.length > 0 || tags.length > 0}
-      <div class="meta-section">
+    <!-- Sephiroth (Categories) & Immanentize (Keywords) - always show for category editing -->
+    <div class="meta-section">
         <div class="section-content">
-          {#if articleCategoriesDetailed.length > 0 || categories.length > 0}
-            <div class="meta-row">
-              <div class="meta-label">
-                {$_('articleView.categories')}
-              </div>
-              <div class="meta-content">
-                {#if articleCategoriesDetailed.length > 0}
-                  <ArticleCategories
-                    fnordId={fnord.id}
-                    categories={articleCategoriesDetailed}
-                    editing={editingCategories}
-                    onUpdate={handleCategoriesUpdate}
-                  />
-                {:else}
-                  <!-- Fallback to old display for articles not yet loaded with detailed info -->
-                  <div class="category-badges">
-                    {#each categories as cat (cat.sephiroth_id)}
-                      <span class="category-badge" style="background-color: {getCategoryColorVar(cat.sephiroth_id)}; color: white">
-                        {#if cat.icon}<i class="{cat.icon} badge-icon"></i>{/if}
-                        {cat.name}
-                      </span>
-                    {/each}
-                  </div>
-                {/if}
-                <button
-                  class="edit-toggle"
-                  onclick={() => editingCategories = !editingCategories}
-                  title="Edit categories"
-                  aria-label={editingCategories ? 'Done editing categories' : 'Edit categories'}
-                >
-                  <i class="fa-solid {editingCategories ? 'fa-check' : 'fa-pen'}"></i>
-                </button>
-              </div>
+          <!-- Categories - always show to allow adding when none exist -->
+          <div class="meta-row">
+            <div class="meta-label">
+              {$_('articleView.categories')}
             </div>
-          {/if}
+            <div class="meta-content">
+              {#if articleCategoriesDetailed.length > 0}
+                <ArticleCategories
+                  fnordId={fnord.id}
+                  categories={articleCategoriesDetailed}
+                  editing={editingCategories}
+                  onUpdate={handleCategoriesUpdate}
+                />
+              {:else if categories.length > 0}
+                <!-- Fallback to old display for articles not yet loaded with detailed info -->
+                <div class="category-badges">
+                  {#each categories as cat (cat.sephiroth_id)}
+                    <span class="category-badge" style="background-color: {getCategoryColorVar(cat.sephiroth_id)}; color: white">
+                      {#if cat.icon}<i class="{cat.icon} badge-icon"></i>{/if}
+                      {cat.name}
+                    </span>
+                  {/each}
+                </div>
+              {:else}
+                <!-- No categories - show add option in edit mode -->
+                <ArticleCategories
+                  fnordId={fnord.id}
+                  categories={[]}
+                  editing={editingCategories}
+                  onUpdate={handleCategoriesUpdate}
+                />
+              {/if}
+              <button
+                class="edit-toggle"
+                onclick={() => editingCategories = !editingCategories}
+                title="Edit categories"
+                aria-label={editingCategories ? 'Done editing categories' : 'Edit categories'}
+              >
+                <i class="fa-solid {editingCategories ? 'fa-check' : 'fa-pen'}"></i>
+              </button>
+            </div>
+          </div>
 
           {#if articleKeywords.length > 0 || tags.length > 0}
             <div class="meta-row">
@@ -621,7 +627,6 @@
           {/if}
         </div>
       </div>
-    {/if}
 
     <!-- Content -->
     <div class="content-section">
