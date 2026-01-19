@@ -1,6 +1,29 @@
+use crate::retrieval::headless::HeadlessFetcher;
 use crate::retrieval::HagbardRetrieval;
 use crate::AppState;
+use once_cell::sync::OnceCell;
 use tauri::State;
+
+/// Global HeadlessFetcher instance, lazily initialized on first use.
+/// The browser is not started until the first fetch operation that needs it.
+static HEADLESS_FETCHER: OnceCell<HeadlessFetcher> = OnceCell::new();
+
+/// Get or initialize the global HeadlessFetcher.
+fn get_headless_fetcher() -> &'static HeadlessFetcher {
+    HEADLESS_FETCHER.get_or_init(HeadlessFetcher::new)
+}
+
+/// Check if headless browser is enabled in settings.
+fn is_headless_enabled(db: &crate::db::Database) -> bool {
+    db.conn()
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'enable_headless_browser'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map(|v| v == "true")
+        .unwrap_or(false)
+}
 
 #[derive(serde::Serialize)]
 pub struct RetrievalResponse {
@@ -18,18 +41,31 @@ pub async fn fetch_full_content(
 ) -> Result<RetrievalResponse, String> {
     let retrieval = HagbardRetrieval::new();
 
-    // Get article URL (sync)
-    let url: String = {
+    // Get article URL and headless setting (sync)
+    let (url, use_headless): (String, bool) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        db.conn()
+        let url = db
+            .conn()
             .query_row("SELECT url FROM fnords WHERE id = ?1", [fnord_id], |row| {
                 row.get(0)
             })
-            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+        let headless = is_headless_enabled(&db);
+        (url, headless)
     };
 
-    // Fetch full content (async)
-    match retrieval.retrieve(&url).await {
+    // Get headless fetcher reference if enabled
+    let headless_fetcher = if use_headless {
+        Some(get_headless_fetcher())
+    } else {
+        None
+    };
+
+    // Fetch full content with optional headless fallback (async)
+    match retrieval
+        .retrieve_with_fallback(&url, use_headless, headless_fetcher)
+        .await
+    {
         Ok(extracted) => {
             // Store in database (sync)
             let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -63,7 +99,8 @@ pub async fn fetch_truncated_articles(
 ) -> Result<Vec<RetrievalResponse>, String> {
     let retrieval = HagbardRetrieval::new();
 
-    let articles: Vec<(i64, String, Option<String>)> = {
+    // Get articles and headless setting (sync)
+    let (articles, use_headless): (Vec<(i64, String, Option<String>)>, bool) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
 
         let base_sql = "SELECT id, url, content_raw FROM fnords WHERE full_text_fetched = FALSE";
@@ -87,14 +124,25 @@ pub async fn fetch_truncated_articles(
         .filter(|(_, _, content)| content.as_ref().map(|c| HagbardRetrieval::is_truncated(c)).unwrap_or(true))
         .collect();
 
-        rows
+        let headless = is_headless_enabled(&db);
+        (rows, headless)
+    };
+
+    // Get headless fetcher reference if enabled
+    let headless_fetcher = if use_headless {
+        Some(get_headless_fetcher())
+    } else {
+        None
     };
 
     let mut results = Vec::new();
 
     // Fetch each article (async)
     for (id, url, _) in articles.into_iter() {
-        match retrieval.retrieve(&url).await {
+        match retrieval
+            .retrieve_with_fallback(&url, use_headless, headless_fetcher)
+            .await
+        {
             Ok(extracted) => {
                 // Store in database (sync)
                 if let Ok(db) = state.db.lock() {

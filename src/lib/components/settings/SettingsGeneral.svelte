@@ -22,6 +22,7 @@
   let selectedLightTheme = $state<LightTheme>("latte");
   let syncInterval = $state(30);
   let syncOnStart = $state(true);
+  let enableHeadlessBrowser = $state(false);
   let selectedLogLevel = $state<LogLevel>("info");
 
   // Dropdown open states
@@ -109,6 +110,7 @@
     selectedLightTheme = settings.lightTheme;
     syncInterval = settings.syncInterval;
     syncOnStart = settings.syncOnStart;
+    enableHeadlessBrowser = settings.enableHeadlessBrowser;
     selectedLogLevel = settings.logLevel;
   }
 
@@ -132,6 +134,11 @@
   function handleSyncOnStartChange(checked: boolean) {
     syncOnStart = checked;
     settings.syncOnStart = checked;
+  }
+
+  function handleEnableHeadlessBrowserChange(checked: boolean) {
+    enableHeadlessBrowser = checked;
+    settings.enableHeadlessBrowser = checked;
   }
 
   async function selectLocale(value: string) {
@@ -466,6 +473,18 @@
     <span class="checkbox-label">{$_("settings.sync.onStart")}</span>
   </label>
   <p class="setting-description">{$_("settings.sync.onStartDescription")}</p>
+</div>
+
+<div class="setting-group checkbox-group">
+  <label>
+    <input
+      type="checkbox"
+      checked={enableHeadlessBrowser}
+      onchange={(e) => handleEnableHeadlessBrowserChange(e.currentTarget.checked)}
+    />
+    <span class="checkbox-label">{$_("settings.enableHeadlessBrowser")}</span>
+  </label>
+  <p class="setting-description">{$_("settings.enableHeadlessBrowserDescription")}</p>
 </div>
 
 <!-- OPML Import -->

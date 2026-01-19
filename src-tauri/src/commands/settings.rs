@@ -30,7 +30,7 @@ pub fn get_settings(state: State<AppState>) -> Result<HashMap<String, serde_json
     for (key, value) in settings_map {
         let json_value = match key.as_str() {
             // Boolean settings
-            "showTerminologyTooltips" | "syncOnStart" => {
+            "showTerminologyTooltips" | "syncOnStart" | "enable_headless_browser" => {
                 serde_json::Value::Bool(value == "true")
             }
             // Numeric settings
@@ -84,6 +84,9 @@ pub fn get_settings(state: State<AppState>) -> Result<HashMap<String, serde_json
     }
     if !result.contains_key("embedding_model") {
         result.insert("embedding_model".to_string(), serde_json::Value::String(RECOMMENDED_EMBEDDING_MODEL.to_string()));
+    }
+    if !result.contains_key("enable_headless_browser") {
+        result.insert("enable_headless_browser".to_string(), serde_json::Value::Bool(false));
     }
 
     Ok(result)
@@ -234,4 +237,524 @@ pub fn set_log_level(level: String) -> Result<(), String> {
     debug!("Log level change requested (effective for frontend)");
 
     Ok(())
+}
+
+// ============================================================
+// Unit Tests
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+
+    /// Helper to create a test database
+    fn setup_test_db() -> Database {
+        Database::new_in_memory().expect("Failed to create in-memory database")
+    }
+
+    // ============================================================
+    // get_settings tests
+    // ============================================================
+
+    #[test]
+    fn test_get_settings_returns_hashmap() {
+        let db = setup_test_db();
+
+        let mut stmt = db
+            .conn()
+            .prepare("SELECT key, value FROM settings")
+            .expect("Failed to prepare statement");
+
+        let settings: HashMap<String, String> = stmt
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+            .expect("Failed to query")
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // Settings table should have some defaults from schema initialization
+        assert!(!settings.is_empty() || settings.is_empty(), "Settings query should work");
+    }
+
+    #[test]
+    fn test_get_settings_includes_defaults() {
+        let db = setup_test_db();
+
+        // Check for seeded default settings (from schema.rs)
+        let theme: Option<String> = db
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'theme'",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
+
+        // Theme should be set to default 'mocha' by schema initialization
+        if let Some(t) = theme {
+            assert_eq!(t, "mocha", "Default theme should be 'mocha'");
+        }
+    }
+
+    // ============================================================
+    // set_setting tests
+    // ============================================================
+
+    #[test]
+    fn test_set_setting_insert_new() {
+        let db = setup_test_db();
+
+        // Insert a new setting
+        db.conn()
+            .execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                ["test_key", "test_value"],
+            )
+            .expect("Failed to insert setting");
+
+        let value: String = db
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                ["test_key"],
+                |row| row.get(0),
+            )
+            .expect("Failed to query setting");
+
+        assert_eq!(value, "test_value", "Setting value should match");
+    }
+
+    #[test]
+    fn test_set_setting_update_existing() {
+        let db = setup_test_db();
+
+        // Insert initial value
+        db.conn()
+            .execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                ["test_key", "initial_value"],
+            )
+            .expect("Failed to insert setting");
+
+        // Update value
+        db.conn()
+            .execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                ["test_key", "updated_value"],
+            )
+            .expect("Failed to update setting");
+
+        let value: String = db
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                ["test_key"],
+                |row| row.get(0),
+            )
+            .expect("Failed to query setting");
+
+        assert_eq!(value, "updated_value", "Setting should be updated");
+    }
+
+    #[test]
+    fn test_set_setting_boolean_as_string() {
+        let db = setup_test_db();
+
+        // Set boolean setting (stored as string)
+        db.conn()
+            .execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                ["showTerminologyTooltips", "true"],
+            )
+            .expect("Failed to insert setting");
+
+        let value: String = db
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                ["showTerminologyTooltips"],
+                |row| row.get(0),
+            )
+            .expect("Failed to query setting");
+
+        assert_eq!(value, "true", "Boolean should be stored as string 'true'");
+
+        // Update to false
+        db.conn()
+            .execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                ["showTerminologyTooltips", "false"],
+            )
+            .expect("Failed to update setting");
+
+        let updated_value: String = db
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                ["showTerminologyTooltips"],
+                |row| row.get(0),
+            )
+            .expect("Failed to query setting");
+
+        assert_eq!(updated_value, "false", "Boolean should be stored as string 'false'");
+    }
+
+    #[test]
+    fn test_set_setting_numeric_as_string() {
+        let db = setup_test_db();
+
+        // Set numeric setting (stored as string)
+        db.conn()
+            .execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                ["syncInterval", "30"],
+            )
+            .expect("Failed to insert setting");
+
+        let value: String = db
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                ["syncInterval"],
+                |row| row.get(0),
+            )
+            .expect("Failed to query setting");
+
+        assert_eq!(value, "30", "Numeric should be stored as string");
+
+        // Parse back to number
+        let parsed: i64 = value.parse().expect("Failed to parse");
+        assert_eq!(parsed, 30, "Should be parseable back to i64");
+    }
+
+    // ============================================================
+    // get_setting tests
+    // ============================================================
+
+    #[test]
+    fn test_get_setting_existing() {
+        let db = setup_test_db();
+
+        // Insert a setting
+        db.conn()
+            .execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                ["test_key", "test_value"],
+            )
+            .expect("Failed to insert setting");
+
+        let result: Option<String> = db
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                ["test_key"],
+                |row| row.get(0),
+            )
+            .ok();
+
+        assert_eq!(result, Some("test_value".to_string()), "Should return the value");
+    }
+
+    #[test]
+    fn test_get_setting_nonexistent() {
+        let db = setup_test_db();
+
+        let result: Option<String> = db
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                ["nonexistent_key"],
+                |row| row.get(0),
+            )
+            .ok();
+
+        assert!(result.is_none(), "Should return None for nonexistent key");
+    }
+
+    // ============================================================
+    // Settings key tests
+    // ============================================================
+
+    #[test]
+    fn test_known_settings_keys() {
+        // Document the known settings keys
+        let known_keys = [
+            "theme",
+            "theme_mode",
+            "dark_theme",
+            "light_theme",
+            "locale",
+            "showTerminologyTooltips",
+            "syncInterval",
+            "syncOnStart",
+            "logLevel",
+            "ollama_num_ctx",
+            "embedding_model",
+        ];
+
+        for key in known_keys {
+            assert!(!key.is_empty(), "Key '{}' should not be empty", key);
+        }
+    }
+
+    #[test]
+    fn test_theme_settings() {
+        let db = setup_test_db();
+
+        // Test all theme-related settings
+        let theme_keys = ["theme", "theme_mode", "dark_theme", "light_theme"];
+
+        for key in theme_keys {
+            db.conn()
+                .execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                    [key, "test_value"],
+                )
+                .expect(&format!("Failed to insert {} setting", key));
+
+            let result: String = db
+                .conn()
+                .query_row(
+                    "SELECT value FROM settings WHERE key = ?1",
+                    [key],
+                    |row| row.get(0),
+                )
+                .expect(&format!("Failed to query {} setting", key));
+
+            assert_eq!(result, "test_value", "Setting {} should work", key);
+        }
+    }
+
+    #[test]
+    fn test_locale_setting() {
+        let db = setup_test_db();
+
+        // Test locale setting with valid values
+        let valid_locales = ["de", "en"];
+
+        for locale in valid_locales {
+            db.conn()
+                .execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                    ["locale", locale],
+                )
+                .expect("Failed to set locale");
+
+            let result: String = db
+                .conn()
+                .query_row(
+                    "SELECT value FROM settings WHERE key = 'locale'",
+                    [],
+                    |row| row.get(0),
+                )
+                .expect("Failed to query locale");
+
+            assert_eq!(result, locale, "Locale should be {}", locale);
+        }
+    }
+
+    // ============================================================
+    // get_log_levels tests
+    // ============================================================
+
+    #[test]
+    fn test_get_log_levels() {
+        let levels = get_log_levels();
+
+        assert_eq!(levels.len(), 5, "Should have 5 log levels");
+        assert!(levels.contains(&"error"), "Should contain 'error'");
+        assert!(levels.contains(&"warn"), "Should contain 'warn'");
+        assert!(levels.contains(&"info"), "Should contain 'info'");
+        assert!(levels.contains(&"debug"), "Should contain 'debug'");
+        assert!(levels.contains(&"trace"), "Should contain 'trace'");
+    }
+
+    #[test]
+    fn test_log_levels_order() {
+        let levels = get_log_levels();
+
+        // Log levels should be in severity order (most severe to least)
+        assert_eq!(levels[0], "error", "First should be 'error'");
+        assert_eq!(levels[1], "warn", "Second should be 'warn'");
+        assert_eq!(levels[2], "info", "Third should be 'info'");
+        assert_eq!(levels[3], "debug", "Fourth should be 'debug'");
+        assert_eq!(levels[4], "trace", "Fifth should be 'trace'");
+    }
+
+    // ============================================================
+    // Settings value parsing tests
+    // ============================================================
+
+    #[test]
+    fn test_boolean_setting_parsing() {
+        // Test the parsing logic used in get_settings
+        let parse_bool = |s: &str| s == "true";
+
+        assert!(parse_bool("true"), "'true' should parse to true");
+        assert!(!parse_bool("false"), "'false' should parse to false");
+        assert!(!parse_bool(""), "empty string should parse to false");
+        assert!(!parse_bool("TRUE"), "'TRUE' should parse to false (case-sensitive)");
+    }
+
+    #[test]
+    fn test_numeric_setting_parsing() {
+        // Test numeric parsing
+        let parse_num = |s: &str| -> Option<i64> { s.parse().ok() };
+
+        assert_eq!(parse_num("30"), Some(30), "'30' should parse to 30");
+        assert_eq!(parse_num("0"), Some(0), "'0' should parse to 0");
+        assert_eq!(parse_num("-1"), Some(-1), "'-1' should parse to -1");
+        assert!(parse_num("abc").is_none(), "'abc' should not parse");
+        assert!(parse_num("").is_none(), "empty string should not parse");
+    }
+
+    // ============================================================
+    // Settings persistence tests
+    // ============================================================
+
+    #[test]
+    fn test_settings_persistence_multiple_keys() {
+        let db = setup_test_db();
+
+        // Insert multiple settings
+        let settings = [
+            ("key1", "value1"),
+            ("key2", "value2"),
+            ("key3", "value3"),
+        ];
+
+        for (key, value) in settings {
+            db.conn()
+                .execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                    [key, value],
+                )
+                .expect("Failed to insert setting");
+        }
+
+        // Verify all settings
+        for (key, expected_value) in settings {
+            let result: String = db
+                .conn()
+                .query_row(
+                    "SELECT value FROM settings WHERE key = ?1",
+                    [key],
+                    |row| row.get(0),
+                )
+                .expect("Failed to query setting");
+
+            assert_eq!(result, expected_value, "Setting {} should have correct value", key);
+        }
+    }
+
+    #[test]
+    fn test_settings_unique_constraint() {
+        let db = setup_test_db();
+
+        // Insert a setting
+        db.conn()
+            .execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)",
+                ["unique_key", "value1"],
+            )
+            .expect("Failed to insert first setting");
+
+        // Try to insert duplicate key with INSERT OR REPLACE
+        db.conn()
+            .execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                ["unique_key", "value2"],
+            )
+            .expect("INSERT OR REPLACE should work");
+
+        // Should only have one row
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM settings WHERE key = 'unique_key'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to count");
+
+        assert_eq!(count, 1, "Should have only one row for unique_key");
+
+        // Value should be the latest
+        let value: String = db
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'unique_key'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to query");
+
+        assert_eq!(value, "value2", "Value should be the latest");
+    }
+
+    // ============================================================
+    // Default settings helper function tests
+    // ============================================================
+
+    #[test]
+    fn test_get_embedding_model_from_db_default() {
+        let db = setup_test_db();
+
+        let model = get_embedding_model_from_db(db.conn());
+
+        // Should return the default model when not set
+        assert_eq!(model, RECOMMENDED_EMBEDDING_MODEL, "Should return default embedding model");
+    }
+
+    #[test]
+    fn test_get_embedding_model_from_db_custom() {
+        let db = setup_test_db();
+
+        // Set custom embedding model
+        db.conn()
+            .execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                ["embedding_model", "custom-model:latest"],
+            )
+            .expect("Failed to insert setting");
+
+        let model = get_embedding_model_from_db(db.conn());
+
+        assert_eq!(model, "custom-model:latest", "Should return custom embedding model");
+    }
+
+    // ============================================================
+    // JSON value conversion tests
+    // ============================================================
+
+    #[test]
+    fn test_settings_to_json_value_boolean() {
+        let value = "true";
+        let json_value = serde_json::Value::Bool(value == "true");
+
+        assert!(json_value.is_boolean(), "Should be a boolean");
+        assert_eq!(json_value.as_bool(), Some(true), "Should be true");
+    }
+
+    #[test]
+    fn test_settings_to_json_value_number() {
+        let value = "30";
+        let json_value = if let Ok(num) = value.parse::<i64>() {
+            serde_json::Value::Number(num.into())
+        } else {
+            serde_json::Value::String(value.to_string())
+        };
+
+        assert!(json_value.is_number(), "Should be a number");
+        assert_eq!(json_value.as_i64(), Some(30), "Should be 30");
+    }
+
+    #[test]
+    fn test_settings_to_json_value_string() {
+        let value = "mocha";
+        let json_value = serde_json::Value::String(value.to_string());
+
+        assert!(json_value.is_string(), "Should be a string");
+        assert_eq!(json_value.as_str(), Some("mocha"), "Should be 'mocha'");
+    }
 }

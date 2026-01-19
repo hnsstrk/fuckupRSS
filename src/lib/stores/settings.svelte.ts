@@ -56,6 +56,7 @@ interface Settings {
   sync_on_start: boolean;
   log_level: LogLevel;
   embedding_model: string; // Embedding model for keyword similarity
+  enable_headless_browser: boolean; // Use headless browser for JavaScript-rendered content
 }
 
 const THEME_CLASSES: Theme[] = [
@@ -127,6 +128,7 @@ class SettingsStore {
     sync_on_start: true,
     log_level: import.meta.env.DEV ? 'debug' : 'info',
     embedding_model: DEFAULT_EMBEDDING_MODEL,
+    enable_headless_browser: false,
   });
   #initialized = false;
   // Default to dark - will be updated by Tauri command on init
@@ -275,6 +277,15 @@ class SettingsStore {
     return DEFAULT_EMBEDDING_MODEL;
   }
 
+  get enableHeadlessBrowser(): boolean {
+    return this.#settings.enable_headless_browser;
+  }
+
+  set enableHeadlessBrowser(value: boolean) {
+    this.#settings.enable_headless_browser = value;
+    this.#saveSetting('enable_headless_browser', value ? 'true' : 'false');
+  }
+
   async #saveSetting(key: string, value: string) {
     try {
       await invoke('set_setting', { key, value });
@@ -393,6 +404,9 @@ class SettingsStore {
       if (savedEmbeddingModel) {
         this.#settings.embedding_model = savedEmbeddingModel;
       }
+
+      // Load headless browser setting
+      this.#settings.enable_headless_browser = (dbSettings.enable_headless_browser as boolean) ?? false;
 
       log.info('Settings loaded successfully');
 

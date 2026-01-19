@@ -160,6 +160,8 @@
     "languageEnglish": "English",
     "tooltips": "Begriffserklärungen anzeigen",
     "tooltipsDescription": "Zeigt Erklärungen für Illuminatus!-Begriffe",
+    "enableHeadlessBrowser": "JavaScript-Rendering aktivieren",
+    "enableHeadlessBrowserDescription": "Verwendet einen Headless-Browser für Seiten mit JavaScript-generiertem Inhalt. Benötigt mehr Ressourcen, verbessert aber die Volltext-Extraktion bei modernen Webseiten.",
     "sync": {
       "title": "Synchronisierung",
       "interval": "Sync-Intervall",
