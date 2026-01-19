@@ -14,7 +14,7 @@
     ondayschange?: (days: number) => void;
   }
 
-  let { keywordId, keywordName, neighborIds = [], ondayschange }: Props = $props();
+  let { keywordId, keywordName: _keywordName, neighborIds = [], ondayschange }: Props = $props();
 
   let canvas: HTMLCanvasElement;
   let chart: Chart | null = null;

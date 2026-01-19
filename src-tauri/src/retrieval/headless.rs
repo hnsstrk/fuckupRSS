@@ -20,6 +20,10 @@
 //! }
 //! ```
 
+// Allow dead code for public API methods that are not yet used in production
+// but are part of the intended interface (used in tests and documentation)
+#![allow(dead_code)]
+
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::cdp::browser_protocol::page::NavigateParams;
 use chromiumoxide::error::CdpError;

@@ -75,7 +75,7 @@
 
   let {
     selectedKeyword,
-    neighbors,
+    neighbors: _neighbors,
     keywordCategories,
     keywordArticles,
     cooccurringKeywords,
@@ -84,7 +84,7 @@
     hasMoreArticles,
     articlesLoading,
     loading,
-    trendDays,
+    trendDays: _trendDays,
     isRenaming,
     renameInput,
     renameLoading,

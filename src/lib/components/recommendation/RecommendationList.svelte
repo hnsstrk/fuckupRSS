@@ -27,7 +27,6 @@
 
   // Request tracking
   let requestId = $state<string | null>(null);
-  let abortController: AbortController | null = null;
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
   let phaseHandle: ReturnType<typeof setInterval> | null = null;
 
@@ -57,7 +56,6 @@
       clearInterval(phaseHandle);
       phaseHandle = null;
     }
-    abortController = null;
   }
 
   onMount(async () => {
@@ -74,7 +72,6 @@
 
     const reqId = generateRequestId();
     requestId = reqId;
-    abortController = new AbortController();
 
     const startTime = Date.now();
     let currentPhaseIndex = 0;

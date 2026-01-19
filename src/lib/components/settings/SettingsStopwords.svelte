@@ -76,7 +76,7 @@
   async function addStopword() {
     const word = newStopword.trim().toLowerCase();
     if (word.length < 2) {
-      toasts.add($_("settings.stopwords.minLength"), "error");
+      toasts.error($_("settings.stopwords.minLength"));
       return;
     }
 
@@ -84,14 +84,14 @@
     try {
       const added = await invoke<boolean>("add_stopword", { word });
       if (added) {
-        toasts.add($_("settings.stopwords.added"), "success");
+        toasts.success($_("settings.stopwords.added"));
         newStopword = "";
         await Promise.all([loadStopwordStats(), loadUserStopwords()]);
       } else {
-        toasts.add($_("settings.stopwords.alreadyExists"), "warning");
+        toasts.info($_("settings.stopwords.alreadyExists"));
       }
     } catch (e) {
-      toasts.add(`Error: ${e}`, "error");
+      toasts.error(`Error: ${e}`);
     } finally {
       stopwordLoading = false;
     }
@@ -101,10 +101,10 @@
     stopwordLoading = true;
     try {
       await invoke<boolean>("remove_stopword", { word });
-      toasts.add($_("settings.stopwords.removed"), "success");
+      toasts.success($_("settings.stopwords.removed"));
       await Promise.all([loadStopwordStats(), loadUserStopwords()]);
     } catch (e) {
-      toasts.add(`Error: ${e}`, "error");
+      toasts.error(`Error: ${e}`);
     } finally {
       stopwordLoading = false;
     }
@@ -114,11 +114,11 @@
     stopwordLoading = true;
     try {
       const deleted = await invoke<number>("clear_user_stopwords");
-      toasts.add(`${$_("settings.stopwords.cleared")} (${deleted})`, "success");
+      toasts.success(`${$_("settings.stopwords.cleared")} (${deleted})`);
       confirmClearStopwords = false;
       await Promise.all([loadStopwordStats(), loadUserStopwords()]);
     } catch (e) {
-      toasts.add(`Error: ${e}`, "error");
+      toasts.error(`Error: ${e}`);
     } finally {
       stopwordLoading = false;
     }
@@ -126,7 +126,7 @@
 
   async function handleExportStopwords() {
     if (userStopwords.length === 0) {
-      toasts.add($_("settings.stopwords.noStopwordsToExport"), "warning");
+      toasts.info($_("settings.stopwords.noStopwordsToExport"));
       return;
     }
 
@@ -150,16 +150,14 @@
       }
 
       await writeTextFile(filePath, content);
-      toasts.add(
+      toasts.success(
         $_("settings.stopwords.exportSuccess", {
           values: { count: userStopwords.length },
-        }),
-        "success"
+        })
       );
     } catch (e) {
-      toasts.add(
-        $_("settings.stopwords.exportError", { values: { error: String(e) } }),
-        "error"
+      toasts.error(
+        $_("settings.stopwords.exportError", { values: { error: String(e) } })
       );
     } finally {
       exportLoading = false;
@@ -189,22 +187,20 @@
         content,
       });
 
-      toasts.add(
+      toasts.success(
         $_("settings.stopwords.importSuccess", {
           values: {
             imported: result.imported,
             skipped: result.skipped,
             total: result.total,
           },
-        }),
-        "success"
+        })
       );
 
       await Promise.all([loadStopwordStats(), loadUserStopwords()]);
     } catch (e) {
-      toasts.add(
-        $_("settings.stopwords.importError", { values: { error: String(e) } }),
-        "error"
+      toasts.error(
+        $_("settings.stopwords.importError", { values: { error: String(e) } })
       );
     } finally {
       importLoading = false;

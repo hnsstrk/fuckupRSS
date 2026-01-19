@@ -4,8 +4,6 @@
   import { ArticleItemCompact, ArticleItemSearch } from "./article";
   import type { SearchResult } from "../types";
 
-  let listContainer: HTMLDivElement;
-
   // Check if we're in search mode
   const isSearchMode = $derived(appState.searchQuery.length > 0 || appState.searchResults.length > 0);
 
@@ -69,7 +67,7 @@
   </div>
 
   <!-- Article List / Search Results -->
-  <div class="list-content" bind:this={listContainer} onscroll={handleScroll}>
+  <div class="list-content" onscroll={handleScroll}>
     {#if isSearchMode}
       <!-- Search Results -->
       {#each appState.searchResults as result (result.fnord_id)}

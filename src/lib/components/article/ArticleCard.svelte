@@ -11,8 +11,8 @@
   interface Category {
     id?: number;
     name: string;
-    color?: string;
-    icon?: string;
+    color: string | null;
+    icon: string | null;
   }
 
   // Get the main category ID (1-6) from a category or subcategory ID

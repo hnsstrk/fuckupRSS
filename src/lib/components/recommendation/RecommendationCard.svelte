@@ -154,7 +154,7 @@
     </div>
 
     <div class="card-actions">
-      <Tooltip text={recommendation.is_saved ? $_('recommendations.unsave') : $_('recommendations.save')}>
+      <Tooltip content={recommendation.is_saved ? $_('recommendations.unsave') : $_('recommendations.save')}>
         <button
           type="button"
           class="action-btn save-btn"

@@ -42,11 +42,6 @@
   });
 
   // Group categories by parent for dropdown display
-  interface GroupedCategory {
-    main: Sephiroth;
-    subs: Sephiroth[];
-  }
-
   let groupedCategories = $derived.by(() => {
     const mainCats = allCategories.filter((c) => c.parent_id === null);
     const subCats = allCategories.filter((c) => c.parent_id !== null);

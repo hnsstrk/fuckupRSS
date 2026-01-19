@@ -11,7 +11,7 @@
   } from "../../stores/settings.svelte";
   import { type LogLevel } from "../../logger";
   import { setLocale, locale } from "../../i18n";
-  import { appState, toasts } from "../../stores/state.svelte";
+  import { appState } from "../../stores/state.svelte";
   import type { OpmlFeedPreview, OpmlImportResult } from "../../types";
 
   // Local state for form
@@ -42,27 +42,6 @@
   let opmlExporting = $state(false);
   let opmlExportResult = $state<string | null>(null);
   let opmlExportError = $state<string | null>(null);
-
-  // Short Content Analysis state
-  interface ShortContentStats {
-    total_fetched: number;
-    content_null_or_empty: number;
-    content_under_200: number;
-    content_200_to_500: number;
-    content_over_500: number;
-    by_feed: { pentacle_id: number; pentacle_title: string; short_articles: number }[];
-  }
-  interface RefetchResponse {
-    total_found: number;
-    processed: number;
-    improved: number;
-    failed: number;
-  }
-  let shortContentAnalyzing = $state(false);
-  let shortContentStats = $state<ShortContentStats | null>(null);
-  let shortContentError = $state<string | null>(null);
-  let shortContentRefetching = $state(false);
-  let shortContentRefetchResult = $state<RefetchResponse | null>(null);
 
   const localeOptions = [
     { value: "de", labelKey: "settings.languageGerman" },
@@ -340,42 +319,6 @@
     }
   }
 
-  // Short Content Analysis handlers
-  async function handleAnalyzeShortContent() {
-    shortContentAnalyzing = true;
-    shortContentError = null;
-    shortContentStats = null;
-    shortContentRefetchResult = null;
-
-    try {
-      const stats = await invoke<ShortContentStats>("get_short_content_stats");
-      shortContentStats = stats;
-    } catch (e) {
-      shortContentError = String(e);
-    } finally {
-      shortContentAnalyzing = false;
-    }
-  }
-
-  async function handleRefetchShortContent() {
-    if (!enableHeadlessBrowser) return;
-
-    shortContentRefetching = true;
-    shortContentError = null;
-    shortContentRefetchResult = null;
-
-    try {
-      const result = await invoke<RefetchResponse>("refetch_short_articles");
-      shortContentRefetchResult = result;
-      // Refresh stats after refetch
-      const stats = await invoke<ShortContentStats>("get_short_content_stats");
-      shortContentStats = stats;
-    } catch (e) {
-      shortContentError = String(e);
-    } finally {
-      shortContentRefetching = false;
-    }
-  }
 </script>
 
 <!-- Language Dropdown -->
@@ -665,103 +608,6 @@
 
   {#if opmlExportResult}
     <div class="opml-result">{opmlExportResult}</div>
-  {/if}
-</div>
-
-<!-- Short Content Analysis -->
-<div class="setting-group">
-  <span class="label">{$_("settings.maintenance.shortContent.title")}</span>
-  <p class="setting-description">{$_("settings.maintenance.shortContent.analyzeDesc")}</p>
-</div>
-
-<div class="short-content-section">
-  <div class="short-content-row">
-    <button
-      type="button"
-      class="btn-action"
-      onclick={handleAnalyzeShortContent}
-      disabled={shortContentAnalyzing}
-    >
-      {#if shortContentAnalyzing}
-        <i class="fa-solid fa-spinner fa-spin"></i>
-        {$_("settings.maintenance.shortContent.analyzing")}
-      {:else}
-        <i class="fa-solid fa-magnifying-glass-chart"></i>
-        {$_("settings.maintenance.shortContent.analyze")}
-      {/if}
-    </button>
-  </div>
-
-  {#if shortContentError}
-    <div class="short-content-error">{shortContentError}</div>
-  {/if}
-
-  {#if shortContentStats}
-    {@const totalShort = shortContentStats.content_null_or_empty + shortContentStats.content_under_200 + shortContentStats.content_200_to_500}
-    <div class="short-content-stats">
-      <div class="stats-header">
-        {$_("settings.maintenance.shortContent.found", {
-          values: { count: totalShort }
-        })}
-      </div>
-      <div class="stats-breakdown">
-        <div class="stat-item null-empty">
-          <span class="stat-label">{$_("settings.maintenance.shortContent.breakdown.nullEmpty")}</span>
-          <span class="stat-value">{shortContentStats.content_null_or_empty}</span>
-        </div>
-        <div class="stat-item very-short">
-          <span class="stat-label">{$_("settings.maintenance.shortContent.breakdown.veryShort")}</span>
-          <span class="stat-value">{shortContentStats.content_under_200}</span>
-        </div>
-        <div class="stat-item short">
-          <span class="stat-label">{$_("settings.maintenance.shortContent.breakdown.short")}</span>
-          <span class="stat-value">{shortContentStats.content_200_to_500}</span>
-        </div>
-        <div class="stat-item ok">
-          <span class="stat-label">{$_("settings.maintenance.shortContent.breakdown.ok")}</span>
-          <span class="stat-value">{shortContentStats.content_over_500}</span>
-        </div>
-      </div>
-
-      {#if totalShort > 0}
-        <div class="refetch-section">
-          <p class="setting-description">{$_("settings.maintenance.shortContent.refetchDesc")}</p>
-
-          {#if !enableHeadlessBrowser}
-            <div class="headless-warning">
-              <i class="fa-solid fa-triangle-exclamation"></i>
-              {$_("settings.maintenance.shortContent.headlessRequired")}
-            </div>
-          {:else}
-            <button
-              type="button"
-              class="btn-action btn-refetch"
-              onclick={handleRefetchShortContent}
-              disabled={shortContentRefetching}
-            >
-              {#if shortContentRefetching}
-                <i class="fa-solid fa-spinner fa-spin"></i>
-                {$_("settings.maintenance.shortContent.refetching")}
-              {:else}
-                <i class="fa-solid fa-rotate"></i>
-                {$_("settings.maintenance.shortContent.refetch")}
-              {/if}
-            </button>
-          {/if}
-
-          {#if shortContentRefetchResult}
-            <div class="refetch-result">
-              {$_("settings.maintenance.shortContent.refetchResult", {
-                values: {
-                  improved: shortContentRefetchResult.improved,
-                  total: shortContentRefetchResult.processed
-                }
-              })}
-            </div>
-          {/if}
-        </div>
-      {/if}
-    </div>
   {/if}
 </div>
 
@@ -1206,114 +1052,4 @@
     cursor: not-allowed;
   }
 
-  /* Short Content Analysis */
-  .short-content-section {
-    max-width: 600px;
-    margin-bottom: 1.5rem;
-  }
-
-  .short-content-row {
-    margin-bottom: 0.75rem;
-  }
-
-  .short-content-error {
-    margin-top: 0.5rem;
-    padding: 0.5rem;
-    background-color: rgba(243, 139, 168, 0.1);
-    border-radius: 0.375rem;
-    color: var(--status-error);
-    font-size: 0.875rem;
-  }
-
-  .short-content-stats {
-    margin-top: 0.75rem;
-    padding: 0.75rem;
-    background-color: var(--bg-overlay);
-    border-radius: 0.375rem;
-    border: 1px solid var(--border-default);
-  }
-
-  .stats-header {
-    font-weight: 500;
-    color: var(--text-primary);
-    margin-bottom: 0.75rem;
-  }
-
-  .stats-breakdown {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .stat-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.375rem 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
-  }
-
-  .stat-item.null-empty {
-    background-color: rgba(243, 139, 168, 0.15);
-  }
-
-  .stat-item.very-short {
-    background-color: rgba(250, 179, 135, 0.15);
-  }
-
-  .stat-item.short {
-    background-color: rgba(249, 226, 175, 0.15);
-  }
-
-  .stat-item.ok {
-    background-color: rgba(166, 227, 161, 0.15);
-  }
-
-  .stat-label {
-    color: var(--text-secondary);
-  }
-
-  .stat-value {
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
-  .refetch-section {
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border-default);
-  }
-
-  .refetch-section .setting-description {
-    margin-bottom: 0.5rem;
-  }
-
-  .headless-warning {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    background-color: rgba(250, 179, 135, 0.15);
-    border-radius: 0.375rem;
-    color: var(--status-warning);
-    font-size: 0.875rem;
-  }
-
-  .btn-refetch {
-    margin-top: 0.5rem;
-  }
-
-  .btn-action i {
-    margin-right: 0.375rem;
-  }
-
-  .refetch-result {
-    margin-top: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    background-color: rgba(166, 227, 161, 0.1);
-    border-radius: 0.375rem;
-    color: var(--status-success);
-    font-size: 0.875rem;
-  }
 </style>

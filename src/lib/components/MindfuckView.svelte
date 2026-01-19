@@ -10,16 +10,7 @@
   } from "../types";
   import Tabs, { type Tab } from "./Tabs.svelte";
   import Tooltip from "./Tooltip.svelte";
-  import { ArticleCard } from "./article";
   import { RecommendationList } from "./recommendation";
-
-  // Progress tracking for recommendations empty state
-  interface RecommendationProgress {
-    articlesRead: number;
-    articlesNeeded: number;
-    aiAvailable: boolean;
-    articlesWithBias: number;
-  }
 
   // Get CSS variable for category color (theme-aware)
   function getCategoryColorVar(id: number | undefined): string {
@@ -49,16 +40,7 @@
   // Loading states
   let loadingProfile = $state(true);
   let loadingBlindSpots = $state(false);
-  let loadingPerspectives = $state(false);
   let loadingTrends = $state(false);
-
-  // Recommendation progress state
-  let recommendationProgress = $state<RecommendationProgress>({
-    articlesRead: 0,
-    articlesNeeded: 10,
-    aiAvailable: false,
-    articlesWithBias: 0,
-  });
 
   // Trend period selection
   let trendPeriod = $state<7 | 30 | 90>(30);
@@ -76,36 +58,7 @@
 
   onMount(async () => {
     await loadReadingProfile();
-    await loadRecommendationProgress();
   });
-
-  async function loadRecommendationProgress() {
-    try {
-      // Check Ollama status
-      const ollamaStatus = await invoke<{ available: boolean }>("check_ollama");
-
-      // Get reading profile for article counts
-      const profile = readingProfile;
-
-      // Get articles with bias data count
-      let biasCount = 0;
-      try {
-        const biasStats = await invoke<{ articles_with_bias: number }>("get_bias_stats");
-        biasCount = biasStats?.articles_with_bias || 0;
-      } catch {
-        // Bias stats might not be available
-      }
-
-      recommendationProgress = {
-        articlesRead: profile?.total_read || 0,
-        articlesNeeded: 10,
-        aiAvailable: ollamaStatus?.available || false,
-        articlesWithBias: biasCount,
-      };
-    } catch (e) {
-      console.error("Failed to load recommendation progress:", e);
-    }
-  }
 
   async function loadReadingProfile() {
     loadingProfile = true;
@@ -132,7 +85,6 @@
   }
 
   async function loadCounterPerspectives() {
-    loadingPerspectives = true;
     try {
       counterPerspectives = await invoke<CounterPerspective[]>("get_counter_perspectives", {
         limit: 10,
@@ -140,8 +92,6 @@
     } catch (e) {
       console.error("Failed to load counter perspectives:", e);
       counterPerspectives = [];
-    } finally {
-      loadingPerspectives = false;
     }
   }
 
@@ -182,15 +132,6 @@
     return $_("mindfuck.bias.strongRight");
   }
 
-  function getSachlichkeitLabel(sach: number | null): string {
-    if (sach === null) return $_("articleView.notRated");
-    if (sach <= 0.5) return $_("mindfuck.sachlichkeit.highlyEmotional");
-    if (sach <= 1.5) return $_("mindfuck.sachlichkeit.emotional");
-    if (sach <= 2.5) return $_("mindfuck.sachlichkeit.mixed");
-    if (sach <= 3.5) return $_("mindfuck.sachlichkeit.mostlyObjective");
-    return $_("mindfuck.sachlichkeit.objective");
-  }
-
   function getBiasColor(bias: number | null): string {
     if (bias === null) return "var(--text-muted)";
     if (bias <= -1.5) return "var(--bias-strong-left)";
@@ -211,12 +152,6 @@
       default:
         return "var(--text-muted)";
     }
-  }
-
-  function formatDate(dateStr: string | null): string {
-    if (!dateStr) return "-";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString();
   }
 
   function handleReadArticle(fnordId: number) {

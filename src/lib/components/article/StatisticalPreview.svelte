@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
-  import type { StatisticalAnalysis, KeywordCandidateResult, CategoryScoreResult } from '$lib/types';
+  import type { StatisticalAnalysis } from '$lib/types';
 
   interface Props {
     fnordId: number;

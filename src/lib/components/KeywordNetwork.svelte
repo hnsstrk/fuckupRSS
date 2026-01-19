@@ -4,7 +4,6 @@
   import { invoke } from '@tauri-apps/api/core';
   import type { Keyword, KeywordNeighbor, KeywordCategory, TrendingKeyword, NetworkStats, NetworkGraph as NetworkGraphType } from '../stores/state.svelte.ts';
   import NetworkGraph from './NetworkGraph.svelte';
-  import KeywordTrendChart from './KeywordTrendChart.svelte';
   import KeywordTable from './KeywordTable.svelte';
   import Tabs, { type Tab } from './Tabs.svelte';
   import Tooltip from './Tooltip.svelte';
@@ -491,7 +490,7 @@
     newKeywordInput = value;
   }
 
-  async function handleShowKeywordArticles(keywordId: number, keywordName: string) {
+  async function handleShowKeywordArticles(keywordId: number, _keywordName: string) {
     // Select the keyword and switch to list view to show its articles
     await selectKeywordById(keywordId);
     activeTab = 'list';

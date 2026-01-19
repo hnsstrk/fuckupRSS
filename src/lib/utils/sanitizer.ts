@@ -81,7 +81,7 @@ const FORBID_TAGS = ['svg', 'iframe', 'script', 'style', 'noscript', 'canvas', '
  */
 function setupDOMPurifyHooks(): void {
   // Hook: Vor dem Sanitizen eines Elements
-  DOMPurify.addHook('uponSanitizeElement', (node: Element, data) => {
+  DOMPurify.addHook('uponSanitizeElement', (node: Element, _data: DOMPurify.SanitizeElementHookEvent) => {
     // Entferne Elemente mit data-component (BBC-spezifische Artefakte)
     if (node.hasAttribute && node.hasAttribute('data-component')) {
       const component = node.getAttribute('data-component');
@@ -156,40 +156,4 @@ export function sanitizeArticleContent(dirtyHtml: string): string {
   };
 
   return DOMPurify.sanitize(processedHtml, config);
-}
-
-/**
- * Strikte Sanitization für nicht vertrauenswürdige Quellen
- * Nur einfache Textformatierung erlaubt
- */
-export function sanitizeStrictContent(dirtyHtml: string): string {
-  if (!dirtyHtml) return '';
-
-  const strictConfig: DOMPurify.Config = {
-    ALLOWED_TAGS: ['p', 'br', 'em', 'strong', 'u', 's', 'a', 'ul', 'ol', 'li', 'blockquote'],
-    ALLOWED_ATTR: ['href', 'target', 'rel', 'title'],
-    ALLOW_DATA_ATTR: false,
-    ALLOW_ARIA_ATTR: false,
-  };
-
-  return DOMPurify.sanitize(dirtyHtml, strictConfig);
-}
-
-/**
- * Entfernt allen HTML-Markup, gibt nur Text zurück
- */
-export function sanitizePlainText(dirtyHtml: string): string {
-  if (!dirtyHtml) return '';
-
-  return DOMPurify.sanitize(dirtyHtml, {
-    ALLOWED_TAGS: [],
-    ALLOWED_ATTR: [],
-  });
-}
-
-/**
- * Prüft ob Content HTML enthält und Sanitization benötigt
- */
-export function containsHtml(content: string): boolean {
-  return /<[^>]+>/g.test(content);
 }

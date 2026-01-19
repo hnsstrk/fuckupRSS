@@ -17,25 +17,6 @@ class NavigationStore {
     this.currentView = 'articles';
     this.pendingKeywordId = null;
   }
-
-  navigateToFnord(): void {
-    this.currentView = 'fnord';
-    this.pendingKeywordId = null;
-  }
-
-  toggleView(): void {
-    if (this.currentView === 'network') {
-      this.navigateToArticles();
-    } else {
-      this.navigateToNetwork();
-    }
-  }
-
-  consumePendingKeyword(): number | null {
-    const id = this.pendingKeywordId;
-    this.pendingKeywordId = null;
-    return id;
-  }
 }
 
 export const navigationStore = new NavigationStore();

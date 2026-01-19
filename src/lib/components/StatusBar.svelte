@@ -44,12 +44,6 @@
       const status = await invoke<{ queue_size: number; worker_running: boolean }>('get_embedding_queue_status');
       const stats = await invoke<{ total_keywords: number; total_connections: number }>('get_network_stats');
 
-      // Get embedding count
-      const keywords = await invoke<Array<{ id: number; embedding?: boolean }>>('get_keywords', {
-        limit: 1,
-        offset: 0
-      });
-
       keywordStats = {
         total: stats.total_keywords,
         with_embeddings: stats.total_keywords - status.queue_size,
