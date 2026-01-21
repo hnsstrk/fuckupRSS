@@ -1,8 +1,53 @@
 # News-specific Stopwords
-# These are generic journalistic terms - NOT media outlet names\!
-# Media outlets are valid KEYWORDS in keyword_seeds.rs
-# Last updated: 2025-01-17
-# Total: 83 unique words
+# Generic journalistic terms and news source names
+# News sources are filtered because they appear as keywords due to attribution,
+# not because they are actual topics of articles
+# Last updated: 2025-01-21
+# Total: ~110 unique words
+
+# ============================================================
+# NEWS SOURCES (appear in attribution, not as topics)
+# ============================================================
+# International
+bbc
+cnn
+reuters
+ap
+afp
+# German
+dpa
+ard
+zdf
+tagesschau
+spiegel
+zeit
+faz
+sz
+sueddeutsche
+welt
+bild
+focus
+stern
+tagesspiegel
+handelsblatt
+deutschlandfunk
+ntv
+n-tv
+# UK
+guardian
+telegraph
+# US
+nyt
+nytimes
+wapo
+washington post
+wsj
+fox
+msnbc
+npr
+# Other
+al jazeera
+rt
 
 abo
 abonnieren
