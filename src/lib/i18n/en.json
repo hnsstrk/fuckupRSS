@@ -402,7 +402,14 @@
       "compoundPreviewEmpty": "No keywords to split found",
       "compoundOriginal": "Original",
       "compoundComponents": "Will split into",
-      "compoundArticles": "Affected articles"
+      "compoundArticles": "Affected articles",
+      "loadCompounds": "Load keywords",
+      "selectAll": "Select all",
+      "splitSelected": "Split selected",
+      "noCompounds": "No compound keywords found",
+      "preserveKeyword": "Preserve",
+      "unpreserveKeyword": "Remove protection",
+      "preserved": "Protected"
     },
     "stopwords": {
       "title": "Stopwords",
@@ -751,7 +758,12 @@
     "splitCompoundsDesc": "Splits compound keywords like 'Ukraine-War' into their components.",
     "previewSplits": "Preview",
     "noCompounds": "No compound keywords found",
-    "executeSplit": "Split All"
+    "executeSplit": "Split All",
+    "loadCompounds": "Load keywords",
+    "selectAll": "Select all",
+    "splitSelectedCompounds": "Split selected",
+    "preserveCompound": "Preserve",
+    "unpreserveCompound": "Remove protection"
   },
   "mindfuck": {
     "title": "Operation Mindfuck",

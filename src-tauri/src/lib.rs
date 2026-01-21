@@ -227,6 +227,10 @@ pub fn run() {
             // Compound Keyword Splitting
             commands::immanentize::split_compound_keywords,
             commands::immanentize::preview_compound_splits,
+            commands::immanentize::split_single_compound,
+            commands::immanentize::preserve_compound_keyword,
+            commands::immanentize::unpreserve_compound_keyword,
+            commands::immanentize::get_preserved_compounds,
             // Embedding Queue
             commands::embedding::get_embedding_queue_status,
             commands::embedding::process_embedding_queue_now,

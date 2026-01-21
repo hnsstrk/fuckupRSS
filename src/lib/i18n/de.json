@@ -402,7 +402,14 @@
       "compoundPreviewEmpty": "Keine Keywords zum Aufteilen gefunden",
       "compoundOriginal": "Original",
       "compoundComponents": "Wird aufgeteilt in",
-      "compoundArticles": "Betroffene Artikel"
+      "compoundArticles": "Betroffene Artikel",
+      "loadCompounds": "Keywords laden",
+      "selectAll": "Alle auswaehlen",
+      "splitSelected": "Ausgewaehlte aufteilen",
+      "noCompounds": "Keine Compound-Keywords gefunden",
+      "preserveKeyword": "Erhalten",
+      "unpreserveKeyword": "Schutz aufheben",
+      "preserved": "Geschuetzt"
     },
     "stopwords": {
       "title": "Stopwörter",
@@ -751,7 +758,12 @@
     "splitCompoundsDesc": "Teilt zusammengesetzte Keywords wie 'Ukraine-Krieg' in ihre Bestandteile auf.",
     "previewSplits": "Vorschau",
     "noCompounds": "Keine Compound-Keywords gefunden",
-    "executeSplit": "Alle aufteilen"
+    "executeSplit": "Alle aufteilen",
+    "loadCompounds": "Keywords laden",
+    "selectAll": "Alle auswaehlen",
+    "splitSelectedCompounds": "Ausgewaehlte aufteilen",
+    "preserveCompound": "Erhalten",
+    "unpreserveCompound": "Schutz aufheben"
   },
   "mindfuck": {
     "title": "Operation Mindfuck",

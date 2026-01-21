@@ -2408,9 +2408,11 @@ pub struct CompoundSplitResult {
 /// Detail of a single compound split
 #[derive(Debug, Serialize, Clone)]
 pub struct CompoundSplitDetail {
+    pub id: i64,
     pub original: String,
     pub components: Vec<String>,
     pub articles_affected: i64,
+    pub is_preserved: bool,
 }
 
 /// Split all compound keywords in the database
@@ -2418,6 +2420,7 @@ pub struct CompoundSplitDetail {
 /// - Creates or finds component keywords
 /// - Transfers article associations to components
 /// - Deletes the original compound keyword
+/// - Excludes keywords that are in preserved_compounds table
 #[tauri::command]
 pub fn split_compound_keywords(
     state: State<AppState>,
@@ -2427,9 +2430,13 @@ pub fn split_compound_keywords(
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let conn = db.conn();
 
-    // Find all hyphenated keywords
+    // Find all hyphenated keywords that are NOT preserved
     let compounds: Vec<(i64, String)> = conn
-        .prepare("SELECT id, name FROM immanentize WHERE name LIKE '%-%' AND LENGTH(name) > 5")
+        .prepare(
+            "SELECT id, name FROM immanentize
+             WHERE name LIKE '%-%' AND LENGTH(name) > 5
+             AND id NOT IN (SELECT immanentize_id FROM preserved_compounds)"
+        )
         .map_err(|e| e.to_string())?
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
         .map_err(|e| e.to_string())?
@@ -2466,9 +2473,11 @@ pub fn split_compound_keywords(
 
         if dry_run {
             split_details.push(CompoundSplitDetail {
+                id: compound_id,
                 original: compound_name.clone(),
                 components: components.clone(),
                 articles_affected,
+                is_preserved: false,
             });
             compounds_split += 1;
             articles_transferred += articles_affected;
@@ -2599,9 +2608,11 @@ pub fn split_compound_keywords(
         conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
 
         split_details.push(CompoundSplitDetail {
+            id: compound_id,
             original: compound_name,
             components,
             articles_affected,
+            is_preserved: false,
         });
         compounds_split += 1;
         articles_transferred += articles_affected;
@@ -2622,8 +2633,341 @@ pub fn split_compound_keywords(
 }
 
 /// Preview which compound keywords would be split
+/// Returns all splittable compounds, including preserved ones (marked with is_preserved: true)
 #[tauri::command]
 pub fn preview_compound_splits(state: State<AppState>) -> Result<Vec<CompoundSplitDetail>, String> {
-    let result = split_compound_keywords(state, Some(true))?;
-    Ok(result.split_details)
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Load preserved compound IDs
+    let preserved_ids: std::collections::HashSet<i64> = conn
+        .prepare("SELECT immanentize_id FROM preserved_compounds")
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Find all hyphenated keywords (including preserved ones for preview)
+    let compounds: Vec<(i64, String)> = conn
+        .prepare("SELECT id, name FROM immanentize WHERE name LIKE '%-%' AND LENGTH(name) > 5")
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut split_details: Vec<CompoundSplitDetail> = Vec::new();
+
+    for (compound_id, compound_name) in compounds {
+        // Check if this compound should be split
+        if !should_split_compound(&compound_name) {
+            continue;
+        }
+
+        let components = get_compound_components(&compound_name);
+        if components.is_empty() {
+            continue;
+        }
+
+        // Count article associations
+        let articles_affected: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM fnord_immanentize WHERE immanentize_id = ?",
+                [compound_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+
+        let is_preserved = preserved_ids.contains(&compound_id);
+
+        split_details.push(CompoundSplitDetail {
+            id: compound_id,
+            original: compound_name,
+            components,
+            articles_affected,
+            is_preserved,
+        });
+    }
+
+    Ok(split_details)
+}
+
+/// Split a single compound keyword by ID
+/// Returns the split detail if successful
+#[tauri::command]
+pub fn split_single_compound(
+    state: State<AppState>,
+    keyword_id: i64,
+) -> Result<CompoundSplitDetail, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Get the keyword
+    let keyword_name: String = conn
+        .query_row(
+            "SELECT name FROM immanentize WHERE id = ?",
+            [keyword_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| format!("Keyword mit ID {} nicht gefunden", keyword_id))?;
+
+    // Check if this keyword is preserved
+    let is_preserved: bool = conn
+        .query_row(
+            "SELECT 1 FROM preserved_compounds WHERE immanentize_id = ?",
+            [keyword_id],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+
+    if is_preserved {
+        return Err("Dieses Keyword ist geschuetzt und kann nicht gesplittet werden. Entfernen Sie zuerst den Schutz.".to_string());
+    }
+
+    // Check if this compound should be split
+    if !should_split_compound(&keyword_name) {
+        return Err(format!(
+            "Das Keyword '{}' kann nicht gesplittet werden (enthaelt kein Trennzeichen oder sollte nicht gesplittet werden)",
+            keyword_name
+        ));
+    }
+
+    let components = get_compound_components(&keyword_name);
+    if components.is_empty() {
+        return Err(format!(
+            "Das Keyword '{}' kann nicht in Komponenten zerlegt werden",
+            keyword_name
+        ));
+    }
+
+    // Get article associations for this compound
+    let article_ids: Vec<i64> = conn
+        .prepare("SELECT fnord_id FROM fnord_immanentize WHERE immanentize_id = ?")
+        .map_err(|e| e.to_string())?
+        .query_map([keyword_id], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let articles_affected = article_ids.len() as i64;
+
+    // Begin transaction
+    conn.execute("BEGIN", []).map_err(|e| e.to_string())?;
+
+    let mut component_ids: Vec<i64> = Vec::new();
+
+    // Create or find component keywords
+    for component in &components {
+        // Check if component already exists
+        let existing_id: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?)",
+                [component],
+                |row| row.get(0),
+            )
+            .ok();
+
+        let component_id = match existing_id {
+            Some(id) => id,
+            None => {
+                // Create new keyword
+                conn.execute(
+                    "INSERT INTO immanentize (name, count, article_count, is_canonical, keyword_type, first_seen, last_used, quality_score)
+                     VALUES (?, 0, 0, 1, 'concept', datetime('now'), datetime('now'), 0.5)",
+                    [component],
+                )
+                .map_err(|e| {
+                    let _ = conn.execute("ROLLBACK", []);
+                    e.to_string()
+                })?;
+                conn.last_insert_rowid()
+            }
+        };
+        component_ids.push(component_id);
+    }
+
+    // Transfer article associations to all components
+    for article_id in &article_ids {
+        for component_id in &component_ids {
+            // Check if association already exists
+            let exists: bool = conn
+                .query_row(
+                    "SELECT 1 FROM fnord_immanentize WHERE fnord_id = ? AND immanentize_id = ?",
+                    params![article_id, component_id],
+                    |_| Ok(true),
+                )
+                .unwrap_or(false);
+
+            if !exists {
+                // Get relevance from original association
+                let relevance: f64 = conn
+                    .query_row(
+                        "SELECT relevance FROM fnord_immanentize WHERE fnord_id = ? AND immanentize_id = ?",
+                        params![article_id, keyword_id],
+                        |row| row.get(0),
+                    )
+                    .unwrap_or(0.5);
+
+                conn.execute(
+                    "INSERT INTO fnord_immanentize (fnord_id, immanentize_id, relevance) VALUES (?, ?, ?)",
+                    params![article_id, component_id, relevance],
+                )
+                .map_err(|e| {
+                    let _ = conn.execute("ROLLBACK", []);
+                    e.to_string()
+                })?;
+            }
+        }
+    }
+
+    // Update article counts for components
+    for component_id in &component_ids {
+        conn.execute(
+            "UPDATE immanentize SET article_count = (
+                SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?
+            ) WHERE id = ?",
+            params![component_id, component_id],
+        )
+        .map_err(|e| {
+            let _ = conn.execute("ROLLBACK", []);
+            e.to_string()
+        })?;
+    }
+
+    // Delete the compound keyword's associations and the keyword itself
+    conn.execute(
+        "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
+        [keyword_id],
+    )
+    .map_err(|e| {
+        let _ = conn.execute("ROLLBACK", []);
+        e.to_string()
+    })?;
+
+    conn.execute(
+        "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
+        params![keyword_id, keyword_id],
+    )
+    .map_err(|e| {
+        let _ = conn.execute("ROLLBACK", []);
+        e.to_string()
+    })?;
+
+    conn.execute(
+        "DELETE FROM embedding_queue WHERE immanentize_id = ?",
+        [keyword_id],
+    )
+    .ok();
+
+    conn.execute(
+        "DELETE FROM dismissed_synonyms WHERE keyword_a_id = ? OR keyword_b_id = ?",
+        params![keyword_id, keyword_id],
+    )
+    .ok();
+
+    conn.execute(
+        "DELETE FROM vec_immanentize WHERE immanentize_id = ?",
+        [keyword_id],
+    )
+    .ok();
+
+    conn.execute("DELETE FROM immanentize WHERE id = ?", [keyword_id])
+        .map_err(|e| {
+            let _ = conn.execute("ROLLBACK", []);
+            e.to_string()
+        })?;
+
+    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+
+    info!(
+        "Split compound '{}' (ID {}) into {} components, {} articles transferred",
+        keyword_name, keyword_id, components.len(), articles_affected
+    );
+
+    Ok(CompoundSplitDetail {
+        id: keyword_id,
+        original: keyword_name,
+        components,
+        articles_affected,
+        is_preserved: false,
+    })
+}
+
+/// Mark a compound keyword as preserved (will not be split)
+#[tauri::command]
+pub fn preserve_compound_keyword(
+    state: State<AppState>,
+    keyword_id: i64,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Verify keyword exists
+    let exists: bool = conn
+        .query_row(
+            "SELECT 1 FROM immanentize WHERE id = ?",
+            [keyword_id],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+
+    if !exists {
+        return Err(format!("Keyword mit ID {} nicht gefunden", keyword_id));
+    }
+
+    // Insert into preserved_compounds (ignore if already exists)
+    conn.execute(
+        "INSERT OR IGNORE INTO preserved_compounds (immanentize_id) VALUES (?)",
+        [keyword_id],
+    )
+    .map_err(|e| format!("Fehler beim Schuetzen des Keywords: {}", e))?;
+
+    info!("Compound keyword {} marked as preserved", keyword_id);
+
+    Ok(())
+}
+
+/// Remove preservation from a compound keyword (allow splitting again)
+#[tauri::command]
+pub fn unpreserve_compound_keyword(
+    state: State<AppState>,
+    keyword_id: i64,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    conn.execute(
+        "DELETE FROM preserved_compounds WHERE immanentize_id = ?",
+        [keyword_id],
+    )
+    .map_err(|e| format!("Fehler beim Entfernen des Schutzes: {}", e))?;
+
+    info!("Compound keyword {} preservation removed", keyword_id);
+
+    Ok(())
+}
+
+/// Get all preserved compound keywords
+#[tauri::command]
+pub fn get_preserved_compounds(state: State<AppState>) -> Result<Vec<Keyword>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    let sql = format!(
+        "SELECT {} FROM immanentize i
+         INNER JOIN preserved_compounds pc ON pc.immanentize_id = i.id
+         ORDER BY i.article_count DESC, i.name",
+        KEYWORD_SELECT_COLUMNS
+    );
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+
+    let keywords = stmt
+        .query_map([], keyword_from_row)
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(keywords)
 }

@@ -124,7 +124,7 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
     if !has_source {
         conn.execute_batch(
             r#"
-            ALTER TABLE fnord_sephiroth ADD COLUMN source TEXT DEFAULT 'ai' CHECK(source IN ('ai', 'manual'));
+            ALTER TABLE fnord_sephiroth ADD COLUMN source TEXT DEFAULT 'ai' CHECK(source IN ('ai', 'statistical', 'manual'));
             ALTER TABLE fnord_sephiroth ADD COLUMN assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP;
             "#,
         )?;
@@ -137,6 +137,43 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         CREATE INDEX IF NOT EXISTS idx_fnord_sephiroth_source ON fnord_sephiroth(source);
         "#,
     )?;
+
+    // Migration: Add 'statistical' to fnord_sephiroth source CHECK constraint
+    // SQLite requires table recreation to modify CHECK constraints
+    let needs_statistical_source: bool = conn
+        .query_row(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='fnord_sephiroth'",
+            [],
+            |row| {
+                let sql: String = row.get(0)?;
+                // Check if 'statistical' is NOT in the CHECK constraint
+                Ok(!sql.contains("statistical"))
+            },
+        )
+        .unwrap_or(false);
+
+    if needs_statistical_source {
+        conn.execute_batch(
+            r#"
+            -- Recreate fnord_sephiroth with updated CHECK constraint
+            CREATE TABLE fnord_sephiroth_new (
+                fnord_id INTEGER NOT NULL,
+                sephiroth_id INTEGER NOT NULL,
+                confidence REAL DEFAULT 1.0,
+                source TEXT DEFAULT 'ai' CHECK(source IN ('ai', 'statistical', 'manual')),
+                assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (fnord_id, sephiroth_id),
+                FOREIGN KEY (fnord_id) REFERENCES fnords(id) ON DELETE CASCADE,
+                FOREIGN KEY (sephiroth_id) REFERENCES sephiroth(id) ON DELETE CASCADE
+            );
+            INSERT INTO fnord_sephiroth_new SELECT * FROM fnord_sephiroth;
+            DROP TABLE fnord_sephiroth;
+            ALTER TABLE fnord_sephiroth_new RENAME TO fnord_sephiroth;
+            CREATE INDEX IF NOT EXISTS idx_fnord_sephiroth_assigned ON fnord_sephiroth(assigned_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_fnord_sephiroth_source ON fnord_sephiroth(source);
+            "#,
+        )?;
+    }
 
     // Add confidence column to fnord_sephiroth if missing (for consistency with fnord_immanentize)
     let has_fs_confidence: bool = conn
@@ -865,6 +902,18 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 20: Create preserved_compounds table for compound keyword protection
+    // Keywords in this table will not be split by split_compound_keywords
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS preserved_compounds (
+            immanentize_id INTEGER PRIMARY KEY,
+            preserved_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (immanentize_id) REFERENCES immanentize(id) ON DELETE CASCADE
+        );
+        "#,
+    )?;
+
     Ok(())
 }
 
@@ -1093,7 +1142,7 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             fnord_id INTEGER NOT NULL,
             sephiroth_id INTEGER NOT NULL,
             confidence REAL DEFAULT 1.0,
-            source TEXT DEFAULT 'ai' CHECK(source IN ('ai', 'manual')),
+            source TEXT DEFAULT 'ai' CHECK(source IN ('ai', 'statistical', 'manual')),
             assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (fnord_id, sephiroth_id),
             FOREIGN KEY (fnord_id) REFERENCES fnords(id) ON DELETE CASCADE,
