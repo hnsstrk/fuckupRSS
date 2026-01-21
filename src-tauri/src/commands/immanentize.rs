@@ -6,6 +6,7 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use tauri::State;
+use regex::Regex;
 
 // ============================================================
 // IMMANENTIZE NETWORK API
@@ -3391,27 +3392,56 @@ pub(crate) fn extract_sentence_with_keyword(text: &str, keyword: &str) -> Option
     // Clean HTML tags from content
     let clean_text = strip_html_tags(text);
 
-    // Case-insensitive search for keyword
+    // Case-insensitive search for keyword (Linear search first for speed)
     let lower_text = clean_text.to_lowercase();
     let lower_keyword = keyword.to_lowercase();
 
-    // Find position of keyword
+    // 1. Try exact match first
     if let Some(pos) = lower_text.find(&lower_keyword) {
-        // Find sentence boundaries
-        let start = find_sentence_start(&clean_text, pos);
-        let end = find_sentence_end(&clean_text, pos + keyword.len());
+        return extract_sentence_at_pos(&clean_text, pos, keyword.len());
+    }
 
-        let sentence = clean_text[start..end].trim().to_string();
-
-        // Limit to ~200 characters, preserving word boundaries
-        if sentence.len() > 200 {
-            let truncated = truncate_at_word_boundary(&sentence, 200);
-            Some(format!("{}...", truncated))
-        } else {
-            Some(sentence)
+    // 2. Try fuzzy match (handling declensions/suffixes)
+    // "Vereinigte Staaten" should match "Vereinigten Staaten"
+    // We split by non-word chars to get tokens
+    let tokens: Vec<&str> = keyword.split(|c: char| !c.is_alphanumeric()).filter(|s| !s.is_empty()).collect();
+    
+    if !tokens.is_empty() {
+        // Build a regex pattern: token + [suffixes] + spaces + token ...
+        // matching the keyword parts but allowing for German declensions (en, es, er, etc.)
+        // e.g., "Vereinigte" -> "Vereinigte[a-zäöüß]*"
+        let pattern_str = tokens
+            .iter()
+            .map(|t| format!("{}[a-zäöüß]*", regex::escape(t)))
+            .collect::<Vec<_>>()
+            .join(r"[\s\-]+");
+            
+        // Word boundary start, case insensitive
+        let pattern = format!(r"(?i)\b{}", pattern_str);
+        
+        if let Ok(re) = Regex::new(&pattern) {
+            if let Some(mat) = re.find(&clean_text) {
+                return extract_sentence_at_pos(&clean_text, mat.start(), mat.end() - mat.start());
+            }
         }
+    }
+
+    None
+}
+
+fn extract_sentence_at_pos(text: &str, pos: usize, match_len: usize) -> Option<String> {
+    // Find sentence boundaries
+    let start = find_sentence_start(text, pos);
+    let end = find_sentence_end(text, pos + match_len);
+
+    let sentence = text[start..end].trim().to_string();
+
+    // Limit to ~200 characters, preserving word boundaries
+    if sentence.len() > 200 {
+        let truncated = truncate_at_word_boundary(&sentence, 200);
+        Some(format!("{}...", truncated))
     } else {
-        None
+        Some(sentence)
     }
 }
 
@@ -3591,4 +3621,49 @@ pub fn unassign_synonym(
     log::info!("Removed synonym assignment for keyword ID:{}", keyword_id);
 
     Ok(())
+}
+use super::*;
+
+#[test]
+fn test_exact_match() {
+    let text = "Hier sind die Vereinigte Staaten von Amerika.";
+    let kw = "Vereinigte Staaten";
+    let sent = extract_sentence_with_keyword(text, kw);
+    assert_eq!(sent, Some("Hier sind die Vereinigte Staaten von Amerika.".to_string()));
+}
+
+#[test]
+fn test_fuzzy_declension_match() {
+    let text = "Wir reisen in die Vereinigten Staaten bald.";
+    let kw = "Vereinigte Staaten";
+    // Should match "Vereinigten Staaten" because "Vereinigte" matches "Vereinigten" via regex "Vereinigte[...]*"
+    let sent = extract_sentence_with_keyword(text, kw);
+    assert_eq!(sent, Some("Wir reisen in die Vereinigten Staaten bald.".to_string()));
+}
+
+#[test]
+fn test_fuzzy_genitive_match() {
+    let text = "Der Präsident der Vereinigten Staaten sprach.";
+    let kw = "Vereinigte Staaten";
+    let sent = extract_sentence_with_keyword(text, kw);
+    assert_eq!(sent, Some("Der Präsident der Vereinigten Staaten sprach.".to_string()));
+}
+
+#[test]
+fn test_no_match() {
+    let text = "Hier ist nichts zu sehen.";
+    let kw = "Vereinigte Staaten";
+    let sent = extract_sentence_with_keyword(text, kw);
+    assert_eq!(sent, None);
+}
+
+#[test]
+fn test_hyphen_variation() {
+    // Keyword: "Trump-Zölle"
+    // Text: "Die neuen Trump Zölle sind da."
+    // Tokens: Trump, Zölle -> Trump...[\s\-]+Zölle...
+    let text = "Die neuen Trump Zölle sind hoch.";
+    let kw = "Trump-Zölle";
+    let sent = extract_sentence_with_keyword(text, kw);
+    assert_eq!(sent, Some("Die neuen Trump Zölle sind hoch.".to_string()));
 }
