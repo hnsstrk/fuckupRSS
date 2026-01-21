@@ -1,8 +1,10 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
+  import { invoke } from '@tauri-apps/api/core';
   import Tooltip from '../Tooltip.svelte';
   import KeywordTrendChart from '../KeywordTrendChart.svelte';
   import type { Keyword, KeywordNeighbor, KeywordCategory } from '../../types';
+  import { SvelteSet } from 'svelte/reactivity';
 
   // Get the main category ID (1-6) from a category or subcategory ID
   function getMainCategoryId(id: number | undefined): number {
@@ -71,6 +73,7 @@
     onCancelRename: () => void;
     onHandleRename: () => void;
     onRenameInputChange: (value: string) => void;
+    onSynonymAssigned?: () => void;
   }
 
   let {
@@ -97,7 +100,86 @@
     onCancelRename,
     onHandleRename,
     onRenameInputChange,
+    onSynonymAssigned,
   }: Props = $props();
+
+  // Synonym selection state
+  let selectedSynonymIds = new SvelteSet<number>();
+  let assigningSynonyms = $state(false);
+  let synonymError = $state<string | null>(null);
+  let synonymSuccess = $state<string | null>(null);
+  let synonymSectionOpen = $state(false);
+
+  // Reset selection when keyword changes
+  $effect(() => {
+    if (selectedKeyword) {
+      selectedSynonymIds.clear();
+      synonymError = null;
+      synonymSuccess = null;
+    }
+  });
+
+  // Clear success message after timeout
+  $effect(() => {
+    if (synonymSuccess) {
+      const timeout = setTimeout(() => {
+        synonymSuccess = null;
+      }, 3000);
+      return () => clearTimeout(timeout);
+    }
+  });
+
+  function toggleSynonymSelection(id: number) {
+    if (selectedSynonymIds.has(id)) {
+      selectedSynonymIds.delete(id);
+    } else {
+      selectedSynonymIds.add(id);
+    }
+  }
+
+  async function assignSelectedAsSynonyms() {
+    if (!selectedKeyword || selectedSynonymIds.size === 0) return;
+
+    assigningSynonyms = true;
+    synonymError = null;
+    synonymSuccess = null;
+
+    const canonicalId = selectedKeyword.id;
+    const idsToAssign = Array.from(selectedSynonymIds);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const synonymId of idsToAssign) {
+      try {
+        await invoke('assign_synonym', {
+          synonymId,
+          canonicalId
+        });
+        successCount++;
+        selectedSynonymIds.delete(synonymId);
+      } catch (e) {
+        console.error(`Failed to assign synonym ${synonymId}:`, e);
+        errorCount++;
+      }
+    }
+
+    assigningSynonyms = false;
+
+    if (errorCount > 0) {
+      synonymSuccess = $_('network.synonymAssignedPartial', {
+        values: { success: successCount, failed: errorCount }
+      }) || `${successCount} assigned, ${errorCount} failed`;
+    } else {
+      synonymSuccess = $_('network.synonymAssigned', {
+        values: { count: successCount }
+      }) || `${successCount} keyword(s) assigned as synonyms`;
+    }
+
+    // Notify parent to reload data
+    if (onSynonymAssigned) {
+      onSynonymAssigned();
+    }
+  }
 
   function formatDate(dateStr: string | null): string {
     if (!dateStr) return '-';
@@ -262,6 +344,79 @@
           <span class="meta-value">{formatDate(selectedKeyword.last_used)}</span>
         </span>
       </div>
+
+      <!-- Synonyms Section (collapsible) -->
+      {#if similarKeywords.length > 0}
+        <details class="synonyms-section" bind:open={synonymSectionOpen}>
+          <summary class="synonyms-summary">
+            <i class="fa-solid fa-link summary-icon"></i>
+            <span>{$_('network.synonyms') || 'Synonyme'}</span>
+            <span class="synonym-count">({similarKeywords.length})</span>
+            <i class="fa-solid fa-chevron-down chevron-icon" class:open={synonymSectionOpen}></i>
+          </summary>
+          <div class="synonyms-content">
+            <p class="synonyms-help">
+              {$_('network.synonymsHelp') || 'Waehle aehnliche Keywords aus, um sie als Synonyme zuzuordnen. Diese werden dann unter dem kanonischen Keyword zusammengefasst.'}
+            </p>
+
+            {#if synonymError}
+              <div class="synonym-message error">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                {synonymError}
+              </div>
+            {/if}
+
+            {#if synonymSuccess}
+              <div class="synonym-message success">
+                <i class="fa-solid fa-check-circle"></i>
+                {synonymSuccess}
+              </div>
+            {/if}
+
+            <div class="synonyms-list">
+              {#each similarKeywords as simKw (simKw.id)}
+                {@const similarityPercent = Math.round(simKw.similarity * 100)}
+                {@const isSelected = selectedSynonymIds.has(simKw.id)}
+                <label class="synonym-item" class:selected={isSelected}>
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onchange={() => toggleSynonymSelection(simKw.id)}
+                    disabled={assigningSynonyms}
+                  />
+                  <span class="synonym-name">{simKw.name}</span>
+                  <span class="synonym-similarity">{similarityPercent}%</span>
+                  <button
+                    class="synonym-view-btn"
+                    onclick={(e) => { e.preventDefault(); e.stopPropagation(); onKeywordSelect(simKw.id); }}
+                    title={$_('network.showInNetwork') || 'Im Netzwerk anzeigen'}
+                  >
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                  </button>
+                </label>
+              {/each}
+            </div>
+
+            <div class="synonyms-actions">
+              <button
+                class="btn-assign-synonyms"
+                onclick={assignSelectedAsSynonyms}
+                disabled={selectedSynonymIds.size === 0 || assigningSynonyms}
+              >
+                {#if assigningSynonyms}
+                  <i class="fa-solid fa-spinner fa-spin"></i>
+                {:else}
+                  <i class="fa-solid fa-link"></i>
+                {/if}
+                {$_('network.assignAsSynonyms') || 'Als Synonyme zuordnen'}
+                {#if selectedSynonymIds.size > 0}
+                  ({selectedSynonymIds.size})
+                {/if}
+              </button>
+            </div>
+          </div>
+        </details>
+      {/if}
 
       <!-- Categories grouped by main category -->
       {#if groupedCategories.length > 0}
@@ -1067,5 +1222,200 @@
     font-size: 0.875rem;
     background-color: var(--bg-surface);
     border-radius: 0.375rem;
+  }
+
+  /* Synonyms Section */
+  .synonyms-section {
+    margin-bottom: 1.5rem;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  .synonyms-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s;
+    list-style: none;
+  }
+
+  .synonyms-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .synonyms-summary:hover {
+    background-color: var(--bg-overlay);
+  }
+
+  .summary-icon {
+    color: var(--accent-primary);
+    font-size: 0.875rem;
+  }
+
+  .synonyms-summary span {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .synonym-count {
+    font-weight: 400;
+    color: var(--text-muted);
+  }
+
+  .chevron-icon {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+  }
+
+  .chevron-icon.open {
+    transform: rotate(180deg);
+  }
+
+  .synonyms-content {
+    padding: 1rem;
+    border-top: 1px solid var(--border-muted);
+  }
+
+  .synonyms-help {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin: 0 0 0.75rem 0;
+    line-height: 1.4;
+  }
+
+  .synonym-message {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.8125rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .synonym-message.error {
+    background-color: rgba(243, 139, 168, 0.15);
+    border: 1px solid var(--status-error);
+    color: var(--status-error);
+  }
+
+  .synonym-message.success {
+    background-color: rgba(166, 227, 161, 0.15);
+    border: 1px solid var(--status-success);
+    color: var(--status-success);
+  }
+
+  .synonyms-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .synonym-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--bg-overlay);
+    border: 1px solid var(--border-muted);
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .synonym-item:hover {
+    border-color: var(--accent-primary);
+  }
+
+  .synonym-item.selected {
+    background-color: rgba(137, 180, 250, 0.1);
+    border-color: var(--accent-primary);
+  }
+
+  .synonym-item input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+    accent-color: var(--accent-primary);
+  }
+
+  .synonym-name {
+    flex: 1;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .synonym-similarity {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--accent-success);
+    padding: 0.125rem 0.375rem;
+    background-color: rgba(166, 227, 161, 0.15);
+    border-radius: 0.25rem;
+  }
+
+  .synonym-view-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: none;
+    border-radius: 0.25rem;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .synonym-view-btn:hover {
+    color: var(--accent-primary);
+    background-color: var(--bg-surface);
+  }
+
+  .synonym-view-btn i {
+    font-size: 0.6875rem;
+  }
+
+  .synonyms-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .btn-assign-synonyms {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.375rem;
+    background-color: var(--accent-primary);
+    color: white;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-assign-synonyms:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+
+  .btn-assign-synonyms:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

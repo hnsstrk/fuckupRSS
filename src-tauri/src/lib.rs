@@ -239,6 +239,11 @@ pub fn run() {
             commands::immanentize::get_compound_decision_stats,
             // Single Keyword Type Update
             commands::immanentize::update_keyword_type,
+            // Keyword Context (for Tooltips)
+            commands::immanentize::get_keyword_context,
+            // Synonym Assignment
+            commands::immanentize::assign_synonym,
+            commands::immanentize::unassign_synonym,
             // Embedding Queue
             commands::embedding::get_embedding_queue_status,
             commands::embedding::process_embedding_queue_now,

@@ -766,7 +766,13 @@
     "selectAll": "Alle auswaehlen",
     "splitSelectedCompounds": "Ausgewaehlte aufteilen",
     "preserveCompound": "Erhalten",
-    "unpreserveCompound": "Schutz aufheben"
+    "unpreserveCompound": "Schutz aufheben",
+    "synonyms": "Synonyme",
+    "synonymsHelp": "Waehle aehnliche Keywords aus, um sie als Synonyme zuzuordnen. Diese werden dann unter dem kanonischen Keyword zusammengefasst.",
+    "assignAsSynonyms": "Als Synonyme zuordnen",
+    "synonymAssigned": "{count} Keyword(s) als Synonyme zugeordnet",
+    "synonymAssignedPartial": "{success} zugeordnet, {failed} fehlgeschlagen",
+    "showInNetwork": "Im Netzwerk anzeigen"
   },
   "mindfuck": {
     "title": "Operation Mindfuck",
@@ -994,9 +1000,17 @@
     "alreadySplit": "Bereits aufgeteilt",
     "splitBatch": "{count} Keywords aufgeteilt",
     "splitBatchPartial": "{success} aufgeteilt, {failed} fehlgeschlagen",
+    "preserveSelected": "Ausgewaehlte erhalten",
+    "preserveSelectedTitle": "Ausgewaehlte Keywords erhalten (als Einheit behalten)",
+    "splitSelectedTitle": "Ausgewaehlte Keywords in Bestandteile aufteilen",
+    "preserveBatch": "{count} Keywords erhalten",
+    "preserveBatchPartial": "{success} erhalten, {failed} fehlgeschlagen",
     "pageInfo": "Seite {current} von {total}",
     "items": "Eintraege",
     "filtered": "gefiltert",
-    "typeUpdated": "Typ auf \"{type}\" geaendert"
+    "typeUpdated": "Typ auf \"{type}\" geaendert",
+    "noContextAvailable": "Kein Kontext verfuegbar",
+    "contextLoadError": "Kontext konnte nicht geladen werden",
+    "clickToOpenNetwork": "Klicken um im Netzwerk zu oeffnen"
   }
 }

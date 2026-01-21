@@ -3,6 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
+  import KeywordContextTooltip from './KeywordContextTooltip.svelte';
 
   // Type for compound preview item
   interface CompoundItem {
@@ -55,6 +56,7 @@
   let error = $state<string | null>(null);
   let successMessage = $state<string | null>(null);
   let splitting = $state(false);
+  let preserving = $state(false);
 
   // Selection
   let selectedIds = new SvelteSet<number>();
@@ -342,6 +344,64 @@
     if (loadKeywords) await loadKeywords();
   }
 
+  // Action: Preserve selected keywords (batch)
+  async function preserveSelected() {
+    if (selectedIds.size === 0) return;
+
+    preserving = true;
+    error = null;
+    successMessage = null;
+
+    const idsToPreserve = Array.from(selectedIds);
+    let preserveSuccessCount = 0;
+    let preserveErrorCount = 0;
+
+    try {
+      // Use batch command if available
+      await invoke("batch_set_compound_decisions", {
+        keywordIds: idsToPreserve,
+        decision: 'preserve'
+      });
+
+      // Update in list
+      for (const id of idsToPreserve) {
+        compoundList = compoundList.map(c =>
+          c.id === id ? { ...c, is_preserved: true } : c
+        );
+        selectedIds.delete(id);
+        preserveSuccessCount++;
+      }
+    } catch (e) {
+      // Fallback to individual calls if batch not available
+      for (const id of idsToPreserve) {
+        try {
+          await invoke("preserve_compound_keyword", { keywordId: id });
+          compoundList = compoundList.map(c =>
+            c.id === id ? { ...c, is_preserved: true } : c
+          );
+          selectedIds.delete(id);
+          preserveSuccessCount++;
+        } catch (innerError) {
+          console.error(`Failed to preserve ${id}:`, innerError);
+          preserveErrorCount++;
+        }
+      }
+    }
+
+    selectAll = false;
+    preserving = false;
+
+    if (preserveErrorCount > 0) {
+      successMessage = $_('compound.preserveBatchPartial', {
+        values: { success: preserveSuccessCount, failed: preserveErrorCount }
+      }) || `${preserveSuccessCount} preserved, ${preserveErrorCount} failed`;
+    } else {
+      successMessage = $_('compound.preserveBatch', {
+        values: { count: preserveSuccessCount }
+      }) || `${preserveSuccessCount} keywords preserved`;
+    }
+  }
+
   // Tab change handler
   function setActiveFilter(filter: FilterTab) {
     activeFilter = filter;
@@ -386,6 +446,13 @@
       selectedIds.clear();
       selectAll = false;
     }
+  }
+
+  // Navigate to KeywordNetwork for this keyword
+  function navigateToKeyword(keywordId: number) {
+    window.dispatchEvent(new CustomEvent('navigate-to-network', {
+      detail: { keywordId }
+    }));
   }
 
   // Clear messages after timeout
@@ -511,9 +578,24 @@
         </span>
         <button
           type="button"
+          class="btn-batch-preserve"
+          onclick={preserveSelected}
+          disabled={selectedCount === 0 || preserving || splitting}
+          title={$_('compound.preserveSelectedTitle') || 'Preserve selected keywords (keep as-is)'}
+        >
+          {#if preserving}
+            <i class="fa-solid fa-spinner fa-spin"></i>
+          {:else}
+            <i class="fa-solid fa-shield"></i>
+          {/if}
+          {$_('compound.preserveSelected') || 'Preserve Selected'}
+        </button>
+        <button
+          type="button"
           class="btn-batch-split"
           onclick={splitSelected}
-          disabled={selectedCount === 0 || splitting}
+          disabled={selectedCount === 0 || splitting || preserving}
+          title={$_('compound.splitSelectedTitle') || 'Split selected keywords into components'}
         >
           {#if splitting}
             <i class="fa-solid fa-spinner fa-spin"></i>
@@ -606,7 +688,13 @@
                 </td>
               {/if}
               <td class="original-col">
-                <span class="original-name">{item.original}</span>
+                <KeywordContextTooltip
+                  keywordId={item.id}
+                  keywordName={item.original}
+                  onclick={() => navigateToKeyword(item.id)}
+                >
+                  <span class="original-name clickable">{item.original}</span>
+                </KeywordContextTooltip>
                 {#if item.is_preserved}
                   <span class="status-badge preserved" title={$_('compound.statusPreserved') || 'Preserved'}>
                     <i class="fa-solid fa-shield-check"></i>
@@ -982,6 +1070,30 @@
     color: var(--text-muted);
   }
 
+  .btn-batch-preserve {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.375rem;
+    background-color: var(--status-success);
+    color: white;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-batch-preserve:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+
+  .btn-batch-preserve:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .btn-batch-split {
     display: flex;
     align-items: center;
@@ -1122,6 +1234,16 @@
 
   .original-name {
     font-weight: 500;
+  }
+
+  .original-name.clickable {
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+
+  .original-name.clickable:hover {
+    color: var(--accent-primary);
+    text-decoration: underline;
   }
 
   .status-badge {

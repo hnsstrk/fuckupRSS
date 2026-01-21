@@ -766,7 +766,13 @@
     "selectAll": "Select all",
     "splitSelectedCompounds": "Split selected",
     "preserveCompound": "Preserve",
-    "unpreserveCompound": "Remove protection"
+    "unpreserveCompound": "Remove protection",
+    "synonyms": "Synonyms",
+    "synonymsHelp": "Select similar keywords to assign them as synonyms. They will then be grouped under the canonical keyword.",
+    "assignAsSynonyms": "Assign as Synonyms",
+    "synonymAssigned": "{count} keyword(s) assigned as synonyms",
+    "synonymAssignedPartial": "{success} assigned, {failed} failed",
+    "showInNetwork": "Show in Network"
   },
   "mindfuck": {
     "title": "Operation Mindfuck",
@@ -994,9 +1000,17 @@
     "alreadySplit": "Already split",
     "splitBatch": "{count} keywords split",
     "splitBatchPartial": "{success} split, {failed} failed",
+    "preserveSelected": "Preserve Selected",
+    "preserveSelectedTitle": "Preserve selected keywords (keep as-is)",
+    "splitSelectedTitle": "Split selected keywords into components",
+    "preserveBatch": "{count} keywords preserved",
+    "preserveBatchPartial": "{success} preserved, {failed} failed",
     "pageInfo": "Page {current} of {total}",
     "items": "items",
     "filtered": "filtered",
-    "typeUpdated": "Type changed to \"{type}\""
+    "typeUpdated": "Type changed to \"{type}\"",
+    "noContextAvailable": "No context available",
+    "contextLoadError": "Failed to load context",
+    "clickToOpenNetwork": "Click to open in Network"
   }
 }

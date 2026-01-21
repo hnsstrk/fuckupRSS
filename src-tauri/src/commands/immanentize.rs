@@ -3318,3 +3318,277 @@ pub fn update_keyword_type(
 
     Ok(())
 }
+
+// ============================================================
+// KEYWORD CONTEXT (for Tooltips)
+// ============================================================
+
+/// Context information for a keyword (for tooltips)
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KeywordContext {
+    pub sentence: Option<String>,       // Sentence containing the keyword
+    pub article_title: Option<String>,  // Title of the most recent article
+    pub article_date: Option<String>,   // Publication date
+}
+
+/// Get the context of a keyword (sentence from most recent article)
+#[tauri::command]
+pub fn get_keyword_context(
+    state: State<AppState>,
+    keyword_id: i64,
+) -> Result<KeywordContext, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Get keyword name
+    let keyword_name: String = conn
+        .query_row(
+            "SELECT name FROM immanentize WHERE id = ?",
+            [keyword_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Keyword not found: {}", e))?;
+
+    // Find the most recent article with this keyword
+    let article_data: Option<(String, String, Option<String>, Option<String>)> = conn
+        .query_row(
+            r#"SELECT f.title, COALESCE(f.published, f.created_at),
+                      f.content_full, f.content_raw
+               FROM fnords f
+               JOIN fnord_immanentize fi ON f.id = fi.fnord_id
+               WHERE fi.immanentize_id = ?
+               ORDER BY f.published DESC, f.created_at DESC
+               LIMIT 1"#,
+            [keyword_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .ok();
+
+    if let Some((title, date, content_full, content_raw)) = article_data {
+        // Use content_full if available, otherwise content_raw
+        let content = content_full.or(content_raw);
+
+        // Extract sentence containing the keyword
+        let sentence = content.and_then(|c| extract_sentence_with_keyword(&c, &keyword_name));
+
+        Ok(KeywordContext {
+            sentence,
+            article_title: Some(title),
+            article_date: Some(date),
+        })
+    } else {
+        // No article found with this keyword
+        Ok(KeywordContext {
+            sentence: None,
+            article_title: None,
+            article_date: None,
+        })
+    }
+}
+
+/// Extract a sentence containing the keyword from text
+fn extract_sentence_with_keyword(text: &str, keyword: &str) -> Option<String> {
+    // Clean HTML tags from content
+    let clean_text = strip_html_tags(text);
+
+    // Case-insensitive search for keyword
+    let lower_text = clean_text.to_lowercase();
+    let lower_keyword = keyword.to_lowercase();
+
+    // Find position of keyword
+    if let Some(pos) = lower_text.find(&lower_keyword) {
+        // Find sentence boundaries
+        let start = find_sentence_start(&clean_text, pos);
+        let end = find_sentence_end(&clean_text, pos + keyword.len());
+
+        let sentence = clean_text[start..end].trim().to_string();
+
+        // Limit to ~200 characters, preserving word boundaries
+        if sentence.len() > 200 {
+            let truncated = truncate_at_word_boundary(&sentence, 200);
+            Some(format!("{}...", truncated))
+        } else {
+            Some(sentence)
+        }
+    } else {
+        None
+    }
+}
+
+/// Strip HTML tags from text
+fn strip_html_tags(html: &str) -> String {
+    let mut result = String::new();
+    let mut in_tag = false;
+
+    for c in html.chars() {
+        if c == '<' {
+            in_tag = true;
+        } else if c == '>' {
+            in_tag = false;
+        } else if !in_tag {
+            result.push(c);
+        }
+    }
+
+    // Normalize whitespace
+    result.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Find the start of the sentence containing the position
+fn find_sentence_start(text: &str, pos: usize) -> usize {
+    let sentence_enders = ['.', '!', '?', '\n'];
+    let bytes = text.as_bytes();
+
+    for i in (0..pos).rev() {
+        if sentence_enders.contains(&(bytes[i] as char)) {
+            // Skip whitespace after sentence ender
+            let next = i + 1;
+            if next < text.len() {
+                return text[next..].chars()
+                    .take_while(|c| c.is_whitespace())
+                    .count() + next;
+            }
+            return next;
+        }
+    }
+    0
+}
+
+/// Find the end of the sentence containing the position
+fn find_sentence_end(text: &str, pos: usize) -> usize {
+    let sentence_enders = ['.', '!', '?', '\n'];
+
+    for (i, c) in text[pos..].char_indices() {
+        if sentence_enders.contains(&c) {
+            return pos + i + 1;
+        }
+    }
+    text.len()
+}
+
+/// Truncate text at word boundary
+fn truncate_at_word_boundary(text: &str, max_len: usize) -> &str {
+    if text.len() <= max_len {
+        return text;
+    }
+
+    // Find last space before max_len
+    if let Some(last_space) = text[..max_len].rfind(' ') {
+        &text[..last_space]
+    } else {
+        &text[..max_len]
+    }
+}
+
+// ============================================================
+// SYNONYM ASSIGNMENT
+// ============================================================
+
+/// Assign a keyword as a synonym of another (canonical) keyword
+/// This sets canonical_id and is_canonical = false on the synonym
+#[tauri::command]
+pub fn assign_synonym(
+    state: State<AppState>,
+    synonym_id: i64,     // The keyword that becomes a synonym
+    canonical_id: i64,   // The main/canonical keyword
+) -> Result<(), String> {
+    if synonym_id == canonical_id {
+        return Err("Synonym und Canonical duerfen nicht gleich sein".to_string());
+    }
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Verify both keywords exist
+    let synonym_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM immanentize WHERE id = ?)",
+            [synonym_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let canonical_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM immanentize WHERE id = ?)",
+            [canonical_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    if !synonym_exists {
+        return Err(format!("Synonym-Keyword mit ID {} nicht gefunden", synonym_id));
+    }
+    if !canonical_exists {
+        return Err(format!("Canonical-Keyword mit ID {} nicht gefunden", canonical_id));
+    }
+
+    // Check if canonical is itself a synonym (prevent chains)
+    let canonical_has_parent: Option<i64> = conn
+        .query_row(
+            "SELECT canonical_id FROM immanentize WHERE id = ? AND canonical_id IS NOT NULL",
+            [canonical_id],
+            |row| row.get(0),
+        )
+        .ok();
+
+    if canonical_has_parent.is_some() {
+        return Err("Canonical-Keyword ist selbst ein Synonym. Synonym-Ketten sind nicht erlaubt.".to_string());
+    }
+
+    // Update the synonym keyword
+    conn.execute(
+        "UPDATE immanentize SET canonical_id = ?, is_canonical = FALSE WHERE id = ?",
+        params![canonical_id, synonym_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Get names for logging
+    let synonym_name: String = conn
+        .query_row("SELECT name FROM immanentize WHERE id = ?", [synonym_id], |row| row.get(0))
+        .unwrap_or_else(|_| format!("ID:{}", synonym_id));
+    let canonical_name: String = conn
+        .query_row("SELECT name FROM immanentize WHERE id = ?", [canonical_id], |row| row.get(0))
+        .unwrap_or_else(|_| format!("ID:{}", canonical_id));
+
+    log::info!(
+        "Assigned '{}' (ID:{}) as synonym of '{}' (ID:{})",
+        synonym_name, synonym_id, canonical_name, canonical_id
+    );
+
+    Ok(())
+}
+
+/// Remove synonym assignment (make keyword independent again)
+#[tauri::command]
+pub fn unassign_synonym(
+    state: State<AppState>,
+    keyword_id: i64,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Verify keyword exists
+    let exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM immanentize WHERE id = ?)",
+            [keyword_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    if !exists {
+        return Err(format!("Keyword mit ID {} nicht gefunden", keyword_id));
+    }
+
+    // Remove synonym assignment
+    conn.execute(
+        "UPDATE immanentize SET canonical_id = NULL, is_canonical = TRUE WHERE id = ?",
+        [keyword_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    log::info!("Removed synonym assignment for keyword ID:{}", keyword_id);
+
+    Ok(())
+}
