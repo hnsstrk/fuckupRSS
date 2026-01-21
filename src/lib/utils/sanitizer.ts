@@ -38,6 +38,8 @@ const ARTICLE_CONFIG: DOMPurify.Config = {
     'details', 'summary',
     // Time
     'time',
+    // Media Embeds
+    'iframe', 'video', 'source', 'embed', 'object',
   ],
   ALLOWED_ATTR: [
     // Bild-Attribute
@@ -56,6 +58,14 @@ const ARTICLE_CONFIG: DOMPurify.Config = {
     'datetime',
     // Details
     'open',
+    // Iframe Attributes
+    'allow', 'allowfullscreen', 'frameborder', 'scrolling', 'sandbox',
+    // Video Attributes
+    'controls', 'poster', 'loop', 'muted', 'autoplay', 'playsinline', 'preload',
+    // Object/Embed Attributes
+    'type', 'data',
+    // Lazy-loading for iframes
+    'loading',
   ],
   ALLOW_DATA_ATTR: true,
   ALLOW_ARIA_ATTR: true,
@@ -71,7 +81,7 @@ const ARTICLE_CONFIG: DOMPurify.Config = {
  * - Iframes
  * - Scripts
  */
-const FORBID_TAGS = ['svg', 'iframe', 'script', 'style', 'noscript', 'canvas', 'video', 'audio', 'object', 'embed'];
+const FORBID_TAGS = ['svg', 'script', 'style', 'noscript', 'canvas', 'audio'];
 
 /**
  * Hook um problematische Inhalte vor der Sanitization zu bereinigen
