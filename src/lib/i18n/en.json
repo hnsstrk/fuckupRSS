@@ -384,7 +384,25 @@
         "expandFeedList": "Show feed list",
         "collapseFeedList": "Hide feed list",
         "articles": "articles"
-      }
+      },
+      "fixCategories": "Fix Categories",
+      "fixCategoriesDesc": "Derives categories from keyword network (weighted by specificity and frequency)",
+      "fixCategoriesResult": "{fixed} categories fixed in {categories} articles",
+      "fixCategoriesNone": "No corrections needed",
+      "compoundKeywords": "Compound Keywords",
+      "splitCompounds": "Split Compound Keywords",
+      "splitCompoundsDesc": "Splits keywords like 'Ukraine-War' into separate keywords 'Ukraine' and 'War'. German states, sports terms, and proper nouns are preserved.",
+      "splitCompoundsPreview": "Show Preview",
+      "splitCompoundsExecute": "Execute Split",
+      "splitCompoundsRunning": "Splitting keywords...",
+      "splitCompoundsResult": "{split} of {found} keywords split, {created} new created",
+      "splitCompoundsNone": "No keywords to split found",
+      "confirmSplitCompounds": "Really split {count} compound keywords? The originals will be deleted.",
+      "compoundPreviewTitle": "Compound Keywords Preview",
+      "compoundPreviewEmpty": "No keywords to split found",
+      "compoundOriginal": "Original",
+      "compoundComponents": "Will split into",
+      "compoundArticles": "Affected articles"
     },
     "stopwords": {
       "title": "Stopwords",
@@ -728,7 +746,12 @@
       "organization": "Organization",
       "location": "Location",
       "acronym": "Acronym"
-    }
+    },
+    "splitCompounds": "Split Compound Keywords",
+    "splitCompoundsDesc": "Splits compound keywords like 'Ukraine-War' into their components.",
+    "previewSplits": "Preview",
+    "noCompounds": "No compound keywords found",
+    "executeSplit": "Split All"
   },
   "mindfuck": {
     "title": "Operation Mindfuck",

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
+  import { invoke } from '@tauri-apps/api/core';
   import type { Keyword } from '../../types';
 
   // Type for synonym candidate
@@ -9,6 +10,13 @@
     keyword_b_id: number;
     keyword_b_name: string;
     similarity: number;
+  }
+
+  // Type for compound preview
+  interface CompoundPreviewItem {
+    original: string;
+    components: string[];
+    articles_affected: number;
   }
 
   // Props
@@ -42,6 +50,7 @@
     onExecuteManualMerge: () => void;
     onNewKeywordInput: (value: string) => void;
     onCreateNewKeyword: () => void;
+    loadKeywords?: () => Promise<void>;
   }
 
   let {
@@ -71,12 +80,45 @@
     onExecuteManualMerge,
     onNewKeywordInput,
     onCreateNewKeyword,
+    loadKeywords,
   }: Props = $props();
+
+  // Compound keyword splitting state
+  let compoundPreview = $state<CompoundPreviewItem[] | null>(null);
+  let loadingCompounds = $state(false);
+  let splittingCompounds = $state(false);
 
   function handleNewKeywordKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
       e.preventDefault();
       onCreateNewKeyword();
+    }
+  }
+
+  async function loadCompoundPreview() {
+    loadingCompounds = true;
+    try {
+      compoundPreview = await invoke<CompoundPreviewItem[]>("preview_compound_splits");
+    } catch (e) {
+      console.error("Failed to load compound preview:", e);
+    } finally {
+      loadingCompounds = false;
+    }
+  }
+
+  async function executeCompoundSplit() {
+    splittingCompounds = true;
+    try {
+      await invoke("split_compound_keywords", { dryRun: false });
+      compoundPreview = null;
+      // Reload keywords wenn vorhanden
+      if (loadKeywords) {
+        await loadKeywords();
+      }
+    } catch (e) {
+      console.error("Failed to split compounds:", e);
+    } finally {
+      splittingCompounds = false;
     }
   }
 </script>
@@ -314,6 +356,71 @@
         <div class="feedback-message success">{createKeywordSuccess}</div>
       {/if}
     </div>
+  </div>
+
+  <!-- Compound Keyword Splitting -->
+  <div class="synonyms-section full-width compound-section">
+    <h3 class="section-heading">
+      <i class="fa-solid fa-scissors"></i>
+      {$_("network.splitCompounds") ?? "Compound-Keywords aufteilen"}
+    </h3>
+    <p class="section-description">
+      {$_("network.splitCompoundsDesc") ?? "Teilt zusammengesetzte Keywords wie 'Ukraine-Krieg' in ihre Bestandteile auf."}
+    </p>
+
+    <div class="compound-actions">
+      <button
+        type="button"
+        class="action-btn primary"
+        onclick={loadCompoundPreview}
+        disabled={loadingCompounds || splittingCompounds}
+      >
+        {#if loadingCompounds}
+          <i class="fa-solid fa-spinner fa-spin"></i>
+        {:else}
+          <i class="fa-solid fa-eye"></i>
+        {/if}
+        {$_("network.previewSplits") ?? "Vorschau"}
+      </button>
+    </div>
+
+    {#if compoundPreview !== null}
+      <div class="compound-preview">
+        {#if compoundPreview.length === 0}
+          <p class="preview-empty">{$_("network.noCompounds") ?? "Keine Compound-Keywords gefunden"}</p>
+        {:else}
+          <div class="preview-header-row">
+            <span class="preview-count">{compoundPreview.length} Keywords</span>
+            <button
+              type="button"
+              class="action-btn danger"
+              onclick={executeCompoundSplit}
+              disabled={splittingCompounds}
+            >
+              {#if splittingCompounds}
+                <i class="fa-solid fa-spinner fa-spin"></i>
+              {:else}
+                <i class="fa-solid fa-scissors"></i>
+              {/if}
+              {$_("network.executeSplit") ?? "Alle aufteilen"}
+            </button>
+          </div>
+          <div class="preview-list">
+            {#each compoundPreview.slice(0, 30) as item (item.original)}
+              <div class="preview-item">
+                <span class="original">{item.original}</span>
+                <i class="fa-solid fa-arrow-right"></i>
+                <span class="components">{item.components.join(" + ")}</span>
+                <span class="article-count">({item.articles_affected})</span>
+              </div>
+            {/each}
+            {#if compoundPreview.length > 30}
+              <p class="more-items">... +{compoundPreview.length - 30} weitere</p>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -796,5 +903,92 @@
   .create-keyword-input:focus {
     outline: none;
     border-color: var(--accent-primary);
+  }
+
+  /* Compound Keyword Splitting */
+  .compound-section {
+    margin-top: 1rem;
+  }
+
+  .compound-section .section-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .compound-actions {
+    margin: 1rem 0;
+  }
+
+  .compound-preview {
+    margin-top: 1rem;
+    background: var(--bg-overlay);
+    border-radius: 0.375rem;
+    padding: 1rem;
+  }
+
+  .preview-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .preview-count {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .preview-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .preview-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    padding: 0.375rem 0.5rem;
+    background: var(--bg-surface);
+    border-radius: 0.25rem;
+  }
+
+  .preview-item .original {
+    color: var(--text-secondary);
+  }
+
+  .preview-item .fa-arrow-right {
+    color: var(--accent-primary);
+    font-size: 0.625rem;
+  }
+
+  .preview-item .components {
+    color: var(--accent-success);
+    font-weight: 500;
+  }
+
+  .preview-item .article-count {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  .preview-empty {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 1rem;
+    margin: 0;
+  }
+
+  .more-items {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    padding-top: 0.5rem;
+    margin: 0;
   }
 </style>

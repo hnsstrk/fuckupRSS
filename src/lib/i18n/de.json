@@ -384,7 +384,25 @@
         "expandFeedList": "Feed-Liste anzeigen",
         "collapseFeedList": "Feed-Liste ausblenden",
         "articles": "Artikel"
-      }
+      },
+      "fixCategories": "Kategorien korrigieren",
+      "fixCategoriesDesc": "Leitet Kategorien aus Keyword-Netzwerk ab (gewichtet nach Spezifität und Häufigkeit)",
+      "fixCategoriesResult": "{fixed} Kategorien bei {categories} korrigiert",
+      "fixCategoriesNone": "Keine Korrekturen notwendig",
+      "compoundKeywords": "Zusammengesetzte Keywords",
+      "splitCompounds": "Compound-Keywords aufteilen",
+      "splitCompoundsDesc": "Teilt Keywords wie 'Ukraine-Krieg' in separate Keywords 'Ukraine' und 'Krieg' auf. Bundeslaender, Sportbegriffe und Eigennamen werden nicht aufgeteilt.",
+      "splitCompoundsPreview": "Vorschau anzeigen",
+      "splitCompoundsExecute": "Aufteilen ausfuehren",
+      "splitCompoundsRunning": "Teile Keywords auf...",
+      "splitCompoundsResult": "{split} von {found} Keywords aufgeteilt, {created} neue erstellt",
+      "splitCompoundsNone": "Keine Keywords zum Aufteilen gefunden",
+      "confirmSplitCompounds": "Wirklich {count} Compound-Keywords aufteilen? Die Originale werden geloescht.",
+      "compoundPreviewTitle": "Compound-Keywords Vorschau",
+      "compoundPreviewEmpty": "Keine Keywords zum Aufteilen gefunden",
+      "compoundOriginal": "Original",
+      "compoundComponents": "Wird aufgeteilt in",
+      "compoundArticles": "Betroffene Artikel"
     },
     "stopwords": {
       "title": "Stopwörter",
@@ -728,7 +746,12 @@
       "organization": "Organisation",
       "location": "Ort",
       "acronym": "Akronym"
-    }
+    },
+    "splitCompounds": "Compound-Keywords aufteilen",
+    "splitCompoundsDesc": "Teilt zusammengesetzte Keywords wie 'Ukraine-Krieg' in ihre Bestandteile auf.",
+    "previewSplits": "Vorschau",
+    "noCompounds": "Keine Compound-Keywords gefunden",
+    "executeSplit": "Alle aufteilen"
   },
   "mindfuck": {
     "title": "Operation Mindfuck",

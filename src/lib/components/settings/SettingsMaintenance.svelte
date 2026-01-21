@@ -85,6 +85,10 @@
   let confirmDeleteNull = $state(false);
   let refetchingFeed = $state<number | null>(null);
 
+  // Compound keyword splitting state
+  let compoundPreview = $state<Array<{original: string, components: string[], articles_affected: number}> | null>(null);
+  let showCompoundPreview = $state(false);
+
   export async function init() {
     maintenanceResult = null;
     await Promise.all([loadKeywordStats(), loadPrototypeStatus()]);
@@ -569,6 +573,75 @@
   function cancelDeleteNullConfirmation() {
     confirmDeleteNull = false;
   }
+
+  // Category Fix handler
+  interface CategoryFixResult {
+    fixed_count: number;
+    categories_added: Record<string, number>;
+    total_scanned: number;
+  }
+
+  async function handleFixCategories() {
+    maintenanceRunning = "fixCategories";
+    maintenanceResult = null;
+    try {
+      const result = await invoke<CategoryFixResult>("fix_category_assignments");
+      if (result.fixed_count > 0) {
+        const categories = Object.keys(result.categories_added).length;
+        maintenanceResult = $_("settings.maintenance.fixCategoriesResult", {
+          values: {
+            fixed: result.fixed_count,
+            categories: categories,
+          },
+        });
+        // Refresh article data
+        await appState.loadFnords();
+      } else {
+        maintenanceResult = $_("settings.maintenance.fixCategoriesNone");
+      }
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    } finally {
+      maintenanceRunning = null;
+    }
+  }
+
+  // Compound keyword splitting handlers
+  async function loadCompoundPreview() {
+    maintenanceRunning = "compoundPreview";
+    try {
+      const result = await invoke<Array<{original: string, components: string[], articles_affected: number}>>("preview_compound_splits");
+      compoundPreview = result;
+      showCompoundPreview = true;
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    } finally {
+      maintenanceRunning = null;
+    }
+  }
+
+  async function executeCompoundSplit() {
+    showCompoundPreview = false;
+    maintenanceRunning = "compoundSplit";
+    maintenanceResult = null;
+    try {
+      const result = await invoke<{compounds_found: number, compounds_split: number, components_created: number}>("split_compound_keywords", { dryRun: false });
+      maintenanceResult = $_("settings.maintenance.splitCompoundsResult", {
+        values: { split: result.compounds_split, found: result.compounds_found, created: result.components_created }
+      });
+      compoundPreview = null;
+      // Refresh keyword stats
+      await loadKeywordStats();
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    } finally {
+      maintenanceRunning = null;
+    }
+  }
+
+  function closeCompoundPreview() {
+    showCompoundPreview = false;
+  }
 </script>
 
 <!-- Confirmation Dialog -->
@@ -719,6 +792,31 @@
 
   <div class="maintenance-action">
     <div class="action-info">
+      <span class="action-title">{$_("settings.maintenance.fixCategories")}</span>
+      <p class="action-desc">{$_("settings.maintenance.fixCategoriesDesc")}</p>
+    </div>
+    {#if maintenanceRunning !== "fixCategories"}
+      <button
+        type="button"
+        class="btn-action"
+        onclick={handleFixCategories}
+        disabled={maintenanceRunning !== null}
+      >
+        {$_("settings.maintenance.fixCategories")}
+      </button>
+    {/if}
+  </div>
+
+  {#if maintenanceRunning === "fixCategories"}
+    <MaintenanceProgress
+      mode="indeterminate"
+      label={$_("settings.maintenance.fixCategories")}
+      message={$_("settings.maintenance.running")}
+    />
+  {/if}
+
+  <div class="maintenance-action">
+    <div class="action-info">
       <span class="action-title">{$_("settings.maintenance.pruneLowQuality")}</span>
       <p class="action-desc">{$_("settings.maintenance.pruneLowQualityDesc")}</p>
     </div>
@@ -739,6 +837,32 @@
       mode="indeterminate"
       label={$_("settings.maintenance.pruneLowQuality")}
       message={$_("settings.maintenance.running")}
+    />
+  {/if}
+
+  <!-- Compound Keyword Splitting -->
+  <div class="maintenance-action">
+    <div class="action-info">
+      <span class="action-title">{$_("settings.maintenance.splitCompounds")}</span>
+      <p class="action-desc">{$_("settings.maintenance.splitCompoundsDesc")}</p>
+    </div>
+    {#if maintenanceRunning !== "compoundPreview" && maintenanceRunning !== "compoundSplit"}
+      <button
+        type="button"
+        class="btn-action"
+        onclick={loadCompoundPreview}
+        disabled={maintenanceRunning !== null}
+      >
+        {$_("settings.maintenance.splitCompoundsPreview")}
+      </button>
+    {/if}
+  </div>
+
+  {#if maintenanceRunning === "compoundPreview" || maintenanceRunning === "compoundSplit"}
+    <MaintenanceProgress
+      mode="indeterminate"
+      label={maintenanceRunning === "compoundPreview" ? $_("settings.maintenance.splitCompoundsPreview") : $_("settings.maintenance.splitCompoundsExecute")}
+      message={$_("settings.maintenance.splitCompoundsRunning")}
     />
   {/if}
 
@@ -1074,6 +1198,49 @@
     </div>
   {/if}
 </div>
+
+<!-- Compound Preview Dialog -->
+{#if showCompoundPreview && compoundPreview}
+  <div class="confirm-overlay">
+    <div class="preview-dialog">
+      <div class="preview-header">
+        <h3>{$_("settings.maintenance.compoundPreviewTitle")}</h3>
+        <button type="button" class="preview-close" onclick={closeCompoundPreview}>
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="preview-content">
+        {#if compoundPreview.length === 0}
+          <p class="preview-empty">{$_("settings.maintenance.compoundPreviewEmpty")}</p>
+        {:else}
+          <div class="preview-list">
+            {#each compoundPreview.slice(0, 50) as item}
+              <div class="preview-item">
+                <span class="preview-original">{item.original}</span>
+                <i class="fa-solid fa-arrow-right preview-arrow"></i>
+                <span class="preview-components">{item.components.join(" + ")}</span>
+                <span class="preview-articles">({item.articles_affected} {$_("settings.maintenance.compoundArticles")})</span>
+              </div>
+            {/each}
+            {#if compoundPreview.length > 50}
+              <p class="preview-more">... {$_("settings.maintenance.compoundPreviewMore", { values: { count: compoundPreview.length - 50 } })}</p>
+            {/if}
+          </div>
+        {/if}
+      </div>
+      <div class="preview-footer">
+        <button type="button" class="btn-secondary" onclick={closeCompoundPreview}>
+          {$_("confirm.no")}
+        </button>
+        {#if compoundPreview.length > 0}
+          <button type="button" class="btn-action" onclick={executeCompoundSplit}>
+            {$_("settings.maintenance.splitCompoundsExecute")} ({compoundPreview.length})
+          </button>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   h3 {
@@ -1612,5 +1779,107 @@
 
   .no-short-articles i {
     font-size: 1rem;
+  }
+
+  /* Compound Preview Dialog */
+  .preview-dialog {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 0.5rem;
+    max-width: 600px;
+    width: 90vw;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .preview-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--text-primary);
+  }
+
+  .preview-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+  }
+
+  .preview-close:hover {
+    color: var(--text-primary);
+  }
+
+  .preview-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+  }
+
+  .preview-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .preview-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: var(--bg-overlay);
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  .preview-original {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .preview-arrow {
+    color: var(--accent-primary);
+    font-size: 0.75rem;
+  }
+
+  .preview-components {
+    color: var(--accent-success);
+    font-weight: 500;
+  }
+
+  .preview-articles {
+    color: var(--text-muted);
+    margin-left: auto;
+    font-size: 0.75rem;
+  }
+
+  .preview-empty {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 2rem;
+  }
+
+  .preview-more {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    text-align: center;
+    padding-top: 0.5rem;
+  }
+
+  .preview-footer {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    padding: 1rem;
+    border-top: 1px solid var(--border-default);
   }
 </style>
