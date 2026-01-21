@@ -291,10 +291,14 @@ class AppState {
     this.selectedPentacleId = id;
     this.selectedSephirothId = null;
     this.selectedFnordId = null;
+
+    // Preserve existing status filter (e.g., if user is on "Unread" tab)
+    const status = this.currentFilter?.status;
+
     if (id !== null) {
-      this.loadFnords({ pentacle_id: id });
+      this.loadFnords({ pentacle_id: id, status });
     } else {
-      this.loadFnords();
+      this.loadFnords({ status });
     }
   }
 
@@ -303,18 +307,22 @@ class AppState {
     this.selectedPentacleId = null;
     this.selectedFnordId = null;
     this.selectedView = "sephiroth";
+
+    // Preserve existing status filter (e.g., if user is on "Unread" tab)
+    const status = this.currentFilter?.status;
+
     if (id !== null) {
       // Check if this is a main category (level 0) or subcategory (level 1)
       const category = this.sephiroth.find(s => s.id === id);
       if (category && category.level === 0) {
         // Main category - filter by all its subcategories
-        this.loadFnords({ main_sephiroth_id: id });
+        this.loadFnords({ main_sephiroth_id: id, status });
       } else {
         // Subcategory - filter by exact sephiroth_id
-        this.loadFnords({ sephiroth_id: id });
+        this.loadFnords({ sephiroth_id: id, status });
       }
     } else {
-      this.loadFnords();
+      this.loadFnords({ status });
     }
   }
 

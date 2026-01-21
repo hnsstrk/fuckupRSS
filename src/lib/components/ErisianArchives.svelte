@@ -64,17 +64,9 @@
       return specialArticles;
     }
 
-    // Filter appState.fnords by tab
-    const fnords = appState.fnords;
-    switch (activeTab) {
-      case 'unread':
-        return fnords.filter(f => f.status === 'concealed');
-      case 'goldenApple':
-        return fnords.filter(f => f.status === 'golden_apple');
-      case 'articles':
-      default:
-        return fnords;
-    }
+    // For standard tabs, we now use backend filtering so appState.fnords
+    // already contains the correct filtered list
+    return appState.fnords;
   });
 
   // Stats (counts used for potential future badge display)
@@ -233,19 +225,42 @@
     }
   }
 
-  function handleTabChange(tabId: string) {
+  async function handleTabChange(tabId: string) {
     activeTab = tabId;
     // Reset selection when changing tabs to avoid stale state
     appState.selectedFnordId = null;
-    // Reset special articles state and load for failed/hopeless tabs
+    
+    // Reset special articles state
+    specialArticles = [];
+    totalSpecialCount = 0;
+
+    // Load data based on tab
     if (tabId === 'failed' || tabId === 'hopeless') {
-      specialArticles = [];
-      totalSpecialCount = 0;
-      loadSpecialArticles();
+      await loadSpecialArticles();
     } else {
-      // Clear special articles when switching to normal tabs
-      specialArticles = [];
-      totalSpecialCount = 0;
+      // For standard tabs, fetch from backend with filter
+      let filter = {};
+      
+      // If we have a pentacle or category selected, preserve that filter
+      if (appState.selectedPentacleId !== null) {
+        filter = { ...filter, pentacle_id: appState.selectedPentacleId };
+      }
+      if (appState.selectedSephirothId !== null) {
+        // Need to check if main or subcategory in appState to know which field to set
+        // But for now let's just use the current selection logic
+        // Ideally we should refactor selectSephiroth/selectPentacle to expose the current filter object
+        // For now, simpler approach: just reload with status
+      }
+
+      // Add status filter based on tab
+      if (tabId === 'unread') {
+        filter = { ...filter, status: 'concealed' };
+      } else if (tabId === 'goldenApple') {
+        filter = { ...filter, status: 'golden_apple' };
+      }
+      // 'articles' tab has no status filter (shows all)
+      
+      await appState.loadFnords(filter);
     }
   }
 

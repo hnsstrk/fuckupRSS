@@ -121,10 +121,8 @@
 
   function handleSelectAll() {
     appState.selectedView = "all";
-    appState.selectedPentacleId = null;
-    appState.selectedSephirothId = null;
-    appState.selectedFnordId = null;
-    appState.loadFnords();
+    // Use selectPentacle(null) to clear selection while preserving status filters
+    appState.selectPentacle(null);
     onerisianArchives?.();
   }
 
@@ -135,6 +133,7 @@
   }
 
   function handleSelectSephiroth(id: number) {
+    // selectSephiroth sets selectedView="sephiroth" internally
     appState.selectSephiroth(id);
     onerisianArchives?.();
   }
