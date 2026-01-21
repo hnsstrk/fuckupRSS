@@ -2,6 +2,7 @@
   import { _, locale } from 'svelte-i18n';
   import type { Fnord, FnordRevision } from '../stores/state.svelte';
   import { computeWordDiff, diffToHtml, getDiffStats, detectModifications, type DiffSegment } from '../utils/textDiff';
+  import { sanitizeArticleContent } from '$lib/utils/sanitizer';
 
   // Browser check for Tauri app (not using SvelteKit's $app/environment)
   const browser = typeof window !== 'undefined';
@@ -167,7 +168,7 @@
     {#if selectedRevisionIndex === null}
       <!-- Current version -->
       {#if fnord.content_full || fnord.content_raw}
-        {@html fnord.content_full || fnord.content_raw}
+        {@html sanitizeArticleContent(fnord.content_full || fnord.content_raw || '')}
       {:else}
         <p class="no-content">{$_('revisions.noContent') || 'Kein Inhalt verfügbar'}</p>
       {/if}
@@ -180,7 +181,7 @@
       {:else}
         <!-- Plain revision content -->
         {#if revisions[selectedRevisionIndex].content_full || revisions[selectedRevisionIndex].content_raw}
-          {@html revisions[selectedRevisionIndex].content_full || revisions[selectedRevisionIndex].content_raw}
+          {@html sanitizeArticleContent(revisions[selectedRevisionIndex].content_full || revisions[selectedRevisionIndex].content_raw || '')}
         {:else}
           <p class="no-content">{$_('revisions.noContent') || 'Kein Volltext für diese Revision verfügbar'}</p>
         {/if}

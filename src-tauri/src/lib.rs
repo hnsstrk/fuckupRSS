@@ -26,7 +26,7 @@ pub use keywords::{
 pub use logging::LogLevel;
 
 use db::Database;
-use log::info;
+use log::{error, info};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -69,10 +69,16 @@ pub fn run() {
 
             // Load dynamic synonyms from database
             {
-                let db_guard = db.lock().expect("DB lock failed");
-                if let Ok(count) = keywords::load_dynamic_synonyms(db_guard.conn()) {
-                    if count > 0 {
-                        info!("Loaded {} dynamic synonyms from database", count);
+                match db.lock() {
+                    Ok(db_guard) => {
+                        if let Ok(count) = keywords::load_dynamic_synonyms(db_guard.conn()) {
+                            if count > 0 {
+                                info!("Loaded {} dynamic synonyms from database", count);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to acquire database lock for synonym loading: {}", e);
                     }
                 }
             }

@@ -1162,7 +1162,7 @@ pub async fn score_keywords_semantically(
         )
         .ok();
 
-    if article_embedding.is_none() {
+    let Some(article_emb) = article_embedding else {
         // No article embedding, return base scores only
         return Ok(keywords
             .into_iter()
@@ -1173,9 +1173,7 @@ pub async fn score_keywords_semantically(
                 combined_score: 0.5,
             })
             .collect());
-    }
-
-    let article_emb = article_embedding.unwrap();
+    };
 
     // Get keyword embeddings and calculate similarities
     let mut results = Vec::new();

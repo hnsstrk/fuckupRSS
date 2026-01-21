@@ -203,12 +203,15 @@ pub fn get_fnords(
 
     sql.push_str(" ORDER BY f.published_at DESC");
 
+    // Use parameterized queries for LIMIT/OFFSET (security best practice)
     if let Some(limit) = filter.limit {
-        sql.push_str(&format!(" LIMIT {}", limit));
+        sql.push_str(" LIMIT ?");
+        params.push(Box::new(limit));
     }
 
     if let Some(offset) = filter.offset {
-        sql.push_str(&format!(" OFFSET {}", offset));
+        sql.push_str(" OFFSET ?");
+        params.push(Box::new(offset));
     }
 
     let mut stmt = db.conn().prepare(&sql).map_err(|e| e.to_string())?;

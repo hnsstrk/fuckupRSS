@@ -1,6 +1,7 @@
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
+use url::Url;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Pentacle {
@@ -70,6 +71,34 @@ pub fn get_pentacles(state: State<AppState>) -> Result<Vec<Pentacle>, String> {
 
 #[tauri::command]
 pub fn add_pentacle(state: State<AppState>, url: String, title: Option<String>) -> Result<Pentacle, String> {
+    // Input validation
+    const MAX_URL_LEN: usize = 2048;
+    const MAX_TITLE_LEN: usize = 500;
+
+    if url.is_empty() {
+        return Err("URL cannot be empty".to_string());
+    }
+
+    if url.len() > MAX_URL_LEN {
+        return Err(format!("URL too long (max {} characters)", MAX_URL_LEN));
+    }
+
+    // Validate URL format and scheme
+    let parsed_url = Url::parse(&url)
+        .map_err(|_| "Invalid URL format".to_string())?;
+
+    match parsed_url.scheme() {
+        "http" | "https" => {}
+        scheme => return Err(format!("Invalid URL scheme '{}'. Only http and https are allowed.", scheme)),
+    }
+
+    // Validate title length if provided
+    if let Some(ref t) = title {
+        if t.len() > MAX_TITLE_LEN {
+            return Err(format!("Title too long (max {} characters)", MAX_TITLE_LEN));
+        }
+    }
+
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     db.conn()
