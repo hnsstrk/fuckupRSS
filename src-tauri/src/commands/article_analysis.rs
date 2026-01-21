@@ -6,7 +6,7 @@
 use crate::text_analysis::{
     BiasWeights, BiasStats, CategoryMatcher, CorrectionRecord, CorrectionType,
     TfIdfExtractor, record_correction as bias_record_correction, get_bias_stats as bias_get_stats,
-    load_user_stopwords,
+    load_user_stopwords, load_all_db_stopwords,
 };
 use crate::{find_canonical_keyword_with_db, AppState};
 use rusqlite::params;
@@ -740,14 +740,17 @@ pub async fn process_statistical_batch(
     limit: Option<i64>,
 ) -> Result<BatchStatisticalResult, String> {
     // Phase 1: Load articles and config (short lock)
-    let (articles, bias, user_stopwords) = {
+    let (articles, bias, user_stopwords, db_stopwords) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
 
         // Load bias weights
         let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
 
-        // Load user stopwords
+        // Load user stopwords (for extraction)
         let user_stopwords = load_user_stopwords(db.conn()).unwrap_or_default();
+
+        // Load all DB stopwords (for filtering before storage)
+        let db_stopwords = load_all_db_stopwords(db.conn()).unwrap_or_default();
 
         // Get unprocessed articles with full content
         let limit_val = limit.unwrap_or(10000);
@@ -772,7 +775,7 @@ pub async fn process_statistical_batch(
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
-        (articles, bias, user_stopwords)
+        (articles, bias, user_stopwords, db_stopwords)
     }; // Lock released here!
 
     let total = articles.len() as i64;
@@ -812,6 +815,18 @@ pub async fn process_statistical_batch(
             }
             let keyword_name = find_canonical_keyword_with_db(&kc.term)
                 .unwrap_or_else(|| kc.term.clone());
+
+            // Filter against DB stopwords (case-insensitive)
+            let keyword_lower = keyword_name.to_lowercase();
+            if db_stopwords.contains(&keyword_lower) {
+                continue;
+            }
+            // Also check if any word in a multi-word keyword is a stopword
+            let words: Vec<&str> = keyword_lower.split_whitespace().collect();
+            if words.iter().any(|w| db_stopwords.contains(*w)) {
+                continue;
+            }
+
             keyword_ops.push((keyword_name, adjusted_score));
         }
 

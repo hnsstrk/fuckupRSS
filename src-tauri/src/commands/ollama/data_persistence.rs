@@ -4,9 +4,11 @@ use crate::commands::settings::get_embedding_model_from_db;
 use crate::db::Database;
 use crate::embeddings::embedding_to_blob;
 use crate::ollama::OllamaClient;
+use crate::text_analysis::load_all_db_stopwords;
 use crate::{find_canonical_keyword_with_db, normalize_keyword, split_compound_keyword};
 use log::{debug, trace, warn};
 use rusqlite::Connection;
+use std::collections::HashSet;
 
 use super::types::{CategoryWithSource, KeywordWithSource};
 
@@ -112,6 +114,9 @@ pub fn save_article_keywords_with_source(
     let mut tag_ids: Vec<i64> = Vec::new();
     let mut new_keyword_ids: Vec<i64> = Vec::new();
 
+    // Load DB stopwords for filtering (includes news sources like "deutschlandfunk", "bbc", etc.)
+    let db_stopwords: HashSet<String> = load_all_db_stopwords(conn).unwrap_or_default();
+
     let existing_tag_ids: Vec<i64> = conn
         .prepare("SELECT immanentize_id FROM fnord_immanentize WHERE fnord_id = ?")
         .ok()
@@ -155,6 +160,22 @@ pub fn save_article_keywords_with_source(
             Some(k) => k,
             None => continue,
         };
+
+        // Filter against DB stopwords (case-insensitive)
+        let keyword_lower = keyword.to_lowercase();
+
+        // Check if the whole keyword is a stopword
+        if db_stopwords.contains(&keyword_lower) {
+            trace!("Keyword '{}' filtered: matches DB stopword", keyword);
+            continue;
+        }
+
+        // Check if any word in a multi-word keyword is a stopword (news sources filter)
+        let words: Vec<&str> = keyword_lower.split_whitespace().collect();
+        if words.iter().any(|w| db_stopwords.contains(*w)) {
+            trace!("Keyword '{}' filtered: contains DB stopword", keyword);
+            continue;
+        }
 
         let canonical = find_canonical_keyword_with_db(&keyword);
         let store_keyword = canonical.as_deref().unwrap_or(&keyword);
