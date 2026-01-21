@@ -2542,18 +2542,18 @@ pub fn split_compound_keywords(
                     .unwrap_or(false);
 
                 if !exists {
-                    // Get relevance from original association
-                    let relevance: f64 = conn
+                    // Get confidence from original association
+                    let confidence: f64 = conn
                         .query_row(
-                            "SELECT relevance FROM fnord_immanentize WHERE fnord_id = ? AND immanentize_id = ?",
+                            "SELECT confidence FROM fnord_immanentize WHERE fnord_id = ? AND immanentize_id = ?",
                             params![article_id, compound_id],
                             |row| row.get(0),
                         )
-                        .unwrap_or(0.5);
+                        .unwrap_or(1.0);
 
                     conn.execute(
-                        "INSERT INTO fnord_immanentize (fnord_id, immanentize_id, relevance) VALUES (?, ?, ?)",
-                        params![article_id, component_id, relevance],
+                        "INSERT INTO fnord_immanentize (fnord_id, immanentize_id, source, confidence) VALUES (?, ?, 'ai', ?)",
+                        params![article_id, component_id, confidence],
                     )
                     .map_err(|e| {
                         let _ = conn.execute("ROLLBACK", []);
@@ -2834,18 +2834,18 @@ pub fn split_single_compound(
                 .unwrap_or(false);
 
             if !exists {
-                // Get relevance from original association
-                let relevance: f64 = conn
+                // Get confidence from original association
+                let confidence: f64 = conn
                     .query_row(
-                        "SELECT relevance FROM fnord_immanentize WHERE fnord_id = ? AND immanentize_id = ?",
+                        "SELECT confidence FROM fnord_immanentize WHERE fnord_id = ? AND immanentize_id = ?",
                         params![article_id, keyword_id],
                         |row| row.get(0),
                     )
-                    .unwrap_or(0.5);
+                    .unwrap_or(1.0);
 
                 conn.execute(
-                    "INSERT INTO fnord_immanentize (fnord_id, immanentize_id, relevance) VALUES (?, ?, ?)",
-                    params![article_id, component_id, relevance],
+                    "INSERT INTO fnord_immanentize (fnord_id, immanentize_id, source, confidence) VALUES (?, ?, 'ai', ?)",
+                    params![article_id, component_id, confidence],
                 )
                 .map_err(|e| {
                     let _ = conn.execute("ROLLBACK", []);
