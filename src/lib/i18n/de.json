@@ -996,6 +996,7 @@
     "splitBatchPartial": "{success} aufgeteilt, {failed} fehlgeschlagen",
     "pageInfo": "Seite {current} von {total}",
     "items": "Eintraege",
-    "filtered": "gefiltert"
+    "filtered": "gefiltert",
+    "typeUpdated": "Typ auf \"{type}\" geaendert"
   }
 }

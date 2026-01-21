@@ -14,6 +14,27 @@
     keyword_type?: string;
   }
 
+  // Keyword types
+  type KeywordType = 'concept' | 'person' | 'organization' | 'location' | 'acronym';
+
+  const keywordTypes: KeywordType[] = ['concept', 'person', 'organization', 'location', 'acronym'];
+
+  const typeIcons: Record<KeywordType, string> = {
+    concept: 'fa-lightbulb',
+    person: 'fa-user-tie',
+    organization: 'fa-building',
+    location: 'fa-location-dot',
+    acronym: 'fa-font'
+  };
+
+  const typeColors: Record<KeywordType, string> = {
+    concept: 'var(--text-muted)',
+    person: 'var(--accent-info)',
+    organization: 'var(--accent-primary)',
+    location: 'var(--accent-success)',
+    acronym: 'var(--accent-warning)'
+  };
+
   // Decision tracking - items that have been acted upon
   interface DecisionItem extends CompoundItem {
     decision: 'preserved' | 'split';
@@ -329,6 +350,34 @@
     selectAll = false;
   }
 
+  // Action: Update keyword type
+  async function updateKeywordType(item: CompoundItem, newType: KeywordType) {
+    error = null;
+
+    try {
+      await invoke('update_keyword_type', { keywordId: item.id, keywordType: newType });
+
+      // Update in list
+      compoundList = compoundList.map(c =>
+        c.id === item.id ? { ...c, keyword_type: newType } : c
+      );
+
+      // Also update in decision history if present
+      decisionHistory = decisionHistory.map(c =>
+        c.id === item.id ? { ...c, keyword_type: newType } : c
+      );
+    } catch (e) {
+      error = String(e);
+      console.error('Failed to update keyword type:', e);
+    }
+  }
+
+  function handleTypeChange(event: Event, item: CompoundItem) {
+    const select = event.target as HTMLSelectElement;
+    const newType = select.value as KeywordType;
+    updateKeywordType(item, newType);
+  }
+
   // Pagination handlers
   function goToPage(page: number) {
     if (page >= 1 && page <= totalPages) {
@@ -571,7 +620,7 @@
               </td>
               <td class="components-col">
                 <span class="components-list">
-                  {#each item.components as comp, i}
+                  {#each item.components as comp, i (comp)}
                     <span class="component-tag">{comp}</span>
                     {#if i < item.components.length - 1}
                       <span class="component-separator">+</span>
@@ -583,13 +632,26 @@
                 <span class="article-count">{item.articles_affected}</span>
               </td>
               <td class="type-col">
-                {#if item.keyword_type}
-                  <span class="type-badge {item.keyword_type}">
-                    {$_(`network.keywordType.${item.keyword_type}`) || item.keyword_type}
-                  </span>
+                {#if !('decision' in item)}
+                  <div class="type-select-wrapper">
+                    <select
+                      class="type-select"
+                      value={item.keyword_type || 'concept'}
+                      onchange={(e) => handleTypeChange(e, item)}
+                      style="color: {typeColors[(item.keyword_type || 'concept') as KeywordType]}"
+                    >
+                      {#each keywordTypes as type (type)}
+                        <option value={type}>
+                          {$_(`network.keywordType.${type}`) || type}
+                        </option>
+                      {/each}
+                    </select>
+                    <i class="fa-solid {typeIcons[(item.keyword_type || 'concept') as KeywordType]} type-icon" style="color: {typeColors[(item.keyword_type || 'concept') as KeywordType]}"></i>
+                  </div>
                 {:else}
-                  <span class="type-badge concept">
-                    {$_('network.keywordType.concept') || 'concept'}
+                  <span class="type-badge {item.keyword_type || 'concept'}">
+                    <i class="fa-solid {typeIcons[(item.keyword_type || 'concept') as KeywordType]}"></i>
+                    {$_(`network.keywordType.${item.keyword_type || 'concept'}`) || item.keyword_type || 'concept'}
                   </span>
                 {/if}
               </td>
@@ -1119,11 +1181,17 @@
   }
 
   .type-badge {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
     padding: 0.125rem 0.5rem;
     border-radius: 0.25rem;
     font-size: 0.75rem;
     text-transform: capitalize;
+  }
+
+  .type-badge i {
+    font-size: 0.625rem;
   }
 
   .type-badge.concept {
@@ -1149,6 +1217,60 @@
   .type-badge.acronym {
     background-color: rgba(250, 179, 135, 0.2);
     color: var(--accent-warning);
+  }
+
+  /* Type Select Dropdown */
+  .type-col {
+    width: 130px;
+  }
+
+  .type-select-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .type-icon {
+    position: absolute;
+    left: 0.5rem;
+    font-size: 0.75rem;
+    pointer-events: none;
+  }
+
+  .type-select {
+    appearance: none;
+    padding: 0.25rem 1.5rem 0.25rem 1.75rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.25rem;
+    background-color: var(--bg-overlay);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: capitalize;
+    min-width: 100px;
+  }
+
+  .type-select:hover {
+    border-color: var(--accent-primary);
+    background-color: var(--bg-surface);
+  }
+
+  .type-select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(137, 180, 250, 0.2);
+  }
+
+  .type-select-wrapper::after {
+    content: '\f078';
+    font-family: 'Font Awesome 6 Pro';
+    font-size: 0.5rem;
+    font-weight: 900;
+    position: absolute;
+    right: 0.5rem;
+    color: var(--text-muted);
+    pointer-events: none;
   }
 
   /* Action Buttons */

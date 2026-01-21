@@ -996,6 +996,7 @@
     "splitBatchPartial": "{success} split, {failed} failed",
     "pageInfo": "Page {current} of {total}",
     "items": "items",
-    "filtered": "filtered"
+    "filtered": "filtered",
+    "typeUpdated": "Type changed to \"{type}\""
   }
 }

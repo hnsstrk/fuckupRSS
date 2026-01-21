@@ -3268,3 +3268,53 @@ pub fn get_compound_decision_stats(state: State<AppState>) -> Result<CompoundDec
         auto_excluded_count,
     })
 }
+
+/// Update the type of a single keyword
+/// Valid types: 'concept', 'person', 'organization', 'location', 'acronym'
+#[tauri::command]
+pub fn update_keyword_type(
+    state: State<AppState>,
+    keyword_id: i64,
+    keyword_type: String,
+) -> Result<(), String> {
+    // Validate keyword type
+    let valid_types = ["concept", "person", "organization", "location", "acronym"];
+    if !valid_types.contains(&keyword_type.as_str()) {
+        return Err(format!(
+            "Invalid keyword type '{}'. Must be one of: {}",
+            keyword_type,
+            valid_types.join(", ")
+        ));
+    }
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Check if keyword exists
+    let exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM immanentize WHERE id = ?)",
+            [keyword_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    if !exists {
+        return Err(format!("Keyword with id {} not found", keyword_id));
+    }
+
+    // Update the keyword type
+    conn.execute(
+        "UPDATE immanentize SET keyword_type = ? WHERE id = ?",
+        rusqlite::params![keyword_type, keyword_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    log::info!(
+        "Updated keyword {} type to '{}'",
+        keyword_id,
+        keyword_type
+    );
+
+    Ok(())
+}
