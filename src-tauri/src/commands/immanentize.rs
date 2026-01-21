@@ -3622,7 +3622,6 @@ pub fn unassign_synonym(
 
     Ok(())
 }
-use super::*;
 
 #[test]
 fn test_exact_match() {

@@ -1,5 +1,6 @@
 use log::info;
 use rusqlite::Connection;
+use crate::text_analysis::keyword_seeds::{seed_known_keywords, update_types_from_seeds};
 
 /// Default stopwords embedded at compile time from txt files
 const STOPWORDS_DE: &str = include_str!("../../resources/stopwords/de.txt");
@@ -1354,6 +1355,13 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
     if system_stopword_count == 0 {
         restore_default_stopwords(conn)?;
     }
+
+    // Seed known keywords with their types (persons, organizations, locations, etc.)
+    // This uses INSERT OR IGNORE, so existing keywords are not overwritten
+    let _ = seed_known_keywords(conn);
+
+    // Update keyword types for any existing keywords that match known entities
+    let _ = update_types_from_seeds(conn);
 
     Ok(())
 }
