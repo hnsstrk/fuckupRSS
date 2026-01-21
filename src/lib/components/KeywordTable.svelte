@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import type { Keyword, KeywordType } from '../types';
+  import KeywordContextTooltip from './KeywordContextTooltip.svelte';
 
   // Props
   interface Props {
@@ -353,7 +354,12 @@
                 aria-label={`${$_('network.selectKeyword') || 'Keyword auswaehlen'}: ${keyword.name}`}
               >
                 <td class="name-cell">
-                  <span class="keyword-name">{keyword.name}</span>
+                  <KeywordContextTooltip
+                    keywordId={keyword.id}
+                    keywordName={keyword.name}
+                  >
+                    <span class="keyword-name">{keyword.name}</span>
+                  </KeywordContextTooltip>
                   {#if keyword.is_canonical === false}
                     <span class="alias-badge" title="Alias">
                       <i class="fa-solid fa-link"></i>

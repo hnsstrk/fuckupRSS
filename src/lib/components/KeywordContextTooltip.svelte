@@ -160,7 +160,14 @@
         {loadError}
       </div>
     {:else if context}
-      <div class="tooltip-sentence">"{context.sentence}"</div>
+      {#if context.sentence}
+        <div class="tooltip-sentence">"{context.sentence}"</div>
+      {:else}
+        <div class="tooltip-no-sentence">
+          <i class="fa-solid fa-quote-left"></i>
+          <em>{$_('compound.noSentenceAvailable') || 'No sentence context available'}</em>
+        </div>
+      {/if}
       <div class="tooltip-meta">
         <div class="tooltip-article-title">
           <i class="fa-solid fa-newspaper"></i>
@@ -244,6 +251,24 @@
 
   .tooltip-error {
     color: var(--status-error);
+  }
+
+  .tooltip-no-sentence {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.25rem;
+    border-left: 3px solid var(--border-muted);
+  }
+
+  .tooltip-no-sentence i {
+    font-size: 0.75rem;
+    opacity: 0.5;
   }
 
   .tooltip-sentence {
