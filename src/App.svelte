@@ -56,7 +56,13 @@
     <div class="main-content">
       <!-- Sidebar: Feed list (Pentacles) -->
       <Sidebar
-        onerisianArchives={() => mainView = 'erisianArchives'}
+        onerisianArchives={() => {
+          mainView = 'erisianArchives';
+          appState.selectedPentacleId = null;
+          appState.selectedSephirothId = null;
+          appState.selectedView = 'all';
+          appState.loadFnords();
+        }}
         onfnord={() => mainView = 'fnord'}
         onnetwork={() => mainView = 'network'}
         onmindfuck={() => mainView = 'mindfuck'}
