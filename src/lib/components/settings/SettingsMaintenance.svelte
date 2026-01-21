@@ -6,7 +6,6 @@
   import { appState } from "../../stores/state.svelte";
   import { settings } from "../../stores/settings.svelte";
   import { onDestroy } from "svelte";
-  import { SvelteSet } from "svelte/reactivity";
   import MaintenanceProgress from "./MaintenanceProgress.svelte";
 
   interface Props {
@@ -85,21 +84,6 @@
   let feedListExpanded = $state(false);
   let confirmDeleteNull = $state(false);
   let refetchingFeed = $state<number | null>(null);
-
-  // Compound keyword splitting state
-  interface CompoundItem {
-    id: number;
-    original: string;
-    components: string[];
-    articles_affected: number;
-    is_preserved: boolean;
-  }
-  let compoundList = $state<CompoundItem[] | null>(null);
-  let selectedIds = new SvelteSet<number>();
-  let selectAll = $state(false);
-  let splitting = $state(false);
-
-  let selectedCount = $derived(selectedIds.size);
 
   export async function init() {
     maintenanceResult = null;
@@ -618,94 +602,6 @@
     }
   }
 
-  // Compound keyword splitting handlers
-  async function loadCompoundList() {
-    maintenanceRunning = "loadCompounds";
-    try {
-      const result = await invoke<CompoundItem[]>("preview_compound_splits");
-      compoundList = result;
-      selectedIds.clear();
-      selectAll = false;
-    } catch (e) {
-      maintenanceResult = `Error: ${e}`;
-    } finally {
-      maintenanceRunning = null;
-    }
-  }
-
-  function toggleSelection(id: number) {
-    if (selectedIds.has(id)) {
-      selectedIds.delete(id);
-    } else {
-      selectedIds.add(id);
-    }
-    // Update selectAll state
-    const nonPreserved = compoundList?.filter(c => !c.is_preserved) || [];
-    selectAll = nonPreserved.length > 0 && nonPreserved.every(c => selectedIds.has(c.id));
-  }
-
-  function toggleSelectAll() {
-    if (selectAll) {
-      // Deselect all
-      selectedIds.clear();
-      selectAll = false;
-    } else {
-      // Select all non-preserved
-      selectedIds.clear();
-      const nonPreservedIds = compoundList?.filter(c => !c.is_preserved).map(c => c.id) || [];
-      for (const id of nonPreservedIds) {
-        selectedIds.add(id);
-      }
-      selectAll = true;
-    }
-  }
-
-  async function splitSelected() {
-    splitting = true;
-    let splitCount = 0;
-    const idsToSplit = Array.from(selectedIds);
-
-    for (const id of idsToSplit) {
-      try {
-        await invoke("split_single_compound", { keywordId: id });
-        splitCount++;
-        // Remove from list
-        compoundList = compoundList?.filter(c => c.id !== id) || null;
-        selectedIds.delete(id);
-      } catch (e) {
-        console.error(`Failed to split ${id}:`, e);
-      }
-    }
-
-    selectAll = false;
-    splitting = false;
-    maintenanceResult = $_("settings.maintenance.splitCompoundsResult", {
-      values: { split: splitCount, found: idsToSplit.length, created: splitCount * 2 }
-    });
-    // Refresh keyword stats
-    await loadKeywordStats();
-  }
-
-  async function togglePreserve(item: CompoundItem) {
-    try {
-      if (item.is_preserved) {
-        await invoke("unpreserve_compound_keyword", { keywordId: item.id });
-      } else {
-        await invoke("preserve_compound_keyword", { keywordId: item.id });
-      }
-      // Update in list
-      compoundList = compoundList?.map(c =>
-        c.id === item.id ? {...c, is_preserved: !c.is_preserved} : c
-      ) || null;
-      // Remove from selection if preserved
-      if (!item.is_preserved) {
-        selectedIds.delete(item.id);
-      }
-    } catch (e) {
-      console.error("Failed to toggle preserve:", e);
-      maintenanceResult = `Error: ${e}`;
-    }
-  }
 </script>
 
 <!-- Confirmation Dialog -->
@@ -904,77 +800,16 @@
     />
   {/if}
 
-  <!-- Compound Keywords Section -->
-  <div class="compound-section">
-    <div class="section-header">
-      <div class="action-info">
-        <span class="action-title">{$_("settings.maintenance.splitCompounds")}</span>
-        <p class="action-desc">{$_("settings.maintenance.splitCompoundsDesc")}</p>
-      </div>
-      <button
-        type="button"
-        class="btn-action"
-        onclick={loadCompoundList}
-        disabled={maintenanceRunning !== null}
-      >
-        {#if maintenanceRunning === "loadCompounds"}
-          <i class="fa-solid fa-spinner fa-spin"></i>
-        {:else}
-          <i class="fa-solid fa-list"></i>
-        {/if}
-        {$_("settings.maintenance.loadCompounds")}
-      </button>
+  <!-- Compound Keywords - Link to Network Tab -->
+  <div class="maintenance-action compound-link">
+    <div class="action-info">
+      <span class="action-title">{$_("settings.maintenance.compoundKeywords")}</span>
+      <p class="action-desc">{$_("settings.maintenance.compoundKeywordsLinkDesc")}</p>
     </div>
-
-    {#if compoundList && compoundList.length > 0}
-      <div class="compound-controls">
-        <label class="select-all">
-          <input type="checkbox" checked={selectAll} onchange={toggleSelectAll} disabled={splitting} />
-          {$_("settings.maintenance.selectAll")} ({selectedCount}/{compoundList.filter(c => !c.is_preserved).length})
-        </label>
-        <button
-          type="button"
-          class="btn-action"
-          onclick={splitSelected}
-          disabled={selectedCount === 0 || splitting}
-        >
-          {#if splitting}
-            <i class="fa-solid fa-spinner fa-spin"></i>
-          {:else}
-            <i class="fa-solid fa-scissors"></i>
-          {/if}
-          {$_("settings.maintenance.splitSelected")} ({selectedCount})
-        </button>
-      </div>
-
-      <div class="compound-list">
-        {#each compoundList as item (item.id)}
-          <div class="compound-item" class:preserved={item.is_preserved}>
-            <input
-              type="checkbox"
-              checked={selectedIds.has(item.id)}
-              onchange={() => toggleSelection(item.id)}
-              disabled={item.is_preserved || splitting}
-            />
-            <span class="original">{item.original}</span>
-            <i class="fa-solid fa-arrow-right"></i>
-            <span class="components">{item.components.join(" + ")}</span>
-            <span class="articles">({item.articles_affected})</span>
-            <button
-              type="button"
-              class="preserve-btn"
-              onclick={() => togglePreserve(item)}
-              title={item.is_preserved ? $_("settings.maintenance.unpreserveKeyword") : $_("settings.maintenance.preserveKeyword")}
-              disabled={splitting}
-            >
-              <i class="fa-solid {item.is_preserved ? 'fa-shield-check' : 'fa-shield'}"></i>
-            </button>
-          </div>
-        {/each}
-      </div>
-    {:else if compoundList}
-      <p class="no-compounds">{$_("settings.maintenance.noCompounds")}</p>
-    {/if}
+    <span class="link-hint">
+      <i class="fa-solid fa-arrow-right"></i>
+      {$_("settings.maintenance.compoundKeywordsLocation")}
+    </span>
   </div>
 
   <!-- Prototype Status Card -->
@@ -1438,6 +1273,25 @@
     margin-right: 0.375rem;
   }
 
+  /* Compound Keywords Link */
+  .compound-link {
+    border-color: var(--accent-primary);
+    background: linear-gradient(90deg, var(--bg-overlay), rgba(137, 180, 250, 0.05));
+  }
+
+  .link-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--accent-primary);
+    font-weight: 500;
+  }
+
+  .link-hint i {
+    font-size: 0.75rem;
+  }
+
   /* Prototype Status Card */
   .prototype-status {
     padding: 0.75rem;
@@ -1840,138 +1694,4 @@
     font-size: 1rem;
   }
 
-  /* Compound Keywords Section */
-  .compound-section {
-    margin-top: 0.5rem;
-    padding: 0.75rem;
-    background-color: var(--bg-overlay);
-    border-radius: 0.375rem;
-    border: 1px solid var(--border-default);
-  }
-
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .compound-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 1rem;
-    margin-bottom: 0.75rem;
-    padding: 0.75rem;
-    background: var(--bg-surface);
-    border-radius: 0.375rem;
-  }
-
-  .select-all {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-
-  .select-all input[type="checkbox"] {
-    width: 1rem;
-    height: 1rem;
-    cursor: pointer;
-  }
-
-  .compound-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    max-height: 400px;
-    overflow-y: auto;
-  }
-
-  .compound-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    background: var(--bg-surface);
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
-  }
-
-  .compound-item.preserved {
-    opacity: 0.6;
-    background: var(--bg-muted);
-  }
-
-  .compound-item input[type="checkbox"] {
-    width: 0.875rem;
-    height: 0.875rem;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-
-  .compound-item input[type="checkbox"]:disabled {
-    cursor: not-allowed;
-  }
-
-  .compound-item .original {
-    font-weight: 500;
-    color: var(--text-primary);
-    min-width: 150px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .compound-item .fa-arrow-right {
-    color: var(--accent-primary);
-    font-size: 0.625rem;
-    flex-shrink: 0;
-  }
-
-  .compound-item .components {
-    color: var(--accent-success);
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .compound-item .articles {
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    flex-shrink: 0;
-  }
-
-  .preserve-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 0.25rem;
-    transition: color 0.2s;
-    flex-shrink: 0;
-  }
-
-  .preserve-btn:hover:not(:disabled) {
-    color: var(--accent-warning);
-  }
-
-  .preserve-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .compound-item.preserved .preserve-btn {
-    color: var(--status-success);
-  }
-
-  .no-compounds {
-    text-align: center;
-    color: var(--text-muted);
-    padding: 2rem;
-    margin: 0;
-  }
 </style>

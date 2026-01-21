@@ -9,6 +9,7 @@
   import Tooltip from './Tooltip.svelte';
   import KeywordNetworkDetail from './network/KeywordNetworkDetail.svelte';
   import KeywordNetworkSynonyms from './network/KeywordNetworkSynonyms.svelte';
+  import CompoundKeywordManager from './CompoundKeywordManager.svelte';
 
   // Type for keyword articles
   interface KeywordArticle {
@@ -56,6 +57,7 @@
     { id: 'table', label: $_('network.tableTab') || 'Tabelle' },
     { id: 'graph', label: $_('network.graphTab') || 'Graph' },
     { id: 'synonyms', label: $_('network.synonymsTab') || 'Synonyme' },
+    { id: 'compounds', label: $_('network.compoundsTab') || 'Compounds' },
   ]);
   let searchInput = $state('');
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -804,6 +806,9 @@
     onNewKeywordInput={handleNewKeywordInput}
     onCreateNewKeyword={createNewKeyword}
   />
+  {:else if activeTab === 'compounds'}
+  <!-- Compound Keywords View -->
+  <CompoundKeywordManager loadKeywords={() => loadKeywords(true)} />
   {/if}
 </div>
 

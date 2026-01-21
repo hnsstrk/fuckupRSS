@@ -231,6 +231,12 @@ pub fn run() {
             commands::immanentize::preserve_compound_keyword,
             commands::immanentize::unpreserve_compound_keyword,
             commands::immanentize::get_preserved_compounds,
+            // Compound Keyword Decision System (Phase 4)
+            commands::immanentize::set_compound_decision,
+            commands::immanentize::get_compound_decisions,
+            commands::immanentize::clear_compound_decision,
+            commands::immanentize::batch_set_compound_decisions,
+            commands::immanentize::get_compound_decision_stats,
             // Embedding Queue
             commands::embedding::get_embedding_queue_status,
             commands::embedding::process_embedding_queue_now,

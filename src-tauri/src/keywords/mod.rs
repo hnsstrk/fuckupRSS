@@ -1857,6 +1857,7 @@ static VALID_COMPOUND_PARTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 });
 
 /// Check if a keyword should be split (has hyphen and is not in NO_SPLIT list)
+/// Also excludes "Anti-*" keywords which should remain intact
 pub fn should_split_compound(keyword: &str) -> bool {
     if !keyword.contains('-') {
         return false;
@@ -1864,6 +1865,10 @@ pub fn should_split_compound(keyword: &str) -> bool {
     // Check against NO_SPLIT list
     let lower = keyword.to_lowercase();
     if NO_SPLIT_KEYWORDS.contains(lower.as_str()) {
+        return false;
+    }
+    // "Anti-*" keywords should never be split (Anti-Terror, Anti-Korruption, etc.)
+    if lower.starts_with("anti-") {
         return false;
     }
     // Check if it would produce valid parts

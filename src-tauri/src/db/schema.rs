@@ -914,6 +914,42 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 21: Create compound_decisions table for compound keyword splitting decisions
+    // Replaces preserved_compounds with more flexible preserve/split decisions
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS compound_decisions (
+            immanentize_id INTEGER PRIMARY KEY,
+            decision TEXT NOT NULL CHECK(decision IN ('preserve', 'split')),
+            decided_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (immanentize_id) REFERENCES immanentize(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_compound_decisions_decision ON compound_decisions(decision);
+        "#,
+    )?;
+
+    // Migrate data from preserved_compounds to compound_decisions (one-time migration)
+    let has_preserved_data: bool = conn
+        .prepare("SELECT COUNT(*) FROM preserved_compounds")?
+        .query_row([], |row| row.get::<_, i64>(0).map(|c| c > 0))?;
+
+    if has_preserved_data {
+        // Check if we already migrated (to avoid duplicate runs)
+        let already_migrated: bool = conn
+            .prepare("SELECT COUNT(*) FROM compound_decisions WHERE decision = 'preserve'")?
+            .query_row([], |row| row.get::<_, i64>(0).map(|c| c > 0))?;
+
+        if !already_migrated {
+            conn.execute(
+                r#"INSERT OR IGNORE INTO compound_decisions (immanentize_id, decision, decided_at)
+                   SELECT immanentize_id, 'preserve', preserved_at FROM preserved_compounds"#,
+                [],
+            )?;
+            info!("Migrated preserved_compounds to compound_decisions");
+        }
+    }
+
     Ok(())
 }
 

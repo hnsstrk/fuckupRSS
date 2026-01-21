@@ -2420,7 +2420,8 @@ pub struct CompoundSplitDetail {
 /// - Creates or finds component keywords
 /// - Transfers article associations to components
 /// - Deletes the original compound keyword
-/// - Excludes keywords that are in preserved_compounds table
+/// - Excludes keywords that are preserved (decision='preserve' or in legacy preserved_compounds)
+/// - Also excludes keywords with type 'person' or 'location' and "Anti-*" keywords
 #[tauri::command]
 pub fn split_compound_keywords(
     state: State<AppState>,
@@ -2430,12 +2431,20 @@ pub fn split_compound_keywords(
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let conn = db.conn();
 
-    // Find all hyphenated keywords that are NOT preserved
+    // Find all hyphenated keywords that are NOT preserved and NOT auto-excluded
+    // Excludes:
+    // - Keywords with decision='preserve' in compound_decisions
+    // - Keywords in legacy preserved_compounds table
+    // - Keywords with type 'person' or 'location'
+    // - Keywords starting with "Anti-"
     let compounds: Vec<(i64, String)> = conn
         .prepare(
-            "SELECT id, name FROM immanentize
+            r#"SELECT id, name FROM immanentize
              WHERE name LIKE '%-%' AND LENGTH(name) > 5
-             AND id NOT IN (SELECT immanentize_id FROM preserved_compounds)"
+             AND id NOT IN (SELECT immanentize_id FROM preserved_compounds)
+             AND id NOT IN (SELECT immanentize_id FROM compound_decisions WHERE decision = 'preserve')
+             AND keyword_type NOT IN ('person', 'location')
+             AND LOWER(name) NOT LIKE 'anti-%'"#
         )
         .map_err(|e| e.to_string())?
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
@@ -2633,34 +2642,61 @@ pub fn split_compound_keywords(
 }
 
 /// Preview which compound keywords would be split
-/// Returns all splittable compounds, including preserved ones (marked with is_preserved: true)
+/// Returns only splittable compounds that need a decision (no decision yet)
+/// Filters out:
+/// - Keywords with existing decision in compound_decisions table
+/// - Keywords with keyword_type = 'person' or 'location'
+/// - Keywords starting with "Anti-" (case-insensitive)
 #[tauri::command]
 pub fn preview_compound_splits(state: State<AppState>) -> Result<Vec<CompoundSplitDetail>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let conn = db.conn();
 
-    // Load preserved compound IDs
-    let preserved_ids: std::collections::HashSet<i64> = conn
-        .prepare("SELECT immanentize_id FROM preserved_compounds")
+    // Load IDs with existing decisions (these should not appear in the review list)
+    let decided_ids: std::collections::HashSet<i64> = conn
+        .prepare("SELECT immanentize_id FROM compound_decisions")
         .map_err(|e| e.to_string())?
         .query_map([], |row| row.get(0))
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         .collect();
 
-    // Find all hyphenated keywords (including preserved ones for preview)
-    let compounds: Vec<(i64, String)> = conn
-        .prepare("SELECT id, name FROM immanentize WHERE name LIKE '%-%' AND LENGTH(name) > 5")
+    // Also load legacy preserved_compounds for backward compatibility
+    let legacy_preserved: std::collections::HashSet<i64> = conn
+        .prepare("SELECT immanentize_id FROM preserved_compounds")
+        .and_then(|mut stmt| {
+            let rows = stmt.query_map([], |row| row.get(0))?;
+            Ok(rows.filter_map(|r| r.ok()).collect())
+        })
+        .unwrap_or_default();
+
+    // Find all hyphenated keywords that:
+    // - Have no decision in compound_decisions
+    // - Are NOT person or location type
+    // - Do NOT start with "Anti-"
+    let compounds: Vec<(i64, String, String)> = conn
+        .prepare(
+            r#"SELECT id, name, COALESCE(keyword_type, 'concept') as kw_type
+               FROM immanentize
+               WHERE name LIKE '%-%' AND LENGTH(name) > 5
+               AND keyword_type NOT IN ('person', 'location')
+               AND LOWER(name) NOT LIKE 'anti-%'"#
+        )
         .map_err(|e| e.to_string())?
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         .collect();
 
     let mut split_details: Vec<CompoundSplitDetail> = Vec::new();
 
-    for (compound_id, compound_name) in compounds {
-        // Check if this compound should be split
+    for (compound_id, compound_name, _keyword_type) in compounds {
+        // Skip if decision already exists
+        if decided_ids.contains(&compound_id) || legacy_preserved.contains(&compound_id) {
+            continue;
+        }
+
+        // Check if this compound should be split (validates against NO_SPLIT list)
         if !should_split_compound(&compound_name) {
             continue;
         }
@@ -2679,14 +2715,12 @@ pub fn preview_compound_splits(state: State<AppState>) -> Result<Vec<CompoundSpl
             )
             .unwrap_or(0);
 
-        let is_preserved = preserved_ids.contains(&compound_id);
-
         split_details.push(CompoundSplitDetail {
             id: compound_id,
             original: compound_name,
             components,
             articles_affected,
-            is_preserved,
+            is_preserved: false, // Not preserved, needs decision
         });
     }
 
@@ -2878,6 +2912,13 @@ pub fn split_single_compound(
             e.to_string()
         })?;
 
+    // Also clean up from compound_decisions (if there was any)
+    conn.execute(
+        "DELETE FROM compound_decisions WHERE immanentize_id = ?",
+        [keyword_id],
+    )
+    .ok();
+
     conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
 
     info!(
@@ -2970,4 +3011,260 @@ pub fn get_preserved_compounds(state: State<AppState>) -> Result<Vec<Keyword>, S
         .map_err(|e| e.to_string())?;
 
     Ok(keywords)
+}
+
+// ============================================================
+// COMPOUND KEYWORD DECISION SYSTEM (New in Phase 4)
+// ============================================================
+
+/// A compound keyword with its decision status
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CompoundDecision {
+    pub id: i64,
+    pub name: String,
+    pub decision: String, // 'preserve' or 'split'
+    pub decided_at: String,
+    pub article_count: i64,
+    pub components: Vec<String>, // Potential split components
+}
+
+/// Set a decision for a compound keyword (preserve or split)
+/// - 'preserve' = Keyword stays as-is, marked with shield
+/// - 'split' = Keyword will be split into components
+#[tauri::command]
+pub fn set_compound_decision(
+    state: State<AppState>,
+    keyword_id: i64,
+    decision: String,
+) -> Result<(), String> {
+    // Validate decision value
+    if decision != "preserve" && decision != "split" {
+        return Err(format!(
+            "Ungueltige Entscheidung '{}'. Erlaubt sind: 'preserve', 'split'",
+            decision
+        ));
+    }
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Verify keyword exists
+    let exists: bool = conn
+        .query_row(
+            "SELECT 1 FROM immanentize WHERE id = ?",
+            [keyword_id],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+
+    if !exists {
+        return Err(format!("Keyword mit ID {} nicht gefunden", keyword_id));
+    }
+
+    // Insert or update decision
+    conn.execute(
+        r#"INSERT INTO compound_decisions (immanentize_id, decision, decided_at)
+           VALUES (?1, ?2, datetime('now'))
+           ON CONFLICT(immanentize_id) DO UPDATE SET
+             decision = excluded.decision,
+             decided_at = excluded.decided_at"#,
+        params![keyword_id, &decision],
+    )
+    .map_err(|e| format!("Fehler beim Speichern der Entscheidung: {}", e))?;
+
+    info!(
+        "Compound decision set for keyword {}: {}",
+        keyword_id, decision
+    );
+
+    Ok(())
+}
+
+/// Get all compound keyword decisions
+/// Returns keywords with their decision (preserve/split), sorted by decision type then name
+#[tauri::command]
+pub fn get_compound_decisions(state: State<AppState>) -> Result<Vec<CompoundDecision>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    let decisions: Vec<(i64, String, String, String, i64)> = conn
+        .prepare(
+            r#"SELECT i.id, i.name, cd.decision, cd.decided_at, COALESCE(i.article_count, 0)
+               FROM compound_decisions cd
+               JOIN immanentize i ON i.id = cd.immanentize_id
+               ORDER BY cd.decision, i.name"#,
+        )
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let result: Vec<CompoundDecision> = decisions
+        .into_iter()
+        .map(|(id, name, decision, decided_at, article_count)| {
+            // Get potential components for display
+            let components = get_compound_components(&name);
+            CompoundDecision {
+                id,
+                name,
+                decision,
+                decided_at,
+                article_count,
+                components,
+            }
+        })
+        .collect();
+
+    Ok(result)
+}
+
+/// Clear a compound keyword decision (move back to review list)
+#[tauri::command]
+pub fn clear_compound_decision(
+    state: State<AppState>,
+    keyword_id: i64,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    let deleted = conn
+        .execute(
+            "DELETE FROM compound_decisions WHERE immanentize_id = ?",
+            [keyword_id],
+        )
+        .map_err(|e| format!("Fehler beim Loeschen der Entscheidung: {}", e))?;
+
+    if deleted == 0 {
+        return Err(format!(
+            "Keine Entscheidung fuer Keyword {} gefunden",
+            keyword_id
+        ));
+    }
+
+    info!("Compound decision cleared for keyword {}", keyword_id);
+
+    Ok(())
+}
+
+/// Batch set decisions for multiple keywords
+#[tauri::command]
+pub fn batch_set_compound_decisions(
+    state: State<AppState>,
+    keyword_ids: Vec<i64>,
+    decision: String,
+) -> Result<i64, String> {
+    // Validate decision value
+    if decision != "preserve" && decision != "split" {
+        return Err(format!(
+            "Ungueltige Entscheidung '{}'. Erlaubt sind: 'preserve', 'split'",
+            decision
+        ));
+    }
+
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    conn.execute("BEGIN", []).map_err(|e| e.to_string())?;
+
+    let mut count = 0i64;
+    for keyword_id in &keyword_ids {
+        // Insert or update decision
+        let result = conn.execute(
+            r#"INSERT INTO compound_decisions (immanentize_id, decision, decided_at)
+               SELECT ?1, ?2, datetime('now')
+               WHERE EXISTS (SELECT 1 FROM immanentize WHERE id = ?1)
+               ON CONFLICT(immanentize_id) DO UPDATE SET
+                 decision = excluded.decision,
+                 decided_at = excluded.decided_at"#,
+            params![keyword_id, &decision],
+        );
+
+        if result.is_ok() {
+            count += 1;
+        }
+    }
+
+    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
+
+    info!(
+        "Batch compound decision set for {} keywords: {}",
+        count, decision
+    );
+
+    Ok(count)
+}
+
+/// Get statistics about compound keyword decisions
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CompoundDecisionStats {
+    pub total_compounds: i64,      // All hyphenated keywords
+    pub needs_decision: i64,       // Without decision (in review list)
+    pub preserved_count: i64,      // Decision = preserve
+    pub split_count: i64,          // Decision = split
+    pub auto_excluded_count: i64,  // Excluded by rules (person, location, Anti-)
+}
+
+#[tauri::command]
+pub fn get_compound_decision_stats(state: State<AppState>) -> Result<CompoundDecisionStats, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Total hyphenated keywords
+    let total_compounds: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM immanentize WHERE name LIKE '%-%' AND LENGTH(name) > 5",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    // Count by decision type
+    let preserved_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM compound_decisions WHERE decision = 'preserve'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    let split_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM compound_decisions WHERE decision = 'split'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    // Auto-excluded (person, location, Anti-*)
+    let auto_excluded_count: i64 = conn
+        .query_row(
+            r#"SELECT COUNT(*) FROM immanentize
+               WHERE name LIKE '%-%' AND LENGTH(name) > 5
+               AND (keyword_type IN ('person', 'location') OR LOWER(name) LIKE 'anti-%')"#,
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    // Needs decision = total - decided - auto_excluded
+    let decided_total = preserved_count + split_count;
+    let needs_decision = total_compounds - decided_total - auto_excluded_count;
+    let needs_decision = if needs_decision < 0 { 0 } else { needs_decision };
+
+    Ok(CompoundDecisionStats {
+        total_compounds,
+        needs_decision,
+        preserved_count,
+        split_count,
+        auto_excluded_count,
+    })
 }
