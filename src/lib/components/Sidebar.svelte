@@ -123,6 +123,8 @@
     appState.selectedView = "all";
     appState.selectedPentacleId = null;
     appState.selectedSephirothId = null;
+    appState.selectedFnordId = null;
+    appState.loadFnords();
     onerisianArchives?.();
   }
 
@@ -229,7 +231,7 @@
     <p class="tagline">Immanentize the Eschaton</p>
     <!-- Navigation: Alle Feeds → Immanentize Network → Operation Mindfuck → Fnord-Statistiken → Einstellungen -->
     <div class="nav-bar">
-      <button onclick={onerisianArchives} class="nav-btn {erisianArchivesActive ? 'active' : ''}" title={$_('sidebar.allFeeds')} aria-label={$_('sidebar.allFeeds')}>
+      <button onclick={handleSelectAll} class="nav-btn {erisianArchivesActive ? 'active' : ''}" title={$_('sidebar.allFeeds')} aria-label={$_('sidebar.allFeeds')}>
         <i class="icon fa-solid fa-newspaper"></i>
       </button>
       <button onclick={onnetwork} class="nav-btn {networkActive ? 'active' : ''}" title={$_('network.title')} aria-label={$_('network.title')}>
