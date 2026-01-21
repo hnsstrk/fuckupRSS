@@ -16,6 +16,7 @@ pub use keywords::{
     extract_keywords, normalize_keyword, normalize_and_dedupe_keywords,
     find_canonical_keyword, find_canonical_keyword_with_db, load_dynamic_synonyms,
     split_compound_keyword, expand_compound_keywords,
+    should_split_compound, get_compound_components,
     KeywordExtractor, Language,
     // Unified keyword types
     KeywordSource, KeywordWithMetadata, ExtractedKeywordCandidate, ArticleKeywordRef,
@@ -223,6 +224,9 @@ pub fn run() {
             commands::immanentize::update_keyword_types,
             // Keyword Cleanup (stopwords, seeds, type detection)
             commands::immanentize::cleanup_keywords,
+            // Compound Keyword Splitting
+            commands::immanentize::split_compound_keywords,
+            commands::immanentize::preview_compound_splits,
             // Embedding Queue
             commands::embedding::get_embedding_queue_status,
             commands::embedding::process_embedding_queue_now,
@@ -261,6 +265,7 @@ pub fn run() {
             commands::article_analysis::get_similar_keywords,
             commands::article_analysis::get_keyword_suggestions_from_network,
             commands::article_analysis::score_keywords_semantically,
+            commands::article_analysis::fix_category_assignments,
             // Stopword Management
             commands::stopwords::get_user_stopwords,
             commands::stopwords::get_system_stopwords,

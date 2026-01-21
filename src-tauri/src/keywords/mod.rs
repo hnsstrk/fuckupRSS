@@ -1782,6 +1782,36 @@ pub fn clear_dynamic_synonyms_cache() {
 // COMPOUND KEYWORD SPLITTING
 // ============================================================
 
+/// Keywords that should NEVER be split (proper nouns, established terms)
+static NO_SPLIT_KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    [
+        // German Bundeslaender
+        "sachsen-anhalt", "baden-württemberg", "schleswig-holstein",
+        "nordrhein-westfalen", "rheinland-pfalz", "mecklenburg-vorpommern",
+        // Place names
+        "crans-montana", "tel-aviv", "new-york", "hong-kong", "rio-de-janeiro",
+        "saudi-arabien", "guinea-bissau", "timor-leste", "papua-neuguinea",
+        "bosnien-herzegowina", "trinidad-tobago", "antigua-barbuda",
+        // Sports terms (leagues, cups, events)
+        "fa-cup", "dfb-pokal", "europa-league", "champions-league",
+        "grand-slam", "super-g", "afrika-cup", "handball-em", "handball-wm",
+        "fußball-em", "fußball-wm", "tennis-atp", "formel-1", "formel-e",
+        // Established compound terms
+        "covid-19", "sars-cov-2", "e-mail", "wi-fi", "cd-rom", "t-shirt",
+        // Person names with hyphens (common patterns)
+        "al-scharaa", "al-assad", "al-qaida", "al-jazeera",
+        "bin-laden", "ibn-saud",
+        // Organization abbreviations that look like compounds
+        "un-sicherheitsrat", "eu-kommission", "eu-parlament",
+        // Geographic features and infrastructure
+        "gaza-streifen", "fehmarnbelt-tunnel", "chagos-inseln",
+        "rhein-main", "ruhr-gebiet", "ost-west",
+    ]
+    .iter()
+    .copied()
+    .collect()
+});
+
 /// Words that should not be split from compounds (particles, prepositions)
 static COMPOUND_IGNORE_PARTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
@@ -1801,36 +1831,67 @@ static VALID_COMPOUND_PARTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
         // Politicians (last names)
         "trump", "biden", "putin", "scholz", "merkel", "macron", "erdogan",
-        "merz", "habeck", "lindner", "weidel", "söder", "laschet",
+        "merz", "habeck", "lindner", "weidel", "söder", "laschet", "musk",
+        "netanjahu", "selenskyj", "xi", "jinping", "modi", "johnson",
         // Parties and organizations
-        "cdu", "csu", "spd", "fdp", "afd", "grüne", "linke",
-        "nato", "eu", "un", "usa", "bnd", "cia", "fbi",
-        // Countries
-        "ukraine", "russland", "china", "iran", "israel", "gaza",
-        // Common topic words
-        "klima", "energie", "migration", "wirtschaft", "politik",
-        "krieg", "krise", "deal", "streit", "konflikt", "reform",
+        "cdu", "csu", "spd", "fdp", "afd", "grüne", "linke", "bsw",
+        "nato", "eu", "un", "usa", "bnd", "cia", "fbi", "nsa", "bka",
+        "opec", "g7", "g20", "who", "imf", "ezb", "fed",
+        // Countries and regions
+        "ukraine", "russland", "china", "iran", "israel", "gaza", "syrien",
+        "deutschland", "usa", "frankreich", "polen", "türkei", "grönland",
+        "arktis", "balkan", "nahost", "afrika", "asien", "europa", "amerika",
+        // Common topic words (nouns)
+        "klima", "energie", "migration", "wirtschaft", "politik", "militär",
+        "krieg", "krise", "deal", "streit", "konflikt", "reform", "wahl",
         "zölle", "sanktionen", "abkommen", "gipfel", "verhandlungen",
+        "sicherheit", "verteidigung", "handel", "druck", "hilfe", "unterstützung",
+        "präsident", "kanzler", "minister", "regierung", "opposition",
+        "spaltung", "einigung", "austritt", "beitritt", "verbot", "gesetz",
+        // Actions/States
+        "administration", "kommission", "rat", "parlament", "kongress",
     ]
     .iter()
     .copied()
     .collect()
 });
 
-/// Split compound keyword into components
-/// e.g., "Trump-Zölle" → ["Trump", "Zölle"]
-/// e.g., "CDU-CSU-Fraktion" → ["CDU", "CSU", "Fraktion"]
-pub fn split_compound_keyword(keyword: &str) -> Vec<String> {
+/// Check if a keyword should be split (has hyphen and is not in NO_SPLIT list)
+pub fn should_split_compound(keyword: &str) -> bool {
+    if !keyword.contains('-') {
+        return false;
+    }
+    // Check against NO_SPLIT list
+    let lower = keyword.to_lowercase();
+    if NO_SPLIT_KEYWORDS.contains(lower.as_str()) {
+        return false;
+    }
+    // Check if it would produce valid parts
+    let components = get_compound_components(keyword);
+    components.len() >= 2
+}
+
+/// Get only the component parts of a compound keyword (WITHOUT the original)
+/// Returns empty vec if keyword should not be split
+/// e.g., "Ukraine-Krieg" → ["Ukraine", "Krieg"]
+/// e.g., "COVID-19" → [] (in NO_SPLIT list)
+pub fn get_compound_components(keyword: &str) -> Vec<String> {
     // Only split if contains hyphen
     if !keyword.contains('-') {
-        return vec![keyword.to_string()];
+        return vec![];
+    }
+
+    // Check NO_SPLIT list first
+    let lower = keyword.to_lowercase();
+    if NO_SPLIT_KEYWORDS.contains(lower.as_str()) {
+        return vec![];
     }
 
     let parts: Vec<&str> = keyword.split('-').collect();
 
     // Don't split single hyphen or too many parts
     if parts.len() < 2 || parts.len() > 4 {
-        return vec![keyword.to_string()];
+        return vec![];
     }
 
     // Filter out ignored parts and validate remaining ones
@@ -1857,9 +1918,9 @@ pub fn split_compound_keyword(keyword: &str) -> Vec<String> {
         })
         .collect();
 
-    // If only one valid part remains, include original compound
-    if valid_parts.len() <= 1 {
-        return vec![keyword.to_string()];
+    // Need at least 2 valid parts
+    if valid_parts.len() < 2 {
+        return vec![];
     }
 
     // Check if at least one part is meaningful (known keyword or capitalized)
@@ -1870,12 +1931,27 @@ pub fn split_compound_keyword(keyword: &str) -> Vec<String> {
     });
 
     if !has_meaningful_part {
+        return vec![];
+    }
+
+    valid_parts
+}
+
+/// Split compound keyword into components
+/// e.g., "Trump-Zölle" → ["Trump-Zölle", "Trump", "Zölle"] (includes original)
+/// e.g., "CDU-CSU-Fraktion" → ["CDU-CSU-Fraktion", "CDU", "CSU", "Fraktion"]
+/// NOTE: This function returns the original PLUS components. Use get_compound_components
+/// if you only want the components without the original.
+pub fn split_compound_keyword(keyword: &str) -> Vec<String> {
+    let components = get_compound_components(keyword);
+
+    if components.is_empty() {
         return vec![keyword.to_string()];
     }
 
     // Return both the original compound AND the split parts
     let mut result = vec![keyword.to_string()];
-    for part in valid_parts {
+    for part in components {
         if !result.iter().any(|r| r.to_lowercase() == part.to_lowercase()) {
             result.push(part);
         }

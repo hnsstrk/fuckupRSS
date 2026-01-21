@@ -115,6 +115,31 @@ This document provides a comprehensive reference for all Tauri commands availabl
 | `find_synonym_candidates` | `threshold?`, `limit?` | `Vec<SynonymCandidate>` | Find synonym candidates |
 | `merge_keyword_pair` | `keep_id`, `remove_id` | `MergeSynonymsResult` | Merge keywords |
 | `dismiss_synonym_pair` | `keyword_a_id`, `keyword_b_id` | - | Dismiss synonym suggestion |
+| `split_compound_keywords` | `dry_run?` | `CompoundSplitResult` | Split compound keywords (e.g. "Ukraine-Krieg" → "Ukraine" + "Krieg") |
+| `preview_compound_splits` | - | `Vec<CompoundSplitDetail>` | Preview which compounds would be split |
+
+### CompoundSplitResult Structure
+
+```typescript
+interface CompoundSplitResult {
+  compounds_found: number;      // Total hyphenated keywords found
+  compounds_split: number;      // Keywords actually split
+  components_created: number;   // New component keywords created
+  articles_transferred: number; // Article associations transferred
+  split_details: CompoundSplitDetail[];
+}
+
+interface CompoundSplitDetail {
+  original: string;        // e.g. "Ukraine-Krieg"
+  components: string[];    // e.g. ["Ukraine", "Krieg"]
+  articles_affected: number;
+}
+```
+
+**Notes:**
+- Keywords in the NO_SPLIT list (Bundesländer, sports terms, proper nouns) are preserved
+- The original compound keyword is deleted after splitting
+- Article associations are transferred to all component keywords
 
 ---
 
