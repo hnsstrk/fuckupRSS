@@ -2,6 +2,7 @@
   import { _, locale } from 'svelte-i18n';
   import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { open } from '@tauri-apps/plugin-shell';
   import { appState, toasts, type FnordRevision, type ArticleCategory, type Tag, type SimilarArticle } from "../stores/state.svelte";
   import type { ArticleKeyword, ArticleCategoryDetailed } from '$lib/types';
   import RevisionView from "./RevisionView.svelte";
@@ -294,9 +295,9 @@
     return 'objective';
   }
 
-  function openInBrowser() {
+  async function openInBrowser() {
     if (appState.selectedFnord) {
-      window.open(appState.selectedFnord.url, "_blank");
+      await open(appState.selectedFnord.url);
     }
   }
 
