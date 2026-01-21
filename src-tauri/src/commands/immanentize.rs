@@ -3352,12 +3352,12 @@ pub fn get_keyword_context(
     // Find the most recent article with this keyword
     let article_data: Option<(String, String, Option<String>, Option<String>)> = conn
         .query_row(
-            r#"SELECT f.title, COALESCE(f.published, f.created_at),
+            r#"SELECT f.title, COALESCE(f.published_at, f.fetched_at),
                       f.content_full, f.content_raw
                FROM fnords f
                JOIN fnord_immanentize fi ON f.id = fi.fnord_id
                WHERE fi.immanentize_id = ?
-               ORDER BY f.published DESC, f.created_at DESC
+               ORDER BY f.published_at DESC, f.fetched_at DESC
                LIMIT 1"#,
             [keyword_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
@@ -3387,7 +3387,7 @@ pub fn get_keyword_context(
 }
 
 /// Extract a sentence containing the keyword from text
-fn extract_sentence_with_keyword(text: &str, keyword: &str) -> Option<String> {
+pub(crate) fn extract_sentence_with_keyword(text: &str, keyword: &str) -> Option<String> {
     // Clean HTML tags from content
     let clean_text = strip_html_tags(text);
 
@@ -3416,7 +3416,7 @@ fn extract_sentence_with_keyword(text: &str, keyword: &str) -> Option<String> {
 }
 
 /// Strip HTML tags from text
-fn strip_html_tags(html: &str) -> String {
+pub(crate) fn strip_html_tags(html: &str) -> String {
     let mut result = String::new();
     let mut in_tag = false;
 
@@ -3435,7 +3435,7 @@ fn strip_html_tags(html: &str) -> String {
 }
 
 /// Find the start of the sentence containing the position
-fn find_sentence_start(text: &str, pos: usize) -> usize {
+pub(crate) fn find_sentence_start(text: &str, pos: usize) -> usize {
     let sentence_enders = ['.', '!', '?', '\n'];
     let bytes = text.as_bytes();
 
@@ -3455,7 +3455,7 @@ fn find_sentence_start(text: &str, pos: usize) -> usize {
 }
 
 /// Find the end of the sentence containing the position
-fn find_sentence_end(text: &str, pos: usize) -> usize {
+pub(crate) fn find_sentence_end(text: &str, pos: usize) -> usize {
     let sentence_enders = ['.', '!', '?', '\n'];
 
     for (i, c) in text[pos..].char_indices() {
@@ -3467,7 +3467,7 @@ fn find_sentence_end(text: &str, pos: usize) -> usize {
 }
 
 /// Truncate text at word boundary
-fn truncate_at_word_boundary(text: &str, max_len: usize) -> &str {
+pub(crate) fn truncate_at_word_boundary(text: &str, max_len: usize) -> &str {
     if text.len() <= max_len {
         return text;
     }
