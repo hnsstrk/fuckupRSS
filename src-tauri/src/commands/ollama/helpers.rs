@@ -7,6 +7,7 @@ use crate::ollama::{
 };
 use crate::AppState;
 use crate::SEPHIROTH_CATEGORIES;
+use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
 use tauri::State;
 
@@ -167,7 +168,8 @@ pub fn merge_keywords(
     merged
 }
 
-/// Validate and merge LLM categories with local extraction
+/// Validate and merge categories from multiple sources
+/// Priority: statistical > llm > local (statistical is most reliable)
 pub fn validate_and_merge_categories(
     llm_categories: &[String],
     local_categories: Vec<String>,
@@ -186,6 +188,7 @@ pub fn validate_and_merge_categories(
         local_categories
     } else {
         let mut seen = HashSet::new();
+        // LLM categories first, then local as supplement
         valid_llm
             .into_iter()
             .chain(local_categories)
@@ -193,6 +196,47 @@ pub fn validate_and_merge_categories(
             .take(5)
             .collect()
     }
+}
+
+/// Merge categories with statistical categories as PRIMARY source
+/// Statistical categories are deterministic and more reliable than LLM
+pub fn merge_categories_stat_primary(
+    stat_categories: &[(String, f64)],
+    llm_categories: &[String],
+    local_categories: Vec<String>,
+    min_confidence: f64,
+) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut result = Vec::new();
+
+    // 1. Statistical categories FIRST (if confident enough)
+    for (name, confidence) in stat_categories {
+        if *confidence >= min_confidence && seen.insert(name.to_lowercase()) {
+            // Validate against known categories
+            if SEPHIROTH_CATEGORIES.iter().any(|s| s.to_lowercase() == name.to_lowercase()) {
+                result.push(name.clone());
+            }
+        }
+    }
+
+    // 2. LLM categories as supplement (validated)
+    for cat in llm_categories {
+        if seen.insert(cat.to_lowercase()) {
+            if SEPHIROTH_CATEGORIES.iter().any(|s| s.to_lowercase() == cat.to_lowercase()) {
+                result.push(cat.clone());
+            }
+        }
+    }
+
+    // 3. Local categories as fallback
+    for cat in local_categories {
+        if seen.insert(cat.to_lowercase()) {
+            result.push(cat);
+        }
+    }
+
+    result.truncate(5);
+    result
 }
 
 /// Statistical keyword info with type
@@ -881,6 +925,109 @@ pub fn determine_category_sources(
             }
         })
         .collect()
+}
+
+// ============================================================
+// CATEGORY DERIVATION FROM KEYWORD NETWORK
+// ============================================================
+
+/// Derive categories from keywords based on their historical category associations.
+///
+/// This function looks up keywords in the immanentize network and aggregates their
+/// category associations from `immanentize_sephiroth`. Categories are weighted by:
+/// - The `weight` field from `immanentize_sephiroth`
+/// - Specificity: `1/number_of_categories` (keywords with fewer categories count more)
+///
+/// Keywords with more than 6 categories are ignored as too unspecific.
+/// Only subcategories (level = 1 in sephiroth) are considered.
+///
+/// # Arguments
+/// * `conn` - Database connection
+/// * `keywords` - List of keyword names to analyze
+/// * `min_score` - Minimum aggregated score for a category to be included (e.g., 0.15)
+/// * `min_supporting_keywords` - Minimum number of keywords that must support a category
+///
+/// # Returns
+/// Vector of (category_name, confidence) tuples, sorted by confidence descending
+pub fn derive_categories_from_keywords(
+    conn: &Connection,
+    keywords: &[String],
+    min_score: f64,
+    min_supporting_keywords: usize,
+) -> Vec<(String, f64)> {
+    // Structure to track category scores and supporting keywords
+    struct CategoryScore {
+        score: f64,
+        supporting_keywords: usize,
+    }
+
+    let mut category_scores: HashMap<String, CategoryScore> = HashMap::new();
+
+    for keyword in keywords {
+        // Look up the keyword in immanentize
+        let keyword_id: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?1)",
+                rusqlite::params![keyword],
+                |row| row.get(0),
+            )
+            .ok();
+
+        let Some(keyword_id) = keyword_id else {
+            continue;
+        };
+
+        // Get category associations for this keyword (only subcategories with level = 1)
+        let mut stmt = match conn.prepare(
+            r#"
+            SELECT s.name, iis.weight
+            FROM immanentize_sephiroth iis
+            JOIN sephiroth s ON s.id = iis.sephiroth_id
+            WHERE iis.immanentize_id = ?1 AND s.level = 1
+            "#,
+        ) {
+            Ok(stmt) => stmt,
+            Err(_) => continue,
+        };
+
+        let categories: Vec<(String, f64)> = match stmt.query_map(rusqlite::params![keyword_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+        }) {
+            Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+            Err(_) => continue,
+        };
+
+        // Skip keywords with too many categories (unspecific)
+        if categories.is_empty() || categories.len() > 6 {
+            continue;
+        }
+
+        // Calculate specificity factor: keywords with fewer categories are more specific
+        let specificity = 1.0 / (categories.len() as f64);
+
+        // Add weighted scores to each category
+        for (cat_name, weight) in categories {
+            let weighted_score = weight * specificity;
+            let entry = category_scores.entry(cat_name).or_insert(CategoryScore {
+                score: 0.0,
+                supporting_keywords: 0,
+            });
+            entry.score += weighted_score;
+            entry.supporting_keywords += 1;
+        }
+    }
+
+    // Filter and sort categories
+    let mut results: Vec<(String, f64)> = category_scores
+        .into_iter()
+        .filter(|(_, cs)| cs.score >= min_score && cs.supporting_keywords >= min_supporting_keywords)
+        .map(|(name, cs)| (name, cs.score))
+        .collect();
+
+    // Sort by score descending
+    results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    results
 }
 
 // ============================================================

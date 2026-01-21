@@ -330,7 +330,7 @@ Die Sprache kann in den Einstellungen gewechselt werden.
 
 **Aktueller Status:** Phase 3 abgeschlossen, Phase 4 (Polish) in Entwicklung
 
-Detaillierte Planung und Phasen-Übersicht: siehe [`fuckupRSS-Anforderungen.md`](fuckupRSS-Anforderungen.md#20-nächste-schritte)
+Detaillierte Planung und Phasen-Übersicht: siehe [`docs/ANFORDERUNGEN.md`](docs/ANFORDERUNGEN.md#5-roadmap-nächste-schritte)
 
 ---
 

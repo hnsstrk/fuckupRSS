@@ -5,7 +5,7 @@ This document provides a comprehensive overview of the fuckupRSS SQLite database
 **Related documentation:**
 - Database patterns and best practices: See [CLAUDE.md](../../CLAUDE.md#database-patterns--best-practices)
 - Full schema implementation: `src-tauri/src/db/schema.rs`
-- Technical specification: `fuckupRSS-Anforderungen.md` Kapitel 6b + 10
+- Technical specification: `docs/ANFORDERUNGEN.md` Kapitel 6b + 10
 
 ---
 
@@ -60,10 +60,57 @@ Tracks changes to articles over time (for "Fnord" detection - seeing what others
 |--------|------|-------------|
 | `id` | INTEGER | Primary key |
 | `fnord_id` | INTEGER | FK to fnords |
-| `content_hash` | TEXT | Content hash at revision |
-| `content_raw` | TEXT | Content at revision |
-| `title` | TEXT | Title at revision |
-| `detected_at` | TEXT | When change was detected |
+| `title` | TEXT | Titel zu diesem Zeitpunkt |
+| `author` | TEXT | Autor zu diesem Zeitpunkt |
+| `content_raw` | TEXT | Feed-Content zu diesem Zeitpunkt |
+| `content_full` | TEXT | Volltext zu diesem Zeitpunkt |
+| `published_at` | DATETIME | Veröffentlichungsdatum laut Feed |
+| `content_hash` | TEXT | SHA256 von content_full oder content_raw |
+| `revision_at` | DATETIME | Wann diese Version erfasst wurde |
+| `revision_number` | INTEGER | Fortlaufende Nummer (1 = Original, 2 = erste Änderung, etc.) |
+| `changes_summary` | TEXT | JSON mit geänderten Feldern: `{"title": true, "content": true, ...}` |
+
+**Indizes:**
+- `idx_revisions_fnord` auf `fnord_id`
+- `idx_revisions_date` auf `revision_at DESC`
+
+#### Revisionsverwaltung (Fnord History)
+
+Artikel können sich ändern - sei es durch Korrekturen, Updates oder "stille" Änderungen. fuckupRSS speichert **alle Versionen** eines Artikels und macht Änderungen sichtbar.
+
+**Was wird auf Änderungen geprüft?**
+
+| Feld | Prüfung | Speicherung |
+|------|---------|-------------|
+| `title` | Ja | In Revision |
+| `content_raw` | Ja (Hash) | In Revision |
+| `content_full` | Ja (Hash) | In Revision |
+| `author` | Ja | In Revision |
+| `published_at` | Ja | In Revision |
+| `summary` (KI) | Nein | Nur aktuell |
+
+**Änderungserkennung beim Sync:**
+
+```
+Feed-Sync
+    │
+    ├─► Artikel existiert bereits? (via GUID)
+    │       │
+    │       ├─► Nein ──► Neuer Artikel, Revision 1 anlegen
+    │       │
+    │       └─► Ja ──► Content-Hash vergleichen
+    │                   │
+    │                   ├─► Hash identisch ──► Keine Aktion
+    │                   │
+    │                   └─► Hash unterschiedlich ──► Neue Revision anlegen
+    │                                               ──► has_changes = TRUE
+    │                                               ──► Volltext neu abrufen
+```
+
+**Kennzeichnung in der UI:**
+- `●` = Normale Artikel
+- `⚡` = Artikel mit Änderungen (Fnord!)
+- `[🔄 3]` = 3 Revisionen vorhanden
 
 ---
 
@@ -185,6 +232,31 @@ Stores user-dismissed synonym merge suggestions.
 ---
 
 ## Embeddings & Vector Search
+
+### Embedding-Modell Details
+
+**Standard:** `snowflake-arctic-embed2` (1024-dim, multilingual)
+
+| Eigenschaft | Wert |
+|-------------|------|
+| Modell | snowflake-arctic-embed2 |
+| Dimensionen | 1024 |
+| Sprachen | 74 (inkl. Deutsch, Englisch) |
+| Größe | 1.2 GB |
+| VRAM | ~2-3 GB |
+| Kontext | 8192 Tokens |
+
+**Vorteile der Modellwahl:**
+- Explizite deutsche Sprachunterstützung (CLEF-Benchmarks)
+- Bessere Performance bei kurzen Texten/Keywords
+- Matryoshka Representation Learning (MRL) für Kompression
+- Apache 2.0 Lizenz
+
+**Bei Modellwechsel:** Alle Keywords müssen neu eingebettet werden (Settings -> Wartung -> Embeddings generieren), da unterschiedliche Dimensionen nicht kompatibel sind.
+
+**Alternative:** `bge-m3` (100+ Sprachen, ebenfalls 1024-dim)
+
+---
 
 ### `vec_immanentize` - Keyword Vector Index
 
@@ -329,13 +401,35 @@ Adaptive weights learned from LLM rejections and user corrections.
 
 ### `settings` - Application Settings
 
-Key-value store for application settings.
+Key-value store for application settings. Einstellungen werden in der SQLite-Datenbank gespeichert, nicht in einer externen config.toml.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `key` | TEXT | Setting key (unique) |
-| `value` | TEXT | Setting value (JSON) |
-| `updated_at` | TEXT | Last update timestamp |
+| `key` | TEXT | Setting key (PRIMARY KEY) |
+| `value` | TEXT | Setting value (als String) |
+
+**Implementierte Settings:**
+
+| Key | Typ | Default | Beschreibung |
+|-----|-----|---------|--------------|
+| `locale` | String | `'de'` | Sprache: `de`, `en` |
+| `theme` | String | `'mocha'` | Theme: `mocha`, `macchiato`, `frappe`, `latte` |
+| `showTerminologyTooltips` | Boolean | `'true'` | Illuminatus!-Tooltips anzeigen |
+
+**Geplante Settings (spätere Phasen):**
+
+| Key | Typ | Beschreibung |
+|-----|-----|--------------|
+| `syncInterval` | Integer | Sync-Intervall in Minuten |
+| `syncOnStart` | Boolean | Sync bei App-Start |
+| `ollamaHost` | String | Ollama-Server URL |
+| `mainModel` | String | Haupt-LLM für Analyse |
+| `embeddingModel` | String | Modell für Embeddings |
+
+**Persistenz-Mechanismus:**
+- Frontend liest/schreibt via `get_setting`/`set_setting` Tauri Commands
+- Werte werden als Strings gespeichert (JSON-Serialisierung bei komplexen Typen)
+- Änderungen werden sofort in die Datenbank geschrieben
 
 ### `hardware_profiles` - Performance Profiles
 
@@ -414,7 +508,9 @@ The `source` field in mapping tables indicates provenance:
 
 ## Notes
 
-1. **Embedding dimensions:** All embeddings use 1024 dimensions (snowflake-arctic-embed2)
-2. **Vector search:** Uses sqlite-vec extension with cosine distance
+1. **Embedding dimensions:** All embeddings use 1024 dimensions (snowflake-arctic-embed2, siehe "Embedding-Modell Details")
+2. **Vector search:** Uses sqlite-vec extension with cosine distance, O(log n) KNN
 3. **Timestamps:** All timestamps are ISO 8601 format (TEXT)
 4. **WAL mode:** Database uses Write-Ahead Logging for concurrent access
+5. **Settings persistence:** Alle Einstellungen werden in der `settings`-Tabelle gespeichert (Key-Value-Store)
+6. **Revisionsverwaltung:** Artikeländerungen werden vollständig in `fnord_revisions` protokolliert

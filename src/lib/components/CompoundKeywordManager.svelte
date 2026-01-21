@@ -767,7 +767,7 @@
                       </button>
                     {/if}
 
-                    <!-- Bomb button: Split -->
+                    <!-- Scissors button: Split -->
                     {#if !item.is_preserved}
                       <button
                         class="action-btn split"
@@ -775,7 +775,7 @@
                         title={$_('compound.split') || 'Split into components'}
                         disabled={splitting}
                       >
-                        <i class="fa-solid fa-bomb"></i>
+                        <i class="fa-solid fa-scissors"></i>
                       </button>
                     {/if}
                   </div>

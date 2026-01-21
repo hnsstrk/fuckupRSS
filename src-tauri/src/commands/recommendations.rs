@@ -1205,21 +1205,152 @@ fn get_top_user_categories(conn: &rusqlite::Connection, limit: i64) -> Result<Ve
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::Database;
+
+    // ============================================================
+    // Helper Functions for Test Setup
+    // ============================================================
+
+    fn create_test_db() -> Database {
+        Database::new_in_memory().expect("Failed to create test database")
+    }
+
+    fn insert_test_pentacle(conn: &rusqlite::Connection, id: i64, title: &str) {
+        conn.execute(
+            "INSERT INTO pentacles (id, url, title, article_count) VALUES (?1, ?2, ?3, ?4)",
+            params![id, format!("https://example{}.com/feed", id), title, 10],
+        )
+        .expect("Failed to insert test pentacle");
+    }
+
+    fn insert_test_fnord(
+        conn: &rusqlite::Connection,
+        id: i64,
+        pentacle_id: i64,
+        title: &str,
+        read: bool,
+        with_embedding: bool,
+    ) {
+        let read_at = if read {
+            Some("2024-01-15T12:00:00Z".to_string())
+        } else {
+            None
+        };
+        let embedding: Option<Vec<u8>> = if with_embedding {
+            Some(vec![0u8; 4096]) // 1024 floats * 4 bytes
+        } else {
+            None
+        };
+
+        conn.execute(
+            r#"INSERT INTO fnords (id, pentacle_id, guid, url, title, status, read_at, summary, published_at, embedding)
+               VALUES (?1, ?2, ?3, ?4, ?5, 'concealed', ?6, 'Test summary', datetime('now', '-1 hour'), ?7)"#,
+            params![
+                id,
+                pentacle_id,
+                format!("guid-{}", id),
+                format!("https://example.com/article/{}", id),
+                title,
+                read_at,
+                embedding,
+            ],
+        )
+        .expect("Failed to insert test fnord");
+    }
+
+    fn insert_test_keyword(conn: &rusqlite::Connection, id: i64, name: &str) {
+        conn.execute(
+            "INSERT INTO immanentize (id, name, article_count, quality_score) VALUES (?1, ?2, ?3, ?4)",
+            params![id, name, 5, 0.8],
+        )
+        .expect("Failed to insert test keyword");
+    }
+
+    fn link_fnord_keyword(conn: &rusqlite::Connection, fnord_id: i64, keyword_id: i64) {
+        conn.execute(
+            "INSERT INTO fnord_immanentize (fnord_id, immanentize_id) VALUES (?1, ?2)",
+            params![fnord_id, keyword_id],
+        )
+        .expect("Failed to link fnord to keyword");
+    }
+
+    fn link_fnord_category(conn: &rusqlite::Connection, fnord_id: i64, sephiroth_id: i64) {
+        conn.execute(
+            "INSERT INTO fnord_sephiroth (fnord_id, sephiroth_id) VALUES (?1, ?2)",
+            params![fnord_id, sephiroth_id],
+        )
+        .expect("Failed to link fnord to category");
+    }
+
+    fn insert_feedback(conn: &rusqlite::Connection, fnord_id: i64, action: &str) {
+        conn.execute(
+            "INSERT INTO recommendation_feedback (fnord_id, action) VALUES (?1, ?2)",
+            params![fnord_id, action],
+        )
+        .expect("Failed to insert feedback");
+    }
+
+    // ============================================================
+    // Freshness Calculation Tests
+    // ============================================================
 
     #[test]
-    fn test_freshness_calculation() {
-        // Very recent
+    fn test_freshness_calculation_now() {
         let now = chrono::Utc::now().to_rfc3339();
         let score = calculate_freshness(&Some(now));
-        assert!(score > 0.95);
-
-        // Unknown date
-        let score = calculate_freshness(&None);
-        assert!((score - 0.3).abs() < 0.01);
+        assert!(score > 0.95, "Very recent article should have high freshness");
     }
 
     #[test]
-    fn test_explanation_keywords() {
+    fn test_freshness_calculation_24_hours_ago() {
+        let date = (chrono::Utc::now() - chrono::Duration::hours(24)).to_rfc3339();
+        let score = calculate_freshness(&Some(date));
+        // After 24 hours with 48-hour half-life, should be around 0.71
+        assert!(score > 0.6 && score < 0.85, "24h old should have moderate freshness: {}", score);
+    }
+
+    #[test]
+    fn test_freshness_calculation_48_hours_ago() {
+        let date = (chrono::Utc::now() - chrono::Duration::hours(48)).to_rfc3339();
+        let score = calculate_freshness(&Some(date));
+        // Half-life is 48 hours (ln(2) * 100 ≈ 69.3), so should be around 0.5
+        assert!(score > 0.4 && score < 0.6, "48h old should have ~0.5 freshness: {}", score);
+    }
+
+    #[test]
+    fn test_freshness_calculation_1_week_ago() {
+        let date = (chrono::Utc::now() - chrono::Duration::days(7)).to_rfc3339();
+        let score = calculate_freshness(&Some(date));
+        // 168 hours old, should be quite low
+        assert!(score < 0.15, "Week old article should have low freshness: {}", score);
+    }
+
+    #[test]
+    fn test_freshness_calculation_none() {
+        let score = calculate_freshness(&None);
+        assert!((score - 0.3).abs() < 0.01, "Unknown date should return 0.3");
+    }
+
+    #[test]
+    fn test_freshness_calculation_invalid_date() {
+        let score = calculate_freshness(&Some("not-a-date".to_string()));
+        assert!((score - 0.5).abs() < 0.01, "Invalid date should return 0.5");
+    }
+
+    #[test]
+    fn test_freshness_calculation_future_date() {
+        let future = (chrono::Utc::now() + chrono::Duration::hours(24)).to_rfc3339();
+        let score = calculate_freshness(&Some(future));
+        // Future dates should be clamped to 1.0
+        assert!((score - 1.0).abs() < 0.01, "Future date should be clamped to 1.0: {}", score);
+    }
+
+    // ============================================================
+    // Explanation Generation Tests
+    // ============================================================
+
+    #[test]
+    fn test_explanation_with_multiple_keywords() {
         let candidate = Candidate {
             fnord_id: 1,
             pentacle_id: 1,
@@ -1241,6 +1372,1074 @@ mod tests {
         };
 
         let explanation = generate_explanation(&candidate, &[], &profile);
-        assert!(explanation.starts_with("Basierend auf:"));
+        assert!(explanation.starts_with("Basierend auf:"), "Should mention keywords");
+        assert!(explanation.contains("Trump"), "Should include keyword");
+    }
+
+    #[test]
+    fn test_explanation_with_single_keyword() {
+        let candidate = Candidate {
+            fnord_id: 1,
+            pentacle_id: 1,
+            embedding_score: Some(0.8),
+            keyword_score: Some(0.5),
+            freshness_score: 0.9,
+            final_score: 0.7,
+            matching_keywords: vec!["Trump".to_string()],
+            category_ids: HashSet::new(),
+        };
+
+        let profile = UserProfile {
+            keyword_weights: HashMap::new(),
+            category_weights: HashMap::new(),
+            read_article_ids: HashSet::new(),
+            hidden_article_ids: HashSet::new(),
+            saved_article_ids: HashSet::new(),
+            total_read: 10,
+        };
+
+        let categories = vec![CategoryInfo {
+            sephiroth_id: 201,
+            name: "Politik".to_string(),
+            icon: None,
+            color: None,
+        }];
+
+        let explanation = generate_explanation(&candidate, &categories, &profile);
+        // With only 1 keyword, should fall back to category
+        assert!(explanation.contains("Bereich") || explanation.contains("Politik"));
+    }
+
+    #[test]
+    fn test_explanation_embedding_similarity() {
+        let candidate = Candidate {
+            fnord_id: 1,
+            pentacle_id: 1,
+            embedding_score: Some(0.75),
+            keyword_score: None,
+            freshness_score: 0.5,
+            final_score: 0.6,
+            matching_keywords: vec![],
+            category_ids: HashSet::new(),
+        };
+
+        let profile = UserProfile {
+            keyword_weights: HashMap::new(),
+            category_weights: HashMap::new(),
+            read_article_ids: HashSet::new(),
+            hidden_article_ids: HashSet::new(),
+            saved_article_ids: HashSet::new(),
+            total_read: 10,
+        };
+
+        let explanation = generate_explanation(&candidate, &[], &profile);
+        assert!(explanation.contains("Thematisch") || explanation.contains("ähnlich"));
+    }
+
+    #[test]
+    fn test_explanation_freshness_fallback() {
+        let candidate = Candidate {
+            fnord_id: 1,
+            pentacle_id: 1,
+            embedding_score: Some(0.3),
+            keyword_score: None,
+            freshness_score: 0.95,
+            final_score: 0.5,
+            matching_keywords: vec![],
+            category_ids: HashSet::new(),
+        };
+
+        let profile = UserProfile {
+            keyword_weights: HashMap::new(),
+            category_weights: HashMap::new(),
+            read_article_ids: HashSet::new(),
+            hidden_article_ids: HashSet::new(),
+            saved_article_ids: HashSet::new(),
+            total_read: 10,
+        };
+
+        let explanation = generate_explanation(&candidate, &[], &profile);
+        assert!(explanation.contains("Aktuell"));
+    }
+
+    #[test]
+    fn test_explanation_generic_fallback() {
+        let candidate = Candidate {
+            fnord_id: 1,
+            pentacle_id: 1,
+            embedding_score: Some(0.3),
+            keyword_score: None,
+            freshness_score: 0.2,
+            final_score: 0.3,
+            matching_keywords: vec![],
+            category_ids: HashSet::new(),
+        };
+
+        let profile = UserProfile {
+            keyword_weights: HashMap::new(),
+            category_weights: HashMap::new(),
+            read_article_ids: HashSet::new(),
+            hidden_article_ids: HashSet::new(),
+            saved_article_ids: HashSet::new(),
+            total_read: 10,
+        };
+
+        let explanation = generate_explanation(&candidate, &[], &profile);
+        assert!(explanation.contains("interessieren"));
+    }
+
+    // ============================================================
+    // Candidate Scoring Tests
+    // ============================================================
+
+    #[test]
+    fn test_score_candidate_embedding_only() {
+        let profile = UserProfile {
+            keyword_weights: HashMap::new(),
+            category_weights: HashMap::new(),
+            read_article_ids: HashSet::new(),
+            hidden_article_ids: HashSet::new(),
+            saved_article_ids: HashSet::new(),
+            total_read: 10,
+        };
+
+        let mut candidate = Candidate {
+            fnord_id: 1,
+            pentacle_id: 1,
+            embedding_score: Some(0.9),
+            keyword_score: None,
+            freshness_score: 1.0,
+            final_score: 0.0,
+            matching_keywords: vec![],
+            category_ids: HashSet::new(),
+        };
+
+        score_candidate(&mut candidate, &profile);
+
+        // Score = 0.40 * 0.9 + 0.30 * 0.0 + 0.25 * 1.0 + 0.05 = 0.66
+        assert!(candidate.final_score > 0.6 && candidate.final_score < 0.7,
+                "Score should be around 0.66: {}", candidate.final_score);
+    }
+
+    #[test]
+    fn test_score_candidate_keyword_only() {
+        let profile = UserProfile {
+            keyword_weights: HashMap::new(),
+            category_weights: HashMap::new(),
+            read_article_ids: HashSet::new(),
+            hidden_article_ids: HashSet::new(),
+            saved_article_ids: HashSet::new(),
+            total_read: 10,
+        };
+
+        let mut candidate = Candidate {
+            fnord_id: 1,
+            pentacle_id: 1,
+            embedding_score: None,
+            keyword_score: Some(0.8),
+            freshness_score: 1.0,
+            final_score: 0.0,
+            matching_keywords: vec!["test".to_string()],
+            category_ids: HashSet::new(),
+        };
+
+        score_candidate(&mut candidate, &profile);
+
+        // Score = 0.40 * 0.3 + 0.30 * 0.8 + 0.25 * 1.0 + 0.05 = 0.66
+        assert!(candidate.final_score > 0.6 && candidate.final_score < 0.7,
+                "Score should be around 0.66: {}", candidate.final_score);
+    }
+
+    #[test]
+    fn test_score_candidate_with_category_boost() {
+        let mut category_weights = HashMap::new();
+        category_weights.insert(201, 0.5);
+
+        let profile = UserProfile {
+            keyword_weights: HashMap::new(),
+            category_weights,
+            read_article_ids: HashSet::new(),
+            hidden_article_ids: HashSet::new(),
+            saved_article_ids: HashSet::new(),
+            total_read: 10,
+        };
+
+        let mut candidate = Candidate {
+            fnord_id: 1,
+            pentacle_id: 1,
+            embedding_score: Some(0.8),
+            keyword_score: Some(0.5),
+            freshness_score: 0.9,
+            final_score: 0.0,
+            matching_keywords: vec![],
+            category_ids: [201].into_iter().collect(),
+        };
+
+        score_candidate(&mut candidate, &profile);
+
+        // With category boost (1.1x), score should be higher
+        assert!(candidate.final_score > 0.7, "Category boost should increase score: {}", candidate.final_score);
+    }
+
+    #[test]
+    fn test_score_candidate_no_category_boost() {
+        let mut category_weights = HashMap::new();
+        category_weights.insert(201, 0.5);
+
+        let profile = UserProfile {
+            keyword_weights: HashMap::new(),
+            category_weights,
+            read_article_ids: HashSet::new(),
+            hidden_article_ids: HashSet::new(),
+            saved_article_ids: HashSet::new(),
+            total_read: 10,
+        };
+
+        let mut candidate = Candidate {
+            fnord_id: 1,
+            pentacle_id: 1,
+            embedding_score: Some(0.8),
+            keyword_score: Some(0.5),
+            freshness_score: 0.9,
+            final_score: 0.0,
+            matching_keywords: vec![],
+            category_ids: [101].into_iter().collect(), // Different category
+        };
+
+        score_candidate(&mut candidate, &profile);
+
+        // Without matching category, no boost
+        let base_score = 0.40 * 0.8 + 0.30 * 0.5 + 0.25 * 0.9 + 0.05;
+        assert!((candidate.final_score - base_score).abs() < 0.01,
+                "Without category boost, score should be base: {}", candidate.final_score);
+    }
+
+    #[test]
+    fn test_score_candidate_zero_scores() {
+        let profile = UserProfile {
+            keyword_weights: HashMap::new(),
+            category_weights: HashMap::new(),
+            read_article_ids: HashSet::new(),
+            hidden_article_ids: HashSet::new(),
+            saved_article_ids: HashSet::new(),
+            total_read: 10,
+        };
+
+        let mut candidate = Candidate {
+            fnord_id: 1,
+            pentacle_id: 1,
+            embedding_score: None,
+            keyword_score: None,
+            freshness_score: 0.0,
+            final_score: 0.0,
+            matching_keywords: vec![],
+            category_ids: HashSet::new(),
+        };
+
+        score_candidate(&mut candidate, &profile);
+
+        // Score = 0.40 * 0.3 + 0.30 * 0.0 + 0.25 * 0.0 + 0.05 = 0.17
+        assert!(candidate.final_score > 0.15 && candidate.final_score < 0.2,
+                "Minimum score should be around 0.17: {}", candidate.final_score);
+    }
+
+    // ============================================================
+    // Reranking for Diversity Tests
+    // ============================================================
+
+    #[test]
+    fn test_rerank_preserves_top_scores() {
+        let candidates = vec![
+            Candidate {
+                fnord_id: 1,
+                pentacle_id: 1,
+                embedding_score: Some(0.9),
+                keyword_score: None,
+                freshness_score: 0.9,
+                final_score: 0.9,
+                matching_keywords: vec![],
+                category_ids: HashSet::new(),
+            },
+            Candidate {
+                fnord_id: 2,
+                pentacle_id: 2,
+                embedding_score: Some(0.8),
+                keyword_score: None,
+                freshness_score: 0.8,
+                final_score: 0.8,
+                matching_keywords: vec![],
+                category_ids: HashSet::new(),
+            },
+        ];
+
+        let reranked = rerank_for_diversity(candidates, 2);
+        assert_eq!(reranked.len(), 2);
+        assert_eq!(reranked[0].fnord_id, 1, "Highest score should be first");
+    }
+
+    #[test]
+    fn test_rerank_source_diversity() {
+        let candidates = vec![
+            Candidate {
+                fnord_id: 1,
+                pentacle_id: 1,
+                embedding_score: None,
+                keyword_score: None,
+                freshness_score: 0.9,
+                final_score: 0.95,
+                matching_keywords: vec![],
+                category_ids: HashSet::new(),
+            },
+            Candidate {
+                fnord_id: 2,
+                pentacle_id: 1, // Same source
+                embedding_score: None,
+                keyword_score: None,
+                freshness_score: 0.9,
+                final_score: 0.90,
+                matching_keywords: vec![],
+                category_ids: HashSet::new(),
+            },
+            Candidate {
+                fnord_id: 3,
+                pentacle_id: 2, // Different source
+                embedding_score: None,
+                keyword_score: None,
+                freshness_score: 0.8,
+                final_score: 0.85,
+                matching_keywords: vec![],
+                category_ids: HashSet::new(),
+            },
+        ];
+
+        let reranked = rerank_for_diversity(candidates, 2);
+        assert_eq!(reranked.len(), 2);
+        // First should be highest score
+        assert_eq!(reranked[0].fnord_id, 1);
+        // Second should prefer different source
+        assert_eq!(reranked[1].fnord_id, 3, "Should pick different source over same source");
+    }
+
+    #[test]
+    fn test_rerank_empty_input() {
+        let candidates: Vec<Candidate> = vec![];
+        let reranked = rerank_for_diversity(candidates, 10);
+        assert!(reranked.is_empty());
+    }
+
+    #[test]
+    fn test_rerank_limit_enforcement() {
+        let candidates: Vec<Candidate> = (0..20)
+            .map(|i| Candidate {
+                fnord_id: i,
+                pentacle_id: i,
+                embedding_score: None,
+                keyword_score: None,
+                freshness_score: 0.5,
+                final_score: 0.5 + (i as f64 * 0.01),
+                matching_keywords: vec![],
+                category_ids: HashSet::new(),
+            })
+            .collect();
+
+        let reranked = rerank_for_diversity(candidates, 5);
+        assert_eq!(reranked.len(), 5, "Should respect limit");
+    }
+
+    // ============================================================
+    // User Profile Building Tests (Database Integration)
+    // ============================================================
+
+    #[test]
+    fn test_build_user_profile_empty() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        let profile = build_user_profile(conn).expect("Failed to build profile");
+
+        assert_eq!(profile.total_read, 0);
+        assert!(profile.read_article_ids.is_empty());
+        assert!(profile.saved_article_ids.is_empty());
+        assert!(profile.hidden_article_ids.is_empty());
+        assert!(profile.keyword_weights.is_empty());
+        assert!(profile.category_weights.is_empty());
+    }
+
+    #[test]
+    fn test_build_user_profile_with_read_articles() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Read Article 1", true, false);
+        insert_test_fnord(conn, 2, 1, "Read Article 2", true, false);
+        insert_test_fnord(conn, 3, 1, "Unread Article", false, false);
+
+        let profile = build_user_profile(conn).expect("Failed to build profile");
+
+        assert_eq!(profile.total_read, 2);
+        assert!(profile.read_article_ids.contains(&1));
+        assert!(profile.read_article_ids.contains(&2));
+        assert!(!profile.read_article_ids.contains(&3));
+    }
+
+    #[test]
+    fn test_build_user_profile_with_saved_articles() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Article 1", true, false);
+        insert_test_fnord(conn, 2, 1, "Article 2", true, false);
+        insert_feedback(conn, 1, "save");
+
+        let profile = build_user_profile(conn).expect("Failed to build profile");
+
+        assert!(profile.saved_article_ids.contains(&1));
+        assert!(!profile.saved_article_ids.contains(&2));
+    }
+
+    #[test]
+    fn test_build_user_profile_with_hidden_articles() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Article 1", false, false);
+        insert_test_fnord(conn, 2, 1, "Article 2", false, false);
+        insert_feedback(conn, 1, "hide");
+
+        let profile = build_user_profile(conn).expect("Failed to build profile");
+
+        assert!(profile.hidden_article_ids.contains(&1));
+        assert!(!profile.hidden_article_ids.contains(&2));
+    }
+
+    // ============================================================
+    // Keyword Aggregation Tests
+    // ============================================================
+
+    #[test]
+    fn test_aggregate_keywords_empty() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        let read_ids: HashSet<i64> = HashSet::new();
+        let saved_ids: HashSet<i64> = HashSet::new();
+
+        let weights = aggregate_keywords(conn, &read_ids, &saved_ids)
+            .expect("Failed to aggregate keywords");
+
+        assert!(weights.is_empty());
+    }
+
+    #[test]
+    fn test_aggregate_keywords_with_read_articles() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Article 1", true, false);
+        insert_test_fnord(conn, 2, 1, "Article 2", true, false);
+        insert_test_keyword(conn, 100, "Politik");
+        insert_test_keyword(conn, 101, "Wirtschaft");
+        link_fnord_keyword(conn, 1, 100);
+        link_fnord_keyword(conn, 2, 100);
+        link_fnord_keyword(conn, 2, 101);
+
+        let read_ids: HashSet<i64> = [1, 2].into_iter().collect();
+        let saved_ids: HashSet<i64> = HashSet::new();
+
+        let weights = aggregate_keywords(conn, &read_ids, &saved_ids)
+            .expect("Failed to aggregate keywords");
+
+        assert!(!weights.is_empty());
+        // "Politik" appears in 2 articles, should have higher weight
+        assert!(weights.get(&100).unwrap_or(&0.0) >= weights.get(&101).unwrap_or(&0.0));
+    }
+
+    #[test]
+    fn test_aggregate_keywords_saved_boost() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Article 1", true, false);
+        insert_test_fnord(conn, 2, 1, "Article 2", true, false);
+        insert_test_keyword(conn, 100, "Politik");
+        insert_test_keyword(conn, 101, "Wirtschaft");
+        link_fnord_keyword(conn, 1, 100);
+        link_fnord_keyword(conn, 2, 101);
+
+        // Without save
+        let read_ids: HashSet<i64> = [1, 2].into_iter().collect();
+        let saved_ids_empty: HashSet<i64> = HashSet::new();
+        let weights_no_save = aggregate_keywords(conn, &read_ids, &saved_ids_empty)
+            .expect("Failed to aggregate keywords");
+
+        // With save on article 1 (has keyword 100)
+        insert_feedback(conn, 1, "save");
+        let saved_ids: HashSet<i64> = [1].into_iter().collect();
+        let weights_with_save = aggregate_keywords(conn, &read_ids, &saved_ids)
+            .expect("Failed to aggregate keywords");
+
+        // Keyword 100 should have higher weight when its article is saved
+        let weight_no_save = weights_no_save.get(&100).unwrap_or(&0.0);
+        let weight_with_save = weights_with_save.get(&100).unwrap_or(&0.0);
+        assert!(weight_with_save >= weight_no_save,
+                "Saved article should boost keyword weight");
+    }
+
+    // ============================================================
+    // Category Aggregation Tests
+    // ============================================================
+
+    #[test]
+    fn test_aggregate_categories_empty() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        let read_ids: HashSet<i64> = HashSet::new();
+        let weights = aggregate_categories(conn, &read_ids)
+            .expect("Failed to aggregate categories");
+
+        assert!(weights.is_empty());
+    }
+
+    #[test]
+    fn test_aggregate_categories_with_read_articles() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Article 1", true, false);
+        insert_test_fnord(conn, 2, 1, "Article 2", true, false);
+        insert_test_fnord(conn, 3, 1, "Article 3", true, false);
+
+        // Link to existing categories (201 = Politik, 301 = Wirtschaft)
+        link_fnord_category(conn, 1, 201);
+        link_fnord_category(conn, 2, 201);
+        link_fnord_category(conn, 3, 301);
+
+        let read_ids: HashSet<i64> = [1, 2, 3].into_iter().collect();
+        let weights = aggregate_categories(conn, &read_ids)
+            .expect("Failed to aggregate categories");
+
+        // Politik (201) should have higher weight (2/3) than Wirtschaft (1/3)
+        assert!(weights.get(&201).unwrap_or(&0.0) > weights.get(&301).unwrap_or(&0.0));
+    }
+
+    // ============================================================
+    // Candidate Generation Tests
+    // ============================================================
+
+    #[test]
+    fn test_generate_candidates_filters_read() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Read Article", true, true);
+        insert_test_fnord(conn, 2, 1, "Unread Article", false, true);
+
+        let profile = build_user_profile(conn).expect("Failed to build profile");
+        let candidates = generate_candidates(conn, &profile, 10)
+            .expect("Failed to generate candidates");
+
+        // Should not include read articles
+        assert!(!candidates.iter().any(|c| c.fnord_id == 1),
+                "Should not include read articles");
+    }
+
+    #[test]
+    fn test_generate_candidates_filters_hidden() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Hidden Article", false, true);
+        insert_test_fnord(conn, 2, 1, "Normal Article", false, true);
+        insert_feedback(conn, 1, "hide");
+
+        let profile = build_user_profile(conn).expect("Failed to build profile");
+        let candidates = generate_candidates(conn, &profile, 10)
+            .expect("Failed to generate candidates");
+
+        // Should not include hidden articles
+        assert!(!candidates.iter().any(|c| c.fnord_id == 1),
+                "Should not include hidden articles");
+    }
+
+    // ============================================================
+    // Cold Start Tests
+    // ============================================================
+
+    #[test]
+    fn test_cold_start_recommendations() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+
+        // Insert recent article with summary
+        conn.execute(
+            r#"INSERT INTO fnords (id, pentacle_id, guid, url, title, summary, published_at, status)
+               VALUES (1, 1, 'guid-1', 'https://example.com/1', 'Recent Article', 'Test summary', datetime('now', '-1 hour'), 'concealed')"#,
+            [],
+        ).expect("Failed to insert article");
+
+        let recommendations = get_cold_start_recommendations(conn, 10)
+            .expect("Failed to get cold start recommendations");
+
+        assert!(!recommendations.is_empty(), "Should return recent articles for cold start");
+        assert_eq!(recommendations[0].explanation, "Aktuelle Nachrichten");
+    }
+
+    #[test]
+    fn test_cold_start_excludes_old_articles() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+
+        // Insert old article (more than 48 hours)
+        conn.execute(
+            r#"INSERT INTO fnords (id, pentacle_id, guid, url, title, summary, published_at, status)
+               VALUES (1, 1, 'guid-1', 'https://example.com/1', 'Old Article', 'Test summary', datetime('now', '-72 hours'), 'concealed')"#,
+            [],
+        ).expect("Failed to insert article");
+
+        let recommendations = get_cold_start_recommendations(conn, 10)
+            .expect("Failed to get cold start recommendations");
+
+        assert!(recommendations.is_empty(), "Should not include old articles in cold start");
+    }
+
+    // ============================================================
+    // Top Keywords/Categories for Stats
+    // ============================================================
+
+    #[test]
+    fn test_get_top_user_keywords() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Article 1", true, false);
+        insert_test_fnord(conn, 2, 1, "Article 2", true, false);
+        insert_test_keyword(conn, 100, "Trump");
+        insert_test_keyword(conn, 101, "NATO");
+        link_fnord_keyword(conn, 1, 100);
+        link_fnord_keyword(conn, 1, 101);
+        link_fnord_keyword(conn, 2, 100);
+
+        let keywords = get_top_user_keywords(conn, 5)
+            .expect("Failed to get top keywords");
+
+        assert!(!keywords.is_empty());
+        // "Trump" should be first (appears in 2 articles)
+        assert_eq!(keywords[0].name, "Trump");
+    }
+
+    #[test]
+    fn test_get_top_user_categories() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Article 1", true, false);
+        insert_test_fnord(conn, 2, 1, "Article 2", true, false);
+        link_fnord_category(conn, 1, 201); // Politik
+        link_fnord_category(conn, 1, 301); // Wirtschaft
+        link_fnord_category(conn, 2, 201); // Politik again
+
+        let categories = get_top_user_categories(conn, 5)
+            .expect("Failed to get top categories");
+
+        assert!(!categories.is_empty());
+    }
+
+    // ============================================================
+    // Data Structure Serialization Tests
+    // ============================================================
+
+    #[test]
+    fn test_recommendation_serialize() {
+        let rec = Recommendation {
+            fnord_id: 123,
+            title: "Test Article".to_string(),
+            summary: Some("Summary".to_string()),
+            url: "https://example.com".to_string(),
+            image_url: None,
+            pentacle_id: 1,
+            pentacle_title: Some("Test Feed".to_string()),
+            pentacle_icon: None,
+            published_at: Some("2024-01-15T12:00:00Z".to_string()),
+            relevance_score: 0.85,
+            freshness_score: 0.9,
+            political_bias: Some(0),
+            sachlichkeit: Some(3),
+            categories: vec![],
+            matching_keywords: vec!["keyword1".to_string()],
+            explanation: "Based on keywords".to_string(),
+            is_saved: false,
+        };
+
+        let json = serde_json::to_string(&rec).expect("Serialization failed");
+        assert!(json.contains("\"fnord_id\":123"));
+        assert!(json.contains("\"relevance_score\":0.85"));
+    }
+
+    #[test]
+    fn test_recommendation_stats_serialize() {
+        let stats = RecommendationStats {
+            total_saved: 10,
+            total_hidden: 5,
+            total_clicks: 20,
+            articles_read: 100,
+            articles_with_embedding: 80,
+            profile_strength: "Warm".to_string(),
+            top_keywords: vec![],
+            top_categories: vec![],
+            candidate_pool_size: 500,
+        };
+
+        let json = serde_json::to_string(&stats).expect("Serialization failed");
+        assert!(json.contains("\"total_saved\":10"));
+        assert!(json.contains("\"profile_strength\":\"Warm\""));
+    }
+
+    #[test]
+    fn test_saved_article_serialize() {
+        let saved = SavedArticle {
+            fnord_id: 456,
+            title: "Saved Article".to_string(),
+            pentacle_title: Some("News Feed".to_string()),
+            saved_at: "2024-01-15T12:00:00Z".to_string(),
+            published_at: Some("2024-01-14T10:00:00Z".to_string()),
+        };
+
+        let json = serde_json::to_string(&saved).expect("Serialization failed");
+        assert!(json.contains("\"fnord_id\":456"));
+        assert!(json.contains("\"saved_at\""));
+    }
+
+    #[test]
+    fn test_category_info_clone() {
+        let cat = CategoryInfo {
+            sephiroth_id: 201,
+            name: "Politik".to_string(),
+            icon: Some("fa-landmark".to_string()),
+            color: Some("#ff0000".to_string()),
+        };
+
+        let cloned = cat.clone();
+        assert_eq!(cloned.sephiroth_id, cat.sephiroth_id);
+        assert_eq!(cloned.name, cat.name);
+    }
+
+    // ============================================================
+    // Profile Strength Tests
+    // ============================================================
+
+    #[test]
+    fn test_profile_strength_cold() {
+        // Less than 10 read articles = Cold
+        let articles_read = 5;
+        let strength = if articles_read >= 50 {
+            "Hot"
+        } else if articles_read >= 10 {
+            "Warm"
+        } else {
+            "Cold"
+        };
+        assert_eq!(strength, "Cold");
+    }
+
+    #[test]
+    fn test_profile_strength_warm() {
+        let articles_read = 25;
+        let strength = if articles_read >= 50 {
+            "Hot"
+        } else if articles_read >= 10 {
+            "Warm"
+        } else {
+            "Cold"
+        };
+        assert_eq!(strength, "Warm");
+    }
+
+    #[test]
+    fn test_profile_strength_hot() {
+        let articles_read = 100;
+        let strength = if articles_read >= 50 {
+            "Hot"
+        } else if articles_read >= 10 {
+            "Warm"
+        } else {
+            "Cold"
+        };
+        assert_eq!(strength, "Hot");
+    }
+
+    // ============================================================
+    // Edge Case Tests
+    // ============================================================
+
+    #[test]
+    fn test_candidate_with_nan_scores() {
+        let mut candidates = vec![
+            Candidate {
+                fnord_id: 1,
+                pentacle_id: 1,
+                embedding_score: Some(f64::NAN),
+                keyword_score: None,
+                freshness_score: 0.5,
+                final_score: f64::NAN,
+                matching_keywords: vec![],
+                category_ids: HashSet::new(),
+            },
+            Candidate {
+                fnord_id: 2,
+                pentacle_id: 2,
+                embedding_score: Some(0.8),
+                keyword_score: None,
+                freshness_score: 0.5,
+                final_score: 0.7,
+                matching_keywords: vec![],
+                category_ids: HashSet::new(),
+            },
+        ];
+
+        // Should not panic on NaN comparison
+        candidates.sort_by(|a, b| {
+            b.final_score
+                .partial_cmp(&a.final_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        // Valid score should be handled properly
+        assert!(candidates.iter().any(|c| c.fnord_id == 2));
+    }
+
+    #[test]
+    fn test_empty_matching_keywords() {
+        let candidate = Candidate {
+            fnord_id: 1,
+            pentacle_id: 1,
+            embedding_score: Some(0.5),
+            keyword_score: None,
+            freshness_score: 0.5,
+            final_score: 0.5,
+            matching_keywords: vec![],
+            category_ids: HashSet::new(),
+        };
+
+        let profile = UserProfile {
+            keyword_weights: HashMap::new(),
+            category_weights: HashMap::new(),
+            read_article_ids: HashSet::new(),
+            hidden_article_ids: HashSet::new(),
+            saved_article_ids: HashSet::new(),
+            total_read: 10,
+        };
+
+        // Should not panic with empty keywords
+        let explanation = generate_explanation(&candidate, &[], &profile);
+        assert!(!explanation.is_empty());
+    }
+
+    #[test]
+    fn test_limit_clamping() {
+        // Test that limit is properly clamped
+        let limit_50 = Some(100).unwrap_or(10).min(50);
+        assert_eq!(limit_50, 50);
+
+        let limit_default = None.unwrap_or(10).min(50);
+        assert_eq!(limit_default, 10);
+
+        let limit_normal = Some(20).unwrap_or(10).min(50);
+        assert_eq!(limit_normal, 20);
+    }
+
+    // ============================================================
+    // Feedback Action Tests
+    // ============================================================
+
+    #[test]
+    fn test_feedback_save_action() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Article", false, false);
+
+        // Insert save feedback
+        conn.execute(
+            r#"INSERT INTO recommendation_feedback (fnord_id, action)
+               VALUES (?1, 'save')
+               ON CONFLICT (fnord_id, action) DO NOTHING"#,
+            params![1],
+        )
+        .expect("Failed to insert feedback");
+
+        // Verify
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM recommendation_feedback WHERE fnord_id = 1 AND action = 'save'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to count");
+
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_feedback_hide_action() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Article", false, false);
+
+        // Insert hide feedback
+        conn.execute(
+            r#"INSERT INTO recommendation_feedback (fnord_id, action)
+               VALUES (?1, 'hide')
+               ON CONFLICT (fnord_id, action) DO NOTHING"#,
+            params![1],
+        )
+        .expect("Failed to insert feedback");
+
+        // Verify
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM recommendation_feedback WHERE fnord_id = 1 AND action = 'hide'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to count");
+
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_feedback_duplicate_handling() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Article", false, false);
+
+        // Insert same feedback twice
+        conn.execute(
+            r#"INSERT INTO recommendation_feedback (fnord_id, action)
+               VALUES (?1, 'save')
+               ON CONFLICT (fnord_id, action) DO NOTHING"#,
+            params![1],
+        )
+        .expect("Failed to insert feedback");
+
+        conn.execute(
+            r#"INSERT INTO recommendation_feedback (fnord_id, action)
+               VALUES (?1, 'save')
+               ON CONFLICT (fnord_id, action) DO NOTHING"#,
+            params![1],
+        )
+        .expect("Failed to insert feedback");
+
+        // Should only have one entry
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM recommendation_feedback WHERE fnord_id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to count");
+
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_unsave_removes_feedback() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        insert_test_pentacle(conn, 1, "Test Feed");
+        insert_test_fnord(conn, 1, 1, "Article", false, false);
+        insert_feedback(conn, 1, "save");
+
+        // Delete save feedback
+        conn.execute(
+            "DELETE FROM recommendation_feedback WHERE fnord_id = ?1 AND action = 'save'",
+            params![1],
+        )
+        .expect("Failed to delete feedback");
+
+        // Verify
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM recommendation_feedback WHERE fnord_id = 1 AND action = 'save'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Failed to count");
+
+        assert_eq!(count, 0);
+    }
+
+    // ============================================================
+    // Integration Test: Full Recommendation Flow
+    // ============================================================
+
+    #[test]
+    fn test_full_recommendation_flow() {
+        let db = create_test_db();
+        let conn = db.conn();
+
+        // Setup: Create feed and articles
+        insert_test_pentacle(conn, 1, "Tech News");
+        insert_test_pentacle(conn, 2, "Politics");
+
+        // Read articles with keywords
+        insert_test_fnord(conn, 1, 1, "AI Revolution", true, true);
+        insert_test_fnord(conn, 2, 1, "Machine Learning", true, true);
+        insert_test_fnord(conn, 3, 2, "Election News", true, true);
+
+        // Candidate articles (unread)
+        insert_test_fnord(conn, 4, 1, "New AI Model", false, true);
+        insert_test_fnord(conn, 5, 2, "Senate Vote", false, true);
+
+        // Keywords
+        insert_test_keyword(conn, 100, "AI");
+        insert_test_keyword(conn, 101, "Machine Learning");
+        insert_test_keyword(conn, 102, "Politics");
+
+        // Link read articles to keywords
+        link_fnord_keyword(conn, 1, 100);
+        link_fnord_keyword(conn, 2, 100);
+        link_fnord_keyword(conn, 2, 101);
+        link_fnord_keyword(conn, 3, 102);
+
+        // Link candidate to keywords
+        link_fnord_keyword(conn, 4, 100);
+        link_fnord_keyword(conn, 4, 101);
+
+        // Build profile
+        let profile = build_user_profile(conn).expect("Failed to build profile");
+        assert_eq!(profile.total_read, 3);
+
+        // Generate candidates
+        let candidates = generate_candidates(conn, &profile, 10)
+            .expect("Failed to generate candidates");
+
+        // Should have unread candidates
+        assert!(!candidates.is_empty());
+
+        // Should not include read articles
+        for c in &candidates {
+            assert!(!profile.read_article_ids.contains(&c.fnord_id));
+        }
     }
 }

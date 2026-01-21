@@ -21,12 +21,27 @@
     last_error: string | null;
   }
 
+  // Type for count responses from backend
+  interface CountResponse {
+    count: number;
+  }
+
+  // Batch size for lazy loading
+  const BATCH_SIZE = 50;
+
   // State
   let loading = $state(false);
   let activeTab = $state<string>('articles');
 
   // Special articles for failed/hopeless tabs (loaded separately)
   let specialArticles = $state<Fnord[]>([]);
+
+  // Lazy loading state for special tabs
+  let totalSpecialCount = $state(0);
+  let loadingMoreSpecial = $state(false);
+
+  // Computed: has more special articles to load
+  let hasMoreSpecial = $derived(specialArticles.length < totalSpecialCount);
 
   // Derived from appState - single source of truth
   let selectedId = $derived(appState.selectedFnordId);
@@ -103,71 +118,118 @@
     }
   }
 
+  // Helper to convert AnalysisStatusArticle to Fnord
+  function mapToFnord(a: AnalysisStatusArticle): Fnord {
+    return {
+      id: a.id,
+      pentacle_id: a.pentacle_id,
+      pentacle_title: a.pentacle_title,
+      guid: '',
+      url: '',
+      title: a.title,
+      author: null,
+      content_raw: null,
+      content_full: null,
+      summary: a.summary,
+      image_url: null,
+      published_at: a.published_at,
+      processed_at: null,
+      status: a.status,
+      political_bias: null,
+      sachlichkeit: null,
+      quality_score: null,
+      has_changes: false,
+      changed_at: null,
+      revision_count: 0,
+      categories: [],
+    } as Fnord;
+  }
+
   // Load special articles for failed/hopeless tabs (not available in appState.fnords)
   async function loadSpecialArticles() {
     if (activeTab !== 'failed' && activeTab !== 'hopeless') {
       specialArticles = [];
+      totalSpecialCount = 0;
       return;
     }
 
     loading = true;
     try {
       if (activeTab === 'failed') {
-        const failedArticles = await invoke<AnalysisStatusArticle[]>('get_failed_articles', { limit: 100 });
-        specialArticles = failedArticles.map(a => ({
-          id: a.id,
-          pentacle_id: a.pentacle_id,
-          pentacle_title: a.pentacle_title,
-          guid: '',
-          url: '',
-          title: a.title,
-          author: null,
-          content_raw: null,
-          content_full: null,
-          summary: a.summary,
-          image_url: null,
-          published_at: a.published_at,
-          processed_at: null,
-          status: a.status,
-          political_bias: null,
-          sachlichkeit: null,
-          quality_score: null,
-          has_changes: false,
-          changed_at: null,
-          revision_count: 0,
-          categories: [],
-        } as Fnord));
+        // Load count and first batch in parallel
+        const [articles, countResult] = await Promise.all([
+          invoke<AnalysisStatusArticle[]>('get_failed_articles', { limit: BATCH_SIZE, offset: 0 }),
+          invoke<CountResponse>('get_failed_count')
+        ]);
+        specialArticles = articles.map(mapToFnord);
+        totalSpecialCount = countResult.count;
       } else if (activeTab === 'hopeless') {
-        const hopelessArticles = await invoke<AnalysisStatusArticle[]>('get_hopeless_articles', { limit: 100 });
-        specialArticles = hopelessArticles.map(a => ({
-          id: a.id,
-          pentacle_id: a.pentacle_id,
-          pentacle_title: a.pentacle_title,
-          guid: '',
-          url: '',
-          title: a.title,
-          author: null,
-          content_raw: null,
-          content_full: null,
-          summary: a.summary,
-          image_url: null,
-          published_at: a.published_at,
-          processed_at: null,
-          status: a.status,
-          political_bias: null,
-          sachlichkeit: null,
-          quality_score: null,
-          has_changes: false,
-          changed_at: null,
-          revision_count: 0,
-          categories: [],
-        } as Fnord));
+        const [articles, countResult] = await Promise.all([
+          invoke<AnalysisStatusArticle[]>('get_hopeless_articles', { limit: BATCH_SIZE, offset: 0 }),
+          invoke<CountResponse>('get_hopeless_count')
+        ]);
+        specialArticles = articles.map(mapToFnord);
+        totalSpecialCount = countResult.count;
       }
     } catch (e) {
       console.error('[ErisianArchives] Error loading special articles:', e);
       specialArticles = [];
+      totalSpecialCount = 0;
     } finally {
       loading = false;
+    }
+  }
+
+  // Load more special articles (lazy loading)
+  async function loadMoreSpecialArticles() {
+    if (loadingMoreSpecial || !hasMoreSpecial) return;
+    if (activeTab !== 'failed' && activeTab !== 'hopeless') return;
+
+    loadingMoreSpecial = true;
+    try {
+      const offset = specialArticles.length;
+      let moreArticles: AnalysisStatusArticle[] = [];
+
+      if (activeTab === 'failed') {
+        moreArticles = await invoke<AnalysisStatusArticle[]>('get_failed_articles', {
+          limit: BATCH_SIZE,
+          offset
+        });
+      } else if (activeTab === 'hopeless') {
+        moreArticles = await invoke<AnalysisStatusArticle[]>('get_hopeless_articles', {
+          limit: BATCH_SIZE,
+          offset
+        });
+      }
+
+      if (moreArticles.length > 0) {
+        specialArticles = [...specialArticles, ...moreArticles.map(mapToFnord)];
+      }
+    } catch (e) {
+      console.error('[ErisianArchives] Error loading more special articles:', e);
+    } finally {
+      loadingMoreSpecial = false;
+    }
+  }
+
+  // Scroll handler for lazy loading
+  function handleScroll(event: Event) {
+    const target = event.target as HTMLDivElement;
+    const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+
+    // Load more when within 200px of bottom
+    if (scrollBottom < 200) {
+      if (activeTab === 'failed' || activeTab === 'hopeless') {
+        // Special tabs use their own pagination
+        if (hasMoreSpecial && !loadingMoreSpecial) {
+          loadMoreSpecialArticles();
+        }
+      } else {
+        // Normal tabs use appState's pagination
+        if (appState.hasMoreFnords && !appState.loadingMore) {
+          appState.loadMoreFnords();
+        }
+      }
     }
   }
 
@@ -175,9 +237,15 @@
     activeTab = tabId;
     // Reset selection when changing tabs to avoid stale state
     appState.selectedFnordId = null;
-    // Load special articles for failed/hopeless tabs
+    // Reset special articles state and load for failed/hopeless tabs
     if (tabId === 'failed' || tabId === 'hopeless') {
+      specialArticles = [];
+      totalSpecialCount = 0;
       loadSpecialArticles();
+    } else {
+      // Clear special articles when switching to normal tabs
+      specialArticles = [];
+      totalSpecialCount = 0;
     }
   }
 
@@ -322,7 +390,7 @@
   <!-- 2-Column Body: Article List + Article View -->
   <div class="erisian-body">
     <!-- Left: Article List -->
-    <div class="article-list-column">
+    <div class="article-list-column" onscroll={handleScroll}>
       {#if loading}
         <div class="loading-state">
           <div class="spinner"></div>
@@ -350,6 +418,20 @@
               onclick={() => selectArticle(article.id, true)}
             />
           {/each}
+
+          <!-- Loading indicator for lazy loading -->
+          {#if (activeTab === 'failed' || activeTab === 'hopeless') ? loadingMoreSpecial : appState.loadingMore}
+            <div class="loading-more">
+              <div class="spinner small"></div>
+              <span>{$_('fnordView.loadingMore') || 'Lade mehr...'}</span>
+            </div>
+          {:else if (activeTab === 'failed' || activeTab === 'hopeless') ? hasMoreSpecial : appState.hasMoreFnords}
+            <div class="scroll-hint">
+              <span class="loaded-count">
+                {archiveArticles.length}/{(activeTab === 'failed' || activeTab === 'hopeless') ? totalSpecialCount : appState.totalFnordsCount}
+              </span>
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -522,5 +604,27 @@
   .articles-list {
     display: flex;
     flex-direction: column;
+  }
+
+  .loading-more,
+  .scroll-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+  }
+
+  .spinner.small {
+    width: 1rem;
+    height: 1rem;
+    border-width: 2px;
+  }
+
+  .loaded-count {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
   }
 </style>

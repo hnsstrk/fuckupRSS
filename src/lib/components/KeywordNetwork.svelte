@@ -730,6 +730,7 @@
       onCancelRename={cancelRename}
       onHandleRename={handleRename}
       onRenameInputChange={handleRenameInputChange}
+      onSynonymAssigned={() => { loadKeywords(); if (selectedKeywordId) loadSimilarKeywords(selectedKeywordId); }}
     />
   </div>
   {:else if activeTab === 'table'}

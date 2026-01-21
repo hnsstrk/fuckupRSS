@@ -240,62 +240,67 @@ Title: {title}
 Content: {content}"#;
 
 /// Combined prompt for full Discordian Analysis (summary + bias + categories + keywords)
+/// NOTE: This is a legacy fallback. Prefer DEFAULT_DISCORDIAN_PROMPT_WITH_STATS.
+/// Categories are now primarily derived from the keyword network (statistical).
 pub const DEFAULT_DISCORDIAN_PROMPT: &str = r#"/no_think
 Analyze this news article. Respond in {language}. Return ONLY this JSON:
 
 {
   "political_bias": <-2 to 2>,
   "sachlichkeit": <0 to 4>,
-  "summary": "<1-2 sentences>",
-  "categories": ["<cat1>", "<cat2>"],
-  "keywords": ["<kw1>", "<kw2>", "<kw3>"]
+  "summary": "<2-3 sentences>",
+  "keywords": ["<kw1>", "<kw2>", "<kw3>"],
+  "categories": ["<cat1>"]
 }
 
 Rules:
-- political_bias: -2=strong left, 0=neutral, 2=strong right
-- sachlichkeit: 0=emotional, 2=mixed, 4=objective
-- summary: 1-2 factual sentences in {language}
-- categories: 1-2 from: Technik, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit, Verteidigung, Energie, Recht
-- keywords: 3-5 short keywords (1-2 words each)
+- political_bias: -2=strong left, 0=neutral, 2=strong right (be precise!)
+- sachlichkeit: 0=emotional/sensational, 2=mixed, 4=objective/factual (be precise!)
+- summary: 2-3 factual sentences in {language}, capture the key information
+- keywords: 3-5 short keywords (1-2 words each) - IMPORTANT for categorization
+- categories: 0-1 from: Technik, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit, Verteidigung, Energie, Recht (optional, empty [] is fine)
 
 Title: {title}
 Content: {content}"#;
 
 /// Enhanced Discordian prompt with statistical pre-analysis for quality control
 /// The LLM validates/corrects statistical suggestions rather than generating from scratch
+/// NOTE: Categories are now primarily derived from the keyword network (statistical).
+/// LLM categories serve only as optional validation/fallback.
 pub const DEFAULT_DISCORDIAN_PROMPT_WITH_STATS: &str = r#"/no_think
-Analyze this news article. A statistical text analysis has been performed first.
-Your task is to VALIDATE and CORRECT the statistical suggestions.
+Analyze this news article. Statistical analysis has already determined keywords and categories.
+Focus on: summary quality, bias detection, and objectivity assessment.
 
-STATISTICAL PRE-ANALYSIS:
-Keyword candidates (TF-IDF): {stat_keywords}
-Category candidates: {stat_categories}
+STATISTICAL PRE-ANALYSIS (already processed):
+Keywords (TF-IDF): {stat_keywords}
+Categories (from keyword network): {stat_categories}
 
-YOUR TASK:
-1. Review keyword candidates - keep relevant ones, remove generic/irrelevant ones, add max 2 missing important ones
-2. Review category candidates - confirm or correct the category assignment
-3. Provide summary and bias analysis
+YOUR MAIN TASKS (in order of importance):
+1. Write a high-quality summary (this is your primary task)
+2. Assess political bias and objectivity carefully
+3. Review keywords - keep relevant ones, add max 2 missing important ones
+4. Categories are OPTIONAL - only provide if statistical categories seem clearly wrong
 
 Respond in {language}. Return ONLY this JSON:
 
 {
   "political_bias": <-2 to 2>,
   "sachlichkeit": <0 to 4>,
-  "summary": "<1-2 sentences>",
-  "categories": ["<cat1>", "<cat2>"],
+  "summary": "<2-3 factual sentences>",
   "keywords": ["<kw1>", "<kw2>", "<kw3>", "..."],
+  "categories": ["<cat1>"],
   "rejected_keywords": ["<rejected1>", "..."],
   "rejected_categories": ["<rejected1>", "..."]
 }
 
 Rules:
-- political_bias: -2=strong left, 0=neutral, 2=strong right
-- sachlichkeit: 0=emotional, 2=mixed, 4=objective
-- summary: 1-2 factual sentences in {language}
-- categories: 1-2 from: Technik, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit, Verteidigung, Energie, Recht
-- keywords: keep good statistical suggestions + add max 2 new ones
-- rejected_keywords: list any statistical suggestions you rejected (helps learning)
-- rejected_categories: list any category suggestions you rejected
+- political_bias: -2=strong left, 0=neutral, 2=strong right (be precise!)
+- sachlichkeit: 0=emotional/sensational, 2=mixed, 4=objective/factual (be precise!)
+- summary: 2-3 factual sentences in {language}, capture the key information
+- keywords: keep good statistical suggestions + add max 2 new important ones
+- categories: OPTIONAL, only if statistical categories are clearly wrong (empty array [] is fine)
+- rejected_keywords: list statistical suggestions you rejected
+- rejected_categories: list if you disagree with statistical category assignment
 
 Title: {title}
 Content: {content}"#;

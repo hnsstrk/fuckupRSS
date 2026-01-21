@@ -9,9 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Dokument | Zweck | Pruefen bei |
 |----------|-------|------------|
 | `README.md` | Oeffentliche Projektbeschreibung, Features, Installation | Neue Features, API-Aenderungen, Installationsaenderungen |
-| `fuckupRSS-Anforderungen.md` | Technische Spezifikation, Architektur, Entscheidungen | Architekturaenderungen, neue Komponenten, Abweichungen vom Plan |
+| `docs/ANFORDERUNGEN.md` | Roadmap, Governance, Entscheidungen | Phase-Updates, Architekturaenderungen |
 | `CLAUDE.md` | Entwickler-Kontext fuer Claude Code | Build-Aenderungen, neue Patterns, Strukturaenderungen |
-| `TODO.md` | Zentrale Aufgabenliste, Entscheidungen | Neue Tasks, abgeschlossene Tasks, technische Entscheidungen |
 | `docs/guides/QUALITY_CHECKLIST.md` | Frontend-Backend-Kommunikation Checkliste | Neue invoke-Calls, Event-Listener, State-Updates |
 
 ### Dokumentations-Workflow
@@ -26,9 +25,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Dokument | Inhalt |
 |----------|--------|
 | [docs/api/TAURI_COMMANDS_REFERENCE.md](docs/api/TAURI_COMMANDS_REFERENCE.md) | Alle Tauri Commands (Frontend -> Backend) |
-| [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md) | KI-Pipeline, Statistische Analyse, Bias-Lernen, Keyword-Extraktion |
+| [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md) | KI-Pipeline, Greyface Alert, Prompt-Design, Keyword-Extraktion |
+| [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md) | Datenbank-Tabellen, Revisionsverwaltung, Settings |
 | [docs/guides/TESTING.md](docs/guides/TESTING.md) | Test-Befehle, Patterns, Anforderungen |
-| [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md) | Datenbank-Tabellen Uebersicht |
+| [docs/guides/HARDWARE_OPTIMIZATION.md](docs/guides/HARDWARE_OPTIMIZATION.md) | Hardware-Profile, VRAM-Optimierung, Ollama-Konfiguration |
 | [README.md](README.md) | Technology Stack, Illuminatus! Terminologie, Ollama Setup |
 
 ## Project Overview
@@ -37,7 +37,7 @@ fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U
 
 **Status:** Phase 3 abgeschlossen, Phase 4 (Polish) in Entwicklung
 
-**Planung:** Alle Phasen und Tasks sind in [`fuckupRSS-Anforderungen.md`](fuckupRSS-Anforderungen.md#20-nächste-schritte) dokumentiert.
+**Planung:** Alle Phasen und Tasks sind in [`docs/ANFORDERUNGEN.md`](docs/ANFORDERUNGEN.md#5-roadmap-nächste-schritte) dokumentiert.
 
 ## Build Commands
 

@@ -25,8 +25,9 @@ use super::data_persistence::{
     save_article_keywords_with_source,
 };
 use super::helpers::{
-    determine_category_sources, determine_keyword_sources, get_ai_concurrency, get_locale_from_db,
-    get_num_ctx_setting, merge_keywords, validate_and_merge_categories,
+    derive_categories_from_keywords, determine_category_sources, determine_keyword_sources,
+    get_ai_concurrency, get_locale_from_db, get_num_ctx_setting, merge_categories_stat_primary,
+    merge_keywords,
 };
 use super::types::{
     BatchArticle, BatchProgress, BatchResult, FailedCount, HopelessCount, UnprocessedCount,
@@ -289,8 +290,10 @@ pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount,
 pub fn get_failed_articles(
     state: State<AppState>,
     limit: Option<i64>,
+    offset: Option<i64>,
 ) -> Result<Vec<super::types::AnalysisStatusArticle>, String> {
-    let limit = limit.unwrap_or(100);
+    let limit = limit.unwrap_or(50);
+    let offset = offset.unwrap_or(0);
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     let mut stmt = db
@@ -305,12 +308,12 @@ pub fn get_failed_articles(
               AND f.processed_at IS NULL
               AND (f.analysis_hopeless IS NULL OR f.analysis_hopeless = FALSE)
             ORDER BY f.analysis_attempts DESC, f.published_at DESC
-            LIMIT ?"#,
+            LIMIT ? OFFSET ?"#,
         )
         .map_err(|e| e.to_string())?;
 
     let articles: Vec<super::types::AnalysisStatusArticle> = stmt
-        .query_map([limit], |row| {
+        .query_map([limit, offset], |row| {
             Ok(super::types::AnalysisStatusArticle {
                 id: row.get(0)?,
                 title: row.get(1)?,
@@ -335,8 +338,10 @@ pub fn get_failed_articles(
 pub fn get_hopeless_articles(
     state: State<AppState>,
     limit: Option<i64>,
+    offset: Option<i64>,
 ) -> Result<Vec<super::types::AnalysisStatusArticle>, String> {
-    let limit = limit.unwrap_or(100);
+    let limit = limit.unwrap_or(50);
+    let offset = offset.unwrap_or(0);
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     let mut stmt = db
@@ -349,12 +354,12 @@ pub fn get_hopeless_articles(
             LEFT JOIN pentacles p ON p.id = f.pentacle_id
             WHERE f.analysis_hopeless = TRUE
             ORDER BY f.analysis_attempts DESC, f.published_at DESC
-            LIMIT ?"#,
+            LIMIT ? OFFSET ?"#,
         )
         .map_err(|e| e.to_string())?;
 
     let articles: Vec<super::types::AnalysisStatusArticle> = stmt
-        .query_map([limit], |row| {
+        .query_map([limit, offset], |row| {
             Ok(super::types::AnalysisStatusArticle {
                 id: row.get(0)?,
                 title: row.get(1)?,
@@ -508,24 +513,70 @@ async fn process_single_article(
                     return (false, Some(format!("DB update failed: {}", e)));
                 }
 
-                let merged_categories =
-                    validate_and_merge_categories(&analysis.categories, local_categories);
-                let categories_with_source =
-                    determine_category_sources(&merged_categories, &stat_categories);
-                let categories_saved =
-                    save_article_categories_with_source(db.conn(), fnord_id, &categories_with_source);
+                // Use statistical categories as PRIMARY source (more reliable than LLM)
+                let merged_categories = merge_categories_stat_primary(
+                    &stat_categories,
+                    &analysis.categories,
+                    local_categories.clone(),
+                    0.2, // min confidence threshold for statistical categories
+                );
 
+                // Save keywords FIRST (so immanentize_sephiroth links are established)
                 let merged_keywords = merge_keywords(&analysis.keywords, local_keywords.clone(), 15);
                 let keywords_with_source = determine_keyword_sources(&merged_keywords, &stat_keywords);
+
+                // Use initial merged categories for keyword-category associations
+                let initial_categories_with_source =
+                    determine_category_sources(&merged_categories, &stat_categories);
+                let initial_categories_saved = initial_categories_with_source
+                    .iter()
+                    .map(|c| c.name.clone())
+                    .collect::<Vec<_>>();
+
                 let (_tags_saved, tag_ids) = save_article_keywords_with_source(
                     db.conn(),
                     fnord_id,
                     &keywords_with_source,
-                    &categories_saved,
+                    &initial_categories_saved,
                     article.article_date.as_deref(),
                 );
 
                 recalculate_keyword_weights(db.conn(), &tag_ids);
+
+                // Derive additional categories from keyword network
+                // This uses the immanentize_sephiroth associations to find categories
+                // that are commonly associated with this article's keywords
+                let keyword_names: Vec<String> = keywords_with_source
+                    .iter()
+                    .map(|kw| kw.name.clone())
+                    .collect();
+                let network_categories =
+                    derive_categories_from_keywords(db.conn(), &keyword_names, 0.15, 2);
+
+                // Merge network categories with existing merged categories
+                // Network categories are treated as 'statistical' source
+                let mut final_categories = merged_categories.clone();
+                let seen: std::collections::HashSet<String> = final_categories
+                    .iter()
+                    .map(|c| c.to_lowercase())
+                    .collect();
+
+                // Also extend stat_categories with network categories for source determination
+                let mut stat_cats_extended = stat_categories.clone();
+                for (cat_name, weight) in &network_categories {
+                    if !seen.contains(&cat_name.to_lowercase()) {
+                        final_categories.push(cat_name.clone());
+                    }
+                    if !stat_cats_extended.iter().any(|(n, _)| n.to_lowercase() == cat_name.to_lowercase()) {
+                        stat_cats_extended.push((cat_name.clone(), *weight));
+                    }
+                }
+                final_categories.truncate(5); // Keep max 5 categories
+
+                let categories_with_source =
+                    determine_category_sources(&final_categories, &stat_cats_extended);
+                let _categories_saved =
+                    save_article_categories_with_source(db.conn(), fnord_id, &categories_with_source);
 
                 if let Err(e) = CorpusStats::update_db_with_document(db.conn(), &document_tokens) {
                     debug!("Failed to update corpus stats: {}", e);
@@ -585,7 +636,17 @@ async fn process_single_article(
                 .take(15)
                 .collect();
 
-            let categories_saved = save_article_categories(db.conn(), fnord_id, &local_categories);
+            // Use statistical categories as primary, local as fallback
+            let fallback_categories: Vec<String> = stat_categories
+                .iter()
+                .filter(|(_, conf)| *conf >= 0.2)
+                .map(|(name, _)| name.clone())
+                .chain(local_categories.into_iter())
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .take(5)
+                .collect();
+            let categories_saved = save_article_categories(db.conn(), fnord_id, &fallback_categories);
             let _ = save_article_keywords_and_network(
                 db.conn(),
                 fnord_id,

@@ -313,5 +313,5 @@ mod tests {
 ## Related Documentation
 
 - [CLAUDE.md](../../CLAUDE.md) - Full developer context and project guidelines
-- [fuckupRSS-Anforderungen.md](../../fuckupRSS-Anforderungen.md) - Technical specification
+- [docs/ANFORDERUNGEN.md](../../docs/ANFORDERUNGEN.md) - Technical specification
 - [README.md](../../README.md) - Project overview and installation

@@ -518,3 +518,316 @@ fn test_processed_articles_excluded_from_batch() {
 
     assert_eq!(count, 1);
 }
+
+// ============================================================
+// Article embedding database integration tests
+// ============================================================
+
+#[test]
+fn test_article_embedding_stats_query() {
+    let db = Database::new_in_memory().expect("Failed to create in-memory database");
+
+    // Add test feed
+    db.conn()
+        .execute(
+            "INSERT INTO pentacles (url, title) VALUES ('http://test.com', 'Test Feed')",
+            [],
+        )
+        .expect("Failed to insert pentacle");
+
+    // Add articles with different embedding/processing states
+    let articles = vec![
+        // (guid, content_full, processed_at, embedding)
+        ("guid-1", Some("x".repeat(200)), Some("2024-01-01"), Some(vec![0u8; 4096])), // Has embedding
+        ("guid-2", Some("x".repeat(200)), Some("2024-01-01"), None),                   // Processable
+        ("guid-3", Some("x".repeat(200)), None, None),                                  // Not processed yet
+        ("guid-4", None, Some("2024-01-01"), None),                                     // No content
+        ("guid-5", Some("short".to_string()), Some("2024-01-01"), None),               // Content too short
+    ];
+
+    for (guid, content_full, processed_at, embedding) in &articles {
+        db.conn()
+            .execute(
+                r#"INSERT INTO fnords
+                   (pentacle_id, guid, title, url, content_full, processed_at, embedding, status)
+                   VALUES (1, ?, 'Test', 'http://test.com/a', ?, ?, ?, 'concealed')"#,
+                rusqlite::params![guid, content_full, processed_at, embedding],
+            )
+            .expect("Failed to insert fnord");
+    }
+
+    // Query: Total articles
+    let total: i64 = db
+        .conn()
+        .query_row("SELECT COUNT(*) FROM fnords", [], |row| row.get(0))
+        .expect("Query failed");
+    assert_eq!(total, 5);
+
+    // Query: With embedding
+    let with_embedding: i64 = db
+        .conn()
+        .query_row(
+            "SELECT COUNT(*) FROM fnords WHERE embedding IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )
+        .expect("Query failed");
+    assert_eq!(with_embedding, 1);
+
+    // Query: Processable (no embedding, processed, has long content)
+    let processable: i64 = db
+        .conn()
+        .query_row(
+            r#"SELECT COUNT(*) FROM fnords
+               WHERE embedding IS NULL
+               AND processed_at IS NOT NULL
+               AND content_full IS NOT NULL
+               AND LENGTH(content_full) >= 100"#,
+            [],
+            |row| row.get(0),
+        )
+        .expect("Query failed");
+    assert_eq!(processable, 1); // Only guid-2
+}
+
+#[test]
+fn test_article_embedding_batch_selection() {
+    let db = Database::new_in_memory().expect("Failed to create in-memory database");
+
+    // Add test feed
+    db.conn()
+        .execute(
+            "INSERT INTO pentacles (url, title) VALUES ('http://test.com', 'Test Feed')",
+            [],
+        )
+        .expect("Failed to insert pentacle");
+
+    // Add processable articles with different processed_at dates
+    let articles = vec![
+        ("guid-old", "2024-01-01"),
+        ("guid-new", "2024-01-03"),
+        ("guid-mid", "2024-01-02"),
+    ];
+
+    for (guid, processed_at) in &articles {
+        db.conn()
+            .execute(
+                r#"INSERT INTO fnords
+                   (pentacle_id, guid, title, url, content_full, processed_at, status)
+                   VALUES (1, ?, 'Test', 'http://test.com/a', ?, ?, 'concealed')"#,
+                rusqlite::params![guid, "x".repeat(200), processed_at],
+            )
+            .expect("Failed to insert fnord");
+    }
+
+    // Batch selection should return newest processed first
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"SELECT guid FROM fnords
+               WHERE embedding IS NULL
+               AND processed_at IS NOT NULL
+               AND content_full IS NOT NULL
+               AND LENGTH(content_full) >= 100
+               ORDER BY processed_at DESC
+               LIMIT 3"#,
+        )
+        .expect("Prepare failed");
+
+    let guids: Vec<String> = stmt
+        .query_map([], |row| row.get(0))
+        .expect("Query failed")
+        .filter_map(|r| r.ok())
+        .collect();
+
+    assert_eq!(guids.len(), 3);
+    assert_eq!(guids[0], "guid-new");
+    assert_eq!(guids[1], "guid-mid");
+    assert_eq!(guids[2], "guid-old");
+}
+
+#[test]
+fn test_save_article_embedding() {
+    use crate::embeddings::embedding_to_blob;
+
+    let db = Database::new_in_memory().expect("Failed to create in-memory database");
+
+    // Add test feed and article
+    db.conn()
+        .execute(
+            "INSERT INTO pentacles (url, title) VALUES ('http://test.com', 'Test Feed')",
+            [],
+        )
+        .expect("Failed to insert pentacle");
+
+    db.conn()
+        .execute(
+            r#"INSERT INTO fnords
+               (pentacle_id, guid, title, url, content_full, processed_at, status)
+               VALUES (1, 'test-guid', 'Test Article', 'http://test.com/a', 'Some content...', '2024-01-01', 'concealed')"#,
+            [],
+        )
+        .expect("Failed to insert fnord");
+
+    let fnord_id: i64 = db
+        .conn()
+        .query_row("SELECT id FROM fnords WHERE guid = 'test-guid'", [], |row| row.get(0))
+        .expect("Query failed");
+
+    // Create and save a mock embedding
+    let embedding: Vec<f32> = (0..1024).map(|i| (i as f32) / 1024.0).collect();
+    let blob = embedding_to_blob(&embedding);
+
+    db.conn()
+        .execute(
+            "UPDATE fnords SET embedding = ?1, embedding_at = datetime('now') WHERE id = ?2",
+            rusqlite::params![blob, fnord_id],
+        )
+        .expect("Update failed");
+
+    // Verify embedding was saved
+    let (saved_embedding, embedding_at): (Vec<u8>, String) = db
+        .conn()
+        .query_row(
+            "SELECT embedding, embedding_at FROM fnords WHERE id = ?",
+            [fnord_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("Query failed");
+
+    assert_eq!(saved_embedding.len(), 1024 * 4); // 1024 f32 values * 4 bytes each
+    assert!(!embedding_at.is_empty());
+}
+
+#[test]
+fn test_article_embedding_content_text_generation() {
+    // Test the logic for generating embedding text from title + content preview
+    let title = "Test Article Title";
+    let content = "x".repeat(1000); // Long content
+
+    // Take first 500 chars of content
+    let content_preview: String = content.chars().take(500).collect();
+    let embedding_text = format!("{}\n\n{}", title, content_preview);
+
+    assert!(embedding_text.starts_with("Test Article Title"));
+    assert_eq!(content_preview.len(), 500);
+    assert!(embedding_text.len() > title.len());
+}
+
+#[test]
+fn test_article_embedding_short_content() {
+    // Test with content shorter than 500 chars
+    let title = "Short Article";
+    let content = "This is a short content.";
+
+    let content_preview: String = content.chars().take(500).collect();
+    let embedding_text = format!("{}\n\n{}", title, content_preview);
+
+    assert_eq!(content_preview, content);
+    assert!(embedding_text.contains(content));
+}
+
+#[test]
+fn test_embedding_stats_without_embedding_calculation() {
+    let db = Database::new_in_memory().expect("Failed to create in-memory database");
+
+    // Add test feed
+    db.conn()
+        .execute(
+            "INSERT INTO pentacles (url, title) VALUES ('http://test.com', 'Test Feed')",
+            [],
+        )
+        .expect("Failed to insert pentacle");
+
+    // Add 10 articles
+    for i in 0..10 {
+        let has_embedding = i < 3; // First 3 have embeddings
+        let is_processed = i < 7;  // First 7 are processed
+        let has_content = i != 8;  // All except 8th have content
+
+        let embedding: Option<Vec<u8>> = if has_embedding { Some(vec![0u8; 4096]) } else { None };
+        let processed_at: Option<&str> = if is_processed { Some("2024-01-01") } else { None };
+        let content_full: Option<String> = if has_content { Some("x".repeat(200)) } else { None };
+
+        db.conn()
+            .execute(
+                r#"INSERT INTO fnords
+                   (pentacle_id, guid, title, url, content_full, processed_at, embedding, status)
+                   VALUES (1, ?, 'Test', 'http://test.com/a', ?, ?, ?, 'concealed')"#,
+                rusqlite::params![format!("guid-{}", i), content_full, processed_at, embedding],
+            )
+            .expect("Failed to insert fnord");
+    }
+
+    // Calculate stats
+    let total: i64 = db
+        .conn()
+        .query_row("SELECT COUNT(*) FROM fnords", [], |row| row.get(0))
+        .expect("Query failed");
+
+    let with_embedding: i64 = db
+        .conn()
+        .query_row(
+            "SELECT COUNT(*) FROM fnords WHERE embedding IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )
+        .expect("Query failed");
+
+    let without_embedding = total - with_embedding;
+
+    // Verify stats
+    assert_eq!(total, 10);
+    assert_eq!(with_embedding, 3);
+    assert_eq!(without_embedding, 7);
+}
+
+#[test]
+fn test_find_articles_for_embedding_limit() {
+    let db = Database::new_in_memory().expect("Failed to create in-memory database");
+
+    // Add test feed
+    db.conn()
+        .execute(
+            "INSERT INTO pentacles (url, title) VALUES ('http://test.com', 'Test Feed')",
+            [],
+        )
+        .expect("Failed to insert pentacle");
+
+    // Add 20 processable articles
+    for i in 0..20 {
+        db.conn()
+            .execute(
+                r#"INSERT INTO fnords
+                   (pentacle_id, guid, title, url, content_full, processed_at, status)
+                   VALUES (1, ?, 'Test', 'http://test.com/a', ?, '2024-01-01', 'concealed')"#,
+                rusqlite::params![format!("guid-{}", i), "x".repeat(200)],
+            )
+            .expect("Failed to insert fnord");
+    }
+
+    // Test limit parameter
+    let limit = 10i64;
+    let articles: Vec<(i64, String, String)> = {
+        let mut stmt = db
+            .conn()
+            .prepare(
+                r#"SELECT id, title, content_full
+                   FROM fnords
+                   WHERE embedding IS NULL
+                   AND processed_at IS NOT NULL
+                   AND content_full IS NOT NULL
+                   AND LENGTH(content_full) >= 100
+                   ORDER BY processed_at DESC
+                   LIMIT ?"#,
+            )
+            .expect("Prepare failed");
+
+        stmt.query_map([limit], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .expect("Query failed")
+            .filter_map(|r| r.ok())
+            .collect()
+    };
+
+    assert_eq!(articles.len(), 10);
+}

@@ -79,7 +79,7 @@ Status: Abgeschlossen
   - `get_article_embedding_stats` Command
   - Fortschrittsanzeige mit Events
 
-Quelle: `fuckupRSS-Anforderungen.md` C.2
+Quelle: `docs/ANFORDERUNGEN.md` C.2
 
 ### 2. Ähnliche Artikel ✅
 
@@ -93,7 +93,7 @@ Quelle: `fuckupRSS-Anforderungen.md` C.2
   - Klickbare Links zu verwandten Artikeln
   - Similarity-Score-Anzeige
 
-Quelle: `fuckupRSS-Anforderungen.md` C.2
+Quelle: `docs/ANFORDERUNGEN.md` C.2
 
 ### 3. Semantische Suche ✅
 
@@ -109,7 +109,7 @@ Quelle: `fuckupRSS-Anforderungen.md` C.2
   - Suchergebnisse mit Similarity-Score
   - ESC zum Löschen, Enter für sofortige Suche
 
-Quelle: `fuckupRSS-Anforderungen.md` C.2, `README.md`
+Quelle: `docs/ANFORDERUNGEN.md` C.2, `README.md`
 
 ### 4. VSS-Optimierung (NIEDRIGE PRIORITÄT)
 
@@ -118,7 +118,7 @@ Quelle: `fuckupRSS-Anforderungen.md` C.2, `README.md`
 - [ ] sqlite-vec Index für performante Nearest-Neighbor-Suche
 - [ ] Benchmark bei >10.000 Artikeln
 
-Quelle: `fuckupRSS-Anforderungen.md` C.2
+Quelle: `docs/ANFORDERUNGEN.md` C.2
 
 ---
 
@@ -151,7 +151,7 @@ Status: Geplant (nach Phase 3)
    - Artikel mit alternativen Perspektiven
    - "Erweiter deinen Horizont"-Feature
 
-Quelle: `fuckupRSS-Anforderungen.md` Phase 4, `README.md`
+Quelle: `docs/ANFORDERUNGEN.md` Phase 4, `README.md`
 
 ### Import/Export ✅
 
@@ -166,7 +166,7 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 4, `README.md`
   - Save-Dialog für Dateispeicherort
   - Kompatibilität mit Feedly, Inoreader, etc.
 
-Quelle: `fuckupRSS-Anforderungen.md` Phase 4
+Quelle: `docs/ANFORDERUNGEN.md` Phase 4
 
 ---
 
@@ -195,7 +195,7 @@ Status: Geplant (nach Phase 4)
   - Changelog
   - Ankündigung
 
-Quelle: `fuckupRSS-Anforderungen.md` Phase 5
+Quelle: `docs/ANFORDERUNGEN.md` Phase 5
 
 ---
 
@@ -284,4 +284,4 @@ Quelle: `fuckupRSS-Anforderungen.md` Phase 5
 
 ---
 
-*Dokumentation basiert auf: `fuckupRSS-Anforderungen.md`, `README.md`, `CLAUDE.md`, `docs/guides/QUALITY_CHECKLIST.md`*
+*Dokumentation basiert auf: `docs/ANFORDERUNGEN.md`, `README.md`, `CLAUDE.md`, `docs/guides/QUALITY_CHECKLIST.md`*

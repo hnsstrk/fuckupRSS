@@ -8,11 +8,13 @@
 //!
 //! Clustering algorithm: Agglomerative Hierarchical Clustering with cosine distance
 //!
-//! NOTE: This module is currently not exposed to the frontend but is planned
-//! for future batch processing optimization. The `process_batch_clustered`
-//! command exists but is not yet registered in the Tauri handler.
+//! **Status:** Implemented but intentionally dormant - not exposed to frontend.
+//! The `process_batch_clustered` command exists but is not registered in the Tauri handler.
+//!
+//! **Trade-off:** Speed (~30-50% fewer LLM calls) vs. accuracy (cluster transfers use confidence=0.85).
+//! **To enable:** Register command in invoke_handler (lib.rs), add frontend UI, write integration tests.
 
-// Allow dead code - this module is planned for Phase 3 but not yet exposed to frontend
+// Allow dead code - this module is implemented but intentionally dormant (not exposed to frontend)
 #![allow(dead_code)]
 
 use std::collections::{HashMap, HashSet};

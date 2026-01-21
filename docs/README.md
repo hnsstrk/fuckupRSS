@@ -12,9 +12,9 @@ Diese Dokumentation ist in thematische Bereiche gegliedert. Die Hauptdokumentati
 |----------|--------------|
 | [README.md](../README.md) | Projektbeschreibung, Features, Installation |
 | [CLAUDE.md](../CLAUDE.md) | Entwickler-Kontext für Claude Code |
-| [TODO.md](../TODO.md) | Zentrale Aufgabenliste |
+| [ANFORDERUNGEN.md](ANFORDERUNGEN.md) | Roadmap, Governance, Entscheidungen |
+| [FEEDS.md](FEEDS.md) | Standard-RSS-Feeds fuer Entwicklung und Tests |
 | [QUALITY_CHECKLIST.md](guides/QUALITY_CHECKLIST.md) | Frontend-Backend-Kommunikation Checkliste |
-| [fuckupRSS-Anforderungen.md](../fuckupRSS-Anforderungen.md) | Technische Spezifikation & Architektur |
 
 ---
 
@@ -24,8 +24,8 @@ Technische Grundlagen und Systemdesign.
 
 | Dokument | Beschreibung |
 |----------|--------------|
-| [AI_PROCESSING_PIPELINE.md](architecture/AI_PROCESSING_PIPELINE.md) | KI-Verarbeitungspipeline: Retrieval, Analyse, Embeddings |
-| [DATABASE_SCHEMA.md](architecture/DATABASE_SCHEMA.md) | SQLite-Schema: Tabellen, Relationen, Indizes |
+| [AI_PROCESSING_PIPELINE.md](architecture/AI_PROCESSING_PIPELINE.md) | KI-Verarbeitungspipeline: Retrieval, Analyse, Greyface Alert, Prompt-Design |
+| [DATABASE_SCHEMA.md](architecture/DATABASE_SCHEMA.md) | SQLite-Schema: Tabellen, Revisionsverwaltung, Settings, Embeddings |
 
 ---
 
@@ -47,10 +47,21 @@ Anleitungen und Best Practices.
 |----------|--------------|
 | [TESTING.md](guides/TESTING.md) | Test-Strategie: Unit Tests, E2E Tests, Coverage |
 | [QUALITY_CHECKLIST.md](guides/QUALITY_CHECKLIST.md) | Checkliste für Frontend-Backend-Kommunikation |
+| [HARDWARE_OPTIMIZATION.md](guides/HARDWARE_OPTIMIZATION.md) | Hardware-Profile, VRAM-Optimierung, Ollama-Konfiguration |
 
 ---
 
 ## Features
+
+### UI-Features
+
+Benutzeroberflächen-Funktionen.
+
+| Dokument | Beschreibung |
+|----------|--------------|
+| [SORTING_FILTERING.md](features/ui/SORTING_FILTERING.md) | Sortier- und Filteroptionen |
+| [IMPORT_EXPORT.md](features/ui/IMPORT_EXPORT.md) | OPML Import/Export, Artikel-Export |
+| [KEYBOARD_SHORTCUTS.md](features/ui/KEYBOARD_SHORTCUTS.md) | Vim-Style Tastaturkürzel |
 
 ### Immanentize Network (Schlagwort-Wissensnetz)
 
@@ -81,11 +92,12 @@ Das personalisierte Empfehlungssystem basierend auf Nutzerinteressen.
 
 ## Archiv
 
-Ältere Reports und Analysen.
+Ältere Reports, Analysen und archivierte Dokumente.
 
 | Dokument | Beschreibung |
 |----------|--------------|
 | [STOPWORD_KEYWORD_REPORT.md](archive/STOPWORD_KEYWORD_REPORT.md) | Analyse: Stopwörter und Keyword-Qualität |
+| [TODO_LEGACY_2026-01.md](archive/TODO_LEGACY_2026-01.md) | Historische Aufgabenliste (konsolidiert in fuckupRSS-Anforderungen.md) |
 
 ---
 
@@ -94,20 +106,28 @@ Das personalisierte Empfehlungssystem basierend auf Nutzerinteressen.
 ```
 docs/
 ├── README.md                    # Diese Datei (Navigation Hub)
+├── ANFORDERUNGEN.md             # Roadmap, Governance, Entscheidungen
+├── FEEDS.md                     # Standard-RSS-Feeds fuer Entwicklung
 ├── api/                         # API-Referenz
 │   └── TAURI_COMMANDS_REFERENCE.md
 ├── architecture/                # Architektur-Dokumentation
 │   ├── AI_PROCESSING_PIPELINE.md
 │   └── DATABASE_SCHEMA.md
 ├── archive/                     # Archivierte Dokumente
-│   └── STOPWORD_KEYWORD_REPORT.md
+│   ├── STOPWORD_KEYWORD_REPORT.md
+│   └── TODO_LEGACY_2026-01.md
 ├── features/                    # Feature-Dokumentation
-│   └── immanentize/             # Immanentize Network
-│       ├── ARCHITECTURE_GRAPH.md
-│       ├── GRAPH_REQUIREMENTS.md
-│       ├── GRAPH_TECH_EVAL.md
-│       └── KEYWORDS_SCHEMA.md
+│   ├── immanentize/             # Immanentize Network
+│   │   ├── ARCHITECTURE_GRAPH.md
+│   │   ├── GRAPH_REQUIREMENTS.md
+│   │   ├── GRAPH_TECH_EVAL.md
+│   │   └── KEYWORDS_SCHEMA.md
+│   └── ui/                      # UI-Features
+│       ├── IMPORT_EXPORT.md
+│       ├── KEYBOARD_SHORTCUTS.md
+│       └── SORTING_FILTERING.md
 ├── guides/                      # Anleitungen
+│   ├── HARDWARE_OPTIMIZATION.md
 │   ├── QUALITY_CHECKLIST.md
 │   └── TESTING.md
 └── recommendations/             # Empfehlungssystem

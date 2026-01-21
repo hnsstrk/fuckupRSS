@@ -217,6 +217,17 @@ pub fn get_article_keywords(
     // Load bias weights to apply source weighting
     let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
 
+    // Get article embedding for semantic score calculation
+    let article_embedding: Option<Vec<u8>> = db
+        .conn()
+        .query_row(
+            "SELECT embedding FROM fnords WHERE id = ?",
+            [fnord_id],
+            |row| row.get(0),
+        )
+        .ok();
+
+    // Query keywords with their embeddings for semantic score calculation
     let mut stmt = db
         .conn()
         .prepare(
@@ -226,7 +237,8 @@ pub fn get_article_keywords(
                 i.name,
                 COALESCE(fi.source, 'ai') as source,
                 COALESCE(fi.confidence, 1.0) as confidence,
-                i.quality_score
+                i.quality_score,
+                i.embedding
             FROM fnord_immanentize fi
             JOIN immanentize i ON i.id = fi.immanentize_id
             WHERE fi.fnord_id = ?
@@ -241,6 +253,7 @@ pub fn get_article_keywords(
             let source: String = row.get(2)?;
             let base_confidence: f64 = row.get(3)?;
             let quality_score: Option<f64> = row.get(4)?;
+            let keyword_embedding: Option<Vec<u8>> = row.get(5)?;
 
             // Apply source weight to confidence
             let weighted_confidence = bias_weights.apply_source_weight(&source, base_confidence);
@@ -251,6 +264,20 @@ pub fn get_article_keywords(
             // Infer extraction methods from source
             let extraction_methods = infer_extraction_methods(&source);
 
+            // Calculate semantic score from embeddings if both are available
+            let semantic_score = match (&article_embedding, &keyword_embedding) {
+                (Some(article_emb), Some(kw_emb)) => {
+                    let similarity = cosine_similarity_blob(article_emb, kw_emb);
+                    // Only return score if it's meaningful (not zero due to dimension mismatch)
+                    if similarity > 0.0 {
+                        Some(similarity)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+
             Ok(ArticleKeyword {
                 id: row.get(0)?,
                 name,
@@ -259,7 +286,7 @@ pub fn get_article_keywords(
                 keyword_type,
                 extraction_methods,
                 quality_score,
-                semantic_score: None, // TODO: Calculate from embeddings if available
+                semantic_score,
             })
         })
         .map_err(|e| e.to_string())?
@@ -1197,6 +1224,155 @@ fn cosine_similarity_blob(a: &[u8], b: &[u8]) -> f64 {
     }
 
     dot / (norm_a.sqrt() * norm_b.sqrt())
+}
+
+// ============================================================
+// CATEGORY MAINTENANCE
+// ============================================================
+
+/// Result of category fix operation
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CategoryFixResult {
+    /// Number of articles that were fixed
+    pub fixed_count: i64,
+    /// Categories that were added (name -> count)
+    pub categories_added: std::collections::HashMap<String, i64>,
+    /// Total articles scanned
+    pub total_scanned: i64,
+}
+
+/// Fix category assignments by deriving categories from keyword associations
+///
+/// Algorithm:
+/// 1. For each article with keywords but potentially missing categories
+/// 2. Get all keywords assigned to the article (fnord_immanentize)
+/// 3. For each keyword, get its category associations (immanentize_sephiroth)
+/// 4. Weight categories by:
+///    - The keyword-category weight
+///    - A specificity factor (1/num_categories for the keyword - specific keywords count more)
+/// 5. Sum weighted scores per category
+/// 6. Add categories that exceed a threshold and aren't already assigned
+#[tauri::command]
+pub fn fix_category_assignments(
+    state: State<AppState>,
+) -> Result<CategoryFixResult, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+
+    // Configuration
+    let min_score_threshold = 0.15; // Minimum aggregated score to add a category
+    let min_keywords_for_category = 2; // Minimum keywords supporting a category
+    let max_keyword_categories = 6; // Ignore keywords with more categories (too unspecific)
+
+    // Count total articles with keywords
+    let total_scanned: i64 = conn
+        .query_row(
+            "SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    let mut categories_added: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    let mut fixed_count = 0i64;
+
+    // Get all subcategories (level = 1)
+    let mut category_stmt = conn
+        .prepare("SELECT id, name FROM sephiroth WHERE level = 1")
+        .map_err(|e| e.to_string())?;
+
+    let categories: Vec<(i64, String)> = category_stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // For each article with keywords, calculate category scores from keyword network
+    // SQL approach: aggregate category scores from keywords in a single query per category
+    for (sephiroth_id, category_name) in &categories {
+        // Find articles where:
+        // - They have keywords
+        // - Those keywords are associated with this category
+        // - The article doesn't already have this category
+        // - The aggregated weighted score exceeds our threshold
+        let sql = r#"
+            WITH keyword_category_scores AS (
+                -- For each article's keyword, get the category association
+                SELECT
+                    fi.fnord_id,
+                    fi.immanentize_id,
+                    ims.weight as category_weight,
+                    -- Specificity: keywords with fewer categories are more reliable
+                    1.0 / NULLIF(
+                        (SELECT COUNT(*) FROM immanentize_sephiroth
+                         WHERE immanentize_id = fi.immanentize_id),
+                        0
+                    ) as specificity
+                FROM fnord_immanentize fi
+                JOIN immanentize_sephiroth ims ON ims.immanentize_id = fi.immanentize_id
+                WHERE ims.sephiroth_id = ?1
+                -- Only consider keywords that aren't too generic
+                AND (SELECT COUNT(*) FROM immanentize_sephiroth
+                     WHERE immanentize_id = fi.immanentize_id) <= ?4
+            ),
+            article_scores AS (
+                -- Aggregate scores per article
+                SELECT
+                    fnord_id,
+                    SUM(category_weight * specificity) as total_score,
+                    COUNT(DISTINCT immanentize_id) as supporting_keywords
+                FROM keyword_category_scores
+                GROUP BY fnord_id
+                HAVING total_score >= ?2
+                   AND supporting_keywords >= ?3
+            )
+            -- Insert for articles that don't have this category yet
+            INSERT OR IGNORE INTO fnord_sephiroth (fnord_id, sephiroth_id, confidence, source, assigned_at)
+            SELECT
+                a.fnord_id,
+                ?1,
+                MIN(a.total_score, 1.0),
+                'statistical',
+                datetime('now')
+            FROM article_scores a
+            WHERE a.fnord_id NOT IN (
+                SELECT fnord_id FROM fnord_sephiroth WHERE sephiroth_id = ?1
+            )
+        "#;
+
+        let affected = conn
+            .execute(
+                sql,
+                params![
+                    sephiroth_id,
+                    min_score_threshold,
+                    min_keywords_for_category,
+                    max_keyword_categories
+                ],
+            )
+            .unwrap_or(0) as i64;
+
+        if affected > 0 {
+            categories_added.insert(category_name.clone(), affected);
+            fixed_count += affected;
+        }
+    }
+
+    // Update article_count for affected categories
+    conn.execute_batch(
+        r#"
+        UPDATE sephiroth SET article_count = (
+            SELECT COUNT(DISTINCT fnord_id) FROM fnord_sephiroth WHERE sephiroth_id = sephiroth.id
+        );
+        "#,
+    )
+    .ok();
+
+    Ok(CategoryFixResult {
+        fixed_count,
+        categories_added,
+        total_scanned,
+    })
 }
 
 // ============================================================

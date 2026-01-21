@@ -7,11 +7,13 @@
 
 1. [Pipeline Overview](#pipeline-overview)
 2. [Content Fields](#content-fields-in-fnords)
-3. [Statistical Text Analysis](#statistical-text-analysis)
-4. [Bias Learning System](#bias-learning-system)
-5. [Advanced Keyword Extraction](#advanced-keyword-extraction)
-6. [Article Clustering](#article-clustering-batch-optimization)
-7. [Relevant Modules](#relevant-modules)
+3. [Greyface Alert (Bias-Erkennung)](#greyface-alert-bias-erkennung)
+4. [Prompt-Design](#prompt-design)
+5. [Statistical Text Analysis](#statistical-text-analysis)
+6. [Bias Learning System](#bias-learning-system)
+7. [Advanced Keyword Extraction](#advanced-keyword-extraction)
+8. [Article Clustering](#article-clustering-batch-optimization)
+9. [Relevant Modules](#relevant-modules)
 
 ---
 
@@ -60,19 +62,23 @@ Full-text extraction for all articles after RSS sync.
 
 ### Stage 2: Discordian Analysis
 
-AI-powered summarization, categorization, and keyword extraction.
+AI-powered summarization, bias detection, and keyword validation.
 
 | Aspect | Details |
 |--------|---------|
 | **Model** | ministral-3:latest |
 | **Input** | `content_full` ONLY (no fallback) |
-| **Output** | Summary, categories, keywords, bias scores |
+| **Primary Output** | Summary, political_bias, sachlichkeit |
+| **Secondary Output** | Validated keywords |
+| **Optional Output** | Categories (only if statistical derivation seems wrong) |
 | **Mode** | Native JSON mode for stability |
 
 - **Uses ONLY `content_full`** - no fallback to `content_raw`
 - Articles without full text are not suggested for analysis
 - Individual articles can be re-analyzed anytime (button in ArticleView)
 - "Re-analyze all" available in Settings with progress display
+- **Categories are primarily derived from keyword network** (statistical)
+- LLM categories serve only as optional validation/fallback
 
 ### Stage 3: Article Embedding
 
@@ -91,12 +97,16 @@ Vector embedding generation for semantic similarity search.
 
 ### Stage 4: Greyface Alert
 
-Political bias and objectivity detection.
+Mehrdimensionale Bias-Erkennung und Quellenqualitätsbewertung.
 
-| Score | Range | Description |
-|-------|-------|-------------|
-| `political_bias` | -2 to +2 | Left (-2) to Right (+2) political leaning |
-| `sachlichkeit` | 0 to 4 | Objectivity score (0 = opinion, 4 = factual) |
+| Dimension | Bereich | Beschreibung |
+|-----------|---------|--------------|
+| `political_bias` | -2 bis +2 | Politische Tendenz (Links bis Rechts) |
+| `sachlichkeit` | 0 bis 4 | Sachlichkeitsgrad (Emotional bis Faktisch) |
+| `source_credibility` | 1 bis 5 | Quellenqualität (Sterne-Bewertung) |
+| `article_type` | Enum | Artikel-Kategorie (news, analysis, opinion, etc.) |
+
+Detaillierte Informationen zu allen Dimensionen: siehe [Greyface Alert (Bias-Erkennung)](#greyface-alert-bias-erkennung).
 
 ### Stage 5: Immanentize Network
 
@@ -134,25 +144,260 @@ WHERE content_full IS NULL;
 
 ---
 
+## Greyface Alert (Bias-Erkennung)
+
+Das Greyface Alert System bewertet Artikel auf vier Dimensionen, um Nutzer auf potentielle Einseitigkeit oder Qualitätsprobleme hinzuweisen.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     GREYFACE ALERT                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Politische Tendenz        Sachlichkeit                    │
+│  ◀━━━━━━━━●━━━━━━━━▶       ◀━━━━━━━━━━●━━▶                 │
+│  Links    Mitte   Rechts   Emotional   Sachlich            │
+│                                                             │
+│  Quellenqualität           Kategorie                       │
+│  ★★★★☆                     📰 Nachricht                    │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Dimension 1: Politische Tendenz (political_bias)
+
+| Wert | Bedeutung | Beispiel-Indikatoren |
+|------|-----------|----------------------|
+| -2 | Stark links | Kapitalismuskritik, Klassenkampf-Rhetorik |
+| -1 | Leicht links | Soziale Gerechtigkeit, Umverteilung positiv |
+| 0 | Neutral/Mitte | Ausgewogene Darstellung, multiple Perspektiven |
+| +1 | Leicht rechts | Marktliberalismus, Traditionswerte positiv |
+| +2 | Stark rechts | Nationalismus, Anti-Establishment |
+
+**Datentyp:** INTEGER (-2 bis +2)
+**UI-Darstellung:** Slider oder farbige Skala
+
+### Dimension 2: Sachlichkeit
+
+| Wert | Bedeutung | Indikatoren |
+|------|-----------|-------------|
+| 0 | Stark emotional | Superlative, Ausrufezeichen, Clickbait, Angstmache |
+| 1 | Emotional | Wertende Adjektive, einseitige Wortwahl |
+| 2 | Gemischt | Fakten mit Meinung vermischt |
+| 3 | Überwiegend sachlich | Faktenbasiert mit leichter Färbung |
+| 4 | Sachlich | Neutrale Sprache, Quellenangaben, Fakten |
+
+**Datentyp:** INTEGER (0 bis 4)
+**UI-Darstellung:** 5-Stufen-Anzeige oder Prozent (0-100%)
+
+### Dimension 3: Quellenqualität (source_credibility)
+
+| Sterne | Bedeutung | Kriterien |
+|--------|-----------|-----------|
+| ★☆☆☆☆ | Fragwürdig | Keine Quellenangaben, bekannte Desinformation |
+| ★★☆☆☆ | Schwach | Wenig Belege, stark meinungsgetrieben |
+| ★★★☆☆ | Mittel | Einige Quellen, erkennbare Perspektive |
+| ★★★★☆ | Gut | Solide Recherche, transparente Methodik |
+| ★★★★★ | Exzellent | Primärquellen, Peer-Review, etablierte Redaktion |
+
+**Datentyp:** INTEGER (1 bis 5)
+**Berechnung:** Kombination aus Feed-Basis-Wert + Artikel-Modifikatoren
+
+**Berechnungslogik:**
+
+```rust
+fn calculate_quality(pentacle: &Pentacle, fnord: &Fnord) -> i32 {
+    let mut score = pentacle.default_quality as f32;
+
+    // Positive Modifikatoren
+    if fnord.has_sources { score += 1.0; }
+    if fnord.author.is_some() { score += 0.5; }
+    if fnord.sachlichkeit >= 3 { score += 0.5; }
+
+    // Negative Modifikatoren
+    if fnord.is_clickbait { score -= 1.0; }
+    if fnord.sachlichkeit <= 1 { score -= 0.5; }
+
+    score.clamp(1.0, 5.0).round() as i32
+}
+```
+
+### Dimension 4: Artikel-Kategorie (article_type)
+
+| Kategorie | DB-Wert | Beschreibung |
+|-----------|---------|--------------|
+| Nachricht | `news` | Faktenbericht, 5 W-Fragen |
+| Analyse | `analysis` | Einordnung mit Hintergrund |
+| Meinung | `opinion` | Kommentar, Editorial, Kolumne |
+| Satire | `satire` | Satirischer Inhalt |
+| Werbung | `ad` | Sponsored Content, PR |
+| Unbekannt | `unknown` | Nicht einordbar |
+
+**Datentyp:** TEXT (enum)
+**Ermittlung:** Durch KI (ministral-3)
+
+### UI-Darstellung
+
+Das Greyface Alert wird in der Artikel-Ansicht als kompaktes Panel dargestellt:
+
+```
+┌────────────────────────────────┐
+│ GREYFACE ALERT                 │
+│ Tendenz: ━━━●━━ Neutral        │
+│ Sachlich: ★★★★☆               │
+│ Typ: 📰 Nachricht              │
+└────────────────────────────────┘
+```
+
+---
+
+## Prompt-Design
+
+### Haupt-Analyse-Prompt
+
+Ein einzelner Prompt für alle Text-Tasks (Zusammenfassung, Kategorisierung, Keyword-Extraktion, Bias-Erkennung):
+
+```
+Du bist ein Nachrichtenanalyst. Analysiere den folgenden Artikel und antworte NUR mit validem JSON.
+
+ARTIKEL:
+Titel: {title}
+Quelle: {source}
+Inhalt: {content}
+
+Antworte mit diesem JSON-Format:
+{
+  "summary": "2-3 Sätze Zusammenfassung auf Deutsch",
+  "categories": ["Kategorie1", "Kategorie2"],
+  "keywords": ["Stichwort1", "Stichwort2", "Stichwort3"],
+  "greyface": {
+    "political_bias": 0,
+    "sachlichkeit": 3,
+    "article_type": "news"
+  }
+}
+
+REGELN:
+- summary: Deutsch, neutral, nur Kernaussagen, 2-3 Sätze
+- categories: Maximal 3, NUR aus dieser Liste wählen:
+  Tech, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit
+- keywords: 3-7 spezifische Begriffe (Personen, Orte, Konzepte, Organisationen)
+- political_bias: -2 (stark links) bis +2 (stark rechts), 0 = neutral/ausgewogen
+- sachlichkeit: 0 (stark emotional) bis 4 (sachlich/faktenbasiert)
+- article_type: news | analysis | opinion | satire | ad | unknown
+
+Antworte NUR mit dem JSON, keine Erklärungen, kein Markdown.
+```
+
+### Beispiel-Input
+
+```
+ARTIKEL:
+Titel: EU verabschiedet AI Act – Strengere Regeln für KI-Systeme
+Quelle: heise.de
+Inhalt: Die Europäische Union hat heute den AI Act final verabschiedet.
+Das Gesetz sieht vor, dass Hochrisiko-KI-Anwendungen künftig strenge
+Auflagen erfüllen müssen. Verboten werden unter anderem Social-Scoring-Systeme
+und biometrische Echtzeit-Überwachung. Die Verordnung tritt 2025 in Kraft.
+Kritiker bemängeln, dass die Regeln Innovation bremsen könnten.
+```
+
+### Beispiel-Output
+
+```json
+{
+  "summary": "Die EU hat den AI Act verabschiedet, der strenge Auflagen für Hochrisiko-KI vorsieht. Social Scoring und biometrische Echtzeit-Überwachung werden verboten. Das Gesetz tritt 2025 in Kraft.",
+  "categories": ["Tech", "Politik"],
+  "keywords": ["EU", "AI Act", "KI-Regulierung", "Hochrisiko-KI", "Social Scoring", "Biometrie"],
+  "greyface": {
+    "political_bias": 0,
+    "sachlichkeit": 4,
+    "article_type": "news"
+  }
+}
+```
+
+### JSON-Output-Format
+
+Das LLM gibt ein strukturiertes JSON-Objekt zurück:
+
+| Feld | Typ | Beschreibung |
+|------|-----|--------------|
+| `summary` | String | 2-3 Sätze Zusammenfassung auf Deutsch |
+| `categories` | Array<String> | 1-3 Kategorien aus fester Liste |
+| `keywords` | Array<String> | 3-7 spezifische Schlagwörter |
+| `greyface.political_bias` | Integer | -2 bis +2 |
+| `greyface.sachlichkeit` | Integer | 0 bis 4 |
+| `greyface.article_type` | String | news, analysis, opinion, satire, ad, unknown |
+
+### Parsing im Rust-Backend
+
+```rust
+#[derive(Deserialize)]
+struct DiscordianAnalysis {
+    summary: String,
+    categories: Vec<String>,
+    keywords: Vec<String>,
+    greyface: GreyfaceAlert,
+}
+
+#[derive(Deserialize)]
+struct GreyfaceAlert {
+    political_bias: i8,
+    sachlichkeit: u8,
+    article_type: String,
+}
+
+async fn analyze_article(fnord: &Fnord) -> Result<DiscordianAnalysis> {
+    let prompt = format!(
+        r#"Du bist ein Nachrichtenanalyst...
+
+        ARTIKEL:
+        Titel: {}
+        Quelle: {}
+        Inhalt: {}
+        "#,
+        fnord.title,
+        fnord.source_name,
+        fnord.content_full.as_ref().unwrap_or(&fnord.content_raw)
+    );
+
+    let response = ollama.generate("ministral-3:latest", &prompt).await?;
+    let analysis: DiscordianAnalysis = serde_json::from_str(&response)?;
+
+    Ok(analysis)
+}
+```
+
+### Parsing-Regeln
+
+1. **Native JSON Mode:** Ollama wird mit JSON-Mode aufgerufen für garantiert valide JSON-Antworten
+2. **Validierung:** Alle Werte werden auf gültige Bereiche geprüft (z.B. political_bias zwischen -2 und +2)
+3. **Fallback:** Bei ungültigen Werten werden Defaults verwendet (political_bias=0, sachlichkeit=2, article_type="unknown")
+4. **Error Handling:** Bei komplettem Parse-Fehler wird der Artikel als "nicht analysiert" markiert
+
+---
+
 ## Statistical Text Analysis
 
 ### Statistical-First Workflow
 
-Statistical analysis runs **BEFORE** LLM analysis. The LLM validates/corrects statistical suggestions:
+Statistical analysis runs **BEFORE** LLM analysis. Categories are now **primarily derived from the keyword network**, with LLM categories serving only as optional validation/fallback:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    STATISTICAL-FIRST WORKFLOW                                │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  1. STATISTICAL PRE-ANALYSIS (TF-IDF + Category Matcher)                    │
-│     ├─ Apply bias weights                                                   │
+│  1. STATISTICAL PRE-ANALYSIS (TF-IDF + Keyword Network)                     │
+│     ├─ Extract keywords via TF-IDF with bias weights                        │
+│     ├─ Derive categories from keyword-category associations                 │
 │     └─ Generate keyword_candidates, category_scores                         │
 │                                                                             │
 │  2. LLM QUALITY CONTROL (Discordian Analysis)                               │
-│     ├─ Receives statistical results as context                              │
-│     ├─ Validates/rejects suggestions                                        │
-│     └─ Returns rejected_keywords, rejected_categories                       │
+│     ├─ PRIMARY FOCUS: Summary quality, bias detection, objectivity          │
+│     ├─ SECONDARY: Validate/filter keywords (keep good ones, add max 2 new)  │
+│     ├─ OPTIONAL: Categories (only if statistical results seem wrong)        │
+│     └─ Returns rejected_keywords, rejected_categories for bias learning     │
 │                                                                             │
 │  3. BIAS LEARNING FROM REJECTIONS                                           │
 │     ├─ Rejected keywords: boost -= 0.1                                      │
@@ -160,6 +405,13 @@ Statistical analysis runs **BEFORE** LLM analysis. The LLM validates/corrects st
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+**LLM Focus Areas (in order of importance):**
+1. High-quality summary (2-3 factual sentences)
+2. Precise political bias assessment (-2 to +2)
+3. Precise objectivity assessment (sachlichkeit 0-4)
+4. Keyword validation and refinement
+5. Category correction (only if clearly wrong)
 
 ### Analysis Methods
 
@@ -420,6 +672,6 @@ await invoke('process_batch_clustered', {
 ## Related Documentation
 
 - [CLAUDE.md](../../CLAUDE.md) - Main developer guide
-- [fuckupRSS-Anforderungen.md](../../fuckupRSS-Anforderungen.md) - Technical specification
+- [docs/ANFORDERUNGEN.md](../../docs/ANFORDERUNGEN.md) - Technical specification
 - [KEYWORDS_SCHEMA.md](../features/immanentize/KEYWORDS_SCHEMA.md) - Keyword database schema
 - [STOPWORD_KEYWORD_REPORT.md](../archive/STOPWORD_KEYWORD_REPORT.md) - Stopword and keyword analysis report
