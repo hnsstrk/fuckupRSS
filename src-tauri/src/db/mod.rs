@@ -58,11 +58,40 @@ impl Database {
 
         let conn = Connection::open(&db_path)?;
 
-        // Enable WAL mode for better performance
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
+        // Configure SQLite for optimal performance
+        conn.execute_batch(
+            "
+            -- Journal & Safety
+            PRAGMA journal_mode=WAL;
+            PRAGMA foreign_keys=ON;
+            PRAGMA synchronous=NORMAL;       -- FULL is overkill for WAL mode
+
+            -- Performance Tuning (optimized for 191MB database)
+            PRAGMA cache_size=-64000;        -- 64MB cache (instead of default 8MB)
+            PRAGMA temp_store=MEMORY;        -- Temp tables in RAM for faster sorts/joins
+            PRAGMA mmap_size=268435456;      -- 256MB memory-mapped I/O
+
+            -- WAL Optimization
+            PRAGMA wal_autocheckpoint=1000;  -- Checkpoint every 1000 pages
+            PRAGMA journal_size_limit=67108864; -- 64MB WAL limit
+            ",
+        )?;
 
         // Initialize schema (includes vec0 virtual table)
         schema::init(&conn)?;
+
+        // Update query planner statistics for optimal query plans
+        conn.execute("ANALYZE", [])?;
+
+        // Verify foreign keys are enabled (debug builds only)
+        #[cfg(debug_assertions)]
+        {
+            let fk_enabled: i32 = conn.query_row("PRAGMA foreign_keys", [], |row| row.get(0))?;
+            if fk_enabled != 1 {
+                log::error!("Foreign keys are not enabled! This is a critical configuration error.");
+                return Err(DbError::Sqlite(rusqlite::Error::InvalidQuery));
+            }
+        }
 
         Ok(Self { conn })
     }
@@ -72,7 +101,13 @@ impl Database {
     pub fn new_in_memory() -> Result<Self, DbError> {
         register_sqlite_vec();
         let conn = Connection::open_in_memory()?;
-        conn.execute_batch("PRAGMA foreign_keys=ON;")?;
+        conn.execute_batch(
+            "
+            PRAGMA foreign_keys=ON;
+            PRAGMA cache_size=-64000;
+            PRAGMA temp_store=MEMORY;
+            ",
+        )?;
         schema::init(&conn)?;
         Ok(Self { conn })
     }
@@ -85,7 +120,16 @@ impl Database {
             std::fs::create_dir_all(parent)?;
         }
         let conn = Connection::open(path)?;
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
+        conn.execute_batch(
+            "
+            PRAGMA journal_mode=WAL;
+            PRAGMA foreign_keys=ON;
+            PRAGMA synchronous=NORMAL;
+            PRAGMA cache_size=-64000;
+            PRAGMA temp_store=MEMORY;
+            PRAGMA mmap_size=268435456;
+            ",
+        )?;
         schema::init(&conn)?;
         Ok(Self { conn })
     }

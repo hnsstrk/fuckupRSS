@@ -458,23 +458,35 @@ pub async fn process_article_discordian(
         }
         Err(e) => {
             // Fallback: Use statistical + local extraction
-            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let (categories_saved, tags_saved) = {
+                let db = state.db.lock().map_err(|e| e.to_string())?;
 
-            let combined_keywords: Vec<String> = stat_keywords
-                .into_iter()
-                .chain(local_keywords.into_iter())
-                .take(15)
-                .collect();
+                let combined_keywords: Vec<String> = stat_keywords
+                    .into_iter()
+                    .chain(local_keywords.into_iter())
+                    .take(15)
+                    .collect();
 
-            let categories_saved = save_article_categories(db.conn(), fnord_id, &local_categories);
-            let (tags_saved, tag_ids) = save_article_keywords_and_network(
-                db.conn(),
-                fnord_id,
-                &combined_keywords,
-                &categories_saved,
-                article_date.as_deref(),
-            );
-            recalculate_keyword_weights(db.conn(), &tag_ids);
+                let categories_saved = save_article_categories(db.conn(), fnord_id, &local_categories);
+                let (tags_saved, tag_ids) = save_article_keywords_and_network(
+                    db.conn(),
+                    fnord_id,
+                    &combined_keywords,
+                    &categories_saved,
+                    article_date.as_deref(),
+                );
+                recalculate_keyword_weights(db.conn(), &tag_ids);
+
+                (categories_saved, tags_saved)
+            }; // Lock is dropped here
+
+            // Generate article embedding even if LLM analysis failed
+            // This ensures articles processed with fallback methods still get embeddings for similarity search
+            if let Err(embed_err) =
+                generate_and_save_article_embedding(&client, &state.db, fnord_id, &title, &content).await
+            {
+                warn!("Failed to generate embedding for article {} in fallback mode: {}", fnord_id, embed_err);
+            }
 
             Ok(DiscordianResponse {
                 fnord_id,
