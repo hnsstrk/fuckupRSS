@@ -951,6 +951,9 @@ pub async fn process_batch(
                 {
                     debug!("Failed to generate embedding for article {}: {}", fnord_id, e);
                 }
+
+                // Yield for other tasks after each embedding generation
+                tokio::task::yield_now().await;
             }
         }
     }
@@ -976,7 +979,7 @@ pub fn cancel_batch(state: State<AppState>) -> Result<(), String> {
 /// Part of the dormant cluster-based batch processing feature.
 /// See [`ClusterBatchConfig`] for full documentation on status and trade-offs.
 #[allow(dead_code)]
-fn transfer_keywords_to_cluster_members(
+async fn transfer_keywords_to_cluster_members(
     state: &AppState,
     cluster: &crate::keywords::ArticleCluster,
     keywords: &[String],
@@ -1058,6 +1061,9 @@ fn transfer_keywords_to_cluster_members(
                 }
             }
         } // Lock released here
+
+        // Yield for other tasks after processing each cluster member
+        tokio::task::yield_now().await;
     }
 
     Ok(transferred)
@@ -1314,7 +1320,7 @@ pub async fn process_batch_clustered(
                             };
 
                             if !keywords.is_empty() || !categories.is_empty() {
-                                match transfer_keywords_to_cluster_members(&state, cluster, &keywords, &categories) {
+                                match transfer_keywords_to_cluster_members(&state, cluster, &keywords, &categories).await {
                                     Ok(n) => {
                                         transferred = n;
                                         info!(
