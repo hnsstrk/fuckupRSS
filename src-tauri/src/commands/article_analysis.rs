@@ -3,6 +3,7 @@
 //! Commands for managing article keywords and categories with source tracking,
 //! statistical analysis, and bias learning.
 
+use crate::db::transaction::{with_transaction_result, TransactionError};
 use crate::text_analysis::{
     BiasWeights, BiasStats, CategoryMatcher, CorrectionRecord, CorrectionType,
     TfIdfExtractor, record_correction as bias_record_correction, get_bias_stats as bias_get_stats,
@@ -315,82 +316,79 @@ pub fn add_article_keyword(
     let keyword_name = find_canonical_keyword_with_db(keyword_trimmed)
         .unwrap_or_else(|| keyword_trimmed.to_string());
 
-    // Step 2: Try to find existing keyword (learning from existing data)
-    // Priority: exact match > case-insensitive match
-    let (keyword_id, final_name): (i64, String) = db
-        .conn()
-        .query_row(
-            "SELECT id, name FROM immanentize WHERE name = ?",
-            [&keyword_name],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .or_else(|_| {
-            // Try case-insensitive match
-            db.conn().query_row(
-                "SELECT id, name FROM immanentize WHERE LOWER(name) = LOWER(?) LIMIT 1",
+    // Use transaction wrapper for atomic multi-write operation
+    with_transaction_result(db.conn(), |conn| {
+        // Step 2: Try to find existing keyword (learning from existing data)
+        // Priority: exact match > case-insensitive match
+        let (keyword_id, final_name): (i64, String) = conn
+            .query_row(
+                "SELECT id, name FROM immanentize WHERE name = ?",
                 [&keyword_name],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
-        })
-        .or_else(|_| {
-            // Create new keyword with proper capitalization
-            let normalized_name = capitalize_keyword(&keyword_name);
-            db.conn().execute(
-                "INSERT INTO immanentize (name, count, article_count, first_seen, last_used) VALUES (?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-                [&normalized_name],
-            )?;
-            Ok::<(i64, String), rusqlite::Error>((db.conn().last_insert_rowid(), normalized_name))
-        })
-        .map_err(|e: rusqlite::Error| e.to_string())?;
+            .or_else(|_| {
+                // Try case-insensitive match
+                conn.query_row(
+                    "SELECT id, name FROM immanentize WHERE LOWER(name) = LOWER(?) LIMIT 1",
+                    [&keyword_name],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+            })
+            .or_else(|_| {
+                // Create new keyword with proper capitalization
+                let normalized_name = capitalize_keyword(&keyword_name);
+                conn.execute(
+                    "INSERT INTO immanentize (name, count, article_count, first_seen, last_used) VALUES (?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                    [&normalized_name],
+                )?;
+                Ok::<(i64, String), rusqlite::Error>((conn.last_insert_rowid(), normalized_name))
+            })
+            .map_err(|e: rusqlite::Error| TransactionError::Sqlite(e))?;
 
-    // Add to article with source='manual'
-    db.conn()
-        .execute(
+        // Add to article with source='manual'
+        conn.execute(
             "INSERT OR REPLACE INTO fnord_immanentize (fnord_id, immanentize_id, source, confidence)
              VALUES (?, ?, 'manual', 1.0)",
             params![fnord_id, keyword_id],
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
-    // Update article_count for the keyword
-    db.conn()
-        .execute(
+        // Update article_count for the keyword
+        conn.execute(
             "UPDATE immanentize SET
                 article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?),
                 last_used = CURRENT_TIMESTAMP
              WHERE id = ?",
             params![keyword_id, keyword_id],
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
-    // Record correction for bias learning - user added this keyword
-    let _ = bias_record_correction(
-        db.conn(),
-        &CorrectionRecord {
-            fnord_id,
-            correction_type: CorrectionType::KeywordAdded,
-            old_value: None,
-            new_value: Some(final_name.clone()),
-            matching_terms: Vec::new(),
-            category_id: None,
-        },
-    );
+        // Record correction for bias learning - user added this keyword
+        let _ = bias_record_correction(
+            conn,
+            &CorrectionRecord {
+                fnord_id,
+                correction_type: CorrectionType::KeywordAdded,
+                old_value: None,
+                new_value: Some(final_name.clone()),
+                matching_terms: Vec::new(),
+                category_id: None,
+            },
+        );
 
-    // Get quality score from DB if available
-    let quality_score: Option<f64> = db
-        .conn()
-        .query_row("SELECT quality_score FROM immanentize WHERE id = ?", [keyword_id], |row| row.get(0))
-        .ok();
+        // Get quality score from DB if available
+        let quality_score: Option<f64> = conn
+            .query_row("SELECT quality_score FROM immanentize WHERE id = ?", [keyword_id], |row| row.get(0))
+            .ok();
 
-    Ok(ArticleKeyword {
-        id: keyword_id,
-        name: final_name.clone(),
-        source: "manual".to_string(),
-        confidence: 1.0,
-        keyword_type: infer_keyword_type(&final_name),
-        extraction_methods: vec!["manual".to_string()],
-        quality_score,
-        semantic_score: None,
+        Ok(ArticleKeyword {
+            id: keyword_id,
+            name: final_name.clone(),
+            source: "manual".to_string(),
+            confidence: 1.0,
+            keyword_type: infer_keyword_type(&final_name),
+            extraction_methods: vec!["manual".to_string()],
+            quality_score,
+            semantic_score: None,
+        })
     })
 }
 
@@ -403,45 +401,43 @@ pub fn remove_article_keyword(
 ) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
-    // Get keyword name before deleting for bias learning
-    let keyword_name: Option<String> = db
-        .conn()
-        .query_row("SELECT name FROM immanentize WHERE id = ?", [keyword_id], |row| row.get(0))
-        .ok();
+    // Use transaction wrapper for atomic multi-write operation
+    with_transaction_result(db.conn(), |conn| {
+        // Get keyword name before deleting for bias learning
+        let keyword_name: Option<String> = conn
+            .query_row("SELECT name FROM immanentize WHERE id = ?", [keyword_id], |row| row.get(0))
+            .ok();
 
-    db.conn()
-        .execute(
+        conn.execute(
             "DELETE FROM fnord_immanentize WHERE fnord_id = ? AND immanentize_id = ?",
             params![fnord_id, keyword_id],
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
-    // Update article_count for the keyword
-    db.conn()
-        .execute(
+        // Update article_count for the keyword
+        conn.execute(
             "UPDATE immanentize SET
                 article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?)
              WHERE id = ?",
             params![keyword_id, keyword_id],
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
-    // Record correction for bias learning - user removed this keyword
-    if let Some(name) = keyword_name {
-        let _ = bias_record_correction(
-            db.conn(),
-            &CorrectionRecord {
-                fnord_id,
-                correction_type: CorrectionType::KeywordRemoved,
-                old_value: Some(name),
-                new_value: None,
-                matching_terms: Vec::new(),
-                category_id: None,
-            },
-        );
-    }
+        // Record correction for bias learning - user removed this keyword
+        if let Some(name) = keyword_name {
+            let _ = bias_record_correction(
+                conn,
+                &CorrectionRecord {
+                    fnord_id,
+                    correction_type: CorrectionType::KeywordRemoved,
+                    old_value: Some(name),
+                    new_value: None,
+                    matching_terms: Vec::new(),
+                    category_id: None,
+                },
+            );
+        }
 
-    Ok(())
+        Ok(())
+    })
 }
 
 // ============================================================

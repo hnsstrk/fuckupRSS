@@ -619,56 +619,55 @@ pub struct DeleteResponse {
 pub async fn delete_null_content_articles(
     state: State<'_, AppState>,
 ) -> Result<DeleteResponse, String> {
+    use crate::db::transaction::with_transaction_result;
+
     info!("Deleting articles with NULL or empty content_full");
 
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let conn = db.conn();
 
-    // First, delete related data from junction tables
-    conn.execute(
-        "DELETE FROM fnord_sephiroth WHERE fnord_id IN (
-            SELECT id FROM fnords
-            WHERE full_text_fetched = TRUE
-            AND (content_full IS NULL OR LENGTH(content_full) = 0)
-        )",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
+    // Use transaction wrapper for atomic multi-delete operation
+    with_transaction_result(db.conn(), |conn| {
+        // First, delete related data from junction tables
+        conn.execute(
+            "DELETE FROM fnord_sephiroth WHERE fnord_id IN (
+                SELECT id FROM fnords
+                WHERE full_text_fetched = TRUE
+                AND (content_full IS NULL OR LENGTH(content_full) = 0)
+            )",
+            [],
+        )?;
 
-    conn.execute(
-        "DELETE FROM fnord_immanentize WHERE fnord_id IN (
-            SELECT id FROM fnords
-            WHERE full_text_fetched = TRUE
-            AND (content_full IS NULL OR LENGTH(content_full) = 0)
-        )",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM fnord_immanentize WHERE fnord_id IN (
+                SELECT id FROM fnords
+                WHERE full_text_fetched = TRUE
+                AND (content_full IS NULL OR LENGTH(content_full) = 0)
+            )",
+            [],
+        )?;
 
-    conn.execute(
-        "DELETE FROM fnord_revisions WHERE fnord_id IN (
-            SELECT id FROM fnords
-            WHERE full_text_fetched = TRUE
-            AND (content_full IS NULL OR LENGTH(content_full) = 0)
-        )",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM fnord_revisions WHERE fnord_id IN (
+                SELECT id FROM fnords
+                WHERE full_text_fetched = TRUE
+                AND (content_full IS NULL OR LENGTH(content_full) = 0)
+            )",
+            [],
+        )?;
 
-    // Delete the articles
-    let deleted_count = conn
-        .execute(
+        // Delete the articles
+        let deleted_count = conn.execute(
             "DELETE FROM fnords
              WHERE full_text_fetched = TRUE
              AND (content_full IS NULL OR LENGTH(content_full) = 0)",
             [],
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
-    info!("Deleted {} articles with NULL or empty content", deleted_count);
+        info!("Deleted {} articles with NULL or empty content", deleted_count);
 
-    Ok(DeleteResponse {
-        deleted_count: deleted_count as i64,
+        Ok(DeleteResponse {
+            deleted_count: deleted_count as i64,
+        })
     })
 }
 
