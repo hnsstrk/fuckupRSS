@@ -304,6 +304,8 @@ pub fn run() {
             commands::stopwords::restore_system_stopwords,
             commands::stopwords::export_stopwords,
             commands::stopwords::import_stopwords,
+            // Database Maintenance
+            commands::maintenance::vacuum_database,
             // Keyword Type Detection (Semantic)
             commands::keyword_type_detection::init_keyword_type_prototypes,
             commands::keyword_type_detection::generate_keyword_type_prototypes,
