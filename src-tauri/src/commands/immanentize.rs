@@ -1038,6 +1038,14 @@ pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, Str
                     warn!("Failed to update merged keyword counts: {}", e);
                 }
 
+                // Delete neighbor relationships BEFORE deleting the keyword to prevent orphaned relationships
+                if let Err(e) = conn.execute(
+                    "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
+                    rusqlite::params![id, id],
+                ) {
+                    warn!("Failed to delete neighbor relationships for keyword {}: {}", id, e);
+                }
+
                 if let Err(e) = conn.execute("DELETE FROM immanentize WHERE id = ?", [id]) {
                     warn!("Failed to delete merged keyword {}: {}", id, e);
                 }
@@ -1068,6 +1076,8 @@ pub struct CleanupResult {
 
 #[tauri::command]
 pub fn cleanup_garbage_keywords(state: State<AppState>) -> Result<CleanupResult, String> {
+    use crate::db::transaction::with_transaction_result;
+
     // Load keywords with short lock and identify garbage outside of transaction
     let garbage_ids: Vec<i64> = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -1097,53 +1107,38 @@ pub fn cleanup_garbage_keywords(state: State<AppState>) -> Result<CleanupResult,
 
     // Perform all deletions in a single transaction
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let conn = db.conn();
 
-    conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
+    with_transaction_result(db.conn(), |conn| {
+        for id in &garbage_ids {
+            // Delete garbage keyword and all its relations
+            conn.execute(
+                "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
+                [id],
+            )?;
+            conn.execute(
+                "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
+                rusqlite::params![id, id],
+            )?;
+            conn.execute(
+                "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
+                [id],
+            )?;
+            conn.execute(
+                "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
+                [id],
+            )?;
+            conn.execute("DELETE FROM immanentize WHERE id = ?", [id])?;
+            // Also remove from vec_immanentize (sqlite-vec) - ignore errors
+            let _ = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id]);
+        }
 
-    for id in &garbage_ids {
-        // Delete garbage keyword and all its relations
-        if let Err(e) = conn.execute(
-            "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
-            [id],
-        ) {
-            trace!("Failed to delete article refs for garbage keyword {}: {}", id, e);
-        }
-        if let Err(e) = conn.execute(
-            "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
-            rusqlite::params![id, id],
-        ) {
-            trace!("Failed to delete neighbors for garbage keyword {}: {}", id, e);
-        }
-        if let Err(e) = conn.execute(
-            "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
-            [id],
-        ) {
-            trace!("Failed to delete category refs for garbage keyword {}: {}", id, e);
-        }
-        if let Err(e) = conn.execute(
-            "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
-            [id],
-        ) {
-            trace!("Failed to delete daily stats for garbage keyword {}: {}", id, e);
-        }
-        if let Err(e) = conn.execute("DELETE FROM immanentize WHERE id = ?", [id]) {
-            warn!("Failed to delete garbage keyword {}: {}", id, e);
-        }
-        // Also remove from vec_immanentize (sqlite-vec)
-        if let Err(e) = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id]) {
-            trace!("Failed to delete garbage keyword {} from vec table: {}", id, e);
-        }
-    }
+        // Approximate removed relations based on garbage count
+        let removed_relations = removed_garbage * 5; // Estimated avg relations per keyword
 
-    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
-
-    // Approximate removed relations based on garbage count
-    let removed_relations = removed_garbage * 5; // Estimated avg relations per keyword
-
-    Ok(CleanupResult {
-        removed_garbage,
-        removed_relations,
+        Ok(CleanupResult {
+            removed_garbage,
+            removed_relations,
+        })
     })
 }
 
@@ -1645,73 +1640,63 @@ pub fn merge_keyword_pair(
     keep_id: i64,
     remove_id: i64,
 ) -> Result<MergeSynonymsResult, String> {
+    use crate::db::transaction::with_transaction_result;
+
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let conn = db.conn();
 
-    let affected: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM fnord_immanentize WHERE immanentize_id = ?",
+    // Use transaction wrapper for atomic multi-write merge operation
+    with_transaction_result(db.conn(), |conn| {
+        let affected: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM fnord_immanentize WHERE immanentize_id = ?",
+                [remove_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+
+        conn.execute(
+            "UPDATE OR IGNORE fnord_immanentize SET immanentize_id = ?1 WHERE immanentize_id = ?2",
+            params![keep_id, remove_id],
+        )?;
+
+        // Clean up merged keyword's remaining references
+        conn.execute(
+            "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
             [remove_id],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
+        )?;
 
-    conn.execute(
-        "UPDATE OR IGNORE fnord_immanentize SET immanentize_id = ?1 WHERE immanentize_id = ?2",
-        params![keep_id, remove_id],
-    )
-    .map_err(|e| e.to_string())?;
+        conn.execute(
+            r#"UPDATE immanentize SET
+               article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?1)
+               WHERE id = ?1"#,
+            [keep_id],
+        )?;
 
-    // Clean up merged keyword's remaining references
-    if let Err(e) = conn.execute(
-        "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
-        [remove_id],
-    ) {
-        trace!("Failed to clean duplicate refs after merge: {}", e);
-    }
+        conn.execute(
+            "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
+            params![remove_id, remove_id],
+        )?;
 
-    if let Err(e) = conn.execute(
-        r#"UPDATE immanentize SET
-           article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?1)
-           WHERE id = ?1"#,
-        [keep_id],
-    ) {
-        warn!("Failed to update article count after merge: {}", e);
-    }
+        conn.execute(
+            "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
+            [remove_id],
+        )?;
 
-    if let Err(e) = conn.execute(
-        "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
-        params![remove_id, remove_id],
-    ) {
-        trace!("Failed to delete neighbors for merged keyword {}: {}", remove_id, e);
-    }
+        conn.execute(
+            "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
+            [remove_id],
+        )?;
 
-    if let Err(e) = conn.execute(
-        "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
-        [remove_id],
-    ) {
-        trace!("Failed to delete category refs for merged keyword {}: {}", remove_id, e);
-    }
+        conn.execute("DELETE FROM immanentize WHERE id = ?", [remove_id])?;
 
-    if let Err(e) = conn.execute(
-        "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
-        [remove_id],
-    ) {
-        trace!("Failed to delete daily stats for merged keyword {}: {}", remove_id, e);
-    }
+        // Also remove from vec_immanentize (sqlite-vec)
+        // Ignore error if table doesn't exist
+        let _ = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [remove_id]);
 
-    if let Err(e) = conn.execute("DELETE FROM immanentize WHERE id = ?", [remove_id]) {
-        warn!("Failed to delete merged keyword {}: {}", remove_id, e);
-    }
-
-    // Also remove from vec_immanentize (sqlite-vec)
-    if let Err(e) = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [remove_id]) {
-        trace!("Failed to delete merged keyword {} from vec table: {}", remove_id, e);
-    }
-
-    Ok(MergeSynonymsResult {
-        merged_pairs: 1,
-        affected_articles: affected,
+        Ok(MergeSynonymsResult {
+            merged_pairs: 1,
+            affected_articles: affected,
+        })
     })
 }
 
