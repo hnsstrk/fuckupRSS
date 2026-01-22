@@ -1,6 +1,7 @@
 use crate::retrieval::HagbardRetrieval;
 use crate::sync::FeedSyncer;
 use crate::AppState;
+use log::{info, warn};
 use tauri::State;
 
 #[derive(serde::Serialize)]
@@ -176,6 +177,23 @@ pub async fn sync_all_feeds(state: State<'_, AppState>) -> Result<SyncResponse, 
                     full_text_fetched: 0,
                     error: Some(e.to_string()),
                 });
+            }
+        }
+    }
+
+    // Trigger WAL checkpoint if we synced a significant number of articles
+    if total_new + total_updated >= 100 {
+        if let Ok(db) = state.db.lock() {
+            match db.conn().execute("PRAGMA wal_checkpoint(PASSIVE)", []) {
+                Ok(_) => {
+                    info!(
+                        "WAL checkpoint triggered after syncing {} articles",
+                        total_new + total_updated
+                    );
+                }
+                Err(e) => {
+                    warn!("WAL checkpoint failed after sync: {}", e);
+                }
             }
         }
     }

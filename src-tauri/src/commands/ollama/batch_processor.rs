@@ -960,6 +960,23 @@ pub async fn process_batch(
 
     state.batch_running.store(false, Ordering::SeqCst);
 
+    // Trigger WAL checkpoint if we processed a significant number of articles
+    if succeeded >= 100 {
+        if let Ok(db) = state.db.lock() {
+            match db.conn().execute("PRAGMA wal_checkpoint(PASSIVE)", []) {
+                Ok(_) => {
+                    info!(
+                        "WAL checkpoint triggered after processing {} articles",
+                        succeeded
+                    );
+                }
+                Err(e) => {
+                    warn!("WAL checkpoint failed after batch processing: {}", e);
+                }
+            }
+        }
+    }
+
     Ok(BatchResult {
         processed: total,
         succeeded,
