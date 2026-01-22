@@ -14,6 +14,10 @@ use super::types::{
     SimilarArticlesResponse,
 };
 
+/// Type alias for basic article data with similarity score
+/// (id, title, summary, image_url, similarity)
+type BasicArticleData = (i64, String, Option<String>, Option<String>, f64);
+
 /// Helper function to get tags for an article
 fn get_article_tags(conn: &rusqlite::Connection, fnord_id: i64) -> Vec<SimilarArticleTag> {
     let mut stmt = match conn.prepare(
@@ -115,7 +119,7 @@ pub fn find_similar_articles(
         )
         .map_err(|e| e.to_string())?;
 
-    let basic_articles: Vec<(i64, String, Option<String>, Option<String>, f64)> = stmt
+    let basic_articles: Vec<BasicArticleData> = stmt
         .query_map(rusqlite::params![embedding, limit + 1, fnord_id], |row| {
             let distance: f64 = row.get(1)?;
             let similarity = 1.0 - (distance / 2.0);

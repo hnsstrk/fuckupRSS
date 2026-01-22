@@ -633,6 +633,7 @@ Content: {}"#,
     ///
     /// If `custom_prompt` is provided, it will be used instead of the default prompt.
     /// The prompt template should contain placeholders: {language}, {title}, {content}, {stat_keywords}, {stat_categories}
+    #[allow(clippy::too_many_arguments)] // This is a comprehensive analysis API with necessary parameters
     pub async fn discordian_analysis_with_stats_custom(
         &self,
         model: &str,

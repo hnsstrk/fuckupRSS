@@ -5,6 +5,7 @@ use tauri::State;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FnordCategoryInfo {
+    pub id: i64,
     pub color: Option<String>,
     pub icon: Option<String>,
     pub name: String,
@@ -97,7 +98,7 @@ fn load_categories_for_fnords(
 
     let placeholders: String = fnord_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
     let sql = format!(
-        r#"SELECT fs.fnord_id, s.name, s.color, s.icon
+        r#"SELECT fs.fnord_id, s.name, s.color, s.icon, s.id
            FROM fnord_sephiroth fs
            JOIN sephiroth s ON s.id = fs.sephiroth_id
            WHERE fs.fnord_id IN ({})
@@ -121,6 +122,7 @@ fn load_categories_for_fnords(
                     name: row.get(1)?,
                     color: row.get(2)?,
                     icon: row.get(3)?,
+                    id: row.get(4)?,
                 },
             ))
         }) {
@@ -1850,6 +1852,7 @@ mod tests {
             changed_at: Some("2024-01-02T10:00:00Z".to_string()),
             revision_count: 2,
             categories: vec![FnordCategoryInfo {
+                id: 1,
                 name: "Politik".to_string(),
                 color: Some("#ff0000".to_string()),
                 icon: Some("fa-landmark".to_string()),

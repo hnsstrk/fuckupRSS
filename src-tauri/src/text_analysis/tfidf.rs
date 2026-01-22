@@ -187,7 +187,9 @@ impl TfIdfExtractor {
 
         // Use the shorter stem (more normalized)
         // But ensure minimum length of 3
-        let stem = if de_stem.len() <= en_stem.len() && de_stem.len() >= 3 {
+        
+
+        if de_stem.len() <= en_stem.len() && de_stem.len() >= 3 {
             de_stem.to_string()
         } else if en_stem.len() >= 3 {
             en_stem.to_string()
@@ -195,9 +197,7 @@ impl TfIdfExtractor {
             de_stem.to_string()
         } else {
             word.to_string() // Keep original if stems are too short
-        };
-
-        stem
+        }
     }
 
     /// Check if a word is likely a proper noun based on capitalization and known lists
@@ -232,7 +232,7 @@ impl TfIdfExtractor {
                 let lower = w.to_lowercase();
                 w.len() >= self.min_word_length
                     && !STOPWORDS.contains(lower.as_str())
-                    && !user_stopwords.map_or(false, |sw| sw.contains(&lower))
+                    && !user_stopwords.is_some_and(|sw| sw.contains(&lower))
                     && w.chars().all(|c| c.is_alphabetic())
             })
             .map(|original| {

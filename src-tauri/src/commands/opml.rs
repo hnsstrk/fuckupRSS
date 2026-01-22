@@ -85,12 +85,11 @@ pub fn import_opml(
     let mut errors = Vec::new();
 
     for feed in feeds {
-        if feed.already_exists {
-            if skip_existing {
+        if feed.already_exists
+            && skip_existing {
                 skipped += 1;
                 continue;
             }
-        }
 
         // Insert feed into database
         match db.conn().execute(
@@ -145,22 +144,26 @@ pub fn export_opml(state: State<AppState>) -> Result<String, String> {
     };
 
     // Build OPML structure
-    let mut opml = OPML::default();
-    opml.version = "2.0".to_string();
-    opml.head = Some(Head {
-        title: Some("fuckupRSS Feeds".to_string()),
-        ..Head::default()
-    });
+    let mut opml = OPML {
+        version: "2.0".to_string(),
+        head: Some(Head {
+            title: Some("fuckupRSS Feeds".to_string()),
+            ..Head::default()
+        }),
+        ..OPML::default()
+    };
 
     // Create outline for each feed
     for (url, title, site_url) in feeds {
         let display_title = title.clone().unwrap_or_else(|| url.clone());
-        let mut outline = Outline::default();
-        outline.text = display_title.clone();
-        outline.title = title;
-        outline.r#type = Some("rss".to_string());
-        outline.xml_url = Some(url);
-        outline.html_url = site_url;
+        let outline = Outline {
+            text: display_title.clone(),
+            title,
+            r#type: Some("rss".to_string()),
+            xml_url: Some(url),
+            html_url: site_url,
+            ..Outline::default()
+        };
 
         opml.body.outlines.push(outline);
     }

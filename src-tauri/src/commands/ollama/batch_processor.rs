@@ -33,6 +33,9 @@ use super::types::{
     BatchArticle, BatchProgress, BatchResult, FailedCount, HopelessCount, UnprocessedCount,
 };
 
+/// Type alias for articles with optional embeddings (for clustering)
+type ArticleWithEmbedding = (BatchArticle, Option<Vec<f32>>);
+
 /// Shared context for batch processing - loaded once before processing starts
 struct BatchContext {
     bias_weights: BiasWeights,
@@ -101,7 +104,7 @@ pub struct ClusterBatchResult {
 fn load_articles_for_clustering(
     state: &AppState,
     limit: Option<i64>,
-) -> Result<Vec<(BatchArticle, Option<Vec<f32>>)>, String> {
+) -> Result<Vec<ArticleWithEmbedding>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     let query = match limit {
@@ -879,7 +882,7 @@ pub async fn process_batch(
 
             let _ = embedding_worker::process_embedding_queue(
                 state.db.clone(),
-                Some(&window.app_handle()),
+                Some(window.app_handle()),
                 queue_size,
                 Some(queue_size),
             )
@@ -1018,7 +1021,7 @@ async fn transfer_keywords_to_cluster_members(
             conn.execute("BEGIN TRANSACTION", [])
                 .map_err(|e| e.to_string())?;
 
-            let result: Result<(), String> = (|| {
+            let result: Result<(), String> = {
                 // Save keywords for this article
                 for keyword in keywords {
                     let _ = conn.execute(
@@ -1065,7 +1068,7 @@ async fn transfer_keywords_to_cluster_members(
                 );
 
                 Ok(())
-            })();
+            };
 
             match result {
                 Ok(()) => {
@@ -1411,7 +1414,7 @@ pub async fn process_batch_clustered(
 
             let _ = embedding_worker::process_embedding_queue(
                 state.db.clone(),
-                Some(&window.app_handle()),
+                Some(window.app_handle()),
                 queue_size,
                 Some(queue_size),
             )

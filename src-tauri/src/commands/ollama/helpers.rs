@@ -221,11 +221,10 @@ pub fn merge_categories_stat_primary(
 
     // 2. LLM categories as supplement (validated)
     for cat in llm_categories {
-        if seen.insert(cat.to_lowercase()) {
-            if SEPHIROTH_CATEGORIES.iter().any(|s| s.to_lowercase() == cat.to_lowercase()) {
+        if seen.insert(cat.to_lowercase())
+            && SEPHIROTH_CATEGORIES.iter().any(|s| s.to_lowercase() == cat.to_lowercase()) {
                 result.push(cat.clone());
             }
-        }
     }
 
     // 3. Local categories as fallback
@@ -574,7 +573,7 @@ pub fn detect_keyword_type(keyword: &str) -> String {
         for suf in loc_suffixes.iter() {
             if keyword_lower.ends_with(suf) && keyword.len() > suf.len() + 2 {
                 let prefix = &keyword[..keyword.len() - suf.len()];
-                if !prefix.is_empty() && prefix.chars().last().map_or(false, |c| c.is_alphabetic()) {
+                if !prefix.is_empty() && prefix.chars().last().is_some_and(|c| c.is_alphabetic()) {
                     // Avoid false positives like "Homeland"
                     let non_location_with_suffix = ["homeland", "fatherland", "motherland", "wasteland", "dreamland"];
                     if !non_location_with_suffix.iter().any(|w| keyword_lower == *w) {
@@ -591,7 +590,7 @@ pub fn detect_keyword_type(keyword: &str) -> String {
         let prefix = &keyword_lower[..keyword_lower.len() - 3];
         // Check if it looks like a country name (ends with n, l, r, t, k before "ien")
         let country_like_chars = ['n', 'l', 'r', 't', 'k', 'd', 's', 'b', 'm'];
-        if prefix.chars().last().map_or(false, |c| country_like_chars.contains(&c)) {
+        if prefix.chars().last().is_some_and(|c| country_like_chars.contains(&c)) {
             // Additional check: not a person's name pattern (no apostrophe, no common surname endings)
             if !keyword.contains('\'') && !keyword_lower.ends_with("brien") {
                 return "location".to_string();

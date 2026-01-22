@@ -129,7 +129,7 @@ impl BiasWeights {
     /// Get source weight factor
     /// Default weights: manual=1.2 (trusted), ai=1.0 (standard), statistical=0.9 (needs validation)
     pub fn get_source_weight(&self, source: &str) -> f64 {
-        self.source_weights.get(source).copied().unwrap_or_else(|| {
+        self.source_weights.get(source).copied().unwrap_or({
             // Default source weights
             match source {
                 "manual" => 1.2,      // Manual entries are most trusted

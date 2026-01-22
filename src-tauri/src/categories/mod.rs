@@ -193,7 +193,7 @@ impl CategoryClassifier {
 
         let mut seen = std::collections::HashSet::new();
         let categories: Vec<String> = cleaned
-            .split(|c| c == ',' || c == '\n' || c == ';')
+            .split([',', '\n', ';'])
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .filter_map(|s| {

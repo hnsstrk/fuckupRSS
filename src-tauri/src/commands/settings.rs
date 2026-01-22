@@ -157,7 +157,7 @@ pub fn get_system_theme() -> String {
             }
         }
         // If the command fails (light mode) or returns something else
-        return "light".to_string();
+        "light".to_string()
     }
 
     // Linux detection

@@ -20,9 +20,16 @@ static SQLITE_VEC_INIT: Once = Once::new();
 /// Register the bundled sqlite-vec extension.
 /// This must be called before opening any database connections.
 fn register_sqlite_vec() {
+    // Type alias for the sqlite3 auto extension callback signature
+    type SqliteExtensionInit = unsafe extern "C" fn(
+        *mut rusqlite::ffi::sqlite3,
+        *mut *mut i8,
+        *const rusqlite::ffi::sqlite3_api_routines,
+    ) -> i32;
+
     SQLITE_VEC_INIT.call_once(|| {
         unsafe {
-            sqlite3_auto_extension(Some(std::mem::transmute(
+            sqlite3_auto_extension(Some(std::mem::transmute::<*const (), SqliteExtensionInit>(
                 sqlite3_vec_init as *const (),
             )));
         }

@@ -1179,7 +1179,7 @@ pub fn normalize_keyword(keyword: &str) -> Option<String> {
         return None;
     }
 
-    let is_proper_noun = words.len() >= 1
+    let is_proper_noun = !words.is_empty()
         && words.len() <= 3
         && words
             .iter()
@@ -1218,7 +1218,7 @@ pub fn normalize_and_dedupe_keywords(keywords: &[String]) -> Vec<String> {
 /// # Arguments
 /// * `keywords` - List of keywords to process
 /// * `max_distance` - Maximum Levenshtein distance for near-duplicate detection
-///                    (recommended: 2 for short keywords, 3 for longer ones)
+///   (recommended: 2 for short keywords, 3 for longer ones)
 ///
 /// # Returns
 /// Deduplicated list of keywords, keeping the first occurrence
@@ -1669,7 +1669,7 @@ pub fn get_all_synonyms(keyword: &str) -> Vec<&'static str> {
 
     for (canonical, synonyms) in SYNONYM_GROUPS.iter() {
         if canonical.to_lowercase() == lower || synonyms.iter().any(|s| *s == lower) {
-            let mut result: Vec<&str> = synonyms.iter().copied().collect();
+            let mut result: Vec<&str> = synonyms.to_vec();
             result.push(canonical);
             return result;
         }

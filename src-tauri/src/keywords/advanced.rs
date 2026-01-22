@@ -64,7 +64,7 @@ pub fn extract_ngrams(text: &str, lang: Language, max_ngrams: usize) -> Vec<Extr
 
     // Extract bigrams
     for window in words.windows(2) {
-        if is_valid_ngram_sequence(&window, lang) {
+        if is_valid_ngram_sequence(window, lang) {
             let ngram = window.join(" ");
             *ngram_counts.entry(ngram).or_insert(0) += 1;
         }
@@ -72,7 +72,7 @@ pub fn extract_ngrams(text: &str, lang: Language, max_ngrams: usize) -> Vec<Extr
 
     // Extract trigrams
     for window in words.windows(3) {
-        if is_valid_ngram_sequence(&window, lang) {
+        if is_valid_ngram_sequence(window, lang) {
             let ngram = window.join(" ");
             *ngram_counts.entry(ngram).or_insert(0) += 1;
         }
@@ -800,21 +800,19 @@ pub fn apply_mmr_diversification(
             // Calculate max similarity to already selected keywords
             let max_sim_to_selected = selected
                 .iter()
-                .filter_map(|s| {
-                    match (&candidate.embedding, &s.embedding) {
-                        (Some(c_emb), Some(s_emb)) => Some(cosine_similarity_f32(c_emb, s_emb)),
-                        _ => {
-                            // Fall back to text-based similarity using Levenshtein
-                            let dist = levenshtein_distance(
-                                &candidate.keyword.text.to_lowercase(),
-                                &s.keyword.text.to_lowercase(),
-                            );
-                            let max_len = candidate.keyword.text.len().max(s.keyword.text.len());
-                            if max_len == 0 {
-                                Some(0.0)
-                            } else {
-                                Some(1.0 - (dist as f64 / max_len as f64))
-                            }
+                .map(|s| match (&candidate.embedding, &s.embedding) {
+                    (Some(c_emb), Some(s_emb)) => cosine_similarity_f32(c_emb, s_emb),
+                    _ => {
+                        // Fall back to text-based similarity using Levenshtein
+                        let dist = levenshtein_distance(
+                            &candidate.keyword.text.to_lowercase(),
+                            &s.keyword.text.to_lowercase(),
+                        );
+                        let max_len = candidate.keyword.text.len().max(s.keyword.text.len());
+                        if max_len == 0 {
+                            0.0
+                        } else {
+                            1.0 - (dist as f64 / max_len as f64)
                         }
                     }
                 })

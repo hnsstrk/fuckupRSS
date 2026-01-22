@@ -1,9 +1,21 @@
 use feed_rs::parser;
 use log::{debug, info};
 use rusqlite::{Connection, OptionalExtension};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::time::Duration;
 use thiserror::Error;
+
+/// Type alias for existing article row data used in sync
+/// (id, title, author, content_raw, content_full, summary, content_hash)
+type ExistingArticleRow = (
+    i64,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
 
 #[cfg(test)]
 mod tests;
@@ -207,7 +219,7 @@ impl FeedSyncer {
             );
 
             // Check if article already exists and get current data (including content_full for revision)
-            let existing: Option<(i64, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> = conn
+            let existing: Option<ExistingArticleRow> = conn
                 .query_row(
                     r#"SELECT id, title, author, content_raw, content_full, summary, content_hash
                        FROM fnords WHERE pentacle_id = ?1 AND guid = ?2"#,

@@ -711,13 +711,11 @@ pub fn get_trending_comparison(
         })
         .map_err(|e| e.to_string())?;
 
-    for row in rows {
-        if let Ok((id, date, count)) = row {
-            daily_counts
-                .entry(id)
-                .or_insert_with(std::collections::HashMap::new)
-                .insert(date, count);
-        }
+    for (id, date, count) in rows.flatten() {
+        daily_counts
+            .entry(id)
+            .or_default()
+            .insert(date, count);
     }
 
     // Build result preserving original order
@@ -1210,7 +1208,7 @@ fn calculate_single_keyword_quality(
     };
 
     let raw_score = article_score + neighbor_score + category_score + recency_score;
-    let normalized = (raw_score / 1.5).min(1.0).max(0.0);
+    let normalized = (raw_score / 1.5).clamp(0.0, 1.0);
 
     Ok(normalized)
 }
@@ -2356,14 +2354,13 @@ pub fn cleanup_keywords(state: State<AppState>) -> Result<KeywordCleanupResult, 
     for (id, name) in &keywords_needing_update {
         let detected_type = detect_keyword_type(name);
         // Only update if not concept (we want to keep specific types)
-        if detected_type != "concept" {
-            if conn.execute(
+        if detected_type != "concept"
+            && conn.execute(
                 "UPDATE immanentize SET keyword_type = ?1 WHERE id = ?2",
                 params![&detected_type, id],
             ).is_ok() {
                 types_updated_from_heuristics += 1;
             }
-        }
     }
 
     log::info!("Updated {} keyword types from heuristics", types_updated_from_heuristics);

@@ -293,9 +293,8 @@ pub fn calculate_pending_quality_scores(db: &Arc<Mutex<Database>>, limit: i64) -
             let category_score = (category_count as f64).min(5.0) / 5.0; // 0-1, cap at 5
 
             // Weighted combination (usage most important)
-            let quality = (usage_score * 0.5 + connection_score * 0.3 + category_score * 0.2)
-                .min(1.0)
-                .max(0.0);
+            let quality =
+                (usage_score * 0.5 + connection_score * 0.3 + category_score * 0.2).clamp(0.0, 1.0);
 
             if let Err(e) = conn.execute(
                 "UPDATE immanentize SET quality_score = ?1, quality_calculated_at = datetime('now') WHERE id = ?2",

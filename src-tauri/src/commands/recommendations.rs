@@ -15,6 +15,21 @@ use std::time::Instant;
 use tauri::State;
 use uuid::Uuid;
 
+/// Type alias for article details query result
+/// (title, summary, url, image_url, pentacle_id, pentacle_title, pentacle_icon, published_at, political_bias, sachlichkeit)
+type ArticleDetailsRow = (
+    String,
+    Option<String>,
+    String,
+    Option<String>,
+    i64,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<i32>,
+    Option<i32>,
+);
+
 // ============================================================
 // Data Structures
 // ============================================================
@@ -505,7 +520,7 @@ fn aggregate_keywords(
 
     for (keyword_id, count, quality) in rows {
         // TF-IDF-like weighting
-        let weight = (1.0 + (count as f64).ln()) * quality;
+        let weight = (1.0 + count.ln()) * quality;
         weights.insert(keyword_id, weight);
     }
 
@@ -927,18 +942,7 @@ fn build_recommendation(
     profile: &UserProfile,
 ) -> Result<Recommendation, String> {
     // Get article details
-    let (title, summary, url, image_url, pentacle_id, pentacle_title, pentacle_icon, published_at, political_bias, sachlichkeit): (
-        String,
-        Option<String>,
-        String,
-        Option<String>,
-        i64,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<i32>,
-        Option<i32>,
-    ) = conn
+    let (title, summary, url, image_url, pentacle_id, pentacle_title, pentacle_icon, published_at, political_bias, sachlichkeit): ArticleDetailsRow = conn
         .query_row(
             r#"SELECT
                 f.title, f.summary, f.url, f.image_url,

@@ -5,6 +5,7 @@ use thiserror::Error;
 pub enum TransactionError {
     #[error("SQLite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
+    #[allow(dead_code)] // Reserved for explicit transaction failure messages
     #[error("Transaction failed: {0}")]
     Failed(String),
 }

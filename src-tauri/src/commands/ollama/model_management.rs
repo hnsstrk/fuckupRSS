@@ -55,7 +55,7 @@ pub async fn get_loaded_models() -> Result<LoadedModelsResponse, String> {
     let client = reqwest_new::Client::new();
 
     let response = client
-        .get(&format!("{}/api/ps", OLLAMA_BASE_URL))
+        .get(format!("{}/api/ps", OLLAMA_BASE_URL))
         .send()
         .await
         .map_err(|e| format!("Failed to connect to Ollama: {}", e))?;
@@ -112,7 +112,7 @@ pub async fn load_model(model: String) -> Result<bool, String> {
     });
 
     let response = client
-        .post(&format!("{}/api/embeddings", OLLAMA_BASE_URL))
+        .post(format!("{}/api/embeddings", OLLAMA_BASE_URL))
         .json(&embed_body)
         .send()
         .await;
@@ -131,7 +131,7 @@ pub async fn load_model(model: String) -> Result<bool, String> {
     });
 
     let response = client
-        .post(&format!("{}/api/generate", OLLAMA_BASE_URL))
+        .post(format!("{}/api/generate", OLLAMA_BASE_URL))
         .json(&gen_body)
         .send()
         .await
@@ -151,7 +151,7 @@ pub async fn unload_model(model: String) -> Result<bool, String> {
     );
 
     let response: reqwest_new::Response = client
-        .post(&format!("{}/api/generate", OLLAMA_BASE_URL))
+        .post(format!("{}/api/generate", OLLAMA_BASE_URL))
         .header("Content-Type", "application/json")
         .body(body)
         .send()

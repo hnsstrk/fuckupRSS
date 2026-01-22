@@ -55,7 +55,9 @@ fn capitalize_keyword(keyword: &str) -> String {
 /// Keyword type for entity classification
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum KeywordTypeInfo {
+    #[default]
     Concept,
     Person,
     Organization,
@@ -63,11 +65,6 @@ pub enum KeywordTypeInfo {
     Acronym,
 }
 
-impl Default for KeywordTypeInfo {
-    fn default() -> Self {
-        Self::Concept
-    }
-}
 
 /// Article keyword with source tracking and advanced metadata
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1209,7 +1206,7 @@ pub async fn score_keywords_semantically(
 /// Calculate cosine similarity between two embedding blobs
 fn cosine_similarity_blob(a: &[u8], b: &[u8]) -> f64 {
     // Embeddings are stored as f32 arrays (1024 dimensions for snowflake-arctic-embed2)
-    if a.len() != b.len() || a.len() % 4 != 0 {
+    if a.len() != b.len() || !a.len().is_multiple_of(4) {
         return 0.0;
     }
 

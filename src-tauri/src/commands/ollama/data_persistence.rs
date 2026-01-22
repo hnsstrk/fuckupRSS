@@ -149,7 +149,7 @@ pub fn save_article_keywords_with_source(
                     kw.confidence
                 },
                 name: part,
-                source: kw.source.clone(),
+                source: kw.source,
                 keyword_type: keyword_type.clone(),
             })
         })
