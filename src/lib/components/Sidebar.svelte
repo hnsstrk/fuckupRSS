@@ -47,18 +47,12 @@
     appState.loadUnprocessedCount();
 
     // Listen for batch progress events
-    console.log("Setting up batch-progress event listener...");
     unlisten = await listen<BatchProgress>("batch-progress", (event) => {
-      console.log("Batch progress event received:", event.payload);
-      console.log("Current batchProgress before update:", appState.batchProgress);
       appState.updateBatchProgress(event.payload);
-      console.log("Current batchProgress after update:", appState.batchProgress);
     });
-    console.log("Batch-progress listener set up successfully");
 
     // Listen for articles reset from Settings
     unlistenArticlesReset = await listen("articles-reset", async () => {
-      console.log("Articles reset event received, refreshing unprocessed count...");
       await appState.loadUnprocessedCount();
     });
 
@@ -146,15 +140,7 @@
   }
 
   async function handleBatchProcessing() {
-    console.log("=== handleBatchProcessing called ===");
-    console.log("batchProcessing:", appState.batchProcessing);
-    console.log("ollamaStatus:", appState.ollamaStatus);
-    console.log("selectedModel:", appState.selectedModel);
-    console.log("unprocessedCount:", appState.unprocessedCount);
-
     const result = await appState.startBatchProcessing();
-    console.log("startBatchProcessing result:", result);
-    console.log("appState.error:", appState.error);
 
     if (result) {
       toasts.success($_('batch.complete', {

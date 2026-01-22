@@ -761,8 +761,6 @@ class AppState {
     };
     this.error = null;
 
-    console.log("Starting batch processing, initial progress:", this.batchProgress);
-
     try {
       const result = await invoke<BatchResult>("process_batch", {
         model,
@@ -789,9 +787,7 @@ class AppState {
   }
 
   updateBatchProgress(progress: BatchProgress): void {
-    console.log("updateBatchProgress called with:", progress);
     this.batchProgress = { ...progress };  // Create new object to ensure reactivity
-    console.log("batchProgress is now:", this.batchProgress);
   }
 
   updateEmbeddingProgress(progress: EmbeddingProgress): void {
