@@ -667,3 +667,24 @@ export type RecommendationPhase =
   | 'generating_candidates'
   | 'scoring'
   | 'finalizing';
+
+// True Synonym Detection (hybrid string + embedding similarity)
+export interface TrueSynonymCandidate {
+  keyword_a_id: number;
+  keyword_a_name: string;
+  keyword_b_id: number;
+  keyword_b_name: string;
+  string_similarity: number;
+  embedding_similarity: number;
+  combined_score: number;
+  is_abbreviation: boolean;
+}
+
+// LLM-based synonym verification result
+export interface SynonymVerificationResult {
+  keyword_a: string;
+  keyword_b: string;
+  is_synonym: boolean;
+  confidence: number;
+  explanation: string | null;
+}
