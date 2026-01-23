@@ -7,6 +7,7 @@ mod keywords;
 mod logging;
 mod ollama;
 mod retrieval;
+mod similarity;
 mod sync;
 mod text_analysis;
 

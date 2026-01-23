@@ -4,6 +4,7 @@
 //! statistical analysis, and bias learning.
 
 use crate::db::transaction::{with_transaction_result, TransactionError};
+use crate::similarity::{find_similar_hybrid, SimilarityOptions, SimilarityMethod};
 use crate::text_analysis::{
     BiasWeights, BiasStats, CategoryMatcher, CorrectionRecord, CorrectionType,
     TfIdfExtractor, record_correction as bias_record_correction, get_bias_stats as bias_get_stats,
@@ -1018,48 +1019,44 @@ pub struct SimilarKeywordInfo {
 }
 
 /// Get similar keywords for a given keyword from the Immanentize network
+///
+/// Uses hybrid string + embedding similarity to find related keywords,
+/// including name variants (e.g., "Trump" for "Donald Trump").
 #[tauri::command]
 pub fn get_similar_keywords(
     state: State<AppState>,
     keyword_id: i64,
     limit: Option<i64>,
+    method: Option<String>,
 ) -> Result<Vec<SimilarKeywordInfo>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let limit_val = limit.unwrap_or(5);
+    let limit_val = limit.unwrap_or(10);
 
-    // Optimized query: First find neighbors via index, then lookup keyword info
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
-            SELECT
-                i.id,
-                i.name,
-                COALESCE(n.embedding_similarity, 0.0) as similarity,
-                COALESCE(n.cooccurrence, 0) as cooccurrence
-            FROM immanentize_neighbors n
-            JOIN immanentize i ON i.id = CASE
-                WHEN n.immanentize_id_a = ?1 THEN n.immanentize_id_b
-                ELSE n.immanentize_id_a
-            END
-            WHERE n.immanentize_id_a = ?1 OR n.immanentize_id_b = ?1
-            ORDER BY n.combined_weight DESC, n.cooccurrence DESC
-            LIMIT ?2
-            "#,
-        )
-        .map_err(|e| e.to_string())?;
+    // Configure similarity options
+    let options = SimilarityOptions {
+        method: match method.as_deref() {
+            Some("string") => SimilarityMethod::String,
+            Some("embedding") => SimilarityMethod::Embedding,
+            _ => SimilarityMethod::Hybrid,
+        },
+        string_threshold: 0.5,
+        embedding_threshold: 0.3,
+        limit: limit_val,
+        include_name_variants: true,
+    };
 
-    let similar = stmt
-        .query_map(params![keyword_id, limit_val], |row| {
-            Ok(SimilarKeywordInfo {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                similarity: row.get(2)?,
-                cooccurrence: row.get(3)?,
-            })
+    // Use the new hybrid similarity function
+    let results = find_similar_hybrid(db.conn(), keyword_id, &options)?;
+
+    // Convert to SimilarKeywordInfo format
+    let similar = results
+        .into_iter()
+        .map(|r| SimilarKeywordInfo {
+            id: r.id,
+            name: r.name,
+            similarity: r.combined_score,
+            cooccurrence: r.article_count,
         })
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
         .collect();
 
     Ok(similar)
