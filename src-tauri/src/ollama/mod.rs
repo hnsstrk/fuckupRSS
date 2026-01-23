@@ -696,6 +696,11 @@ Content: {}"#,
         Ok(raw.into())
     }
 
+    /// Simple text generation (public API for synonym verification etc.)
+    pub async fn generate_simple(&self, model: &str, prompt: &str) -> Result<String, OllamaError> {
+        self.generate(model, prompt, Some("json".to_string())).await
+    }
+
     /// Generate text with Ollama
     async fn generate(&self, model: &str, prompt: &str, format: Option<String>) -> Result<String, OllamaError> {
         let url = format!("{}/api/generate", self.base_url);

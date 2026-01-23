@@ -1185,6 +1185,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sqlite-vec",
+ "strsim",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

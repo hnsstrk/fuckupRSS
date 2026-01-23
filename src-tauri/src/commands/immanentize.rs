@@ -1688,6 +1688,419 @@ pub fn find_synonym_candidates(
     Ok(candidates)
 }
 
+// ============================================================
+// STRING SIMILARITY FUNCTIONS FOR TRUE SYNONYM DETECTION
+// ============================================================
+
+/// Calculate string similarity using multiple methods and return a combined score.
+/// This is for detecting "true" synonyms (lexical variants) vs semantic similarity (embedding-based).
+///
+/// Components:
+/// 1. Normalized Levenshtein distance (0-1)
+/// 2. Substring containment (one contains the other?)
+/// 3. Token overlap (shared words between multi-word keywords)
+/// 4. Abbreviation detection (e.g., "EU" and "European Union")
+pub fn calculate_string_similarity(a: &str, b: &str) -> f64 {
+    use strsim::{normalized_levenshtein, jaro_winkler};
+
+    let a_lower = a.to_lowercase();
+    let b_lower = b.to_lowercase();
+
+    // 1. Exact match (case-insensitive)
+    if a_lower == b_lower {
+        return 1.0;
+    }
+
+    // 2. Normalized Levenshtein distance (good for typos and small variations)
+    let levenshtein = normalized_levenshtein(&a_lower, &b_lower);
+
+    // 3. Jaro-Winkler (good for short strings and prefix matches)
+    let jaro = jaro_winkler(&a_lower, &b_lower);
+
+    // 4. Substring containment
+    let substring_score = if a_lower.contains(&b_lower) || b_lower.contains(&a_lower) {
+        // Bonus for containment, scaled by length ratio
+        let ratio = a.len().min(b.len()) as f64 / a.len().max(b.len()) as f64;
+        0.3 + (0.4 * ratio) // 0.3-0.7 bonus
+    } else {
+        0.0
+    };
+
+    // 5. Token overlap (for multi-word keywords)
+    let a_tokens: HashSet<&str> = a_lower.split_whitespace().collect();
+    let b_tokens: HashSet<&str> = b_lower.split_whitespace().collect();
+    let token_overlap = if !a_tokens.is_empty() && !b_tokens.is_empty() {
+        let intersection = a_tokens.intersection(&b_tokens).count();
+        let union = a_tokens.union(&b_tokens).count();
+        if union > 0 {
+            intersection as f64 / union as f64 // Jaccard similarity
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
+
+    // 6. Abbreviation detection (e.g., "EU" vs "European Union")
+    let abbrev_score = calculate_abbreviation_score(&a_lower, &b_lower);
+
+    // Combine scores with weights
+    // Prioritize: abbreviation match > substring > token overlap > string distance
+    let combined = if abbrev_score > 0.7 {
+        // Strong abbreviation match dominates
+        abbrev_score * 0.6 + levenshtein * 0.2 + jaro * 0.2
+    } else if substring_score > 0.5 {
+        // Substring match is significant
+        substring_score * 0.4 + levenshtein * 0.3 + jaro * 0.3
+    } else if token_overlap > 0.5 {
+        // Token overlap is significant
+        token_overlap * 0.4 + levenshtein * 0.3 + jaro * 0.3
+    } else {
+        // Fall back to string distance measures
+        levenshtein * 0.5 + jaro * 0.5
+    };
+
+    combined.min(1.0).max(0.0)
+}
+
+/// Detect if one string is an abbreviation/acronym of the other.
+/// Examples:
+/// - "EU" <-> "European Union" -> high score
+/// - "USA" <-> "United States of America" -> high score
+/// - "BRD" <-> "Bundesrepublik Deutschland" -> high score
+fn calculate_abbreviation_score(short: &str, long: &str) -> f64 {
+    // Ensure short is the shorter one
+    let (short, long) = if short.len() <= long.len() {
+        (short, long)
+    } else {
+        (long, short)
+    };
+
+    // Only check if the short string looks like an acronym (2-6 uppercase-style chars)
+    if short.len() < 2 || short.len() > 6 {
+        return 0.0;
+    }
+
+    // Split long string into words
+    let words: Vec<&str> = long.split_whitespace().collect();
+    if words.is_empty() {
+        return 0.0;
+    }
+
+    // Check if short string is formed from first letters of words in long string
+    let first_letters: String = words.iter()
+        .filter(|w| !["and", "of", "the", "for", "in", "der", "die", "das", "und", "für", "von"].contains(&w.to_lowercase().as_str()))
+        .map(|w| w.chars().next().unwrap_or(' '))
+        .collect::<String>()
+        .to_lowercase();
+
+    if first_letters == short {
+        return 0.95; // Very strong match
+    }
+
+    // Check if acronym matches (ignoring minor words)
+    let all_first_letters: String = words.iter()
+        .map(|w| w.chars().next().unwrap_or(' '))
+        .collect::<String>()
+        .to_lowercase();
+
+    if all_first_letters == short {
+        return 0.9;
+    }
+
+    // Partial match (some letters match)
+    let short_chars: Vec<char> = short.chars().collect();
+    let matching = short_chars.iter()
+        .zip(first_letters.chars())
+        .filter(|(a, b)| a == &b)
+        .count();
+
+    if matching > 0 && matching >= short_chars.len() / 2 {
+        return 0.5 + (matching as f64 / short_chars.len() as f64) * 0.3;
+    }
+
+    0.0
+}
+
+/// True synonym candidate with both string similarity and embedding similarity
+#[derive(Debug, Serialize)]
+pub struct TrueSynonymCandidate {
+    pub keyword_a_id: i64,
+    pub keyword_a_name: String,
+    pub keyword_b_id: i64,
+    pub keyword_b_name: String,
+    pub string_similarity: f64,
+    pub embedding_similarity: f64,
+    pub combined_score: f64,
+    pub is_abbreviation: bool,
+}
+
+/// Result of LLM synonym verification
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SynonymVerificationResult {
+    pub keyword_a: String,
+    pub keyword_b: String,
+    pub is_synonym: bool,
+    pub confidence: f64,
+    pub explanation: Option<String>,
+}
+
+/// Find true synonym candidates using both string similarity and embedding similarity.
+/// This hybrid approach helps distinguish between:
+/// - True synonyms (lexical variants): "EU" / "European Union", "AI" / "Artificial Intelligence"
+/// - Semantically related but not synonyms: "Climate" / "Weather", "Politics" / "Government"
+#[tauri::command]
+pub fn find_true_synonyms(
+    state: State<AppState>,
+    string_threshold: Option<f64>,
+    embedding_threshold: Option<f64>,
+    limit: Option<i64>,
+) -> Result<Vec<TrueSynonymCandidate>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let conn = db.conn();
+    let string_threshold = string_threshold.unwrap_or(0.6);
+    let embedding_threshold = embedding_threshold.unwrap_or(0.7);
+    let limit = limit.unwrap_or(50);
+
+    // Load dismissed pairs
+    let dismissed: std::collections::HashSet<(i64, i64)> = conn
+        .prepare("SELECT keyword_a_id, keyword_b_id FROM dismissed_synonyms")
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Get keywords with embeddings (sorted by importance)
+    let keywords: Vec<(i64, String, Vec<u8>)> = conn
+        .prepare(
+            r#"SELECT id, name, embedding FROM immanentize
+               WHERE embedding IS NOT NULL
+               ORDER BY article_count DESC
+               LIMIT 300"#,
+        )
+        .map_err(|e| e.to_string())?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut candidates: Vec<TrueSynonymCandidate> = Vec::new();
+    let mut seen_pairs: std::collections::HashSet<(i64, i64)> = std::collections::HashSet::new();
+
+    // Compare keywords pairwise for string similarity first (fast)
+    // Then check embedding similarity for candidates (slower)
+    for i in 0..keywords.len() {
+        for j in (i + 1)..keywords.len() {
+            let (id_a, name_a, emb_a) = &keywords[i];
+            let (id_b, name_b, emb_b) = &keywords[j];
+
+            // Normalize pair ordering
+            let (min_id, max_id) = if *id_a < *id_b {
+                (*id_a, *id_b)
+            } else {
+                (*id_b, *id_a)
+            };
+
+            // Skip if already seen or dismissed
+            if seen_pairs.contains(&(min_id, max_id)) || dismissed.contains(&(min_id, max_id)) {
+                continue;
+            }
+
+            // Calculate string similarity
+            let string_sim = calculate_string_similarity(name_a, name_b);
+
+            // Only check embedding similarity if string similarity is promising
+            if string_sim < string_threshold * 0.5 {
+                continue;
+            }
+
+            // Calculate embedding similarity
+            let emb_a_vec = blob_to_embedding(emb_a);
+            let emb_b_vec = blob_to_embedding(emb_b);
+            let embedding_sim = if !emb_a_vec.is_empty() && !emb_b_vec.is_empty() {
+                cosine_similarity(&emb_a_vec, &emb_b_vec)
+            } else {
+                0.0
+            };
+
+            // Check if this is likely an abbreviation
+            let is_abbrev = calculate_abbreviation_score(&name_a.to_lowercase(), &name_b.to_lowercase()) > 0.7;
+
+            // Combined score: weight string similarity more for true synonyms
+            let combined = if is_abbrev {
+                // Abbreviations: trust string similarity more
+                string_sim * 0.7 + embedding_sim * 0.3
+            } else if string_sim > 0.8 {
+                // High string similarity: likely true synonym
+                string_sim * 0.6 + embedding_sim * 0.4
+            } else {
+                // Mixed: balance both signals
+                string_sim * 0.4 + embedding_sim * 0.6
+            };
+
+            // Filter by thresholds
+            if string_sim >= string_threshold || (embedding_sim >= embedding_threshold && string_sim >= string_threshold * 0.5) {
+                seen_pairs.insert((min_id, max_id));
+                candidates.push(TrueSynonymCandidate {
+                    keyword_a_id: *id_a,
+                    keyword_a_name: name_a.clone(),
+                    keyword_b_id: *id_b,
+                    keyword_b_name: name_b.clone(),
+                    string_similarity: string_sim,
+                    embedding_similarity: embedding_sim,
+                    combined_score: combined,
+                    is_abbreviation: is_abbrev,
+                });
+            }
+        }
+    }
+
+    // Sort by combined score (prioritize high string similarity)
+    candidates.sort_by(|a, b| {
+        // First by is_abbreviation (abbreviations first)
+        match (a.is_abbreviation, b.is_abbreviation) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => {
+                // Then by combined score
+                b.combined_score.partial_cmp(&a.combined_score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            }
+        }
+    });
+
+    candidates.truncate(limit as usize);
+
+    Ok(candidates)
+}
+
+/// Verify if two keywords are true synonyms using LLM.
+/// Uses ministral-3 (or configured model) to determine if keywords refer to the same entity.
+///
+/// Examples where LLM should return true:
+/// - "EU" and "Europäische Union"
+/// - "AI" and "Artificial Intelligence"
+/// - "USA" and "United States"
+///
+/// Examples where LLM should return false:
+/// - "Climate" and "Weather" (related but not synonymous)
+/// - "Politics" and "Government" (related but distinct concepts)
+#[tauri::command]
+pub async fn verify_synonym_pair(
+    state: State<'_, AppState>,
+    keyword_a: String,
+    keyword_b: String,
+) -> Result<SynonymVerificationResult, String> {
+    use crate::ollama::{OllamaClient, RECOMMENDED_MAIN_MODEL};
+
+    // Get the configured model from settings, or use default
+    let model = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'main_model'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap_or_else(|_| RECOMMENDED_MAIN_MODEL.to_string())
+    };
+
+    let client = OllamaClient::new(None);
+
+    // Prompt designed for YES/NO response with optional explanation
+    let prompt = format!(
+        r#"/no_think
+Are "{}" and "{}" synonyms, alternate names, or abbreviations referring to the SAME entity or concept?
+
+Rules:
+- YES if they refer to the exact same thing (e.g., "EU" = "European Union", "AI" = "Artificial Intelligence")
+- YES if one is an abbreviation/acronym of the other
+- YES if they are different spellings/translations of the same thing
+- NO if they are merely related but distinct concepts (e.g., "Climate" vs "Weather")
+- NO if they are hypernym/hyponym relationships (e.g., "Animal" vs "Dog")
+
+Answer with ONLY a JSON object:
+{{"is_synonym": true/false, "confidence": 0.0-1.0, "explanation": "brief reason"}}
+
+Keywords: "{}" and "{}""#,
+        keyword_a, keyword_b, keyword_a, keyword_b
+    );
+
+    // Generate response
+    let response = client
+        .generate_simple(&model, &prompt)
+        .await
+        .map_err(|e| format!("LLM error: {}", e))?;
+
+    // Parse JSON response
+    #[derive(Deserialize)]
+    struct LlmResponse {
+        is_synonym: bool,
+        #[serde(default)]
+        confidence: f64,
+        #[serde(default)]
+        explanation: Option<String>,
+    }
+
+    // Try to parse JSON from response
+    let parsed: LlmResponse = serde_json::from_str(&response).map_err(|e| {
+        // Fallback: check for YES/NO in response
+        let response_lower = response.to_lowercase();
+        if response_lower.contains("yes") && !response_lower.contains("no") {
+            return format!("Parsed as YES (confidence: low). Original error: {}", e);
+        }
+        if response_lower.contains("no") {
+            return format!("Parsed as NO (confidence: low). Original error: {}", e);
+        }
+        format!("Failed to parse LLM response: {}. Response: {}", e, response)
+    }).unwrap_or_else(|_err| {
+        // Fallback parsing from YES/NO
+        let response_lower = response.to_lowercase();
+        LlmResponse {
+            is_synonym: response_lower.contains("yes") && !response_lower.contains("no"),
+            confidence: 0.5, // Low confidence for fallback parsing
+            explanation: Some(format!("Parsed from raw response: {}", response.chars().take(100).collect::<String>())),
+        }
+    });
+
+    Ok(SynonymVerificationResult {
+        keyword_a,
+        keyword_b,
+        is_synonym: parsed.is_synonym,
+        confidence: if parsed.confidence > 0.0 { parsed.confidence } else { 0.8 },
+        explanation: parsed.explanation,
+    })
+}
+
+/// Batch verify multiple synonym pairs using LLM.
+/// More efficient than calling verify_synonym_pair for each pair individually.
+#[tauri::command]
+pub async fn verify_synonym_pairs_batch(
+    state: State<'_, AppState>,
+    pairs: Vec<(String, String)>,
+) -> Result<Vec<SynonymVerificationResult>, String> {
+    let mut results = Vec::with_capacity(pairs.len());
+
+    for (keyword_a, keyword_b) in pairs {
+        match verify_synonym_pair(state.clone(), keyword_a.clone(), keyword_b.clone()).await {
+            Ok(result) => results.push(result),
+            Err(e) => {
+                // On error, add a result with is_synonym=false
+                results.push(SynonymVerificationResult {
+                    keyword_a,
+                    keyword_b,
+                    is_synonym: false,
+                    confidence: 0.0,
+                    explanation: Some(format!("Verification failed: {}", e)),
+                });
+            }
+        }
+    }
+
+    Ok(results)
+}
+
 #[derive(Debug, Serialize)]
 pub struct MergeSynonymsResult {
     pub merged_pairs: i64,

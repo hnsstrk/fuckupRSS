@@ -214,9 +214,12 @@ pub fn run() {
             commands::immanentize::calculate_keyword_quality_scores,
             commands::immanentize::get_low_quality_keywords,
             commands::immanentize::auto_prune_low_quality,
-            // Embedding-based Synonym Detection
+            // Embedding-based Similarity Detection
             commands::immanentize::find_similar_keywords,
             commands::immanentize::find_synonym_candidates,
+            commands::immanentize::find_true_synonyms,
+            commands::immanentize::verify_synonym_pair,
+            commands::immanentize::verify_synonym_pairs_batch,
             commands::immanentize::merge_keyword_pair,
             commands::immanentize::dismiss_synonym_pair,
             commands::immanentize::get_cooccurring_keywords,

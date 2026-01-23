@@ -345,18 +345,21 @@
         </span>
       </div>
 
-      <!-- Synonyms Section (collapsible) -->
+      <!-- Similar Keywords Section (collapsible) - based on semantic embedding similarity -->
       {#if similarKeywords.length > 0}
         <details class="synonyms-section" bind:open={synonymSectionOpen}>
           <summary class="synonyms-summary">
             <i class="fa-solid fa-link summary-icon"></i>
-            <span>{$_('network.synonyms') || 'Synonyme'}</span>
+            <span>{$_('network.synonyms') || 'Ähnliche Keywords'}</span>
             <span class="synonym-count">({similarKeywords.length})</span>
+            <Tooltip content={$_('network.similarKeywordsHelp') || 'Keywords mit ähnlicher semantischer Bedeutung basierend auf Embeddings'}>
+              <i class="fa-solid fa-circle-info help-icon"></i>
+            </Tooltip>
             <i class="fa-solid fa-chevron-down chevron-icon" class:open={synonymSectionOpen}></i>
           </summary>
           <div class="synonyms-content">
             <p class="synonyms-help">
-              {$_('network.synonymsHelp') || 'Waehle aehnliche Keywords aus, um sie als Synonyme zuzuordnen. Diese werden dann unter dem kanonischen Keyword zusammengefasst.'}
+              {$_('network.synonymsHelp') || 'Wähle semantisch ähnliche Keywords aus, um sie zusammenzuführen. Die Ähnlichkeit basiert auf Embedding-Vektoren, nicht auf lexikalischer Übereinstimmung.'}
             </p>
 
             {#if synonymError}

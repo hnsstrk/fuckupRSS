@@ -309,9 +309,12 @@
 
   <!-- Two columns below -->
   <div class="synonyms-columns">
-    <!-- AI Synonym Suggestions -->
+    <!-- Semantically Similar Keywords (Embedding-based) -->
     <div class="synonyms-section">
-      <h3 class="section-heading">{$_('network.synonymCandidates') || 'KI-Synonym-Vorschlaege'}</h3>
+      <h3 class="section-heading">{$_('network.synonymCandidates') || 'Semantisch ähnliche Keywords'}</h3>
+      <p class="section-hint">
+        {$_('network.synonymCandidatesHint') || 'Diese Vorschläge basieren auf Embedding-Ähnlichkeit (semantische Nähe), nicht auf lexikalischer Übereinstimmung.'}
+      </p>
       <button
         class="action-btn primary"
         onclick={onFindSynonyms}
@@ -531,6 +534,17 @@
     color: var(--text-muted);
     margin-bottom: 1rem;
     line-height: 1.5;
+  }
+
+  .section-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0 0 0.75rem 0;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--bg-overlay);
+    border-radius: 0.25rem;
+    border-left: 3px solid var(--accent-primary);
+    line-height: 1.4;
   }
 
   .action-btn {
