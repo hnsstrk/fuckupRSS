@@ -718,6 +718,7 @@
     "stringSimLabel": "String",
     "embeddingSimLabel": "Embedding",
     "abbreviation": "Abbreviation",
+    "nameVariant": "Name Variant",
     "createKeyword": "Create New Keyword",
     "newKeywordPlaceholder": "Enter keyword...",
     "create": "Create",

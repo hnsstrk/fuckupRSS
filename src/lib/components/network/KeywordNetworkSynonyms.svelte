@@ -525,6 +525,12 @@
                   {$_('network.abbreviation') || 'Abkürzung'}
                 </span>
               {/if}
+              {#if candidate.is_name_variant}
+                <span class="badge badge-name-variant" title={$_('network.nameVariant') || 'Namensform'}>
+                  <i class="fa-solid fa-user-tag"></i>
+                  {$_('network.nameVariant') || 'Namensform'}
+                </span>
+              {/if}
               <span class="badge badge-string" title={$_('network.stringSimLabel') || 'String'}>
                 {$_('network.stringSimLabel') || 'Str'}: {(candidate.string_similarity * 100).toFixed(0)}%
               </span>
@@ -1362,6 +1368,18 @@
   }
 
   .badge-abbreviation i {
+    font-size: 0.5rem;
+  }
+
+  .badge-name-variant {
+    background-color: rgba(166, 227, 161, 0.2);
+    color: var(--accent-success, #a6e3a1);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .badge-name-variant i {
     font-size: 0.5rem;
   }
 

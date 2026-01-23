@@ -678,6 +678,8 @@ export interface TrueSynonymCandidate {
   embedding_similarity: number;
   combined_score: number;
   is_abbreviation: boolean;
+  /** True if one keyword is a single token that appears in the other multi-token keyword */
+  is_name_variant: boolean;
 }
 
 // LLM-based synonym verification result

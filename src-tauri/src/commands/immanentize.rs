@@ -1744,9 +1744,16 @@ pub fn calculate_string_similarity(a: &str, b: &str) -> f64 {
     // 6. Abbreviation detection (e.g., "EU" vs "European Union")
     let abbrev_score = calculate_abbreviation_score(&a_lower, &b_lower);
 
+    // 7. Exact token match detection (e.g., "Trump" vs "Donald Trump")
+    let exact_token_score = calculate_exact_token_match_score(&a_lower, &b_lower);
+
     // Combine scores with weights
-    // Prioritize: abbreviation match > substring > token overlap > string distance
-    let combined = if abbrev_score > 0.7 {
+    // Priority: exact token match > abbreviation > substring > token overlap > string distance
+    let combined = if exact_token_score > 0.7 {
+        // Single token is exact match in multi-token keyword (name variants)
+        // This is a strong synonym indicator, give it high weight
+        exact_token_score * 0.6 + jaro * 0.2 + levenshtein * 0.2
+    } else if abbrev_score > 0.7 {
         // Strong abbreviation match dominates
         abbrev_score * 0.6 + levenshtein * 0.2 + jaro * 0.2
     } else if substring_score > 0.5 {
@@ -1822,6 +1829,41 @@ fn calculate_abbreviation_score(short: &str, long: &str) -> f64 {
     0.0
 }
 
+/// Check if a single-token keyword is an exact token within a multi-token keyword.
+/// This is a strong indicator for name variants like "Trump" <-> "Donald Trump".
+///
+/// Returns a score (0.0-1.0) based on how significant the match is:
+/// - 0.85: Single token matches a token in a 2-word keyword (e.g., "Trump" in "Donald Trump")
+/// - 0.80: Single token matches a token in a 3-word keyword
+/// - 0.75: Single token matches a token in a 4+ word keyword
+/// - 0.0: No exact token match or both are single-token or multi-token
+fn calculate_exact_token_match_score(a: &str, b: &str) -> f64 {
+    let a_tokens: Vec<&str> = a.split_whitespace().collect();
+    let b_tokens: Vec<&str> = b.split_whitespace().collect();
+
+    // We need exactly one single-token keyword and one multi-token keyword
+    let (single, multi) = if a_tokens.len() == 1 && b_tokens.len() > 1 {
+        (a_tokens[0], &b_tokens)
+    } else if b_tokens.len() == 1 && a_tokens.len() > 1 {
+        (b_tokens[0], &a_tokens)
+    } else {
+        return 0.0; // Both single-token or both multi-token
+    };
+
+    // Check if the single token appears exactly in the multi-token keyword
+    if multi.iter().any(|t| t.eq_ignore_ascii_case(single)) {
+        // Score based on multi-token keyword length
+        // Shorter = more significant match
+        match multi.len() {
+            2 => 0.85, // "Trump" in "Donald Trump" - very strong
+            3 => 0.80, // "Trump" in "Donald J Trump" - strong
+            _ => 0.75, // Longer phrases - still significant
+        }
+    } else {
+        0.0
+    }
+}
+
 /// True synonym candidate with both string similarity and embedding similarity
 #[derive(Debug, Serialize)]
 pub struct TrueSynonymCandidate {
@@ -1833,6 +1875,9 @@ pub struct TrueSynonymCandidate {
     pub embedding_similarity: f64,
     pub combined_score: f64,
     pub is_abbreviation: bool,
+    /// True if one keyword is a single token that appears in the other multi-token keyword
+    /// Examples: "Trump" <-> "Donald Trump", "Biden" <-> "Joe Biden"
+    pub is_name_variant: bool,
 }
 
 /// Result of LLM synonym verification
@@ -1927,9 +1972,15 @@ pub fn find_true_synonyms(
             // Check if this is likely an abbreviation
             let is_abbrev = calculate_abbreviation_score(&name_a.to_lowercase(), &name_b.to_lowercase()) > 0.7;
 
+            // Check if this is a name variant (single token matches multi-token)
+            let is_name_variant = calculate_exact_token_match_score(&name_a.to_lowercase(), &name_b.to_lowercase()) > 0.7;
+
             // Combined score: weight string similarity more for true synonyms
             let combined = if is_abbrev {
                 // Abbreviations: trust string similarity more
+                string_sim * 0.7 + embedding_sim * 0.3
+            } else if is_name_variant {
+                // Name variants like "Trump" / "Donald Trump" - trust string similarity
                 string_sim * 0.7 + embedding_sim * 0.3
             } else if string_sim > 0.8 {
                 // High string similarity: likely true synonym
@@ -1951,15 +2002,19 @@ pub fn find_true_synonyms(
                     embedding_similarity: embedding_sim,
                     combined_score: combined,
                     is_abbreviation: is_abbrev,
+                    is_name_variant,
                 });
             }
         }
     }
 
-    // Sort by combined score (prioritize high string similarity)
+    // Sort by combined score (prioritize high-confidence matches)
     candidates.sort_by(|a, b| {
-        // First by is_abbreviation (abbreviations first)
-        match (a.is_abbreviation, b.is_abbreviation) {
+        // First by high-confidence matches (abbreviations and name variants)
+        let a_high_confidence = a.is_abbreviation || a.is_name_variant;
+        let b_high_confidence = b.is_abbreviation || b.is_name_variant;
+
+        match (a_high_confidence, b_high_confidence) {
             (true, false) => std::cmp::Ordering::Less,
             (false, true) => std::cmp::Ordering::Greater,
             _ => {
