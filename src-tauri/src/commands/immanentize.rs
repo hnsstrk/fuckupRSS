@@ -1502,14 +1502,14 @@ pub fn find_similar_keywords(
     let threshold = threshold.unwrap_or(0.7);
     let limit = limit.unwrap_or(20);
 
-    let target_embedding: Option<Vec<u8>> = conn
+    // Get target keyword name and embedding
+    let (target_name, target_embedding): (String, Option<Vec<u8>>) = conn
         .query_row(
-            "SELECT embedding FROM immanentize WHERE id = ?",
+            "SELECT name, embedding FROM immanentize WHERE id = ?",
             [keyword_id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
-        .ok()
-        .flatten();
+        .map_err(|e| e.to_string())?;
 
     let target_embedding = match target_embedding {
         Some(blob) => blob_to_embedding(&blob),
@@ -1519,7 +1519,7 @@ pub fn find_similar_keywords(
     let all_keywords: Vec<(i64, String, Vec<u8>, i64)> = conn
         .prepare(
             r#"SELECT id, name, embedding, COALESCE(article_count, 0)
-               FROM immanentize 
+               FROM immanentize
                WHERE embedding IS NOT NULL AND id != ?"#,
         )
         .map_err(|e| e.to_string())?
@@ -1530,16 +1530,30 @@ pub fn find_similar_keywords(
         .filter_map(|r| r.ok())
         .collect();
 
+    let target_name_lower = target_name.to_lowercase();
+
     let mut similar: Vec<SimilarKeyword> = all_keywords
         .into_iter()
         .filter_map(|(id, name, blob, article_count)| {
             let embedding = blob_to_embedding(&blob);
-            let similarity = cosine_similarity(&target_embedding, &embedding);
-            if similarity >= threshold {
+            let embedding_similarity = cosine_similarity(&target_embedding, &embedding);
+
+            // Check if this is a name variant (e.g., "Trump" <-> "Donald Trump")
+            let name_variant_score = calculate_exact_token_match_score(&target_name_lower, &name.to_lowercase());
+
+            // Boost similarity for name variants - they should always appear
+            let effective_similarity = if name_variant_score > 0.7 {
+                // Name variant: use high similarity to ensure it appears at top
+                0.95_f64.max(embedding_similarity)
+            } else {
+                embedding_similarity
+            };
+
+            if effective_similarity >= threshold || name_variant_score > 0.7 {
                 Some(SimilarKeyword {
                     id,
                     name,
-                    similarity,
+                    similarity: effective_similarity,
                     article_count,
                 })
             } else {
