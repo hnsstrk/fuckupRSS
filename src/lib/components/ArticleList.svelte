@@ -1,15 +1,18 @@
 <script lang="ts">
-  import { _, locale } from 'svelte-i18n';
+  import { _, locale } from "svelte-i18n";
   import { appState } from "../stores/state.svelte";
   import { ArticleItemCompact, ArticleItemSearch } from "./article";
   import type { SearchResult } from "../types";
 
   // Check if we're in search mode
-  const isSearchMode = $derived(appState.searchQuery.length > 0 || appState.searchResults.length > 0);
+  const isSearchMode = $derived(
+    appState.searchQuery.length > 0 || appState.searchResults.length > 0,
+  );
 
   function handleScroll(event: Event) {
     const target = event.target as HTMLDivElement;
-    const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+    const scrollBottom =
+      target.scrollHeight - target.scrollTop - target.clientHeight;
 
     // Load more when within 200px of bottom
     if (scrollBottom < 200 && appState.hasMoreFnords && !appState.loadingMore) {
@@ -45,9 +48,10 @@
   <!-- Header -->
   <div class="list-header">
     {#if isSearchMode}
-      <h2 class="list-title">{$_('search.results')}</h2>
+      <h2 class="list-title">{$_("search.results")}</h2>
       <p class="list-count">
-        {appState.searchResults.length} {$locale?.startsWith('de') ? 'Ergebnisse' : 'results'}
+        {appState.searchResults.length}
+        {$locale?.startsWith("de") ? "Ergebnisse" : "results"}
         {#if appState.searchQuery}
           <span class="search-query">"{appState.searchQuery}"</span>
         {/if}
@@ -57,11 +61,13 @@
         {#if appState.selectedPentacle}
           {appState.selectedPentacle.title || "Feed"}
         {:else}
-          {$_('sidebar.allFeeds')}
+          {$_("sidebar.allFeeds")}
         {/if}
       </h2>
       <p class="list-count">
-        {appState.fnords.length}{#if appState.totalFnordsCount > appState.fnords.length}/{appState.totalFnordsCount}{/if} {$locale?.startsWith('de') ? 'Artikel' : 'articles'}
+        {appState.fnords
+          .length}{#if appState.totalFnordsCount > appState.fnords.length}/{appState.totalFnordsCount}{/if}
+        {$locale?.startsWith("de") ? "Artikel" : "articles"}
       </p>
     {/if}
   </div>
@@ -85,14 +91,14 @@
 
       {#if appState.searchResults.length === 0 && !appState.searching && appState.searchQuery}
         <div class="empty-state">
-          {$_('search.noResults')}
+          {$_("search.noResults")}
         </div>
       {/if}
 
       {#if appState.searching}
         <div class="empty-state">
           <i class="loading-spinner fa-solid fa-rotate fa-spin"></i>
-          {$_('search.searching')}
+          {$_("search.searching")}
         </div>
       {/if}
     {:else}
@@ -116,27 +122,27 @@
       {#if appState.loadingMore}
         <div class="loading-more">
           <i class="loading-spinner fa-solid fa-rotate fa-spin"></i>
-          {$locale?.startsWith('de') ? 'Lade mehr...' : 'Loading more...'}
+          {$locale?.startsWith("de") ? "Lade mehr..." : "Loading more..."}
         </div>
       {:else if appState.hasMoreFnords && appState.fnords.length > 0}
         <div class="load-more-hint">
-          {$locale?.startsWith('de') ? 'Scrolle für mehr' : 'Scroll for more'}
+          {$locale?.startsWith("de") ? "Scrolle für mehr" : "Scroll for more"}
         </div>
       {/if}
 
       {#if appState.fnords.length === 0 && !appState.loading}
         <div class="empty-state">
-          {$_('articleList.noArticles')}<br />
+          {$_("articleList.noArticles")}<br />
           {#if appState.pentacles.length === 0}
-            {$_('sidebar.addFeed')}
+            {$_("sidebar.addFeed")}
           {:else}
-            {$_('articleList.selectFeed')}
+            {$_("articleList.selectFeed")}
           {/if}
         </div>
       {/if}
 
       {#if appState.loading}
-        <div class="empty-state">{$_('articleList.loading')}</div>
+        <div class="empty-state">{$_("articleList.loading")}</div>
       {/if}
     {/if}
   </div>
@@ -199,8 +205,12 @@
   }
 
   @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .load-more-hint {

@@ -19,6 +19,7 @@ export interface Pentacle {
 }
 
 export interface FnordCategoryInfo {
+  id: number;
   color: string | null;
   icon: string | null;
   name: string;

@@ -94,7 +94,7 @@ export type ArticleStatus = 'concealed' | 'illuminated' | 'golden_apple';
 export function getStatusIcon(status: string): string {
   switch (status) {
     case "concealed": return "fa-solid fa-eye-slash";
-    case "illuminated": return "fa-solid fa-check";
+    case "illuminated": return "fa-solid fa-eye";
     case "golden_apple": return "fa-solid fa-apple-whole";
     default: return "fa-solid fa-check";
   }

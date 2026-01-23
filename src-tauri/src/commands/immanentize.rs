@@ -5,7 +5,7 @@ use log::{info, trace, warn};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use tauri::State;
+use tauri::{Emitter, State};
 use regex::Regex;
 
 // ============================================================
@@ -1144,6 +1144,14 @@ pub fn cleanup_garbage_keywords(state: State<AppState>) -> Result<CleanupResult,
 // QUALITY SCORE SYSTEM
 // ============================================================
 
+#[derive(Debug, Serialize, Clone)]
+pub struct QualityScoreProgress {
+    pub current: i64,
+    pub total: i64,
+    pub keyword_name: String,
+    pub score: Option<f64>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct QualityScoreResult {
     pub updated_count: i64,
@@ -1214,45 +1222,80 @@ fn calculate_single_keyword_quality(
 }
 
 #[tauri::command]
-pub fn calculate_keyword_quality_scores(
-    state: State<AppState>,
+pub async fn calculate_keyword_quality_scores(
+    window: tauri::Window,
+    state: State<'_, AppState>,
     limit: Option<i64>,
 ) -> Result<QualityScoreResult, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let conn = db.conn();
-    let limit = limit.unwrap_or(1000);
+    // Load keyword IDs and names with short lock
+    let keywords: Vec<(i64, String)> = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let conn = db.conn();
 
-    let keyword_ids: Vec<i64> = conn
-        .prepare(
-            r#"SELECT id FROM immanentize 
-               WHERE quality_calculated_at IS NULL 
-               OR quality_calculated_at < datetime('now', '-1 day')
-               ORDER BY article_count DESC
-               LIMIT ?"#,
-        )
-        .map_err(|e| e.to_string())?
-        .query_map([limit], |row| row.get(0))
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
+        // Build query - None means no limit (all keywords)
+        let base_query = r#"SELECT id, name FROM immanentize
+                   WHERE quality_calculated_at IS NULL
+                   OR quality_calculated_at < datetime('now', '-1 day')
+                   ORDER BY article_count DESC"#;
 
+        if let Some(limit_val) = limit {
+            conn.prepare(&format!("{} LIMIT ?", base_query))
+                .map_err(|e| e.to_string())?
+                .query_map([limit_val], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(|e| e.to_string())?
+                .filter_map(|r| r.ok())
+                .collect()
+        } else {
+            conn.prepare(base_query)
+                .map_err(|e| e.to_string())?
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(|e| e.to_string())?
+                .filter_map(|r| r.ok())
+                .collect()
+        }
+    }; // Lock released here
+
+    let total = keywords.len() as i64;
     let mut updated_count = 0i64;
     let mut total_score = 0.0;
     let mut low_quality_count = 0i64;
     let mut high_quality_count = 0i64;
 
-    for id in &keyword_ids {
-        if let Ok(score) = calculate_single_keyword_quality(conn, *id) {
-            if let Err(e) = conn.execute(
-                r#"UPDATE immanentize
-                   SET quality_score = ?1, quality_calculated_at = datetime('now')
-                   WHERE id = ?2"#,
-                params![score, id],
-            ) {
-                trace!("Failed to update quality score for keyword {}: {}", id, e);
-                continue;
-            }
+    // Emit initial progress
+    let _ = window.emit("quality-score-progress", QualityScoreProgress {
+        current: 0,
+        total,
+        keyword_name: "Starting...".to_string(),
+        score: None,
+    });
 
+    // Process each keyword with separate lock acquisition
+    for (idx, (id, name)) in keywords.into_iter().enumerate() {
+        let result = {
+            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let conn = db.conn();
+
+            match calculate_single_keyword_quality(conn, id) {
+                Ok(score) => {
+                    match conn.execute(
+                        r#"UPDATE immanentize
+                           SET quality_score = ?1, quality_calculated_at = datetime('now')
+                           WHERE id = ?2"#,
+                        params![score, id],
+                    ) {
+                        Ok(_) => Some(score),
+                        Err(e) => {
+                            trace!("Failed to update quality score for keyword {}: {}", id, e);
+                            None
+                        }
+                    }
+                }
+                Err(_) => None,
+            }
+        }; // Lock released here
+
+        // Update statistics outside of lock
+        if let Some(score) = result {
             updated_count += 1;
             total_score += score;
 
@@ -1262,6 +1305,19 @@ pub fn calculate_keyword_quality_scores(
                 high_quality_count += 1;
             }
         }
+
+        // Emit progress every 50 keywords or on last item
+        if idx % 50 == 0 || idx == (total as usize - 1) {
+            let _ = window.emit("quality-score-progress", QualityScoreProgress {
+                current: (idx + 1) as i64,
+                total,
+                keyword_name: name,
+                score: result,
+            });
+        }
+
+        // Yield to allow other tasks to run
+        tokio::task::yield_now().await;
     }
 
     let avg_score = if updated_count > 0 {
@@ -1366,48 +1422,54 @@ pub fn auto_prune_low_quality(
     let pruned_count = candidates.len() as i64;
 
     if !dry_run && !candidates.is_empty() {
-        // Perform all deletions in a single transaction
+        // Perform all deletions in a single transaction with proper error handling
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let conn = db.conn();
 
         conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
 
-        for (id, name) in &candidates {
-            // Delete low-quality keyword and all its relations
-            if let Err(e) = conn.execute(
-                "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
-                [id],
-            ) {
-                trace!("Failed to delete article refs for low-quality keyword {}: {}", id, e);
+        let delete_result: Result<(), String> = (|| {
+            for (id, name) in &candidates {
+                // Delete low-quality keyword and all its relations
+                conn.execute(
+                    "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
+                    [id],
+                ).map_err(|e| format!("Failed to delete article refs for {}: {}", name, e))?;
+
+                conn.execute(
+                    "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
+                    params![id, id],
+                ).map_err(|e| format!("Failed to delete neighbors for {}: {}", name, e))?;
+
+                conn.execute(
+                    "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
+                    [id],
+                ).map_err(|e| format!("Failed to delete category refs for {}: {}", name, e))?;
+
+                conn.execute(
+                    "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
+                    [id],
+                ).map_err(|e| format!("Failed to delete daily stats for {}: {}", name, e))?;
+
+                conn.execute("DELETE FROM immanentize WHERE id = ?", [id])
+                    .map_err(|e| format!("Failed to delete keyword {}: {}", name, e))?;
+
+                // Also remove from vec_immanentize (sqlite-vec)
+                conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id])
+                    .map_err(|e| format!("Failed to delete vec for {}: {}", name, e))?;
             }
-            if let Err(e) = conn.execute(
-                "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
-                params![id, id],
-            ) {
-                trace!("Failed to delete neighbors for low-quality keyword {}: {}", id, e);
+            Ok(())
+        })();
+
+        match delete_result {
+            Ok(()) => {
+                conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
             }
-            if let Err(e) = conn.execute(
-                "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
-                [id],
-            ) {
-                trace!("Failed to delete category refs for low-quality keyword {}: {}", id, e);
-            }
-            if let Err(e) = conn.execute(
-                "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
-                [id],
-            ) {
-                trace!("Failed to delete daily stats for low-quality keyword {}: {}", id, e);
-            }
-            if let Err(e) = conn.execute("DELETE FROM immanentize WHERE id = ?", [id]) {
-                warn!("Failed to delete low-quality keyword {} '{}': {}", id, name, e);
-            }
-            // Also remove from vec_immanentize (sqlite-vec)
-            if let Err(e) = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id]) {
-                trace!("Failed to delete low-quality keyword {} from vec table: {}", id, e);
+            Err(e) => {
+                let _ = conn.execute("ROLLBACK", []);
+                return Err(e);
             }
         }
-
-        conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
     }
 
     Ok(AutoPruneResult {

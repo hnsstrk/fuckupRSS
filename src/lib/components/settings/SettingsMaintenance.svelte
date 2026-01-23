@@ -41,6 +41,17 @@
   let statisticalRunning = $state(false);
   let statisticalUnlisten: UnlistenFn | null = null;
 
+  // Quality score calculation progress state
+  interface QualityScoreProgress {
+    current: number;
+    total: number;
+    keyword_name: string;
+    score: number | null;
+  }
+  let qualityProgress = $state<QualityScoreProgress | null>(null);
+  let qualityRunning = $state(false);
+  let qualityUnlisten: UnlistenFn | null = null;
+
   // Prototype status for semantic keyword type detection
   let prototypeStatus = $state<{
     total: number;
@@ -86,7 +97,7 @@
   let refetchingFeed = $state<number | null>(null);
 
   export async function init() {
-    maintenanceResult = null;
+    // Don't reset maintenanceResult - keep showing the last result
     await Promise.all([loadKeywordStats(), loadPrototypeStatus()]);
   }
 
@@ -107,6 +118,9 @@
     }
     if (shortContentUnlisten) {
       shortContentUnlisten();
+    }
+    if (qualityUnlisten) {
+      qualityUnlisten();
     }
   });
 
@@ -156,17 +170,42 @@
   async function handleCalculateScores() {
     maintenanceRunning = "scores";
     maintenanceResult = null;
+    qualityProgress = null;
+    qualityRunning = true;
+
     try {
+      // Set up progress listener
+      qualityUnlisten = await listen<QualityScoreProgress>(
+        "quality-score-progress",
+        (event) => {
+          qualityProgress = { ...event.payload };
+        },
+      );
+
       const result = await invoke<{
         updated_count: number;
         avg_score: number;
         low_quality_count: number;
-      }>("calculate_keyword_quality_scores", { limit: 1000 });
-      maintenanceResult = `${result.updated_count} ${$_("settings.maintenance.updated")} (O ${result.avg_score.toFixed(2)})`;
+      }>("calculate_keyword_quality_scores", {});
+
+      if (result.updated_count === 0) {
+        maintenanceResult = $_("settings.maintenance.noKeywordsToUpdate");
+      } else {
+        maintenanceResult = `${result.updated_count} ${$_("settings.maintenance.updated")} (Ø ${result.avg_score.toFixed(2)})`;
+      }
+
+      // Refresh stats after calculation
+      await loadKeywordStats();
     } catch (e) {
       maintenanceResult = `Error: ${e}`;
     } finally {
       maintenanceRunning = null;
+      qualityRunning = false;
+      qualityProgress = null;
+      if (qualityUnlisten) {
+        qualityUnlisten();
+        qualityUnlisten = null;
+      }
     }
   }
 
@@ -257,9 +296,16 @@
         min_age_days: 7,
         dry_run: false,
       });
-      maintenanceResult = `${result.pruned_count} ${$_("settings.maintenance.pruned")}`;
+      console.log("Prune result:", result);
+      if (result.pruned_count === 0) {
+        maintenanceResult = $_("settings.maintenance.noPruneCandidates");
+      } else {
+        maintenanceResult = `${result.pruned_count} ${$_("settings.maintenance.pruned")}`;
+      }
+      console.log("maintenanceResult set to:", maintenanceResult);
       await loadKeywordStats();
     } catch (e) {
+      console.error("Prune error:", e);
       maintenanceResult = `Error: ${e}`;
     } finally {
       maintenanceRunning = null;
@@ -688,7 +734,16 @@
     {/if}
   </div>
 
-  {#if maintenanceRunning === "scores"}
+  {#if qualityRunning && qualityProgress}
+    <MaintenanceProgress
+      mode="determinate"
+      current={qualityProgress.current}
+      total={qualityProgress.total}
+      label={$_("settings.maintenance.calculatingScores")}
+      message={qualityProgress.keyword_name}
+      status="running"
+    />
+  {:else if maintenanceRunning === "scores"}
     <MaintenanceProgress
       mode="indeterminate"
       label={$_("settings.maintenance.calculateScores")}
