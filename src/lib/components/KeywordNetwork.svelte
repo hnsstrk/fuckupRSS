@@ -358,8 +358,8 @@
 
     try {
       const result = await invoke<MergeSynonymsResult>('merge_keyword_pair', {
-        keepId,
-        removeId,
+        keep_id: keepId,
+        remove_id: removeId,
       });
       synonymSuccess = `"${removeName}" -> "${keepName}" (${result.affected_articles} ${$_('network.articleCount') || 'Artikel'})`;
       // Remove the merged candidate from the list

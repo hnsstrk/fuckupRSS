@@ -2,6 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
   import Tooltip from '../Tooltip.svelte';
+  import KeywordContextTooltip from '../KeywordContextTooltip.svelte';
   import KeywordTrendChart from '../KeywordTrendChart.svelte';
   import type { Keyword, KeywordNeighbor, KeywordCategory } from '../../types';
   import { SvelteSet } from 'svelte/reactivity';
@@ -387,7 +388,9 @@
                     onchange={() => toggleSynonymSelection(simKw.id)}
                     disabled={assigningSynonyms}
                   />
-                  <span class="synonym-name">{simKw.name}</span>
+                  <KeywordContextTooltip keywordId={simKw.id} keywordName={simKw.name}>
+                    <span class="synonym-name">{simKw.name}</span>
+                  </KeywordContextTooltip>
                   <span class="synonym-similarity">{similarityPercent}%</span>
                   <button
                     class="synonym-view-btn"
@@ -534,7 +537,9 @@
                 onclick={() => onKeywordSelect(simKw.id)}
                 title="{simKw.cooccurrence > 0 ? simKw.cooccurrence + ' gemeinsame Artikel' : 'Semantisch ähnlich'}"
               >
-                <span class="similar-name">{simKw.name}</span>
+                <KeywordContextTooltip keywordId={simKw.id} keywordName={simKw.name}>
+                  <span class="similar-name">{simKw.name}</span>
+                </KeywordContextTooltip>
                 <div class="similar-bar-wrap">
                   <div class="similarity-bar {similarityClass}" style="width: {similarityPercent}%"></div>
                 </div>
