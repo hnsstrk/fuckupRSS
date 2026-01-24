@@ -152,22 +152,23 @@
     let errorCount = 0;
     let totalAffectedArticles = 0;
 
-    for (const removeId of idsToMerge) {
+    for (const idToRemove of idsToMerge) {
       try {
         // Use merge_keyword_pair which actually deletes the keyword
         // and transfers all relationships (articles, categories, etc.)
+        // IMPORTANT: Tauri does NOT auto-convert camelCase to snake_case!
         const result = await invoke<{ merged_pairs: number; affected_articles: number }>(
           'merge_keyword_pair',
           {
-            keep_id: keepId,      // snake_case for Tauri!
-            remove_id: removeId   // snake_case for Tauri!
+            keep_id: keepId,       // Must use snake_case to match Rust parameter names
+            remove_id: idToRemove  // Must use snake_case to match Rust parameter names
           }
         );
         successCount++;
         totalAffectedArticles += result.affected_articles;
-        selectedSynonymIds.delete(removeId);
+        selectedSynonymIds.delete(idToRemove);
       } catch (e) {
-        console.error(`Failed to merge keyword ${removeId}:`, e);
+        console.error(`Failed to merge keyword ${idToRemove}:`, e);
         errorCount++;
       }
     }

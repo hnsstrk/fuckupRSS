@@ -2184,10 +2184,15 @@ pub fn merge_keyword_pair(
 ) -> Result<MergeSynonymsResult, String> {
     use crate::db::transaction::with_transaction_result;
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    log::info!("merge_keyword_pair called: keep_id={}, remove_id={}", keep_id, remove_id);
+
+    let db = state.db.lock().map_err(|e| {
+        log::error!("Failed to lock database: {}", e);
+        e.to_string()
+    })?;
 
     // Use transaction wrapper for atomic multi-write merge operation
-    with_transaction_result(db.conn(), |conn| {
+    let result = with_transaction_result(db.conn(), |conn| {
         let affected: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM fnord_immanentize WHERE immanentize_id = ?",
@@ -2239,7 +2244,14 @@ pub fn merge_keyword_pair(
             merged_pairs: 1,
             affected_articles: affected,
         })
-    })
+    });
+
+    match &result {
+        Ok(r) => log::info!("merge_keyword_pair success: {} merged, {} articles affected", r.merged_pairs, r.affected_articles),
+        Err(e) => log::error!("merge_keyword_pair failed: {}", e),
+    }
+
+    result
 }
 
 #[tauri::command]
