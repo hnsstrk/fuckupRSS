@@ -1026,6 +1026,7 @@
     "filtered": "filtered",
     "typeUpdated": "Type changed to \"{type}\"",
     "noContextAvailable": "No context available",
+    "noSentenceAvailable": "No sentence context available",
     "contextLoadError": "Failed to load context",
     "clickToOpenNetwork": "Click to open in Network"
   }

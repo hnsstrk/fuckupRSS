@@ -1026,6 +1026,7 @@
     "filtered": "gefiltert",
     "typeUpdated": "Typ auf \"{type}\" geaendert",
     "noContextAvailable": "Kein Kontext verfuegbar",
+    "noSentenceAvailable": "Kein Satz-Kontext verfuegbar",
     "contextLoadError": "Kontext konnte nicht geladen werden",
     "clickToOpenNetwork": "Klicken um im Netzwerk zu oeffnen"
   }
