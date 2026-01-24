@@ -692,7 +692,7 @@
 
   .rename-btn.save {
     background-color: var(--accent-success);
-    color: white;
+    color: var(--text-on-accent);
   }
 
   .rename-btn.save:hover:not(:disabled) {
@@ -791,7 +791,7 @@
     justify-content: center;
     background: linear-gradient(135deg, var(--cat-color), color-mix(in srgb, var(--cat-color) 70%, black));
     border-radius: 0.375rem;
-    color: white;
+    color: var(--text-on-accent);
     font-size: 0.8125rem;
     box-shadow: 0 2px 6px color-mix(in srgb, var(--cat-color) 40%, transparent);
   }
@@ -1242,7 +1242,7 @@
     height: 1.25rem;
     background-color: var(--accent-primary);
     border-radius: 50%;
-    color: white;
+    color: var(--text-on-accent);
     font-size: 0.625rem;
     flex-shrink: 0;
   }
@@ -1450,7 +1450,7 @@
     border: none;
     border-radius: 0.375rem;
     background-color: var(--accent-primary);
-    color: white;
+    color: var(--text-on-accent);
     font-size: 0.8125rem;
     font-weight: 500;
     cursor: pointer;
