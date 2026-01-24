@@ -6,6 +6,7 @@
   import KeywordTrendChart from '../KeywordTrendChart.svelte';
   import type { Keyword, KeywordNeighbor, KeywordCategory } from '../../types';
   import { SvelteSet } from 'svelte/reactivity';
+  import { tick } from 'svelte';
 
   // Get the main category ID (1-6) from a category or subcategory ID
   function getMainCategoryId(id: number | undefined): number {
@@ -106,15 +107,20 @@
   }: Props = $props();
 
   // Synonym selection state
-  let selectedSynonymIds = new SvelteSet<number>();
+  let selectedSynonymIds = $state(new SvelteSet<number>());
   let assigningSynonyms = $state(false);
   let synonymError = $state<string | null>(null);
   let synonymSuccess = $state<string | null>(null);
   let synonymSectionOpen = $state(false);
 
-  // Reset selection when keyword changes
+  // Track the keyword ID to detect actual keyword changes
+  let lastKeywordId = $state<number | null>(null);
+
+  // Reset selection when keyword changes (only when ID changes, not on every re-render)
   $effect(() => {
-    if (selectedKeyword) {
+    const currentId = selectedKeyword?.id ?? null;
+    if (currentId !== lastKeywordId) {
+      lastKeywordId = currentId;
       selectedSynonymIds.clear();
       synonymError = null;
       synonymSuccess = null;
@@ -145,6 +151,9 @@
     assigningSynonyms = true;
     synonymError = null;
     synonymSuccess = null;
+
+    // Force UI update to show spinner before starting async operations
+    await tick();
 
     const keepId = selectedKeyword.id;
     const idsToMerge = Array.from(selectedSynonymIds);
@@ -391,31 +400,62 @@
               </div>
             {/if}
 
-            <div class="synonyms-list">
-              {#each similarKeywords as simKw (simKw.id)}
-                {@const similarityPercent = Math.round(simKw.similarity * 100)}
-                {@const isSelected = selectedSynonymIds.has(simKw.id)}
-                <label class="synonym-item" class:selected={isSelected}>
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onchange={() => toggleSynonymSelection(simKw.id)}
-                    disabled={assigningSynonyms}
-                  />
-                  <KeywordContextTooltip keywordId={simKw.id} keywordName={simKw.name}>
-                    <span class="synonym-name">{simKw.name}</span>
-                  </KeywordContextTooltip>
-                  <span class="synonym-similarity">{similarityPercent}%</span>
-                  <button
-                    class="synonym-view-btn"
-                    onclick={(e) => { e.preventDefault(); e.stopPropagation(); onKeywordSelect(simKw.id); }}
-                    title={$_('network.showInNetwork') || 'Im Netzwerk anzeigen'}
+            {#if similarKeywordsLoading}
+              <div class="loading-similar">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                {$_('network.loading') || 'Laden...'}
+              </div>
+            {:else}
+              <div class="synonyms-list">
+                {#each similarKeywords as simKw (simKw.id)}
+                  {@const similarityPercent = Math.round(simKw.similarity * 100)}
+                  {@const isSelected = selectedSynonymIds.has(simKw.id)}
+                  {@const similarityClass = simKw.is_true_synonym ? 'synonym' : similarityPercent >= 80 ? 'high' : similarityPercent >= 60 ? 'medium' : 'low'}
+                  <label
+                    class="synonym-item"
+                    class:selected={isSelected}
+                    class:true-synonym={simKw.is_true_synonym}
+                    title="{simKw.is_true_synonym ? $_('network.trueSynonymHint') || 'Bereits zusammengefuehrtes Synonym' : simKw.cooccurrence > 0 ? simKw.cooccurrence + ' gemeinsame Artikel' : 'Semantisch aehnlich'}"
                   >
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                  </button>
-                </label>
-              {/each}
-            </div>
+                    {#if !simKw.is_true_synonym}
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onchange={() => toggleSynonymSelection(simKw.id)}
+                        disabled={assigningSynonyms}
+                      />
+                    {:else}
+                      <span class="true-synonym-badge">
+                        <i class="fa-solid fa-check"></i>
+                      </span>
+                    {/if}
+                    <KeywordContextTooltip keywordId={simKw.id} keywordName={simKw.name}>
+                      <span class="synonym-name">{simKw.name}</span>
+                    </KeywordContextTooltip>
+                    <div class="synonym-bar-wrap">
+                      <div class="similarity-bar {similarityClass}" style="width: {similarityPercent}%"></div>
+                    </div>
+                    <span class="synonym-stats">
+                      {#if simKw.is_true_synonym}
+                        <span class="similarity-pct synonym">{$_('network.merged') || 'Synonym'}</span>
+                      {:else}
+                        <span class="similarity-pct {similarityClass}">{similarityPercent}%</span>
+                        {#if simKw.cooccurrence > 0}
+                          <span class="cooccur-count">({simKw.cooccurrence})</span>
+                        {/if}
+                      {/if}
+                    </span>
+                    <button
+                      class="synonym-view-btn"
+                      onclick={(e) => { e.preventDefault(); e.stopPropagation(); onKeywordSelect(simKw.id); }}
+                      title={$_('network.showInNetwork') || 'Im Netzwerk anzeigen'}
+                    >
+                      <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </button>
+                  </label>
+                {/each}
+              </div>
+            {/if}
 
             <div class="synonyms-actions">
               <button
@@ -524,60 +564,6 @@
               </div>
             {/if}
           </div>
-        {/if}
-      </div>
-
-      <!-- Similar Keywords (Embedding-based) -->
-      <div class="detail-section">
-        <h4 class="section-title">
-          <i class="fa-solid fa-diagram-project section-icon"></i>
-          {$_('network.similarKeywords') || 'Aehnliche Keywords'}
-          <Tooltip content={$_('network.similarKeywordsHelp') || 'Keywords mit aehnlicher semantischer Bedeutung basierend auf Embeddings'}>
-            <i class="fa-solid fa-circle-info help-icon"></i>
-          </Tooltip>
-        </h4>
-        {#if similarKeywordsLoading}
-          <div class="loading-similar">
-            <i class="fa-solid fa-spinner fa-spin"></i>
-            {$_('network.loading') || 'Laden...'}
-          </div>
-        {:else if similarKeywords.length > 0}
-          <div class="similar-keywords-list">
-            {#each similarKeywords as simKw (simKw.id)}
-              {@const similarityPercent = Math.round(simKw.similarity * 100)}
-              {@const similarityClass = simKw.is_true_synonym ? 'synonym' : similarityPercent >= 80 ? 'high' : similarityPercent >= 60 ? 'medium' : 'low'}
-              <button
-                class="similar-keyword-row"
-                class:true-synonym={simKw.is_true_synonym}
-                onclick={() => onKeywordSelect(simKw.id)}
-                title="{simKw.is_true_synonym ? $_('network.trueSynonymHint') || 'Bereits zusammengeführtes Synonym' : simKw.cooccurrence > 0 ? simKw.cooccurrence + ' gemeinsame Artikel' : 'Semantisch ähnlich'}"
-              >
-                {#if simKw.is_true_synonym}
-                  <span class="true-synonym-badge">
-                    <i class="fa-solid fa-check"></i>
-                  </span>
-                {/if}
-                <KeywordContextTooltip keywordId={simKw.id} keywordName={simKw.name}>
-                  <span class="similar-name">{simKw.name}</span>
-                </KeywordContextTooltip>
-                <div class="similar-bar-wrap">
-                  <div class="similarity-bar {similarityClass}" style="width: {similarityPercent}%"></div>
-                </div>
-                <span class="similar-stats">
-                  {#if simKw.is_true_synonym}
-                    <span class="similarity-pct synonym">{$_('network.merged') || 'Synonym'}</span>
-                  {:else}
-                    <span class="similarity-pct {similarityClass}">{similarityPercent}%</span>
-                    {#if simKw.cooccurrence > 0}
-                      <span class="cooccur-count">({simKw.cooccurrence})</span>
-                    {/if}
-                  {/if}
-                </span>
-              </button>
-            {/each}
-          </div>
-        {:else}
-          <div class="no-similar">{$_('network.noSimilarKeywords') || 'Keine aehnlichen Keywords gefunden'}</div>
         {/if}
       </div>
 
@@ -1409,22 +1395,37 @@
   }
 
   .synonym-name {
-    flex: 1;
     font-size: 0.8125rem;
     font-weight: 500;
     color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    width: 120px;
+    flex-shrink: 0;
   }
 
-  .synonym-similarity {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--accent-success);
-    padding: 0.125rem 0.375rem;
-    background-color: rgba(166, 227, 161, 0.15);
-    border-radius: 0.25rem;
+  .synonym-bar-wrap {
+    flex: 1;
+    height: 6px;
+    background-color: var(--bg-muted);
+    border-radius: 3px;
+    overflow: hidden;
+    min-width: 60px;
+  }
+
+  .synonym-stats {
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    min-width: 55px;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+
+  .synonym-item.true-synonym {
+    background-color: rgba(137, 180, 250, 0.08);
+    border-color: var(--accent-primary);
   }
 
   .synonym-view-btn {
