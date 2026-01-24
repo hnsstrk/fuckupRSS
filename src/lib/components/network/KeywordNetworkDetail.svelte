@@ -146,21 +146,28 @@
     synonymError = null;
     synonymSuccess = null;
 
-    const canonicalId = selectedKeyword.id;
-    const idsToAssign = Array.from(selectedSynonymIds);
+    const keepId = selectedKeyword.id;
+    const idsToMerge = Array.from(selectedSynonymIds);
     let successCount = 0;
     let errorCount = 0;
+    let totalAffectedArticles = 0;
 
-    for (const synonymId of idsToAssign) {
+    for (const removeId of idsToMerge) {
       try {
-        await invoke('assign_synonym', {
-          synonymId,
-          canonicalId
-        });
+        // Use merge_keyword_pair which actually deletes the keyword
+        // and transfers all relationships (articles, categories, etc.)
+        const result = await invoke<{ merged_pairs: number; affected_articles: number }>(
+          'merge_keyword_pair',
+          {
+            keep_id: keepId,      // snake_case for Tauri!
+            remove_id: removeId   // snake_case for Tauri!
+          }
+        );
         successCount++;
-        selectedSynonymIds.delete(synonymId);
+        totalAffectedArticles += result.affected_articles;
+        selectedSynonymIds.delete(removeId);
       } catch (e) {
-        console.error(`Failed to assign synonym ${synonymId}:`, e);
+        console.error(`Failed to merge keyword ${removeId}:`, e);
         errorCount++;
       }
     }
@@ -168,13 +175,18 @@
     assigningSynonyms = false;
 
     if (errorCount > 0) {
-      synonymSuccess = $_('network.synonymAssignedPartial', {
+      synonymError = $_('network.synonymAssignedPartial', {
         values: { success: successCount, failed: errorCount }
-      }) || `${successCount} assigned, ${errorCount} failed`;
+      }) || `${successCount} merged, ${errorCount} failed`;
     } else {
-      synonymSuccess = $_('network.synonymAssigned', {
-        values: { count: successCount }
-      }) || `${successCount} keyword(s) assigned as synonyms`;
+      synonymSuccess = $_('network.synonymsMerged', {
+        values: { count: successCount, articles: totalAffectedArticles }
+      }) || `${successCount} keyword(s) merged (${totalAffectedArticles} articles transferred)`;
+    }
+
+    // Clear selection after successful merge
+    if (successCount > 0) {
+      selectedSynonymIds.clear();
     }
 
     // Notify parent to reload data

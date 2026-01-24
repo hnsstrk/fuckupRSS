@@ -790,6 +790,7 @@
     "assignAsSynonyms": "Zusammenführen",
     "synonymAssigned": "{count} Keyword(s) zusammengeführt",
     "synonymAssignedPartial": "{success} zusammengeführt, {failed} fehlgeschlagen",
+    "synonymsMerged": "{count} Keyword(s) zusammengeführt ({articles} Artikel übertragen)",
     "showInNetwork": "Im Netzwerk anzeigen"
   },
   "mindfuck": {

@@ -790,6 +790,7 @@
     "assignAsSynonyms": "Merge Selected",
     "synonymAssigned": "{count} keyword(s) merged",
     "synonymAssignedPartial": "{success} merged, {failed} failed",
+    "synonymsMerged": "{count} keyword(s) merged ({articles} articles transferred)",
     "showInNetwork": "Show in Network"
   },
   "mindfuck": {
