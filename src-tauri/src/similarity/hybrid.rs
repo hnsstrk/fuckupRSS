@@ -77,12 +77,14 @@ pub struct SimilarKeywordResult {
     pub combined_score: f64,
     pub is_name_variant: bool,
     pub is_abbreviation: bool,
+    pub is_true_synonym: bool,
     pub article_count: i64,
 }
 
 /// Find similar keywords using hybrid string + embedding similarity.
 ///
 /// This is the main entry point for similarity search, combining:
+/// - True synonyms: Keywords merged into the target
 /// - Token Set Ratio for name variants
 /// - String similarity for lexical matches
 /// - Embedding similarity for semantic matches
@@ -105,7 +107,37 @@ pub fn find_similar_hybrid(
         .map(|blob| blob_to_embedding(blob))
         .unwrap_or_default();
 
-    // Load all keywords with their embeddings
+    let mut results: Vec<SimilarKeywordResult> = Vec::new();
+
+    // First: Load "True Synonyms" - keywords that have been merged into this keyword
+    let true_synonyms: Vec<(i64, String, i64)> = conn
+        .prepare(
+            r#"SELECT id, name, COALESCE(article_count, 0)
+               FROM immanentize
+               WHERE canonical_id = ? AND is_canonical = FALSE"#,
+        )
+        .map_err(|e| e.to_string())?
+        .query_map([keyword_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Add true synonyms with maximum score
+    for (id, name, article_count) in true_synonyms {
+        results.push(SimilarKeywordResult {
+            id,
+            name,
+            string_similarity: 1.0,
+            embedding_similarity: 1.0,
+            combined_score: 1.0,
+            is_name_variant: false,
+            is_abbreviation: false,
+            is_true_synonym: true,
+            article_count,
+        });
+    }
+
+    // Load all canonical keywords for similarity comparison
     let all_keywords: Vec<(i64, String, Option<Vec<u8>>, i64)> = conn
         .prepare(
             r#"SELECT id, name, embedding, COALESCE(article_count, 0)
@@ -121,7 +153,6 @@ pub fn find_similar_hybrid(
         .collect();
 
     let target_name_lower = target_name.to_lowercase();
-    let mut results: Vec<SimilarKeywordResult> = Vec::new();
 
     for (id, name, embedding_blob, article_count) in all_keywords {
         let name_lower = name.to_lowercase();
@@ -195,27 +226,35 @@ pub fn find_similar_hybrid(
                 combined_score,
                 is_name_variant,
                 is_abbreviation,
+                is_true_synonym: false,
                 article_count,
             });
         }
     }
 
-    // Sort by combined score (name variants first)
+    // Sort by priority: true synonyms > name variants > abbreviations > combined score
     results.sort_by(|a, b| {
-        // Name variants always first
-        match (a.is_name_variant, b.is_name_variant) {
+        // True synonyms (merged keywords) always first
+        match (a.is_true_synonym, b.is_true_synonym) {
             (true, false) => std::cmp::Ordering::Less,
             (false, true) => std::cmp::Ordering::Greater,
             _ => {
-                // Then abbreviations
-                match (a.is_abbreviation, b.is_abbreviation) {
+                // Then name variants
+                match (a.is_name_variant, b.is_name_variant) {
                     (true, false) => std::cmp::Ordering::Less,
                     (false, true) => std::cmp::Ordering::Greater,
                     _ => {
-                        // Then by combined score
-                        b.combined_score
-                            .partial_cmp(&a.combined_score)
-                            .unwrap_or(std::cmp::Ordering::Equal)
+                        // Then abbreviations
+                        match (a.is_abbreviation, b.is_abbreviation) {
+                            (true, false) => std::cmp::Ordering::Less,
+                            (false, true) => std::cmp::Ordering::Greater,
+                            _ => {
+                                // Then by combined score
+                                b.combined_score
+                                    .partial_cmp(&a.combined_score)
+                                    .unwrap_or(std::cmp::Ordering::Equal)
+                            }
+                        }
                     }
                 }
             }

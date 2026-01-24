@@ -1016,6 +1016,7 @@ pub struct SimilarKeywordInfo {
     pub name: String,
     pub similarity: f64,
     pub cooccurrence: i64,
+    pub is_true_synonym: bool,
 }
 
 /// Get similar keywords for a given keyword from the Immanentize network
@@ -1056,6 +1057,7 @@ pub fn get_similar_keywords(
             name: r.name,
             similarity: r.combined_score,
             cooccurrence: r.article_count,
+            is_true_synonym: r.is_true_synonym,
         })
         .collect();
 
@@ -1108,6 +1110,7 @@ pub fn get_keyword_suggestions_from_network(
                 name: row.get(1)?,
                 similarity: row.get(2)?,
                 cooccurrence: row.get(3)?,
+                is_true_synonym: false,
             })
         })
         .map_err(|e| e.to_string())?

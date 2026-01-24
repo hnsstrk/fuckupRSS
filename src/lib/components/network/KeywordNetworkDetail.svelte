@@ -45,6 +45,7 @@
     name: string;
     similarity: number;
     cooccurrence: number;
+    is_true_synonym?: boolean;
   }
 
   // Props
@@ -531,12 +532,18 @@
           <div class="similar-keywords-list">
             {#each similarKeywords as simKw (simKw.id)}
               {@const similarityPercent = Math.round(simKw.similarity * 100)}
-              {@const similarityClass = similarityPercent >= 80 ? 'high' : similarityPercent >= 60 ? 'medium' : 'low'}
+              {@const similarityClass = simKw.is_true_synonym ? 'synonym' : similarityPercent >= 80 ? 'high' : similarityPercent >= 60 ? 'medium' : 'low'}
               <button
                 class="similar-keyword-row"
+                class:true-synonym={simKw.is_true_synonym}
                 onclick={() => onKeywordSelect(simKw.id)}
-                title="{simKw.cooccurrence > 0 ? simKw.cooccurrence + ' gemeinsame Artikel' : 'Semantisch ähnlich'}"
+                title="{simKw.is_true_synonym ? $_('network.trueSynonymHint') || 'Bereits zusammengeführtes Synonym' : simKw.cooccurrence > 0 ? simKw.cooccurrence + ' gemeinsame Artikel' : 'Semantisch ähnlich'}"
               >
+                {#if simKw.is_true_synonym}
+                  <span class="true-synonym-badge">
+                    <i class="fa-solid fa-check"></i>
+                  </span>
+                {/if}
                 <KeywordContextTooltip keywordId={simKw.id} keywordName={simKw.name}>
                   <span class="similar-name">{simKw.name}</span>
                 </KeywordContextTooltip>
@@ -544,9 +551,13 @@
                   <div class="similarity-bar {similarityClass}" style="width: {similarityPercent}%"></div>
                 </div>
                 <span class="similar-stats">
-                  <span class="similarity-pct {similarityClass}">{similarityPercent}%</span>
-                  {#if simKw.cooccurrence > 0}
-                    <span class="cooccur-count">({simKw.cooccurrence})</span>
+                  {#if simKw.is_true_synonym}
+                    <span class="similarity-pct synonym">{$_('network.merged') || 'Synonym'}</span>
+                  {:else}
+                    <span class="similarity-pct {similarityClass}">{similarityPercent}%</span>
+                    {#if simKw.cooccurrence > 0}
+                      <span class="cooccur-count">({simKw.cooccurrence})</span>
+                    {/if}
                   {/if}
                 </span>
               </button>
@@ -1182,6 +1193,10 @@
     background: var(--text-muted);
   }
 
+  .similarity-bar.synonym {
+    background: var(--accent-primary);
+  }
+
   .similar-stats {
     display: flex;
     align-items: baseline;
@@ -1206,6 +1221,30 @@
 
   .similarity-pct.low {
     color: var(--text-muted);
+  }
+
+  .similarity-pct.synonym {
+    color: var(--accent-primary);
+    font-size: 0.6875rem;
+  }
+
+  /* True Synonym styling */
+  .similar-keyword-row.true-synonym {
+    background-color: rgba(137, 180, 250, 0.08);
+    border-color: var(--accent-primary);
+  }
+
+  .true-synonym-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    background-color: var(--accent-primary);
+    border-radius: 50%;
+    color: white;
+    font-size: 0.625rem;
+    flex-shrink: 0;
   }
 
   .cooccur-count {

@@ -715,6 +715,8 @@
     "trueSynonyms": "True Synonyms",
     "trueSynonymsHint": "These pairs are likely true synonyms (abbreviations, alternate names) based on string similarity.",
     "findTrueSynonyms": "Find True Synonyms",
+    "trueSynonymHint": "Already merged synonym",
+    "merged": "Synonym",
     "stringSimLabel": "String",
     "embeddingSimLabel": "Embedding",
     "abbreviation": "Abbreviation",
