@@ -115,7 +115,7 @@ const THEME_MODES: ThemeMode[] = ['light', 'dark', 'system'];
 const LOG_LEVELS: LogLevel[] = ['error', 'warn', 'info', 'debug', 'trace'];
 
 // Default embedding model (matches Rust RECOMMENDED_EMBEDDING_MODEL)
-const DEFAULT_EMBEDDING_MODEL = 'snowflake-arctic-embed2';
+const DEFAULT_EMBEDDING_MODEL = 'snowflake-arctic-embed2:latest';
 
 class SettingsStore {
   #settings = $state<Settings>({

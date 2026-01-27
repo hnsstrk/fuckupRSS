@@ -304,7 +304,7 @@ Die Einstellungen können direkt in der App unter "Einstellungen" geändert werd
 | Datenbank | SQLite + sqlite-vec |
 | i18n | [svelte-i18n](https://github.com/kaisermann/svelte-i18n) |
 | KI | [Ollama](https://ollama.com/) (lokal) |
-| Modelle | ministral-3:latest, snowflake-arctic-embed2 |
+| Modelle | ministral-3:latest, snowflake-arctic-embed2:latest |
 
 ### Mehrsprachigkeit
 

@@ -460,7 +460,7 @@ Siehe [README.md](README.md#ollama-setup) fuer die vollstaendige Ollama-Dokument
 **Quick Setup:**
 ```bash
 ollama pull ministral-3:latest
-ollama pull snowflake-arctic-embed2
+ollama pull snowflake-arctic-embed2:latest
 ```
 
 **Hinweis:** Bei Modellwechsel muessen alle Keywords neu eingebettet werden (Settings -> Wartung -> Embeddings generieren).
