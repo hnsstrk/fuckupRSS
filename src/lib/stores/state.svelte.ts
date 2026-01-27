@@ -106,6 +106,7 @@ class AppState {
     has_recommended_embedding: false
   });
   selectedModel = $state<string | null>(null);
+  selectedEmbeddingModel = $state<string | null>(null);
   changedFnords = $state<Fnord[]>([]);
   selectedView = $state<"all" | "changed" | "pentacle" | "sephiroth">("all");
 
@@ -161,6 +162,33 @@ class AppState {
 
   get hasMoreFnords(): boolean {
     return this.fnords.length < this.totalFnordsCount;
+  }
+
+  // Check if the selected main model is installed
+  get isMainModelMissing(): boolean {
+    if (!this.selectedModel || !this.ollamaStatus.available) return false;
+    return !this.ollamaStatus.models.includes(this.selectedModel);
+  }
+
+  // Check if the selected embedding model is installed
+  get isEmbeddingModelMissing(): boolean {
+    if (!this.selectedEmbeddingModel || !this.ollamaStatus.available) return false;
+    return !this.ollamaStatus.models.includes(this.selectedEmbeddingModel);
+  }
+
+  // Check if any required model is missing
+  get hasAnyMissingModel(): boolean {
+    return this.isMainModelMissing || this.isEmbeddingModelMissing;
+  }
+
+  // Get the name of the missing main model (if any)
+  get missingMainModel(): string | null {
+    return this.isMainModelMissing ? this.selectedModel : null;
+  }
+
+  // Get the name of the missing embedding model (if any)
+  get missingEmbeddingModel(): string | null {
+    return this.isEmbeddingModelMissing ? this.selectedEmbeddingModel : null;
   }
 
   async loadPentacles(): Promise<void> {
@@ -549,15 +577,23 @@ class AppState {
           }
         }
 
-        // Also ensure embedding model is saved if not set
+        // Also load/set embedding model
         try {
           const savedEmbedding = await invoke<string | null>("get_setting", { key: "embedding_model" });
-          if (!savedEmbedding && status.has_recommended_embedding) {
+          if (savedEmbedding) {
+            this.selectedEmbeddingModel = savedEmbedding;
+            log.debug("Loaded saved embedding model:", this.selectedEmbeddingModel);
+          } else if (status.has_recommended_embedding) {
+            this.selectedEmbeddingModel = status.recommended_embedding;
             await this.saveModelSettings(null, status.recommended_embedding);
             log.info(`Auto-selected embedding model: ${status.recommended_embedding}`);
           }
-        } catch {
-          // Ignore embedding errors
+        } catch (e) {
+          log.warn("Error loading embedding model:", e);
+          // Fall back to recommended if available
+          if (status.has_recommended_embedding) {
+            this.selectedEmbeddingModel = status.recommended_embedding;
+          }
         }
       }
       return status;

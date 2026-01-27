@@ -179,7 +179,13 @@
 
   <!-- Ollama Status -->
   <div class="status-section ollama-section" title={$_('statusBar.ollamaTooltip')}>
-    {#if loadedModels.length > 0}
+    {#if appState.hasAnyMissingModel}
+      <i class="status-icon fa-solid fa-triangle-exclamation warning"></i>
+      <span class="status-label">Ollama</span>
+      <span class="status-value warning" title={appState.missingMainModel || appState.missingEmbeddingModel || ''}>
+        {$_('statusBar.ollamaModelMissing')}
+      </span>
+    {:else if loadedModels.length > 0}
       <i class="status-icon fa-solid fa-microchip active"></i>
       <span class="status-label">Ollama</span>
       <span class="status-value models">
@@ -258,6 +264,15 @@
 
   .status-value.offline {
     color: var(--accent-error);
+  }
+
+  .status-value.warning {
+    color: var(--accent-warning);
+  }
+
+  .status-icon.warning {
+    opacity: 1;
+    color: var(--accent-warning);
   }
 
   .status-value.hopeless {

@@ -409,6 +409,15 @@
         {$_('batch.title')}
         <i class="cancel-icon fa-solid fa-xmark"></i>
       </button>
+    {:else if appState.hasAnyMissingModel}
+      <button
+        class="btn-batch model-missing"
+        disabled
+        title={$_('batch.modelMissing', { values: { model: appState.missingMainModel || appState.missingEmbeddingModel || '' } })}
+      >
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        {$_('batch.title')}
+      </button>
     {:else if appState.ollamaStatus.available}
       <button
         onclick={handleBatchProcessing}
@@ -918,6 +927,16 @@
     background-color: var(--accent-error);
     border-color: var(--accent-error);
     color: var(--text-on-accent);
+  }
+
+  .btn-batch.model-missing {
+    border-color: var(--accent-warning);
+    color: var(--accent-warning);
+    opacity: 0.9;
+  }
+
+  .btn-batch.model-missing i {
+    margin-right: 0.25rem;
   }
 
   @keyframes pulse-border {

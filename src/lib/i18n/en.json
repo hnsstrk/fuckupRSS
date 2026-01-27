@@ -252,7 +252,11 @@
       "noLoadedModels": "No models loaded",
       "loadModels": "Load Models into VRAM",
       "loadingModels": "Loading models...",
-      "loadModelsDescription": "Loads the selected models into graphics memory. The selection is saved automatically."
+      "loadModelsDescription": "Loads the selected models into graphics memory. The selection is saved automatically.",
+      "modelMissing": "Model \"{model}\" is not installed",
+      "modelMissingHint": "This model must be downloaded before AI analysis will work.",
+      "downloadNow": "Download now",
+      "modelsIncomplete": "Models incomplete"
     },
     "prompts": {
       "title": "AI Prompts",
@@ -550,7 +554,8 @@
     "ollamaStarting": "starting...",
     "ollamaReady": "ready",
     "ollamaError": "error",
-    "ollamaStopped": "stopped"
+    "ollamaStopped": "stopped",
+    "ollamaModelMissing": "model missing"
   },
   "batch": {
     "title": "Discordian Analysis",
@@ -562,7 +567,8 @@
     "unprocessed": "{count} unprocessed",
     "progress": "{current} of {total}",
     "complete": "Done: {succeeded} succeeded, {failed} failed",
-    "noOllama": "Ollama not available"
+    "noOllama": "Ollama not available",
+    "modelMissing": "Model missing: {model}"
   },
   "confirm": {
     "deleteFeed": "Really delete this feed?",

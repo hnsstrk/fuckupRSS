@@ -252,7 +252,11 @@
       "noLoadedModels": "Keine Modelle geladen",
       "loadModels": "Modelle in VRAM laden",
       "loadingModels": "Lade Modelle...",
-      "loadModelsDescription": "Lädt die ausgewählten Modelle in den Grafikspeicher. Die Auswahl wird automatisch gespeichert."
+      "loadModelsDescription": "Lädt die ausgewählten Modelle in den Grafikspeicher. Die Auswahl wird automatisch gespeichert.",
+      "modelMissing": "Modell \"{model}\" ist nicht installiert",
+      "modelMissingHint": "Dieses Modell muss heruntergeladen werden bevor die KI-Analyse funktioniert.",
+      "downloadNow": "Jetzt herunterladen",
+      "modelsIncomplete": "Modelle unvollständig"
     },
     "prompts": {
       "title": "KI-Prompts",
@@ -550,7 +554,8 @@
     "ollamaStarting": "startet...",
     "ollamaReady": "bereit",
     "ollamaError": "Fehler",
-    "ollamaStopped": "gestoppt"
+    "ollamaStopped": "gestoppt",
+    "ollamaModelMissing": "Modell fehlt"
   },
   "batch": {
     "title": "Discordian Analysis",
@@ -562,7 +567,8 @@
     "unprocessed": "{count} unverarbeitet",
     "progress": "{current} von {total}",
     "complete": "Fertig: {succeeded} erfolgreich, {failed} fehlgeschlagen",
-    "noOllama": "Ollama nicht verfügbar"
+    "noOllama": "Ollama nicht verfügbar",
+    "modelMissing": "Modell fehlt: {model}"
   },
   "confirm": {
     "deleteFeed": "Feed wirklich löschen?",

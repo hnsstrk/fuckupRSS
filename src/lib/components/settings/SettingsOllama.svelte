@@ -155,6 +155,21 @@
     );
   }
 
+  function isModelInstalled(modelName: string): boolean {
+    if (!ollamaStatus || !modelName) return true; // Don't show warning if no data
+    return ollamaStatus.models.includes(modelName);
+  }
+
+  // Check if main model is missing (selected but not installed)
+  let isMainModelMissing = $derived(
+    selectedMainModel && ollamaStatus?.available && !isModelInstalled(selectedMainModel)
+  );
+
+  // Check if embedding model is missing (selected but not installed)
+  let isEmbeddingModelMissing = $derived(
+    selectedEmbeddingModel && ollamaStatus?.available && !isModelInstalled(selectedEmbeddingModel)
+  );
+
   async function handleNumCtxChange(value: number) {
     ollamaNumCtx = value;
     numCtxDropdownOpen = false;
@@ -249,6 +264,7 @@
     embeddingModelDropdownOpen = false;
     try {
       await invoke("set_setting", { key: "embedding_model", value });
+      appState.selectedEmbeddingModel = value;
     } catch (e) {
       console.error("Failed to save embedding model setting:", e);
       toasts.error($_("settings.saveError"));
@@ -368,6 +384,27 @@
         </button>
       {/if}
     </div>
+    {#if isMainModelMissing}
+      <div class="model-warning">
+        <i class="warning-icon fa-solid fa-triangle-exclamation"></i>
+        <div class="warning-content">
+          <span class="warning-text">{$_("settings.ollama.modelMissing", { values: { model: selectedMainModel } })}</span>
+          <span class="warning-hint">{$_("settings.ollama.modelMissingHint")}</span>
+        </div>
+        <button
+          type="button"
+          class="btn-download-inline"
+          onclick={() => handleDownloadModel(selectedMainModel)}
+          disabled={downloadingModel !== null}
+        >
+          {#if downloadingModel === selectedMainModel}
+            {$_("settings.ollama.downloading")}
+          {:else}
+            {$_("settings.ollama.downloadNow")}
+          {/if}
+        </button>
+      </div>
+    {/if}
   </div>
 
   <!-- Embedding Model Selection -->
@@ -421,6 +458,27 @@
         </button>
       {/if}
     </div>
+    {#if isEmbeddingModelMissing}
+      <div class="model-warning">
+        <i class="warning-icon fa-solid fa-triangle-exclamation"></i>
+        <div class="warning-content">
+          <span class="warning-text">{$_("settings.ollama.modelMissing", { values: { model: selectedEmbeddingModel } })}</span>
+          <span class="warning-hint">{$_("settings.ollama.modelMissingHint")}</span>
+        </div>
+        <button
+          type="button"
+          class="btn-download-inline"
+          onclick={() => handleDownloadModel(selectedEmbeddingModel)}
+          disabled={downloadingModel !== null}
+        >
+          {#if downloadingModel === selectedEmbeddingModel}
+            {$_("settings.ollama.downloading")}
+          {:else}
+            {$_("settings.ollama.downloadNow")}
+          {/if}
+        </button>
+      </div>
+    {/if}
   </div>
 
   <!-- Load Models Button -->
@@ -746,6 +804,67 @@
     background-color: rgba(243, 139, 168, 0.1);
     border-radius: 0.375rem;
     font-size: 0.875rem;
+  }
+
+  /* Model Missing Warning */
+  .model-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+    background-color: rgba(250, 179, 135, 0.15);
+    border: 1px solid var(--accent-warning);
+    border-radius: 0.375rem;
+  }
+
+  .warning-icon {
+    color: var(--accent-warning);
+    font-size: 1rem;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+  }
+
+  .warning-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .warning-text {
+    color: var(--accent-warning);
+    font-weight: 500;
+    font-size: 0.875rem;
+  }
+
+  .warning-hint {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  .btn-download-inline {
+    padding: 0.375rem 0.625rem;
+    border: 1px solid var(--accent-warning);
+    border-radius: 0.375rem;
+    background: none;
+    color: var(--accent-warning);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .btn-download-inline:hover:not(:disabled) {
+    background-color: var(--accent-warning);
+    color: var(--bg-surface);
+  }
+
+  .btn-download-inline:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   /* Load Models Button */
