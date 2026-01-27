@@ -23,6 +23,20 @@ use super::helpers::{
 };
 use super::types::{AnalysisResponse, DiscordianResponse, SummaryResponse};
 
+/// Safely truncate a string to a maximum byte length, respecting UTF-8 char boundaries.
+/// Returns a slice that ends at a valid char boundary.
+fn truncate_str(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    // Find the largest valid char boundary <= max_bytes
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 /// Generate a summary for an article
 #[tauri::command]
 pub async fn generate_summary(
@@ -333,7 +347,7 @@ pub async fn process_article_discordian(
     // Step 3: Run LLM analysis with statistical context
     info!(
         "[LLM] Single article analysis for \"{}\" (ID: {})",
-        &title[..title.len().min(60)],
+        truncate_str(&title, 60),
         fnord_id
     );
     let llm_start = Instant::now();
@@ -354,7 +368,7 @@ pub async fn process_article_discordian(
             let duration = llm_start.elapsed();
             info!(
                 "[LLM] Single article completed \"{}\" (ID: {}) in {:.2}s",
-                &title[..title.len().min(50)],
+                truncate_str(&title, 50),
                 fnord_id,
                 duration.as_secs_f64()
             );
@@ -475,7 +489,7 @@ pub async fn process_article_discordian(
             let duration = llm_start.elapsed();
             warn!(
                 "[LLM] Single article FAILED \"{}\" (ID: {}) after {:.2}s: {}",
-                &title[..title.len().min(50)],
+                truncate_str(&title, 50),
                 fnord_id,
                 duration.as_secs_f64(),
                 e

@@ -23,6 +23,20 @@ use tauri::{Emitter, Manager, State, Window};
 /// Global counter for tracking active parallel LLM requests
 static ACTIVE_LLM_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
+/// Safely truncate a string to a maximum byte length, respecting UTF-8 char boundaries.
+/// Returns a slice that ends at a valid char boundary.
+fn truncate_str(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    // Find the largest valid char boundary <= max_bytes
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
 use super::data_persistence::{
     generate_and_save_article_embedding, recalculate_keyword_weights, save_article_categories,
     save_article_categories_with_source, save_article_keywords_and_network,
@@ -444,7 +458,7 @@ async fn process_single_article(
 
     // Use cached result if available, otherwise call LLM
     let (analysis, _from_cache): (DiscordianAnalysis, bool) = if let Some(cached) = cached_result {
-        debug!("[LLM] Cache hit for article {}: \"{}\"", fnord_id, &title[..title.len().min(50)]);
+        debug!("[LLM] Cache hit for article {}: \"{}\"", fnord_id, truncate_str(&title, 50));
         (
             DiscordianAnalysis {
                 summary: cached.summary,
@@ -464,7 +478,7 @@ async fn process_single_article(
 
         info!(
             "[LLM] Starting analysis for \"{}\" (ID: {}) [{} parallel active]",
-            &title[..title.len().min(60)],
+            truncate_str(&title, 60),
             fnord_id,
             active_count
         );
@@ -489,7 +503,7 @@ async fn process_single_article(
             Ok(analysis_with_rejections) => {
                 info!(
                     "[LLM] Completed \"{}\" (ID: {}) in {:.2}s [{} parallel remaining]",
-                    &title[..title.len().min(50)],
+                    truncate_str(&title, 50),
                     fnord_id,
                     duration.as_secs_f64(),
                     active_after.saturating_sub(1)
@@ -560,7 +574,7 @@ async fn process_single_article(
             Err(e) => {
                 warn!(
                     "[LLM] FAILED \"{}\" (ID: {}) after {:.2}s: {} [{} parallel remaining]",
-                    &title[..title.len().min(50)],
+                    truncate_str(&title, 50),
                     fnord_id,
                     duration.as_secs_f64(),
                     e,
