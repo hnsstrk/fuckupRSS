@@ -249,6 +249,7 @@
       "contextLength": "Context Length (num_ctx)",
       "contextLengthDescription": "Higher values allow longer articles but require more VRAM. 4K is sufficient for most articles.",
       "loadedModels": "Loaded Models (VRAM)",
+      "noLoadedModels": "No models loaded",
       "loadModels": "Load Models into VRAM",
       "loadingModels": "Loading models...",
       "loadModelsDescription": "Loads the selected models into graphics memory. The selection is saved automatically."
