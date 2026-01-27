@@ -414,7 +414,18 @@
       "noCompounds": "No compound keywords found",
       "preserveKeyword": "Preserve",
       "unpreserveKeyword": "Remove protection",
-      "preserved": "Protected"
+      "preserved": "Protected",
+      "batchFetch": {
+        "title": "Fast Fulltext Fetch",
+        "desc": "Downloads fulltext for many articles in parallel (10x faster than sequential)",
+        "start": "Fetch in parallel",
+        "running": "Fetching fulltext...",
+        "runningDesc": "Parallel HTTP requests running (10 concurrent)",
+        "complete": "{total} articles processed: {successful} successful, {failed} failed",
+        "noArticles": "No articles without fulltext found",
+        "successful": "successful",
+        "failed": "failed"
+      }
     },
     "stopwords": {
       "title": "Stopwords",
