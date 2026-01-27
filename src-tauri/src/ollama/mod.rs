@@ -268,14 +268,29 @@ Content: {content}"#;
 /// NOTE: Categories are now primarily derived from the keyword network (statistical).
 /// LLM categories serve only as optional validation/fallback.
 ///
-/// OPTIMIZED: Reduced from ~37 lines to ~12 lines for faster processing (~60% fewer tokens)
+/// OPTIMIZED: Reduced from ~37 lines to ~20 lines (~40% fewer tokens)
 pub const DEFAULT_DISCORDIAN_PROMPT_WITH_STATS: &str = r#"/no_think
-Analyze article in {language}. Pre-computed: keywords=[{stat_keywords}], categories=[{stat_categories}]
+Analyze this article. Statistical pre-analysis already computed keywords and categories.
 
-Return JSON: {"political_bias":<-2..2>,"sachlichkeit":<0..4>,"summary":"<2-3 sentences>","keywords":["..."],"categories":[],"rejected_keywords":[],"rejected_categories":[]}
+PRE-COMPUTED: keywords={stat_keywords}, categories={stat_categories}
 
-Scales: bias(-2=left,0=center,2=right), sachlichkeit(0=emotional,4=factual)
-Tasks: 1)Write summary 2)Assess bias 3)Keep good keywords+add max 2 4)Categories only if wrong
+YOUR TASKS:
+1. Write summary (2-3 factual sentences in {language})
+2. Assess political_bias: -2=strong left, -1=left, 0=neutral, 1=right, 2=strong right
+3. Assess sachlichkeit: 0=emotional/sensational, 2=mixed, 4=objective/factual
+4. Review keywords: keep good ones, add max 2 important missing ones
+5. Categories: only provide if pre-computed ones are clearly wrong (empty [] is fine)
+
+Return ONLY valid JSON:
+{
+  "political_bias": <-2 to 2>,
+  "sachlichkeit": <0 to 4>,
+  "summary": "<summary in {language}>",
+  "keywords": ["kw1", "kw2", "..."],
+  "categories": [],
+  "rejected_keywords": [],
+  "rejected_categories": []
+}
 
 Title: {title}
 Content: {content}"#;
