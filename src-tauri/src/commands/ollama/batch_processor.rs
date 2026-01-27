@@ -719,7 +719,7 @@ pub async fn process_batch(
     let locale = get_locale_from_db(&state);
     let concurrency = get_ai_concurrency(&state);
 
-    info!("Starting batch processing with concurrency: {}", concurrency);
+    info!("Starting batch processing: model={}, limit={:?}, concurrency={}", model, limit, concurrency);
 
     // Load shared context ONCE before batch processing starts
     let batch_context = {

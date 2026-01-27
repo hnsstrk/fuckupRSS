@@ -105,6 +105,10 @@
         selectedMainModel = savedMainModel || ollamaStatus.recommended_main;
         selectedEmbeddingModel = savedEmbeddingModel || ollamaStatus.recommended_embedding;
         appState.ollamaStatus = ollamaStatus;
+        // Sync selectedModel to appState for batch processing if not already set
+        if (selectedMainModel && !appState.selectedModel) {
+          appState.selectedModel = selectedMainModel;
+        }
       }
 
       await loadLoadedModels();

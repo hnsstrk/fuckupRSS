@@ -516,32 +516,36 @@ class AppState {
       const status = await invoke<OllamaStatus>("check_ollama");
       this.ollamaStatus = status;
 
-      if (status.available && status.models.length > 0 && !this.selectedModel) {
-        // Try to load saved model preference
-        try {
-          const savedModel = await invoke<string | null>("get_setting", { key: "main_model" });
-          if (savedModel && status.models.includes(savedModel)) {
-            this.selectedModel = savedModel;
-          } else {
+      if (status.available && status.models.length > 0) {
+        // Load model preference if not already set
+        if (!this.selectedModel) {
+          try {
+            const savedModel = await invoke<string | null>("get_setting", { key: "main_model" });
+            if (savedModel && status.models.includes(savedModel)) {
+              this.selectedModel = savedModel;
+              log.debug("Loaded saved model:", this.selectedModel);
+            } else {
+              // Fall back to recommended model if available, otherwise first model
+              this.selectedModel = status.has_recommended_main
+                ? status.recommended_main
+                : status.models[0];
+              // Save fallback model to DB so other components can use it
+              if (this.selectedModel) {
+                await this.saveModelSettings(this.selectedModel, null);
+                log.info(`Auto-selected main model: ${this.selectedModel}`);
+              }
+            }
+          } catch (e) {
+            log.warn("Error loading saved model:", e);
             // Fall back to recommended model if available, otherwise first model
             this.selectedModel = status.has_recommended_main
               ? status.recommended_main
               : status.models[0];
-            // Save fallback model to DB so other components can use it
+            // Save fallback model to DB
             if (this.selectedModel) {
               await this.saveModelSettings(this.selectedModel, null);
-              log.info(`Auto-selected main model: ${this.selectedModel}`);
+              log.info(`Auto-selected main model (fallback): ${this.selectedModel}`);
             }
-          }
-        } catch {
-          // Fall back to recommended model if available, otherwise first model
-          this.selectedModel = status.has_recommended_main
-            ? status.recommended_main
-            : status.models[0];
-          // Save fallback model to DB
-          if (this.selectedModel) {
-            await this.saveModelSettings(this.selectedModel, null);
-            log.info(`Auto-selected main model (fallback): ${this.selectedModel}`);
           }
         }
 
@@ -744,10 +748,23 @@ class AppState {
   }
 
   async startBatchProcessing(limit?: number): Promise<BatchResult | null> {
-    if (this.batchProcessing || !this.ollamaStatus.available) return null;
+    if (this.batchProcessing) {
+      this.error = "Batch processing is already running";
+      return null;
+    }
+
+    if (!this.ollamaStatus.available) {
+      this.error = "Ollama is not available";
+      return null;
+    }
 
     const model = this.selectedModel || this.ollamaStatus.models[0];
-    if (!model) return null;
+    if (!model) {
+      this.error = "No model selected. Please select a model in Settings.";
+      return null;
+    }
+
+    log.info(`Starting batch processing with model: ${model}`);
 
     this.batchProcessing = true;
     // Set initial progress immediately so UI shows something
