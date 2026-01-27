@@ -138,6 +138,7 @@ pub fn run() {
             commands::retrieval::get_short_content_stats,
             commands::retrieval::delete_null_content_articles,
             commands::retrieval::exclude_short_from_ai,
+            commands::retrieval::fetch_fulltext_batch,
             // Model Management
             commands::ollama::model_management::check_ollama,
             commands::ollama::model_management::get_loaded_models,

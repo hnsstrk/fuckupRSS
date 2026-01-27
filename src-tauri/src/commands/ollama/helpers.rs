@@ -1030,6 +1030,107 @@ pub fn derive_categories_from_keywords(
 }
 
 // ============================================================
+// ANALYSIS CACHE (Content-Hash Based)
+// ============================================================
+
+use sha2::{Sha256, Digest};
+
+/// Cached analysis result
+#[derive(Debug, Clone)]
+pub struct CachedAnalysis {
+    pub summary: String,
+    pub categories: Vec<String>,
+    pub keywords: Vec<String>,
+    pub political_bias: i32,
+    pub sachlichkeit: i32,
+}
+
+/// Compute a content hash for caching
+/// Uses first 6000 chars of content (same truncation as LLM analysis)
+pub fn compute_content_hash(title: &str, content: &str) -> String {
+    let truncated_content: String = content.chars().take(6000).collect();
+    let combined = format!("{}\n{}", title, truncated_content);
+    let hash = Sha256::digest(combined.as_bytes());
+    format!("{:x}", hash)
+}
+
+/// Check if we have a cached analysis for the given content hash
+pub fn check_analysis_cache(conn: &Connection, content_hash: &str) -> Option<CachedAnalysis> {
+    let result = conn.query_row(
+        r#"SELECT summary, categories, keywords, political_bias, sachlichkeit
+           FROM analysis_cache WHERE content_hash = ?1"#,
+        rusqlite::params![content_hash],
+        |row| {
+            let categories_json: String = row.get(1)?;
+            let keywords_json: String = row.get(2)?;
+            Ok(CachedAnalysis {
+                summary: row.get(0)?,
+                categories: serde_json::from_str(&categories_json).unwrap_or_default(),
+                keywords: serde_json::from_str(&keywords_json).unwrap_or_default(),
+                political_bias: row.get(3)?,
+                sachlichkeit: row.get(4)?,
+            })
+        },
+    );
+
+    if result.is_ok() {
+        // Increment hit count
+        let _ = conn.execute(
+            "UPDATE analysis_cache SET hit_count = hit_count + 1 WHERE content_hash = ?1",
+            rusqlite::params![content_hash],
+        );
+    }
+
+    result.ok()
+}
+
+/// Store analysis result in cache
+pub fn store_analysis_cache(
+    conn: &Connection,
+    content_hash: &str,
+    summary: &str,
+    categories: &[String],
+    keywords: &[String],
+    political_bias: i32,
+    sachlichkeit: i32,
+) -> Result<(), rusqlite::Error> {
+    let categories_json = serde_json::to_string(categories).unwrap_or_else(|_| "[]".to_string());
+    let keywords_json = serde_json::to_string(keywords).unwrap_or_else(|_| "[]".to_string());
+
+    conn.execute(
+        r#"INSERT OR REPLACE INTO analysis_cache
+           (content_hash, summary, categories, keywords, political_bias, sachlichkeit, created_at, hit_count)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, CURRENT_TIMESTAMP, 0)"#,
+        rusqlite::params![
+            content_hash,
+            summary,
+            categories_json,
+            keywords_json,
+            political_bias,
+            sachlichkeit
+        ],
+    )?;
+
+    Ok(())
+}
+
+/// Clean up old cache entries (keep most recent and most used)
+pub fn cleanup_analysis_cache(conn: &Connection, max_entries: i64) -> Result<usize, rusqlite::Error> {
+    // Delete entries beyond the limit, keeping the most recent and most used
+    let deleted = conn.execute(
+        r#"DELETE FROM analysis_cache
+           WHERE content_hash NOT IN (
+               SELECT content_hash FROM analysis_cache
+               ORDER BY hit_count DESC, created_at DESC
+               LIMIT ?1
+           )"#,
+        rusqlite::params![max_entries],
+    )?;
+
+    Ok(deleted)
+}
+
+// ============================================================
 // TESTS
 // ============================================================
 

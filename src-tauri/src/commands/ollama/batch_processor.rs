@@ -25,9 +25,9 @@ use super::data_persistence::{
     save_article_keywords_with_source,
 };
 use super::helpers::{
-    derive_categories_from_keywords, determine_category_sources, determine_keyword_sources,
-    get_ai_concurrency, get_locale_from_db, get_num_ctx_setting, merge_categories_stat_primary,
-    merge_keywords,
+    check_analysis_cache, compute_content_hash, derive_categories_from_keywords,
+    determine_category_sources, determine_keyword_sources, get_ai_concurrency, get_locale_from_db,
+    get_num_ctx_setting, merge_categories_stat_primary, merge_keywords, store_analysis_cache,
 };
 use super::types::{
     BatchArticle, BatchProgress, BatchResult, FailedCount, HopelessCount, UnprocessedCount,
@@ -428,89 +428,167 @@ async fn process_single_article(
     let local_keywords = extract_keywords(&title, &content, 10);
     let local_categories = classify_by_keywords(&local_keywords);
 
-    // === LLM ANALYSIS ===
-    let analysis_result = client
-        .discordian_analysis_with_stats_custom(
-            model,
-            &title,
-            &content,
-            locale,
-            &stat_keywords,
-            &stat_categories,
-            batch_context.discordian_prompt.as_deref(),
+    // === CACHE CHECK ===
+    let content_hash = compute_content_hash(&title, &content);
+    let cached_result = {
+        let db = match state.db.lock() {
+            Ok(db) => db,
+            Err(_) => return (false, Some("Database lock failed".to_string())),
+        };
+        check_analysis_cache(db.conn(), &content_hash)
+    };
+
+    // Use cached result if available, otherwise call LLM
+    let (analysis, _from_cache): (DiscordianAnalysis, bool) = if let Some(cached) = cached_result {
+        debug!("Cache hit for article {}: {}", fnord_id, &title[..title.len().min(40)]);
+        (
+            DiscordianAnalysis {
+                summary: cached.summary,
+                categories: cached.categories,
+                keywords: cached.keywords,
+                political_bias: cached.political_bias,
+                sachlichkeit: cached.sachlichkeit,
+            },
+            true,
         )
-        .await;
+    } else {
+        // === LLM ANALYSIS ===
+        let analysis_result = client
+            .discordian_analysis_with_stats_custom(
+                model,
+                &title,
+                &content,
+                locale,
+                &stat_keywords,
+                &stat_categories,
+                batch_context.discordian_prompt.as_deref(),
+            )
+            .await;
 
-    match analysis_result {
-        Ok(analysis_with_rejections) => {
-            // === LEARN FROM LLM REJECTIONS ===
-            {
-                let db = match state.db.lock() {
-                    Ok(db) => db,
-                    Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
-                };
+        match analysis_result {
+            Ok(analysis_with_rejections) => {
+                // === LEARN FROM LLM REJECTIONS ===
+                {
+                    let db = match state.db.lock() {
+                        Ok(db) => db,
+                        Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
+                    };
 
-                for rejected_kw in &analysis_with_rejections.rejected_keywords {
-                    let _ = record_correction(
-                        db.conn(),
-                        &CorrectionRecord {
-                            fnord_id,
-                            correction_type: CorrectionType::KeywordRemoved,
-                            old_value: Some(rejected_kw.clone()),
-                            new_value: None,
-                            matching_terms: vec![],
-                            category_id: None,
-                        },
-                    );
-                }
-
-                for rejected_cat in &analysis_with_rejections.rejected_categories {
-                    let cat_id: Option<i64> = db
-                        .conn()
-                        .query_row(
-                            "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?1)",
-                            [rejected_cat],
-                            |row| row.get(0),
-                        )
-                        .ok();
-
-                    if let Some(cat_id) = cat_id {
-                        let matching_terms: Vec<String> = stat_keywords.iter().take(5).cloned().collect();
+                    for rejected_kw in &analysis_with_rejections.rejected_keywords {
                         let _ = record_correction(
                             db.conn(),
                             &CorrectionRecord {
                                 fnord_id,
-                                correction_type: CorrectionType::CategoryRemoved,
-                                old_value: Some(rejected_cat.clone()),
+                                correction_type: CorrectionType::KeywordRemoved,
+                                old_value: Some(rejected_kw.clone()),
                                 new_value: None,
-                                matching_terms,
-                                category_id: Some(cat_id),
+                                matching_terms: vec![],
+                                category_id: None,
                             },
                         );
                     }
+
+                    for rejected_cat in &analysis_with_rejections.rejected_categories {
+                        let cat_id: Option<i64> = db
+                            .conn()
+                            .query_row(
+                                "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?1)",
+                                [rejected_cat],
+                                |row| row.get(0),
+                            )
+                            .ok();
+
+                        if let Some(cat_id) = cat_id {
+                            let matching_terms: Vec<String> = stat_keywords.iter().take(5).cloned().collect();
+                            let _ = record_correction(
+                                db.conn(),
+                                &CorrectionRecord {
+                                    fnord_id,
+                                    correction_type: CorrectionType::CategoryRemoved,
+                                    old_value: Some(rejected_cat.clone()),
+                                    new_value: None,
+                                    matching_terms,
+                                    category_id: Some(cat_id),
+                                },
+                            );
+                        }
+                    }
+
+                    // Store in cache for future use
+                    let llm_analysis: DiscordianAnalysis = analysis_with_rejections.clone().into();
+                    let _ = store_analysis_cache(
+                        db.conn(),
+                        &content_hash,
+                        &llm_analysis.summary,
+                        &llm_analysis.categories,
+                        &llm_analysis.keywords,
+                        llm_analysis.political_bias,
+                        llm_analysis.sachlichkeit,
+                    );
                 }
+
+                (analysis_with_rejections.into(), false)
             }
+            Err(e) => {
+                // Handle LLM error (same as before)
+                let error_msg = e.to_string();
+                let is_json_error = matches!(e, OllamaError::JsonParseError { .. });
 
-            let analysis: DiscordianAnalysis = analysis_with_rejections.clone().into();
+                {
+                    let db = match state.db.lock() {
+                        Ok(db) => db,
+                        Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
+                    };
 
-            // Save analysis to DB
-            {
-                let db = match state.db.lock() {
-                    Ok(db) => db,
-                    Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
-                };
+                    let attempts: i32 = db
+                        .conn()
+                        .query_row(
+                            "SELECT COALESCE(analysis_attempts, 0) FROM fnords WHERE id = ?1",
+                            [fnord_id],
+                            |row| row.get(0),
+                        )
+                        .unwrap_or(0);
 
-                let update_result = db.conn().execute(
-                    r#"UPDATE fnords SET
-                        summary = ?1,
-                        political_bias = ?2,
-                        sachlichkeit = ?3,
-                        processed_at = CURRENT_TIMESTAMP,
-                        analysis_attempts = 0,
-                        analysis_error = NULL
-                    WHERE id = ?4"#,
-                    (&analysis.summary, analysis.political_bias, analysis.sachlichkeit, fnord_id),
-                );
+                    let new_attempts = attempts + 1;
+                    let is_hopeless = new_attempts >= 3;
+
+                    let _ = db.conn().execute(
+                        r#"UPDATE fnords SET
+                            analysis_attempts = ?1,
+                            analysis_error = ?2,
+                            analysis_hopeless = ?3
+                        WHERE id = ?4"#,
+                        rusqlite::params![new_attempts, &error_msg, is_hopeless, fnord_id],
+                    );
+                }
+
+                if is_json_error {
+                    warn!("JSON parse error for article {}: {}", fnord_id, error_msg);
+                }
+
+                return (false, Some(error_msg));
+            }
+        }
+    };
+
+    // Save analysis to DB (either from cache or LLM)
+    {
+        let db = match state.db.lock() {
+            Ok(db) => db,
+            Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
+        };
+
+        let update_result = db.conn().execute(
+            r#"UPDATE fnords SET
+                summary = ?1,
+                political_bias = ?2,
+                sachlichkeit = ?3,
+                processed_at = CURRENT_TIMESTAMP,
+                analysis_attempts = 0,
+                analysis_error = NULL
+            WHERE id = ?4"#,
+            (&analysis.summary, analysis.political_bias, analysis.sachlichkeit, fnord_id),
+        );
 
                 if let Err(e) = update_result {
                     return (false, Some(format!("DB update failed: {}", e)));
@@ -581,91 +659,16 @@ async fn process_single_article(
                 let _categories_saved =
                     save_article_categories_with_source(db.conn(), fnord_id, &categories_with_source);
 
-                if let Err(e) = CorpusStats::update_db_with_document(db.conn(), &document_tokens) {
-                    debug!("Failed to update corpus stats: {}", e);
-                }
-            }
-
-            // NOTE: Article embeddings are generated at the END of the batch
-            // to avoid constant model switching between LLM and embedding model.
-            // See the "Generate article embeddings" section after the main loop.
-
-            (true, None)
-        }
-        Err(e) => {
-            let db = match state.db.lock() {
-                Ok(db) => db,
-                Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
-            };
-
-            let new_attempts = article.attempts + 1;
-
-            let (error_msg, is_hopeless) = match &e {
-                OllamaError::JsonParseError { message, .. } => {
-                    if new_attempts >= 3 {
-                        (
-                            format!("JSON parse error after {} attempts: {}", new_attempts, message),
-                            true,
-                        )
-                    } else {
-                        (message.clone(), false)
-                    }
-                }
-                other => {
-                    if new_attempts >= 3 {
-                        (
-                            format!("Analysis failed after {} attempts: {}", new_attempts, other),
-                            true,
-                        )
-                    } else {
-                        (other.to_string(), false)
-                    }
-                }
-            };
-
-            let _ = db.conn().execute(
-                r#"UPDATE fnords SET
-                    analysis_attempts = ?1,
-                    analysis_error = ?2,
-                    analysis_hopeless = ?3
-                WHERE id = ?4"#,
-                rusqlite::params![new_attempts, &error_msg, is_hopeless, fnord_id],
-            );
-
-            // Fallback: Use statistical + local extraction
-            let combined_keywords: Vec<String> = stat_keywords
-                .into_iter()
-                .chain(local_keywords.into_iter())
-                .take(15)
-                .collect();
-
-            // Use statistical categories as primary, local as fallback
-            let fallback_categories: Vec<String> = stat_categories
-                .iter()
-                .filter(|(_, conf)| *conf >= 0.2)
-                .map(|(name, _)| name.clone())
-                .chain(local_categories.into_iter())
-                .collect::<std::collections::HashSet<_>>()
-                .into_iter()
-                .take(5)
-                .collect();
-            let categories_saved = save_article_categories(db.conn(), fnord_id, &fallback_categories);
-            let _ = save_article_keywords_and_network(
-                db.conn(),
-                fnord_id,
-                &combined_keywords,
-                &categories_saved,
-                article.article_date.as_deref(),
-            );
-
-            let status_msg = if is_hopeless {
-                format!("Marked hopeless: {}", error_msg)
-            } else {
-                format!("Attempt {}/3 failed, will retry: {}", new_attempts, error_msg)
-            };
-            (false, Some(status_msg))
+        if let Err(e) = CorpusStats::update_db_with_document(db.conn(), &document_tokens) {
+            debug!("Failed to update corpus stats: {}", e);
         }
     }
+
+    // NOTE: Article embeddings are generated at the END of the batch
+    // to avoid constant model switching between LLM and embedding model.
+    // See the "Generate article embeddings" section after the main loop.
+
+    (true, None)
 }
 
 /// Process all unprocessed articles in batch
@@ -937,26 +940,42 @@ pub async fn process_batch(
                 result
             };
 
-            // Generate embeddings (uses embedding model, not LLM)
-            let embedding_client = OllamaClient::new(None);
-            for (fnord_id, title, content) in articles_for_embedding {
-                if state.batch_cancel.load(Ordering::SeqCst) {
-                    break;
-                }
-                if let Err(e) = generate_and_save_article_embedding(
-                    &embedding_client,
-                    &state.db,
-                    fnord_id,
-                    &title,
-                    &content,
-                )
-                .await
-                {
-                    debug!("Failed to generate embedding for article {}: {}", fnord_id, e);
-                }
+            // Generate embeddings in parallel (uses embedding model, not LLM)
+            // Use the same concurrency as LLM processing for consistency
+            let embedding_client = Arc::new(OllamaClient::new(None));
+            let embedding_concurrency = concurrency.max(4); // At least 4 for embeddings (faster than LLM)
 
-                // Yield for other tasks after each embedding generation
-                tokio::task::yield_now().await;
+            // Check for cancellation before starting parallel embedding generation
+            let cancelled = state.batch_cancel.load(Ordering::SeqCst);
+            if cancelled {
+                info!("Embedding generation cancelled");
+            } else {
+                let embedding_results = stream::iter(articles_for_embedding)
+                    .map(|(fnord_id, title, content)| {
+                        let client = Arc::clone(&embedding_client);
+                        let db = state.db.clone();
+                        async move {
+                            let result = generate_and_save_article_embedding(
+                                &client,
+                                &db,
+                                fnord_id,
+                                &title,
+                                &content,
+                            )
+                            .await;
+                            (fnord_id, result)
+                        }
+                    })
+                    .buffer_unordered(embedding_concurrency)
+                    .collect::<Vec<_>>()
+                    .await;
+
+                // Log any failed embeddings
+                for (fnord_id, result) in embedding_results {
+                    if let Err(e) = result {
+                        debug!("Failed to generate embedding for article {}: {}", fnord_id, e);
+                    }
+                }
             }
         }
     }

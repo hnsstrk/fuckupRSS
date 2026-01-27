@@ -951,6 +951,25 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         }
     }
 
+    // Migration 22: Create analysis_cache table for content-hash based caching
+    // This avoids re-analyzing identical article content
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS analysis_cache (
+            content_hash TEXT PRIMARY KEY,
+            summary TEXT,
+            categories TEXT,          -- JSON array of category names
+            keywords TEXT,            -- JSON array of keywords
+            political_bias INTEGER,
+            sachlichkeit INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            hit_count INTEGER DEFAULT 0
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_analysis_cache_created ON analysis_cache(created_at DESC);
+        "#,
+    )?;
+
     Ok(())
 }
 

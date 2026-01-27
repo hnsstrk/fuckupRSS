@@ -1,10 +1,12 @@
 use crate::retrieval::headless::HeadlessFetcher;
 use crate::retrieval::{HagbardRetrieval, RetrievalError};
 use crate::AppState;
+use futures::{stream, StreamExt};
 use log::info;
 use once_cell::sync::OnceCell;
 use rusqlite::params;
 use serde::Serialize;
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
 /// Categorize a retrieval error into a simple error type string for tracking.
@@ -882,5 +884,154 @@ pub async fn refetch_feed_short_articles(
         unchanged,
         failed,
         results,
+    })
+}
+
+/// Response for parallel batch fulltext fetch
+#[derive(Serialize)]
+pub struct BatchFetchResponse {
+    pub total: i64,
+    pub successful: i64,
+    pub failed: i64,
+}
+
+/// Progress event for batch fulltext fetch
+#[derive(Clone, Serialize)]
+pub struct BatchFetchProgress {
+    pub completed: i64,
+    pub total: i64,
+    pub successful: i64,
+    pub failed: i64,
+}
+
+/// Fetch fulltext for multiple articles in parallel
+/// This is much faster than sequential fetching for batch operations.
+///
+/// # Arguments
+/// * `limit` - Maximum number of articles to fetch (default: 50)
+/// * `concurrency` - Number of parallel HTTP requests (default: 10)
+#[tauri::command]
+pub async fn fetch_fulltext_batch(
+    state: State<'_, AppState>,
+    app: AppHandle,
+    limit: Option<i64>,
+    concurrency: Option<usize>,
+) -> Result<BatchFetchResponse, String> {
+    let max_articles = limit.unwrap_or(50) as usize;
+    let parallel_requests = concurrency.unwrap_or(10);
+
+    // Get articles that need fulltext fetching (sync)
+    let (articles, use_headless): (Vec<(i64, String)>, bool) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+
+        let sql = "
+            SELECT id, url FROM fnords
+            WHERE full_text_fetched = FALSE
+            ORDER BY published_at DESC
+            LIMIT ?1
+        ";
+
+        let mut stmt = db.conn().prepare(sql).map_err(|e| e.to_string())?;
+
+        let rows: Vec<(i64, String)> = stmt
+            .query_map(params![max_articles as i64], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let headless = is_headless_enabled(&db);
+        (rows, headless)
+    };
+
+    let total = articles.len() as i64;
+    if total == 0 {
+        return Ok(BatchFetchResponse {
+            total: 0,
+            successful: 0,
+            failed: 0,
+        });
+    }
+
+    info!(
+        "Starting parallel fulltext fetch for {} articles with {} concurrent requests",
+        total, parallel_requests
+    );
+
+    // Get headless fetcher reference if enabled
+    let headless_fetcher: Option<&'static HeadlessFetcher> = if use_headless {
+        Some(get_headless_fetcher())
+    } else {
+        None
+    };
+
+    // Create shared retrieval client
+    let retrieval = Arc::new(HagbardRetrieval::new());
+    let db_arc = state.db.clone();
+
+    // Process articles in parallel
+    let results: Vec<(i64, Result<String, String>)> = stream::iter(articles)
+        .map(|(fnord_id, url)| {
+            let retrieval = Arc::clone(&retrieval);
+            let db = db_arc.clone();
+            async move {
+                // Fetch fulltext
+                match retrieval
+                    .retrieve_with_fallback(&url, use_headless, headless_fetcher)
+                    .await
+                {
+                    Ok(extracted) => {
+                        // Save to database
+                        if let Ok(db_guard) = db.lock() {
+                            let _ = db_guard.conn().execute(
+                                "UPDATE fnords SET content_full = ?1, full_text_fetched = TRUE, full_text_fetch_error = NULL WHERE id = ?2",
+                                params![&extracted.content, fnord_id],
+                            );
+                        }
+                        (fnord_id, Ok(extracted.content))
+                    }
+                    Err(e) => {
+                        // Save error to database
+                        let error_type = categorize_error(&e);
+                        if let Ok(db_guard) = db.lock() {
+                            let _ = db_guard.conn().execute(
+                                "UPDATE fnords SET full_text_fetched = TRUE, full_text_fetch_error = ?1 WHERE id = ?2",
+                                params![&error_type, fnord_id],
+                            );
+                        }
+                        (fnord_id, Err(e.to_string()))
+                    }
+                }
+            }
+        })
+        .buffer_unordered(parallel_requests)
+        .collect()
+        .await;
+
+    // Count successes and failures
+    let successful = results.iter().filter(|(_, r)| r.is_ok()).count() as i64;
+    let failed = results.iter().filter(|(_, r)| r.is_err()).count() as i64;
+
+    // Emit completion event
+    let _ = app.emit(
+        "batch-fetch-complete",
+        BatchFetchProgress {
+            completed: total,
+            total,
+            successful,
+            failed,
+        },
+    );
+
+    info!(
+        "Parallel fulltext fetch complete: {} total, {} successful, {} failed",
+        total, successful, failed
+    );
+
+    Ok(BatchFetchResponse {
+        total,
+        successful,
+        failed,
     })
 }
