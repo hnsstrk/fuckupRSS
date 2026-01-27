@@ -78,6 +78,7 @@
     "preview": "Preview",
     "analyzing": "Analyzing...",
     "analyzeRequiresFulltext": "Full text required for AI analysis",
+    "analyzeNoModel": "No AI model selected - configure in Settings",
     "fetchFirstThenAnalyze": "Fetch full text first",
     "contentStatus": {
       "full": "Full Text",

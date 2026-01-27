@@ -78,6 +78,7 @@
     "preview": "Vorschau",
     "analyzing": "Analysiere...",
     "analyzeRequiresFulltext": "Volltext erforderlich für KI-Analyse",
+    "analyzeNoModel": "Kein KI-Modell ausgewählt - in Einstellungen konfigurieren",
     "fetchFirstThenAnalyze": "Rufe zuerst den Volltext ab",
     "contentStatus": {
       "full": "Volltext",

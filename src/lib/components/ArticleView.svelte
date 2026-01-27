@@ -359,6 +359,12 @@
     const fnord = appState.selectedFnord;
     if (!fnord || !appState.ollamaStatus.available || !mounted) return;
 
+    // Check if a model is selected (required for analysis)
+    if (!appState.selectedModel) {
+      toasts.error($_('toast.analyzeError', { values: { error: 'No AI model selected. Please configure a model in Settings.' }}));
+      return;
+    }
+
     const fnordId = fnord.id;
     try {
       const result = await appState.processArticleDiscordian(fnordId);
@@ -387,6 +393,9 @@
         toasts.success($_('toast.analyzeSuccess'));
       } else if (result?.error) {
         if (mounted) toasts.error($_('toast.analyzeError', { values: { error: result.error }}));
+      } else if (result === null) {
+        // processArticleDiscordian returned null - this shouldn't happen if checks above passed
+        if (mounted) toasts.error($_('toast.analyzeError', { values: { error: 'Analysis failed to start. Please try again.' }}));
       } else if (appState.error) {
         if (mounted) toasts.error($_('toast.analyzeError', { values: { error: appState.error }}));
       }
@@ -529,15 +538,17 @@
           {/if}
           {#if appState.ollamaStatus.available}
             {@const canAnalyze = hasContentForAnalysis(fnord)}
+            {@const hasModel = !!appState.selectedModel}
+            {@const isDisabled = appState.analyzing || !canAnalyze || !hasModel}
             <button
               onclick={analyzeWithAI}
-              class="btn btn-default {appState.analyzing ? 'retrieving' : ''} {!canAnalyze ? 'btn-disabled-info' : ''}"
-              disabled={appState.analyzing || !canAnalyze}
-              title={canAnalyze ? $_('articleView.aiAnalysis') : $_('articleView.analyzeRequiresFulltext')}
+              class="btn btn-default {appState.analyzing ? 'retrieving' : ''} {!canAnalyze || !hasModel ? 'btn-disabled-info' : ''}"
+              disabled={isDisabled}
+              title={!hasModel ? $_('articleView.analyzeNoModel') : (canAnalyze ? $_('articleView.aiAnalysis') : $_('articleView.analyzeRequiresFulltext'))}
             >
               {#if appState.analyzing}
                 <i class="spinner fa-solid fa-rotate fa-spin"></i>
-              {:else if !canAnalyze}
+              {:else if !canAnalyze || !hasModel}
                 <i class="fa-solid fa-circle-info btn-info-icon"></i>
               {/if}
               <span>{fnord.summary ? $_('articleView.reanalyze') : $_('articleView.analyze')}</span>
