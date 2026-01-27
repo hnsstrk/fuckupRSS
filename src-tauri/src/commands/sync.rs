@@ -1,7 +1,10 @@
 use crate::retrieval::HagbardRetrieval;
 use crate::sync::FeedSyncer;
 use crate::AppState;
+use futures::{stream, StreamExt};
 use log::{info, warn};
+use rusqlite::params;
+use std::sync::Arc;
 use tauri::State;
 
 #[derive(serde::Serialize)]
@@ -22,71 +25,144 @@ pub struct SyncResultResponse {
     pub error: Option<String>,
 }
 
-/// Fetch full content for articles that need it
-async fn fetch_full_content_for_articles(
+/// Categorize a retrieval error into a simple error type string for tracking.
+fn categorize_retrieval_error(error: &crate::retrieval::RetrievalError) -> String {
+    use crate::retrieval::RetrievalError;
+
+    let error_string = error.to_string().to_lowercase();
+
+    match error {
+        RetrievalError::Http(e) => {
+            if let Some(status) = e.status() {
+                return status.as_u16().to_string();
+            }
+            if e.is_timeout() {
+                return "timeout".to_string();
+            }
+            if e.is_connect() {
+                if error_string.contains("dns") || error_string.contains("name resolution") {
+                    return "dns_error".to_string();
+                }
+                if error_string.contains("refused") {
+                    return "connection_refused".to_string();
+                }
+                return "connection_error".to_string();
+            }
+            "http_error".to_string()
+        }
+        RetrievalError::UrlParse(_) => "invalid_url".to_string(),
+        RetrievalError::Extraction(_) => {
+            if error_string.contains("blocked") || error_string.contains("captcha") {
+                return "blocked".to_string();
+            }
+            "parse_error".to_string()
+        }
+        RetrievalError::Db(_) => "db_error".to_string(),
+        RetrievalError::Headless(e) => {
+            let headless_str = e.to_string().to_lowercase();
+            if headless_str.contains("timeout") {
+                return "headless_timeout".to_string();
+            }
+            "headless_error".to_string()
+        }
+    }
+}
+
+/// Fetch full content for articles in parallel (much faster than sequential)
+/// This is called automatically after feed sync.
+async fn fetch_full_content_for_articles_parallel(
     state: &State<'_, AppState>,
     pentacle_id: i64,
 ) -> usize {
-    let retrieval = HagbardRetrieval::new();
-    let mut fetched_count = 0;
+    const PARALLEL_REQUESTS: usize = 10;
+    const MAX_ARTICLES: i64 = 100;
 
     // Get articles that need full text fetching
-    let articles: Vec<(i64, String, Option<String>)> = {
+    let articles: Vec<(i64, String)> = {
         let db = match state.db.lock() {
             Ok(db) => db,
             Err(_) => return 0,
         };
 
         let mut stmt = match db.conn().prepare(
-            r#"SELECT id, url, content_raw FROM fnords
+            r#"SELECT id, url FROM fnords
                WHERE pentacle_id = ?1
                AND full_text_fetched = FALSE
                ORDER BY published_at DESC
-               LIMIT 100"#,
+               LIMIT ?2"#,
         ) {
             Ok(stmt) => stmt,
             Err(_) => return 0,
         };
 
-        stmt.query_map([pentacle_id], |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, Option<String>>(2)?,
-            ))
+        stmt.query_map(params![pentacle_id, MAX_ARTICLES], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
         })
         .ok()
         .map(|rows| rows.filter_map(|r| r.ok()).collect())
         .unwrap_or_default()
     }; // db lock released here
 
-    // Fetch full content for each article
-    // Always fetch full text to ensure complete content in DB
-    for (id, url, _content_raw) in articles {
-        // Fetch full content
-        match retrieval.retrieve(&url).await {
-            Ok(extracted) => {
-                if let Ok(db) = state.db.lock() {
-                    let _ = db.conn().execute(
-                        "UPDATE fnords SET content_full = ?1, full_text_fetched = TRUE WHERE id = ?2",
-                        (&extracted.content, id),
-                    );
-                    fetched_count += 1;
-                }
-            }
-            Err(_) => {
-                // Mark as attempted to avoid infinite retries
-                if let Ok(db) = state.db.lock() {
-                    let _ = db.conn().execute(
-                        "UPDATE fnords SET full_text_fetched = TRUE WHERE id = ?1",
-                        [id],
-                    );
-                }
-            }
-        }
+    let total = articles.len();
+    if total == 0 {
+        return 0;
     }
 
-    fetched_count
+    info!(
+        "Starting parallel fulltext fetch for {} articles (pentacle {}) with {} concurrent requests",
+        total, pentacle_id, PARALLEL_REQUESTS
+    );
+
+    // Create shared retrieval client
+    let retrieval = Arc::new(HagbardRetrieval::new());
+    let db_arc = state.db.clone();
+
+    // Process articles in parallel using futures::stream
+    let results: Vec<(i64, bool)> = stream::iter(articles)
+        .map(|(fnord_id, url)| {
+            let retrieval = Arc::clone(&retrieval);
+            let db = db_arc.clone();
+            async move {
+                // Fetch fulltext
+                match retrieval.retrieve(&url).await {
+                    Ok(extracted) => {
+                        // Save to database
+                        if let Ok(db_guard) = db.lock() {
+                            let _ = db_guard.conn().execute(
+                                "UPDATE fnords SET content_full = ?1, full_text_fetched = TRUE, full_text_fetch_error = NULL WHERE id = ?2",
+                                params![&extracted.content, fnord_id],
+                            );
+                        }
+                        (fnord_id, true)
+                    }
+                    Err(e) => {
+                        // Save error to database
+                        let error_type = categorize_retrieval_error(&e);
+                        if let Ok(db_guard) = db.lock() {
+                            let _ = db_guard.conn().execute(
+                                "UPDATE fnords SET full_text_fetched = TRUE, full_text_fetch_error = ?1 WHERE id = ?2",
+                                params![&error_type, fnord_id],
+                            );
+                        }
+                        (fnord_id, false)
+                    }
+                }
+            }
+        })
+        .buffer_unordered(PARALLEL_REQUESTS)
+        .collect()
+        .await;
+
+    // Count successes
+    let successful = results.iter().filter(|(_, ok)| *ok).count();
+    let failed = results.len() - successful;
+
+    info!(
+        "Parallel fulltext fetch complete for pentacle {}: {} successful, {} failed",
+        pentacle_id, successful, failed
+    );
+
+    successful
 }
 
 /// Sync all feeds
@@ -130,8 +206,8 @@ pub async fn sync_all_feeds(state: State<'_, AppState>) -> Result<SyncResponse, 
                         total_new += sync_result.new_articles;
                         total_updated += sync_result.updated_articles;
 
-                        // Auto-fetch full content for new/truncated articles
-                        let fetched_count = fetch_full_content_for_articles(&state, id).await;
+                        // Auto-fetch full content for new articles (parallel for speed)
+                        let fetched_count = fetch_full_content_for_articles_parallel(&state, id).await;
 
                         results.push(SyncResultResponse {
                             pentacle_id: id,
@@ -246,8 +322,8 @@ pub async fn sync_feed(state: State<'_, AppState>, pentacle_id: i64) -> Result<S
 
     match store_result {
         Ok(result) => {
-            // Auto-fetch full content for new/truncated articles
-            let fetched_count = fetch_full_content_for_articles(&state, pentacle_id).await;
+            // Auto-fetch full content for new articles (parallel for speed)
+            let fetched_count = fetch_full_content_for_articles_parallel(&state, pentacle_id).await;
 
             Ok(SyncResultResponse {
                 pentacle_id,

@@ -96,21 +96,6 @@
   let confirmDeleteNull = $state(false);
   let refetchingFeed = $state<number | null>(null);
 
-  // Parallel fulltext batch fetch state
-  interface BatchFetchResponse {
-    total: number;
-    successful: number;
-    failed: number;
-  }
-  interface BatchFetchProgress {
-    completed: number;
-    total: number;
-    successful: number;
-    failed: number;
-  }
-  let batchFetchRunning = $state(false);
-  let batchFetchResult = $state<BatchFetchResponse | null>(null);
-  let batchFetchUnlisten: UnlistenFn | null = null;
 
   export async function init() {
     // Don't reset maintenanceResult - keep showing the last result
@@ -137,9 +122,6 @@
     }
     if (qualityUnlisten) {
       qualityUnlisten();
-    }
-    if (batchFetchUnlisten) {
-      batchFetchUnlisten();
     }
   });
 
@@ -623,56 +605,6 @@
     }
   }
 
-  // Parallel fulltext batch fetch - much faster than sequential
-  async function handleBatchFulltextFetch() {
-    batchFetchRunning = true;
-    batchFetchResult = null;
-    maintenanceResult = null;
-
-    try {
-      // Listen for completion event
-      batchFetchUnlisten = await listen<BatchFetchProgress>(
-        "batch-fetch-complete",
-        (event) => {
-          batchFetchResult = {
-            total: event.payload.total,
-            successful: event.payload.successful,
-            failed: event.payload.failed,
-          };
-        },
-      );
-
-      const result = await invoke<BatchFetchResponse>("fetch_fulltext_batch", {
-        limit: 200,       // Process up to 200 articles
-        concurrency: 10,  // 10 parallel HTTP requests
-      });
-
-      batchFetchResult = result;
-
-      if (result.total === 0) {
-        maintenanceResult = $_("settings.maintenance.batchFetch.noArticles");
-      } else {
-        maintenanceResult = $_("settings.maintenance.batchFetch.complete", {
-          values: {
-            total: result.total,
-            successful: result.successful,
-            failed: result.failed,
-          },
-        });
-      }
-
-      // Refresh unprocessed count since articles now have fulltext
-      await appState.loadUnprocessedCount();
-    } catch (e) {
-      maintenanceResult = `Error: ${e}`;
-    } finally {
-      batchFetchRunning = false;
-      if (batchFetchUnlisten) {
-        batchFetchUnlisten();
-        batchFetchUnlisten = null;
-      }
-    }
-  }
 
   function toggleFeedList() {
     feedListExpanded = !feedListExpanded;
@@ -1006,49 +938,6 @@
 <h3 style="margin-top: 1.5rem;">{$_("settings.maintenance.reprocessArticles")}</h3>
 
 <div class="maintenance-actions">
-  <!-- Parallel Fulltext Fetch - NEW -->
-  <div class="maintenance-action highlight-action">
-    <div class="action-info">
-      <span class="action-title">
-        <i class="fa-solid fa-bolt" style="color: var(--status-warning); margin-right: 0.375rem;"></i>
-        {$_("settings.maintenance.batchFetch.title")}
-      </span>
-      <p class="action-desc">{$_("settings.maintenance.batchFetch.desc")}</p>
-    </div>
-    {#if !batchFetchRunning}
-      <button
-        type="button"
-        class="btn-action btn-highlight"
-        onclick={handleBatchFulltextFetch}
-        disabled={maintenanceRunning !== null || batchFetchRunning}
-      >
-        <i class="fa-solid fa-download"></i>
-        {$_("settings.maintenance.batchFetch.start")}
-      </button>
-    {/if}
-  </div>
-
-  {#if batchFetchRunning}
-    <MaintenanceProgress
-      mode="indeterminate"
-      label={$_("settings.maintenance.batchFetch.running")}
-      message={$_("settings.maintenance.batchFetch.runningDesc")}
-    />
-  {/if}
-
-  {#if batchFetchResult && !batchFetchRunning}
-    <div class="batch-fetch-result">
-      <div class="result-item improved">
-        <span class="result-count">{batchFetchResult.successful}</span>
-        <span class="result-label">{$_("settings.maintenance.batchFetch.successful")}</span>
-      </div>
-      <div class="result-item failed">
-        <span class="result-count">{batchFetchResult.failed}</span>
-        <span class="result-label">{$_("settings.maintenance.batchFetch.failed")}</span>
-      </div>
-    </div>
-  {/if}
-
   <div class="maintenance-action">
     <div class="action-info">
       <span class="action-title">{$_("settings.maintenance.resetForReprocessing")}</span>
@@ -1860,32 +1749,6 @@
 
   .no-short-articles i {
     font-size: 1rem;
-  }
-
-  /* Highlighted action for parallel fetch */
-  .maintenance-action.highlight-action {
-    border-color: var(--status-warning);
-    background: linear-gradient(90deg, var(--bg-overlay), rgba(250, 179, 135, 0.08));
-  }
-
-  .btn-action.btn-highlight {
-    border-color: var(--status-warning);
-    color: var(--status-warning);
-  }
-
-  .btn-action.btn-highlight:hover:not(:disabled) {
-    background-color: var(--status-warning);
-    color: var(--bg-surface);
-  }
-
-  /* Batch fetch result display */
-  .batch-fetch-result {
-    display: flex;
-    gap: 1rem;
-    padding: 0.75rem;
-    background-color: var(--bg-overlay);
-    border-radius: 0.375rem;
-    border: 1px solid var(--border-default);
   }
 
 </style>

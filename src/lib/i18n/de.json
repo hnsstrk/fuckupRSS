@@ -414,18 +414,7 @@
       "noCompounds": "Keine Compound-Keywords gefunden",
       "preserveKeyword": "Erhalten",
       "unpreserveKeyword": "Schutz aufheben",
-      "preserved": "Geschuetzt",
-      "batchFetch": {
-        "title": "Schneller Volltext-Abruf",
-        "desc": "Lädt Volltext für viele Artikel parallel (10x schneller als sequentiell)",
-        "start": "Parallel abrufen",
-        "running": "Lade Volltext...",
-        "runningDesc": "Parallele HTTP-Anfragen laufen (10 gleichzeitig)",
-        "complete": "{total} Artikel verarbeitet: {successful} erfolgreich, {failed} fehlgeschlagen",
-        "noArticles": "Keine Artikel ohne Volltext gefunden",
-        "successful": "erfolgreich",
-        "failed": "fehlgeschlagen"
-      }
+      "preserved": "Geschuetzt"
     },
     "stopwords": {
       "title": "Stopwörter",
