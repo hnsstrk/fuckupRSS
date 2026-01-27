@@ -1,7 +1,7 @@
 use log::{debug, warn};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use thiserror::Error;
 
 #[cfg(test)]
@@ -696,6 +696,13 @@ Content: {}"#,
         let url = format!("{}/api/generate", self.base_url);
         let client = self.client()?;
 
+        let prompt_len = prompt.len();
+        debug!(
+            "[Ollama] Sending request to model '{}' (prompt: {} chars, num_ctx: {})",
+            model, prompt_len, self.num_ctx
+        );
+        let request_start = Instant::now();
+
         let request = GenerateRequest {
             model: model.to_string(),
             prompt: prompt.to_string(),
@@ -715,7 +722,10 @@ Content: {}"#,
             .json(&request)
             .send()
             .await
-            .map_err(|e: reqwest_new::Error| OllamaError::NotAvailable(e.to_string()))?;
+            .map_err(|e: reqwest_new::Error| {
+                warn!("[Ollama] Request failed after {:.2}s: {}", request_start.elapsed().as_secs_f64(), e);
+                OllamaError::NotAvailable(e.to_string())
+            })?;
 
         let status = resp.status();
         if !status.is_success() {
@@ -723,6 +733,10 @@ Content: {}"#,
                 .text()
                 .await
                 .unwrap_or_else(|_: reqwest_new::Error| "Unknown error".to_string());
+            warn!(
+                "[Ollama] Request failed after {:.2}s with status {}: {}",
+                request_start.elapsed().as_secs_f64(), status, truncate_str(&body, 200)
+            );
             return Err(OllamaError::GenerationFailed(format!(
                 "Status {}: {}",
                 status, body
@@ -737,9 +751,17 @@ Content: {}"#,
         let result: GenerateResponse = serde_json::from_slice(&bytes)
             .map_err(|e| OllamaError::GenerationFailed(e.to_string()))?;
 
+        let duration = request_start.elapsed();
+        let response_len = result.response.len();
+
         // Warn if generation was incomplete (output truncated)
         if !result.done {
-            warn!("Generation incomplete (done=false) - response may be truncated");
+            warn!("[Ollama] Generation incomplete (done=false) after {:.2}s - response may be truncated", duration.as_secs_f64());
+        } else {
+            debug!(
+                "[Ollama] Request completed in {:.2}s (response: {} chars)",
+                duration.as_secs_f64(), response_len
+            );
         }
 
         Ok(result.response)

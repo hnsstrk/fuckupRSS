@@ -15,9 +15,13 @@ use crate::AppState;
 use futures::{stream, StreamExt};
 use log::{debug, info, warn};
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 use tauri::{Emitter, Manager, State, Window};
+
+/// Global counter for tracking active parallel LLM requests
+static ACTIVE_LLM_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
 use super::data_persistence::{
     generate_and_save_article_embedding, recalculate_keyword_weights, save_article_categories,
@@ -440,7 +444,7 @@ async fn process_single_article(
 
     // Use cached result if available, otherwise call LLM
     let (analysis, _from_cache): (DiscordianAnalysis, bool) = if let Some(cached) = cached_result {
-        debug!("Cache hit for article {}: {}", fnord_id, &title[..title.len().min(40)]);
+        debug!("[LLM] Cache hit for article {}: \"{}\"", fnord_id, &title[..title.len().min(50)]);
         (
             DiscordianAnalysis {
                 summary: cached.summary,
@@ -453,6 +457,18 @@ async fn process_single_article(
         )
     } else {
         // === LLM ANALYSIS ===
+        // Track active parallel requests
+        let active_before = ACTIVE_LLM_REQUESTS.fetch_add(1, Ordering::SeqCst);
+        let active_count = active_before + 1;
+        let llm_start = Instant::now();
+
+        info!(
+            "[LLM] Starting analysis for \"{}\" (ID: {}) [{} parallel active]",
+            &title[..title.len().min(60)],
+            fnord_id,
+            active_count
+        );
+
         let analysis_result = client
             .discordian_analysis_with_stats_custom(
                 model,
@@ -465,8 +481,20 @@ async fn process_single_article(
             )
             .await;
 
+        // Decrement active counter after request completes
+        let active_after = ACTIVE_LLM_REQUESTS.fetch_sub(1, Ordering::SeqCst);
+        let duration = llm_start.elapsed();
+
         match analysis_result {
             Ok(analysis_with_rejections) => {
+                info!(
+                    "[LLM] Completed \"{}\" (ID: {}) in {:.2}s [{} parallel remaining]",
+                    &title[..title.len().min(50)],
+                    fnord_id,
+                    duration.as_secs_f64(),
+                    active_after.saturating_sub(1)
+                );
+
                 // === LEARN FROM LLM REJECTIONS ===
                 {
                     let db = match state.db.lock() {
@@ -530,6 +558,15 @@ async fn process_single_article(
                 (analysis_with_rejections.into(), false)
             }
             Err(e) => {
+                warn!(
+                    "[LLM] FAILED \"{}\" (ID: {}) after {:.2}s: {} [{} parallel remaining]",
+                    &title[..title.len().min(50)],
+                    fnord_id,
+                    duration.as_secs_f64(),
+                    e,
+                    active_after.saturating_sub(1)
+                );
+
                 // Handle LLM error (same as before)
                 let error_msg = e.to_string();
                 let is_json_error = matches!(e, OllamaError::JsonParseError { .. });
@@ -767,6 +804,7 @@ pub async fn process_batch(
     let total = articles.len() as i64;
 
     if total == 0 {
+        info!("[LLM] Batch: No articles to process");
         return Ok(BatchResult {
             processed: 0,
             succeeded: 0,
@@ -776,6 +814,12 @@ pub async fn process_batch(
 
     state.batch_cancel.store(false, Ordering::SeqCst);
     state.batch_running.store(true, Ordering::SeqCst);
+
+    info!(
+        "[LLM] Batch starting: {} articles with {} parallel workers (model: {}, num_ctx: {})",
+        total, concurrency, model, num_ctx
+    );
+    let batch_start_time = Instant::now();
 
     let _ = window.emit(
         "batch-progress",
@@ -860,6 +904,18 @@ pub async fn process_batch(
         }
     }
 
+    let batch_duration = batch_start_time.elapsed();
+    let avg_time_per_article = if succeeded > 0 {
+        batch_duration.as_secs_f64() / succeeded as f64
+    } else {
+        0.0
+    };
+
+    info!(
+        "[LLM] Batch LLM analysis complete: {}/{} succeeded, {} failed in {:.1}s ({:.2}s avg/article)",
+        succeeded, total, failed, batch_duration.as_secs_f64(), avg_time_per_article
+    );
+
     // Process embedding queue after batch
     if succeeded > 0 && !state.batch_cancel.load(Ordering::SeqCst) {
         let queue_size = {
@@ -907,9 +963,10 @@ pub async fn process_batch(
         // This avoids constant model switching between LLM and embedding model
         if !successful_fnord_ids.is_empty() && !state.batch_cancel.load(Ordering::SeqCst) {
             info!(
-                "Generating article embeddings for {} articles...",
+                "[Embedding] Starting article embeddings for {} articles...",
                 successful_fnord_ids.len()
             );
+            let embedding_start = Instant::now();
 
             let _ = window.emit(
                 "batch-progress",
@@ -971,16 +1028,35 @@ pub async fn process_batch(
                     .await;
 
                 // Log any failed embeddings
-                for (fnord_id, result) in embedding_results {
-                    if let Err(e) = result {
-                        debug!("Failed to generate embedding for article {}: {}", fnord_id, e);
+                let mut embed_succeeded = 0;
+                for (fnord_id, result) in &embedding_results {
+                    match result {
+                        Ok(_) => embed_succeeded += 1,
+                        Err(e) => {
+                            debug!("[Embedding] Failed for article {}: {}", fnord_id, e);
+                        }
                     }
                 }
+
+                let embed_duration = embedding_start.elapsed();
+                info!(
+                    "[Embedding] Completed: {}/{} succeeded in {:.1}s",
+                    embed_succeeded,
+                    embedding_results.len(),
+                    embed_duration.as_secs_f64()
+                );
             }
         }
     }
 
     state.batch_running.store(false, Ordering::SeqCst);
+
+    // Final batch summary
+    let total_duration = batch_start_time.elapsed();
+    info!(
+        "[LLM] Batch COMPLETE: {} articles processed ({} succeeded, {} failed) in {:.1}s total",
+        total, succeeded, failed, total_duration.as_secs_f64()
+    );
 
     // Trigger WAL checkpoint if we processed a significant number of articles
     if succeeded >= 100 {

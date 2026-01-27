@@ -7,7 +7,8 @@ use crate::text_analysis::{
 };
 use crate::{classify_by_keywords, extract_keywords};
 use crate::AppState;
-use log::warn;
+use log::{info, warn};
+use std::time::Instant;
 use tauri::State;
 
 use super::data_persistence::{
@@ -330,6 +331,13 @@ pub async fn process_article_discordian(
     let local_categories = classify_by_keywords(&local_keywords);
 
     // Step 3: Run LLM analysis with statistical context
+    info!(
+        "[LLM] Single article analysis for \"{}\" (ID: {})",
+        &title[..title.len().min(60)],
+        fnord_id
+    );
+    let llm_start = Instant::now();
+
     match client
         .discordian_analysis_with_stats_custom(
             &model,
@@ -343,6 +351,13 @@ pub async fn process_article_discordian(
         .await
     {
         Ok(analysis_with_rejections) => {
+            let duration = llm_start.elapsed();
+            info!(
+                "[LLM] Single article completed \"{}\" (ID: {}) in {:.2}s",
+                &title[..title.len().min(50)],
+                fnord_id,
+                duration.as_secs_f64()
+            );
             // Step 4: Learn from LLM rejections
             {
                 let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -457,6 +472,15 @@ pub async fn process_article_discordian(
             })
         }
         Err(e) => {
+            let duration = llm_start.elapsed();
+            warn!(
+                "[LLM] Single article FAILED \"{}\" (ID: {}) after {:.2}s: {}",
+                &title[..title.len().min(50)],
+                fnord_id,
+                duration.as_secs_f64(),
+                e
+            );
+
             // Fallback: Use statistical + local extraction
             let (categories_saved, tags_saved) = {
                 let db = state.db.lock().map_err(|e| e.to_string())?;
