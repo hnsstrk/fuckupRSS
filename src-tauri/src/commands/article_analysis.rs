@@ -692,6 +692,7 @@ pub struct BatchStatisticalResult {
 }
 
 /// Count unprocessed articles (no LLM analysis yet) that have full content
+/// and have NOT been statistically processed yet
 #[tauri::command]
 pub fn get_unprocessed_statistical_count(state: State<AppState>) -> Result<i64, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -705,6 +706,9 @@ pub fn get_unprocessed_statistical_count(state: State<AppState>) -> Result<i64, 
             WHERE processed_at IS NULL
               AND content_full IS NOT NULL
               AND content_full != ''
+              AND id NOT IN (
+                SELECT DISTINCT fnord_id FROM fnord_immanentize WHERE source = 'statistical'
+              )
             "#,
             [],
             |row| row.get(0),
@@ -747,6 +751,7 @@ pub async fn process_statistical_batch(
         let db_stopwords = load_all_db_stopwords(db.conn()).unwrap_or_default();
 
         // Get unprocessed articles with full content
+        // Exclude articles that already have statistical keywords
         let limit_val = limit.unwrap_or(10000);
         let mut stmt = db
             .conn()
@@ -757,6 +762,9 @@ pub async fn process_statistical_batch(
                 WHERE processed_at IS NULL
                   AND content_full IS NOT NULL
                   AND content_full != ''
+                  AND id NOT IN (
+                    SELECT DISTINCT fnord_id FROM fnord_immanentize WHERE source = 'statistical'
+                  )
                 ORDER BY published_at DESC
                 LIMIT ?
                 "#,
@@ -905,14 +913,10 @@ pub async fn process_statistical_batch(
                 }
             }
 
-            // CRITICAL: Mark article as processed to prevent re-processing
-            if let Err(e) = conn.execute(
-                "UPDATE fnords SET processed_at = CURRENT_TIMESTAMP WHERE id = ?",
-                [fnord_id],
-            ) {
-                success = false;
-                error_msg = Some(format!("Failed to mark as processed: {}", e));
-            }
+            // NOTE: We do NOT set processed_at here anymore!
+            // Statistical analysis is tracked via source='statistical' in fnord_immanentize.
+            // This allows LLM analysis to run afterwards and set processed_at.
+            // The query filters out articles that already have statistical keywords.
 
             // Commit or rollback
             if success {

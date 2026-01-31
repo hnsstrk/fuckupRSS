@@ -447,6 +447,35 @@ FROM corpus_stats;
 
 Source weights are applied to confidence values (clamped to 0.0-1.0).
 
+### Processing Status Tracking
+
+**Important:** Statistical and LLM analysis use different tracking mechanisms:
+
+| Analysis Type | Tracking Field | Purpose |
+|---------------|----------------|---------|
+| **LLM Analysis** | `fnords.processed_at` | Timestamp when LLM analysis completed |
+| **Statistical Analysis** | `fnord_immanentize.source='statistical'` | Keywords with statistical source |
+
+**Key Behavior:**
+- Statistical analysis does **NOT** set `processed_at`
+- This allows LLM analysis to run after statistical analysis
+- Articles are considered "LLM-processed" only when `processed_at IS NOT NULL`
+- Statistical processing is tracked by checking for keywords with `source='statistical'`
+
+```sql
+-- Articles ready for LLM analysis (not yet LLM-processed)
+SELECT id FROM fnords WHERE processed_at IS NULL AND content_full IS NOT NULL;
+
+-- Articles already statistically processed
+SELECT DISTINCT fnord_id FROM fnord_immanentize WHERE source = 'statistical';
+
+-- Articles that need statistical analysis (not yet statistically processed)
+SELECT id FROM fnords
+WHERE processed_at IS NULL
+  AND content_full IS NOT NULL
+  AND id NOT IN (SELECT DISTINCT fnord_id FROM fnord_immanentize WHERE source = 'statistical');
+```
+
 ---
 
 ## Bias Learning System
