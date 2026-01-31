@@ -488,59 +488,48 @@ Fuer die Entwicklung mit Claude Code sind folgende MCP-Server konfiguriert:
 
 | Server | Zweck | Tools |
 |--------|-------|-------|
-| **ollama-mcp** | Lokale KI-Interaktion | `ollama_chat`, `ollama_generate`, `ollama_embed`, `ollama_list_models`, `ollama_pull` |
-| **sqlite-mcp** | Direkte DB-Abfragen | `read_query`, `write_query`, `list_tables`, `describe_table` |
-| **fetch-mcp** | Web-Requests | `fetch` (ohne Einschraenkungen) |
-| **memory-mcp** | Persistenter Kontext | `store`, `retrieve`, `search` |
+| **ollama** | Lokale KI-Interaktion | `ollama_chat`, `ollama_generate`, `ollama_embed`, `ollama_list`, `ollama_pull` |
+| **fetch** | Web-Requests | `fetch` (ohne Einschraenkungen) |
+| **memory** | Persistenter Kontext | `create_entities`, `search_nodes`, `read_graph` |
 
 ### Konfiguration
 
-Die MCP-Server sind in `~/.claude.json` unter `projects["<project-path>"].mcpServers` konfiguriert:
+Die MCP-Server sind in `.mcp.json` im Projektverzeichnis konfiguriert:
 
 ```json
 {
-  "ollama-mcp": {
+  "ollama": {
     "type": "stdio",
     "command": "npx",
-    "args": ["-y", "ollama-mcp@latest"]
+    "args": ["-y", "ollama-mcp"]
   },
-  "sqlite-mcp": {
+  "fetch": {
     "type": "stdio",
     "command": "npx",
-    "args": ["-y", "@anthropic/sqlite-mcp@latest", "<project-path>/src-tauri/data/fuckup.db"]
+    "args": ["-y", "mcp-fetch-server"]
   },
-  "fetch-mcp": {
+  "memory": {
     "type": "stdio",
     "command": "npx",
-    "args": ["-y", "@anthropic/fetch-mcp@latest"]
-  },
-  "memory-mcp": {
-    "type": "stdio",
-    "command": "npx",
-    "args": ["-y", "@anthropic/memory-mcp@latest"]
+    "args": ["-y", "@modelcontextprotocol/server-memory"]
   }
 }
 ```
 
-**Hinweis:** `<project-path>` muss durch den tatsaechlichen absoluten Pfad zum Projekt ersetzt werden (z.B. `/Users/username/Repositories/fuckupRSS` auf macOS oder `/home/username/Repositories/fuckupRSS` auf Linux).
+**Hinweis:** Die offiziellen MCP-Server von Anthropic sind Python-basiert (via `uvx`). Die npm-Pakete (`mcp-fetch-server`, `ollama-mcp`) sind Community-Implementierungen.
 
 ### Anwendungsfaelle
 
-**ollama-mcp:**
+**ollama:**
 - Direkt mit ministral-3:latest oder anderen Modellen chatten
 - Embeddings generieren ohne Rust-Code
 - Modelle herunterladen und verwalten
 
-**sqlite-mcp:**
-- Datenbank-Debugging: `SELECT * FROM fnords WHERE summary IS NULL LIMIT 5`
-- Schema-Analyse: `PRAGMA table_info(immanentize)`
-- Datenintegritaet pruefen: Orphaned Records, fehlende Embeddings
-
-**fetch-mcp:**
+**fetch:**
 - RSS-Feeds testen ohne App zu starten
 - Webseiten-Struktur fuer Readability analysieren
 - API-Endpoints testen
 
-**memory-mcp:**
+**memory:**
 - Wichtige Projektinfos zwischen Sessions speichern
 - Kontext ueber laengere Entwicklungszyklen behalten
