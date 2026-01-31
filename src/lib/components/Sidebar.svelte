@@ -195,8 +195,8 @@
 </script>
 
 <aside class="sidebar">
-  <!-- Header -->
-  <div class="sidebar-header">
+  <!-- Header (includes titlebar spacing for macOS traffic lights) -->
+  <div class="sidebar-header" data-tauri-drag-region>
     <div class="header-row">
       <h1 class="logo">
         <i class="logo-icon fa-solid fa-eye"></i>
@@ -465,8 +465,14 @@
   }
 
   .sidebar-header {
-    padding: 1rem;
+    padding: calc(var(--titlebar-height, 38px) + 0.5rem) 1rem 1rem 1rem;
     border-bottom: 1px solid var(--border-default);
+    -webkit-app-region: drag;
+  }
+
+  .sidebar-header button,
+  .sidebar-header input {
+    -webkit-app-region: no-drag;
   }
 
   .header-row {

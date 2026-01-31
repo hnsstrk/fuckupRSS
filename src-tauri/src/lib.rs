@@ -188,6 +188,7 @@ pub fn run() {
             commands::settings::get_system_theme,
             commands::settings::get_log_levels,
             commands::settings::set_log_level,
+            commands::settings::get_platform,
             // Hardware Profiles
             commands::profiles::get_hardware_profiles,
             commands::profiles::save_hardware_profile,

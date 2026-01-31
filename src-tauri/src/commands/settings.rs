@@ -223,6 +223,31 @@ pub fn get_log_levels() -> Vec<&'static str> {
     vec!["error", "warn", "info", "debug", "trace"]
 }
 
+/// Get the current operating system platform
+/// Returns: "macos", "linux", or "windows"
+#[tauri::command]
+pub fn get_platform() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "macos"
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        "linux"
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        "windows"
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        "unknown"
+    }
+}
+
 /// Set the log level at runtime
 /// Note: This changes the log level for the current session
 /// To persist, also call set_setting with key="logLevel"

@@ -20,6 +20,10 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* macOS Traffic Lights / Titlebar */
+  --titlebar-height: 38px;
+  --traffic-light-width: 70px;
 }
 
 /* ===========================================
@@ -511,36 +515,36 @@ html.tokyo-storm {
 }
 
 /* ===========================================
-   Tokyo Night Day
+   Tokyo Night Day (offizielle folke/tokyonight.nvim Farben)
    =========================================== */
 html.tokyo-day {
-  --bg-base: #e1e2e7;
-  --bg-surface: #d5d6db;
-  --bg-overlay: #c8c9ce;
-  --bg-muted: #b4b5b9;
-  --bg-highlight: #9699a3;
+  --bg-base: #e1e2e7;       /* bg - Haupthintergrund */
+  --bg-surface: #d0d5e3;    /* bg_dark - Sidebar, Panels */
+  --bg-overlay: #c4c8da;    /* bg_highlight - Modals, Dropdowns */
+  --bg-muted: #c1c9df;      /* bg_dark1 - deaktivierte Elemente */
+  --bg-highlight: #b6bdd5;  /* Hover/Fokus - sanfter Kontrast */
 
-  --text-primary: #3760bf;
-  --text-secondary: #4c5067;
-  --text-muted: #6172b0;
-  --text-faint: #8990b3;
+  --text-primary: #3760bf;  /* fg - Haupttext */
+  --text-secondary: #6172b0;/* fg_dark - Sekundärtext */
+  --text-muted: #848cb5;    /* comment - Kommentare, Hints */
+  --text-faint: #a8aecb;    /* fg_gutter - Zeilennummern, Placeholders */
 
-  --border-default: #b4b5b9;
-  --border-muted: #c8c9ce;
+  --border-default: #b4b5b9;/* border */
+  --border-muted: #c4c8da;  /* bg_highlight */
 
-  --accent-primary: #2e7de9;
-  --accent-secondary: #9854f1;
-  --accent-warning: #8c6c3e;
-  --accent-error: #f52a65;
-  --accent-success: #587539;
-  --accent-info: #007197;
+  --accent-primary: #2e7de9;  /* blue */
+  --accent-secondary: #7847bd;/* purple (satter als magenta) */
+  --accent-warning: #8c6c3e;  /* warning/orange */
+  --accent-error: #c64343;    /* error (gedämpfter, offiziell) */
+  --accent-success: #587539;  /* green */
+  --accent-info: #07879d;     /* info/cyan */
 
-  --status-error: #f52a65;
+  --status-error: #c64343;
   --status-success: #587539;
   --status-warning: #8c6c3e;
 
-  --fnord-color: #f52a65;
-  --illuminated-color: #8990b3;
+  --fnord-color: #f52a65;     /* red - auffällig für Fnords */
+  --illuminated-color: #a8aecb;
   --golden-apple-color: #8c6c3e;
 
   --text-on-accent: #e1e2e7;
@@ -785,14 +789,14 @@ html.tokyo-storm {
   --category-6: #bb9af7;  /* Purple - Kultur & Leben */
 }
 
-/* --- Tokyo Night Day (offizielle Tokyo Day-Farben) --- */
+/* --- Tokyo Night Day (offizielle folke/tokyonight.nvim Farben) --- */
 html.tokyo-day {
-  --category-1: #007197;  /* Cyan - Wissen & Technologie */
-  --category-2: #f52a65;  /* Red - Politik & Gesellschaft */
-  --category-3: #8c6c3e;  /* Yellow/Brown - Wirtschaft */
-  --category-4: #587539;  /* Green - Umwelt & Gesundheit */
-  --category-5: #b15c00;  /* Orange - Sicherheit */
-  --category-6: #9854f1;  /* Purple - Kultur & Leben */
+  --category-1: #07879d;  /* info/cyan - Wissen & Technologie */
+  --category-2: #c64343;  /* error/red - Politik & Gesellschaft */
+  --category-3: #8c6c3e;  /* warning/brown - Wirtschaft */
+  --category-4: #587539;  /* green - Umwelt & Gesundheit */
+  --category-5: #b15c00;  /* orange - Sicherheit */
+  --category-6: #7847bd;  /* purple - Kultur & Leben */
 }
 
 /* --- Solarized Dark (offizielle Solarized-Farben) --- */
@@ -947,13 +951,13 @@ html.tokyo-storm {
   --sach-objective: #9ece6a;
 }
 
-/* --- Tokyo Night Day --- */
+/* --- Tokyo Night Day (offizielle folke/tokyonight.nvim Farben) --- */
 html.tokyo-day {
-  --bias-strong-left: #2e7de9;  /* Blue */
-  --bias-lean-left: #007197;    /* Cyan */
-  --bias-center: #587539;       /* Green */
-  --bias-lean-right: #b15c00;   /* Orange */
-  --bias-strong-right: #f52a65; /* Red */
+  --bias-strong-left: #2e7de9;  /* blue */
+  --bias-lean-left: #07879d;    /* info/cyan */
+  --bias-center: #587539;       /* green */
+  --bias-lean-right: #b15c00;   /* orange */
+  --bias-strong-right: #c64343; /* error/red (gedämpfter) */
 
   --sach-emotional: #b15c00;
   --sach-mixed: #8c6c3e;
@@ -1159,4 +1163,41 @@ body,
 
 .help-icon:hover {
   color: var(--accent-primary);
+}
+
+/* ===========================================
+   macOS Titlebar Integration
+   =========================================== */
+
+/* Drag region for window movement */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+
+/* Prevent dragging on interactive elements */
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] select {
+  -webkit-app-region: no-drag;
+}
+
+/* Titlebar spacer for traffic lights */
+.titlebar-spacer {
+  height: var(--titlebar-height);
+  min-height: var(--titlebar-height);
+  flex-shrink: 0;
+}
+
+/* Platform-specific titlebar adjustments */
+html.platform-linux {
+  --titlebar-height: 0px;
+}
+
+html.platform-linux .titlebar-drag-region {
+  display: none;
+}
+
+html.platform-linux [data-tauri-drag-region] {
+  -webkit-app-region: auto; /* Reset drag region on Linux */
 }
