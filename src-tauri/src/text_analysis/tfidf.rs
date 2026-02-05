@@ -37,12 +37,6 @@ pub struct CorpusStats {
 }
 
 impl CorpusStats {
-    /// Create a new empty CorpusStats
-    #[allow(dead_code)] // Public API for in-memory corpus building
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Load corpus stats from database
     pub fn load_from_db(conn: &rusqlite::Connection) -> Result<Self, rusqlite::Error> {
         // Get total document count (articles with content_full)
@@ -491,7 +485,7 @@ mod tests {
 
     #[test]
     fn test_corpus_stats_idf() {
-        let mut stats = CorpusStats::new();
+        let mut stats = CorpusStats::default();
 
         // Add some documents
         stats.add_document(&["politik".to_string(), "wirtschaft".to_string()]);
@@ -515,7 +509,7 @@ mod tests {
         let extractor = TfIdfExtractor::new();
 
         // Build corpus stats
-        let mut stats = CorpusStats::new();
+        let mut stats = CorpusStats::default();
         stats.add_document(&["politik".to_string(), "regierung".to_string(), "gesetz".to_string()]);
         stats.add_document(&["politik".to_string(), "wahl".to_string(), "partei".to_string()]);
         stats.add_document(&["wirtschaft".to_string(), "handel".to_string(), "export".to_string()]);

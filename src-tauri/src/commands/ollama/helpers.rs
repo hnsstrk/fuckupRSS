@@ -3,7 +3,7 @@
 use crate::db::Database;
 use crate::ollama::{
     get_language_for_locale, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_NUM_CTX,
-    DEFAULT_SUMMARY_PROMPT, DEFAULT_DISCORDIAN_PROMPT_WITH_STATS,
+    DEFAULT_SUMMARY_PROMPT,
 };
 use crate::AppState;
 use crate::SEPHIROTH_CATEGORIES;
@@ -134,12 +134,6 @@ pub fn get_discordian_prompt(state: &State<'_, AppState>) -> Option<String> {
             |row| row.get(0),
         )
         .ok()
-}
-
-/// Get discordian prompt from database or default (returns the actual prompt string)
-#[allow(dead_code)] // Public API for prompt customization
-pub fn get_discordian_prompt_or_default(state: &State<'_, AppState>) -> String {
-    get_discordian_prompt(state).unwrap_or_else(|| DEFAULT_DISCORDIAN_PROMPT_WITH_STATS.to_string())
 }
 
 // ============================================================
@@ -1112,22 +1106,6 @@ pub fn store_analysis_cache(
     )?;
 
     Ok(())
-}
-
-/// Clean up old cache entries (keep most recent and most used)
-pub fn cleanup_analysis_cache(conn: &Connection, max_entries: i64) -> Result<usize, rusqlite::Error> {
-    // Delete entries beyond the limit, keeping the most recent and most used
-    let deleted = conn.execute(
-        r#"DELETE FROM analysis_cache
-           WHERE content_hash NOT IN (
-               SELECT content_hash FROM analysis_cache
-               ORDER BY hit_count DESC, created_at DESC
-               LIMIT ?1
-           )"#,
-        rusqlite::params![max_entries],
-    )?;
-
-    Ok(deleted)
 }
 
 // ============================================================

@@ -13,6 +13,7 @@ pub fn blob_to_embedding(blob: &[u8]) -> Vec<f32> {
 }
 
 /// Convert a vector of f32 embeddings to a blob (byte array).
+#[allow(dead_code)] // Used in tests; canonical version in crate::embeddings
 pub fn embedding_to_blob(embedding: &[f32]) -> Vec<u8> {
     embedding
         .iter()
@@ -45,6 +46,7 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
 }
 
 /// Calculate Euclidean distance between two embedding vectors.
+#[allow(dead_code)] // Available for future use in clustering/similarity
 pub fn euclidean_distance(a: &[f32], b: &[f32]) -> f64 {
     if a.len() != b.len() {
         return f64::MAX;

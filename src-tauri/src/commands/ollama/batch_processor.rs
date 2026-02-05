@@ -38,8 +38,8 @@ fn truncate_str(s: &str, max_bytes: usize) -> &str {
 }
 
 use super::data_persistence::{
-    generate_and_save_article_embedding, recalculate_keyword_weights, save_article_categories,
-    save_article_categories_with_source, save_article_keywords_and_network,
+    generate_and_save_article_embedding, recalculate_keyword_weights,
+    save_article_categories_with_source,
     save_article_keywords_with_source,
 };
 use super::helpers::{
@@ -73,9 +73,9 @@ struct BatchContext {
 /// **Trade-off:** Speed (~30-50% fewer LLM calls) vs. accuracy (cluster transfers use confidence=0.85).
 /// **To enable:** Register in invoke_handler (lib.rs), add frontend UI, write integration tests.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct ClusterBatchConfig {
     /// Whether to use clustering optimization
+    #[allow(dead_code)] // Dormant feature: will be checked when cluster UI is added
     pub use_clustering: bool,
     /// Minimum articles to enable clustering (below this, process all)
     pub min_articles_for_clustering: usize,
@@ -102,7 +102,6 @@ impl Default for ClusterBatchConfig {
 /// Part of the dormant cluster-based batch processing feature.
 /// See [`ClusterBatchConfig`] for full documentation on status and trade-offs.
 #[derive(Debug, Clone, serde::Serialize)]
-#[allow(dead_code)]
 pub struct ClusterBatchResult {
     /// Standard batch result
     pub processed: i64,

@@ -7,7 +7,7 @@
 //! - Freshness and source diversity
 
 use crate::AppState;
-use log::{debug, info, warn};
+use log::{debug, info};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};

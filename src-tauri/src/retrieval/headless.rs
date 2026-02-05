@@ -20,10 +20,6 @@
 //! }
 //! ```
 
-// Allow dead code for public API methods that are not yet used in production
-// but are part of the intended interface (used in tests and documentation)
-#![allow(dead_code)]
-
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::cdp::browser_protocol::page::NavigateParams;
 use chromiumoxide::error::CdpError;
@@ -73,6 +69,7 @@ pub enum HeadlessError {
 
     /// Browser connection was lost.
     #[error("Browser connection lost")]
+    #[allow(dead_code)]
     ConnectionLost,
 
     /// Invalid URL provided.
@@ -83,7 +80,7 @@ pub enum HeadlessError {
 /// Internal browser state managed by `HeadlessFetcher`.
 struct BrowserState {
     browser: Browser,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Held for ownership: dropping this aborts the browser event loop
     handle: tokio::task::JoinHandle<()>,
 }
 
@@ -115,6 +112,7 @@ impl HeadlessFetcher {
     /// # Arguments
     ///
     /// * `page_timeout` - Maximum time to wait for a page to load.
+    #[allow(dead_code)] // Used in tests
     pub fn with_timeout(page_timeout: Duration) -> Self {
         Self {
             browser_state: Arc::new(OnceCell::new()),
@@ -300,6 +298,7 @@ impl HeadlessFetcher {
     /// - Navigation fails
     /// - Page loading times out
     /// - Text extraction fails
+    #[allow(dead_code)] // Part of public API, used in tests
     pub async fn extract_text(&self, url: &str) -> Result<String, HeadlessError> {
         log::debug!("Extracting text from URL with headless browser: {}", url);
 
@@ -350,11 +349,13 @@ impl HeadlessFetcher {
     ///
     /// This can be useful for monitoring or deciding whether to use
     /// headless fetching vs. regular HTTP fetching.
+    #[allow(dead_code)] // Used in tests
     pub fn is_initialized(&self) -> bool {
         self.browser_state.initialized()
     }
 
     /// Returns the configured page timeout.
+    #[allow(dead_code)] // Used in tests
     pub fn page_timeout(&self) -> Duration {
         self.page_timeout
     }

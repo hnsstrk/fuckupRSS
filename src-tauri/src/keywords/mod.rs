@@ -28,10 +28,6 @@ pub mod clustering;
 pub mod config;
 pub mod types;
 
-// Re-export for external use - internal usage via advanced:: prefix
-// Note: TrisumConfig is used internally via advanced::TrisumConfig in extract()
-#[allow(unused_imports)] // Reserved for future API exposure
-pub use advanced::TrisumConfig;
 // Clustering types are used by batch_processor.rs for cluster-based batch processing
 pub use clustering::{
     cluster_articles, get_representatives, calculate_savings,
