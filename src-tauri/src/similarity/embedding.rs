@@ -1,49 +1,13 @@
 //! Embedding-based similarity functions
 //!
-//! Provides vector similarity metrics for semantic comparison.
+//! Re-exports shared embedding utilities from `crate::embeddings` and provides
+//! additional vector similarity metrics for semantic comparison.
 
-/// Convert a blob (byte array) to a vector of f32 embeddings.
-pub fn blob_to_embedding(blob: &[u8]) -> Vec<f32> {
-    if blob.is_empty() {
-        return vec![];
-    }
-    blob.chunks_exact(4)
-        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
-        .collect()
-}
+pub use crate::embeddings::{blob_to_embedding, cosine_similarity};
 
-/// Convert a vector of f32 embeddings to a blob (byte array).
-#[allow(dead_code)] // Used in tests; canonical version in crate::embeddings
-pub fn embedding_to_blob(embedding: &[f32]) -> Vec<u8> {
-    embedding
-        .iter()
-        .flat_map(|f| f.to_le_bytes())
-        .collect()
-}
-
-/// Calculate cosine similarity between two embedding vectors.
-///
-/// Returns a value between -1.0 and 1.0, where:
-/// - 1.0 means identical direction
-/// - 0.0 means orthogonal (unrelated)
-/// - -1.0 means opposite direction
-///
-/// For normalized embeddings, this is equivalent to dot product.
-pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
-    if a.len() != b.len() || a.is_empty() {
-        return 0.0;
-    }
-
-    let dot_product: f64 = a.iter().zip(b.iter()).map(|(x, y)| (*x as f64) * (*y as f64)).sum();
-    let norm_a: f64 = a.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
-    let norm_b: f64 = b.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
-
-    if norm_a == 0.0 || norm_b == 0.0 {
-        return 0.0;
-    }
-
-    dot_product / (norm_a * norm_b)
-}
+// Re-exported for use in similarity tests (blob roundtrip test)
+#[allow(unused_imports)]
+pub use crate::embeddings::embedding_to_blob;
 
 /// Calculate Euclidean distance between two embedding vectors.
 #[allow(dead_code)] // Available for future use in clustering/similarity

@@ -19,21 +19,28 @@ pub fn blob_to_embedding(blob: &[u8]) -> Vec<f32> {
 }
 
 /// Calculate cosine similarity between two embedding vectors.
+///
+/// Returns a value between -1.0 and 1.0, where:
+/// - 1.0 means identical direction
+/// - 0.0 means orthogonal (unrelated)
+/// - -1.0 means opposite direction
+///
 /// Returns 0.0 for empty or mismatched vectors.
+/// All arithmetic is performed in f64 for numerical precision.
 pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
     if a.len() != b.len() || a.is_empty() {
         return 0.0;
     }
 
-    let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
-    let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
-    let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let dot_product: f64 = a.iter().zip(b.iter()).map(|(x, y)| (*x as f64) * (*y as f64)).sum();
+    let norm_a: f64 = a.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
+    let norm_b: f64 = b.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
 
     if norm_a == 0.0 || norm_b == 0.0 {
         return 0.0;
     }
 
-    (dot / (norm_a * norm_b)) as f64
+    dot_product / (norm_a * norm_b)
 }
 
 /// Calculate cosine similarity directly from two embedding blobs.
