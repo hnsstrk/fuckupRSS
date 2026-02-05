@@ -115,7 +115,7 @@ pub fn get_keywords(
     limit: Option<i64>,
     offset: Option<i64>,
 ) -> Result<Vec<Keyword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let limit = limit.unwrap_or(100);
     let offset = offset.unwrap_or(0);
 
@@ -137,7 +137,7 @@ pub fn get_keywords(
 
 #[tauri::command]
 pub fn get_keyword(state: State<AppState>, id: i64) -> Result<Option<Keyword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let sql = format!(
         "SELECT {} FROM immanentize WHERE id = ?",
@@ -156,7 +156,7 @@ pub fn get_keyword_neighbors(
     id: i64,
     limit: Option<i64>,
 ) -> Result<Vec<KeywordNeighbor>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let limit = limit.unwrap_or(20);
 
     let mut stmt = db
@@ -204,7 +204,7 @@ pub fn get_keyword_categories(
     state: State<AppState>,
     id: i64,
 ) -> Result<Vec<KeywordCategory>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -248,7 +248,7 @@ pub fn get_category_keywords(
     sephiroth_id: i64,
     limit: Option<i64>,
 ) -> Result<Vec<Keyword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let limit = limit.unwrap_or(50);
 
     let mut stmt = db
@@ -279,7 +279,7 @@ pub fn get_trending_keywords(
     days: Option<i64>,
     limit: Option<i64>,
 ) -> Result<Vec<TrendingKeyword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let days = days.unwrap_or(7);
     let limit = limit.unwrap_or(20);
 
@@ -335,7 +335,7 @@ pub fn get_trending_keywords(
 /// Get network statistics
 #[tauri::command]
 pub fn get_network_stats(state: State<AppState>) -> Result<NetworkStats, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let total_keywords: i64 = db
         .conn()
@@ -376,7 +376,7 @@ pub fn search_keywords(
     query: String,
     limit: Option<i64>,
 ) -> Result<Vec<Keyword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let limit = limit.unwrap_or(20);
     let query_lower = query.to_lowercase();
 
@@ -482,7 +482,7 @@ pub fn get_keyword_trend(
     id: i64,
     days: Option<i64>,
 ) -> Result<Vec<DailyCount>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let days = days.unwrap_or(30);
 
     let mut stmt = db
@@ -520,7 +520,7 @@ pub fn get_network_graph(
     min_weight: Option<f64>,
     min_article_count: Option<i64>,
 ) -> Result<NetworkGraph, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let limit = limit.unwrap_or(100);
     let min_weight = min_weight.unwrap_or(0.1);
     let min_article_count = min_article_count.unwrap_or(3);
@@ -631,7 +631,7 @@ pub fn get_trending_comparison(
     ids: Vec<i64>,
     days: Option<i64>,
 ) -> Result<TrendComparison, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let days = days.unwrap_or(30);
 
     if ids.is_empty() {
@@ -760,7 +760,7 @@ pub fn get_keyword_articles(
     limit: Option<i64>,
     offset: Option<i64>,
 ) -> Result<Vec<KeywordArticle>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let limit = limit.unwrap_or(20);
     let offset = offset.unwrap_or(0);
 
@@ -808,7 +808,7 @@ pub fn prune_keywords(
     min_article_count: Option<i64>,
     older_than_days: Option<i64>,
 ) -> Result<PruneResult, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     let min_articles = min_article_count.unwrap_or(1);
@@ -886,7 +886,7 @@ pub struct KeywordHealthStats {
 
 #[tauri::command]
 pub fn get_keyword_health(state: State<AppState>) -> Result<KeywordHealthStats, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     let total_keywords: i64 = conn
@@ -960,7 +960,7 @@ pub struct MergeResult {
 pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, String> {
     // Load keywords with short lock
     let keywords: Vec<(i64, String)> = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let conn = db.conn();
         let mut stmt = conn.prepare("SELECT id, name FROM immanentize")
             .map_err(|e| e.to_string())?;
@@ -981,7 +981,7 @@ pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, Str
     }
 
     // Perform all merges in a single transaction
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
@@ -1078,7 +1078,7 @@ pub fn cleanup_garbage_keywords(state: State<AppState>) -> Result<CleanupResult,
 
     // Load keywords with short lock and identify garbage outside of transaction
     let garbage_ids: Vec<i64> = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let conn = db.conn();
 
         let mut stmt = conn.prepare("SELECT id, name FROM immanentize")
@@ -1104,7 +1104,7 @@ pub fn cleanup_garbage_keywords(state: State<AppState>) -> Result<CleanupResult,
     }
 
     // Perform all deletions in a single transaction
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     with_transaction_result(db.conn(), |conn| {
         for id in &garbage_ids {
@@ -1229,7 +1229,7 @@ pub async fn calculate_keyword_quality_scores(
 ) -> Result<QualityScoreResult, String> {
     // Load keyword IDs and names with short lock
     let keywords: Vec<(i64, String)> = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let conn = db.conn();
 
         // Build query - None means no limit (all keywords)
@@ -1272,7 +1272,7 @@ pub async fn calculate_keyword_quality_scores(
     // Process each keyword with separate lock acquisition
     for (idx, (id, name)) in keywords.into_iter().enumerate() {
         let result = {
-            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let db = state.db_conn()?;
             let conn = db.conn();
 
             match calculate_single_keyword_quality(conn, id) {
@@ -1349,7 +1349,7 @@ pub fn get_low_quality_keywords(
     threshold: Option<f64>,
     limit: Option<i64>,
 ) -> Result<Vec<LowQualityKeyword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
     let threshold = threshold.unwrap_or(0.3);
     let limit = limit.unwrap_or(100);
@@ -1400,7 +1400,7 @@ pub fn auto_prune_low_quality(
 
     // Load candidates with short lock
     let candidates: Vec<(i64, String)> = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let conn = db.conn();
 
         let mut stmt = conn.prepare(
@@ -1423,7 +1423,7 @@ pub fn auto_prune_low_quality(
 
     if !dry_run && !candidates.is_empty() {
         // Perform all deletions in a single transaction with proper error handling
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let conn = db.conn();
 
         conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
@@ -1497,7 +1497,7 @@ pub fn find_similar_keywords(
     threshold: Option<f64>,
     limit: Option<i64>,
 ) -> Result<Vec<SimilarKeyword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
     let threshold = threshold.unwrap_or(0.7);
     let limit = limit.unwrap_or(20);
@@ -1584,7 +1584,7 @@ pub fn find_synonym_candidates(
     threshold: Option<f64>,
     limit: Option<i64>,
 ) -> Result<Vec<SynonymCandidate>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
     let threshold = threshold.unwrap_or(0.85);
     let limit = limit.unwrap_or(50);
@@ -1915,7 +1915,7 @@ pub fn find_true_synonyms(
     embedding_threshold: Option<f64>,
     limit: Option<i64>,
 ) -> Result<Vec<TrueSynonymCandidate>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
     let string_threshold = string_threshold.unwrap_or(0.6);
     let embedding_threshold = embedding_threshold.unwrap_or(0.7);
@@ -2065,7 +2065,7 @@ pub async fn verify_synonym_pair(
 
     // Get the configured model from settings, or use default
     let model = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         db.conn()
             .query_row(
                 "SELECT value FROM settings WHERE key = 'main_model'",
@@ -2186,10 +2186,7 @@ pub fn merge_keyword_pair(
 
     log::info!("merge_keyword_pair called: keep_id={}, remove_id={}", keep_id, remove_id);
 
-    let db = state.db.lock().map_err(|e| {
-        log::error!("Failed to lock database: {}", e);
-        e.to_string()
-    })?;
+    let db = state.db_conn()?;
 
     // Use transaction wrapper for atomic multi-write merge operation
     let result = with_transaction_result(db.conn(), |conn| {
@@ -2260,7 +2257,7 @@ pub fn dismiss_synonym_pair(
     keyword_a_id: i64,
     keyword_b_id: i64,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let (min_id, max_id) = if keyword_a_id < keyword_b_id {
         (keyword_a_id, keyword_b_id)
     } else {
@@ -2292,7 +2289,7 @@ pub fn get_cooccurring_keywords(
     days: Option<i64>,
     limit: Option<i64>,
 ) -> Result<Vec<CooccurringKeyword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let days = days.unwrap_or(30);
     let limit = limit.unwrap_or(20);
 
@@ -2350,7 +2347,7 @@ pub struct CreateKeywordResult {
 pub fn create_keyword(state: State<AppState>, name: String) -> Result<CreateKeywordResult, String> {
     use crate::normalize_keyword;
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Normalize the keyword name
@@ -2398,7 +2395,7 @@ pub fn create_keyword(state: State<AppState>, name: String) -> Result<CreateKeyw
 /// Delete a keyword and all its associations
 #[tauri::command]
 pub fn delete_keyword(state: State<AppState>, id: i64) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Delete all associations before deleting the keyword itself
@@ -2446,7 +2443,7 @@ pub fn delete_keyword(state: State<AppState>, id: i64) -> Result<(), String> {
 /// Rename a keyword
 #[tauri::command]
 pub fn rename_keyword(state: State<AppState>, id: i64, new_name: String) -> Result<String, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Trim and validate new name
@@ -2521,7 +2518,7 @@ pub fn auto_merge_similar_keywords(
     limit: Option<i64>,
     dry_run: Option<bool>,
 ) -> Result<AutoMergeResult, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
     let threshold = threshold.unwrap_or(0.92);
     let limit = limit.unwrap_or(100);
@@ -2749,7 +2746,7 @@ pub struct KeywordTypeUpdateResult {
 pub fn update_keyword_types(state: State<AppState>) -> Result<KeywordTypeUpdateResult, String> {
     use super::ollama::helpers::detect_keyword_type;
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Get all keywords
@@ -2825,7 +2822,7 @@ pub fn cleanup_keywords(state: State<AppState>) -> Result<KeywordCleanupResult, 
     use crate::text_analysis::{STOPWORDS, seed_known_keywords, update_types_from_seeds};
     use super::ollama::helpers::detect_keyword_type;
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Step 1: Refresh system stopwords in database
@@ -2967,7 +2964,7 @@ pub fn split_compound_keywords(
     dry_run: Option<bool>,
 ) -> Result<CompoundSplitResult, String> {
     let dry_run = dry_run.unwrap_or(false);
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Find all hyphenated keywords that are NOT preserved and NOT auto-excluded
@@ -3188,7 +3185,7 @@ pub fn split_compound_keywords(
 /// - Keywords starting with "Anti-" (case-insensitive)
 #[tauri::command]
 pub fn preview_compound_splits(state: State<AppState>) -> Result<Vec<CompoundSplitDetail>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Load IDs with existing decisions (these should not appear in the review list)
@@ -3273,7 +3270,7 @@ pub fn split_single_compound(
     state: State<AppState>,
     keyword_id: i64,
 ) -> Result<CompoundSplitDetail, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Get the keyword
@@ -3480,7 +3477,7 @@ pub fn preserve_compound_keyword(
     state: State<AppState>,
     keyword_id: i64,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Verify keyword exists
@@ -3514,7 +3511,7 @@ pub fn unpreserve_compound_keyword(
     state: State<AppState>,
     keyword_id: i64,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     conn.execute(
@@ -3531,7 +3528,7 @@ pub fn unpreserve_compound_keyword(
 /// Get all preserved compound keywords
 #[tauri::command]
 pub fn get_preserved_compounds(state: State<AppState>) -> Result<Vec<Keyword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     let sql = format!(
@@ -3584,7 +3581,7 @@ pub fn set_compound_decision(
         ));
     }
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Verify keyword exists
@@ -3623,7 +3620,7 @@ pub fn set_compound_decision(
 /// Returns keywords with their decision (preserve/split), sorted by decision type then name
 #[tauri::command]
 pub fn get_compound_decisions(state: State<AppState>) -> Result<Vec<CompoundDecision>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     let decisions: Vec<(i64, String, String, String, i64)> = conn
@@ -3672,7 +3669,7 @@ pub fn clear_compound_decision(
     state: State<AppState>,
     keyword_id: i64,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     let deleted = conn
@@ -3709,7 +3706,7 @@ pub fn batch_set_compound_decisions(
         ));
     }
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     conn.execute("BEGIN", []).map_err(|e| e.to_string())?;
@@ -3754,7 +3751,7 @@ pub struct CompoundDecisionStats {
 
 #[tauri::command]
 pub fn get_compound_decision_stats(state: State<AppState>) -> Result<CompoundDecisionStats, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Total hyphenated keywords
@@ -3826,7 +3823,7 @@ pub fn update_keyword_type(
         ));
     }
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Check if keyword exists
@@ -3876,7 +3873,7 @@ pub fn get_keyword_context(
     state: State<AppState>,
     keyword_id: i64,
 ) -> Result<KeywordContext, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Get keyword name
@@ -4064,7 +4061,7 @@ pub fn assign_synonym(
         return Err("Synonym und Canonical duerfen nicht gleich sein".to_string());
     }
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Verify both keywords exist
@@ -4133,7 +4130,7 @@ pub fn unassign_synonym(
     state: State<AppState>,
     keyword_id: i64,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Verify keyword exists

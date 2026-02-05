@@ -151,10 +151,7 @@ pub fn get_recommendations(
     info!("[{}] Starting recommendation generation", request_id);
 
     let limit = limit.unwrap_or(10).min(50) as usize;
-    let db = state.db.lock().map_err(|e| {
-        warn!("[{}] Failed to acquire DB lock: {}", request_id, e);
-        e.to_string()
-    })?;
+    let db = state.db_conn()?;
 
     let lock_time = start_time.elapsed();
     debug!("[{}] DB lock acquired in {:?}", request_id, lock_time);
@@ -230,7 +227,7 @@ pub fn get_recommendations(
 /// Save an article (positive feedback)
 #[tauri::command]
 pub fn save_article(state: State<AppState>, fnord_id: i64) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     db.conn()
         .execute(
@@ -248,7 +245,7 @@ pub fn save_article(state: State<AppState>, fnord_id: i64) -> Result<(), String>
 /// Unsave an article
 #[tauri::command]
 pub fn unsave_article(state: State<AppState>, fnord_id: i64) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     db.conn()
         .execute(
@@ -264,7 +261,7 @@ pub fn unsave_article(state: State<AppState>, fnord_id: i64) -> Result<(), Strin
 /// Hide a recommendation (negative feedback)
 #[tauri::command]
 pub fn hide_recommendation(state: State<AppState>, fnord_id: i64) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     db.conn()
         .execute(
@@ -286,7 +283,7 @@ pub fn get_saved_articles(
     limit: Option<i32>,
 ) -> Result<Vec<SavedArticle>, String> {
     let limit = limit.unwrap_or(50).min(100);
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -330,10 +327,7 @@ pub fn get_recommendation_stats(state: State<AppState>) -> Result<Recommendation
     let start_time = Instant::now();
     debug!("[{}] Loading recommendation stats", request_id);
 
-    let db = state.db.lock().map_err(|e| {
-        warn!("[{}] Failed to acquire DB lock: {}", request_id, e);
-        e.to_string()
-    })?;
+    let db = state.db_conn()?;
 
     let articles_read: i64 = db
         .conn()

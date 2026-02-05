@@ -14,7 +14,7 @@ pub struct Tag {
 /// Get all tags, optionally limited to top N by count
 #[tauri::command]
 pub fn get_all_tags(state: State<AppState>, limit: Option<i64>) -> Result<Vec<Tag>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let limit = limit.unwrap_or(100);
 
@@ -49,7 +49,7 @@ pub fn get_all_tags(state: State<AppState>, limit: Option<i64>) -> Result<Vec<Ta
 /// Get tags for a specific article
 #[tauri::command]
 pub fn get_article_tags(state: State<AppState>, fnord_id: i64) -> Result<Vec<Tag>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -87,7 +87,7 @@ pub fn add_article_tag(
     fnord_id: i64,
     tag_name: String,
 ) -> Result<Tag, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let tag_name = tag_name.trim().to_string();
     if tag_name.is_empty() {
@@ -143,7 +143,7 @@ pub fn remove_article_tag(
     fnord_id: i64,
     tag_id: i64,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Remove the link
     let deleted = db
@@ -174,7 +174,7 @@ pub fn set_article_tags(
     fnord_id: i64,
     tag_names: Vec<String>,
 ) -> Result<Vec<Tag>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Get existing tags to decrement their counts
     let existing_tag_ids: Vec<i64> = {

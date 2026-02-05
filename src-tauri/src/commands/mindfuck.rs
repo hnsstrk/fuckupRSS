@@ -71,7 +71,7 @@ pub struct ReadingProfile {
 /// Get comprehensive reading profile
 #[tauri::command]
 pub fn get_reading_profile(state: State<AppState>) -> Result<ReadingProfile, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Total counts
     let (total_read, total_articles): (i64, i64) = db
@@ -381,7 +381,7 @@ pub struct BlindSpot {
 /// Detect blind spots in reading habits
 #[tauri::command]
 pub fn get_blind_spots(state: State<AppState>) -> Result<Vec<BlindSpot>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let mut blind_spots = Vec::new();
 
     // Check for underrepresented categories
@@ -568,7 +568,7 @@ pub fn get_counter_perspectives(
     state: State<AppState>,
     limit: Option<i64>,
 ) -> Result<Vec<CounterPerspective>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let limit = limit.unwrap_or(10);
 
     // Get user's average bias
@@ -702,7 +702,7 @@ pub fn get_reading_trends(
     state: State<AppState>,
     days: Option<i64>,
 ) -> Result<Vec<ReadingTrend>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let days = days.unwrap_or(30);
 
     let mut stmt = db

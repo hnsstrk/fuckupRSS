@@ -27,7 +27,7 @@ pub fn parse_opml_preview(
 ) -> Result<Vec<OpmlFeedPreview>, String> {
     let opml = OPML::from_str(&content).map_err(|e| format!("OPML parse error: {}", e))?;
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Get existing feed URLs for duplicate detection
     let existing_urls: Vec<String> = {
@@ -59,7 +59,7 @@ pub fn import_opml(
 ) -> Result<OpmlImportResult, String> {
     let opml = OPML::from_str(&content).map_err(|e| format!("OPML parse error: {}", e))?;
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Get existing feed URLs for duplicate detection
     let existing_urls: Vec<String> = {
@@ -120,7 +120,7 @@ pub fn import_opml(
 /// Export all feeds to OPML format
 #[tauri::command]
 pub fn export_opml(state: State<AppState>) -> Result<String, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Get all feeds from database
     let feeds: Vec<(String, Option<String>, Option<String>)> = {

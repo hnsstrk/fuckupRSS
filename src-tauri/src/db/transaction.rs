@@ -67,7 +67,7 @@ where
 ///     id: i64,
 ///     title: String,
 /// ) -> Result<(), String> {
-///     let db = state.db.lock().map_err(|e| e.to_string())?;
+///     let db = state.db_conn()?;
 ///
 ///     with_transaction_result(db.conn(), |conn| {
 ///         conn.execute("UPDATE fnords SET title = ?1 WHERE id = ?2", [title, id])?;

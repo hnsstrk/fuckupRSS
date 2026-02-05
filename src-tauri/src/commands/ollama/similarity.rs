@@ -79,7 +79,7 @@ pub fn find_similar_articles(
     limit: Option<i64>,
 ) -> Result<SimilarArticlesResponse, String> {
     let limit = limit.unwrap_or(5);
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let embedding: Option<Vec<u8>> = db
         .conn()
@@ -174,7 +174,7 @@ pub async fn semantic_search(
     }
 
     let (embedding_model, client) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let model = get_embedding_model_from_db(db.conn());
         (model, OllamaClient::new(None))
     };
@@ -187,7 +187,7 @@ pub async fn semantic_search(
     let query_blob = embedding_to_blob(&query_embedding);
 
     let results: Vec<SearchResult> = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
 
         let mut stmt = db
             .conn()
@@ -240,7 +240,7 @@ pub async fn semantic_search(
 /// Get count of articles with and without embeddings
 #[tauri::command]
 pub fn get_article_embedding_stats(state: State<AppState>) -> Result<ArticleEmbeddingCount, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let total_articles: i64 = db
         .conn()
@@ -287,7 +287,7 @@ pub async fn generate_article_embeddings_batch(
     let limit = limit.unwrap_or(1000);
 
     let articles: Vec<(i64, String, String)> = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let mut stmt = db
             .conn()
             .prepare(

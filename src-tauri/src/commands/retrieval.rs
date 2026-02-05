@@ -101,7 +101,7 @@ pub async fn fetch_full_content(
 
     // Get article URL and headless setting (sync)
     let (url, use_headless): (String, bool) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let url = db
             .conn()
             .query_row("SELECT url FROM fnords WHERE id = ?1", [fnord_id], |row| {
@@ -126,7 +126,7 @@ pub async fn fetch_full_content(
     {
         Ok(extracted) => {
             // Store in database (sync) - clear any previous error
-            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let db = state.db_conn()?;
             db.conn()
                 .execute(
                     "UPDATE fnords SET content_full = ?1, full_text_fetched = TRUE, full_text_fetch_error = NULL WHERE id = ?2",
@@ -170,7 +170,7 @@ pub async fn fetch_truncated_articles(
 
     // Get articles and headless setting (sync)
     let (articles, use_headless): (Vec<(i64, String, Option<String>)>, bool) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
 
         let base_sql = "SELECT id, url, content_raw FROM fnords WHERE full_text_fetched = FALSE";
         let sql = match pentacle_id {
@@ -302,7 +302,7 @@ pub async fn refetch_short_articles(
 
     // Get articles with short content and headless setting (sync)
     let (articles, use_headless): (Vec<(i64, String, String, i64)>, bool) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
 
         let sql = "
             SELECT id, url, title, COALESCE(LENGTH(content_full), 0) as content_length
@@ -394,7 +394,7 @@ pub async fn refetch_short_articles(
 
                 // Update in database (sync) - short lock, clear error on success
                 {
-                    let db = state.db.lock().map_err(|e| e.to_string())?;
+                    let db = state.db_conn()?;
                     db.conn()
                         .execute(
                             "UPDATE fnords SET content_full = ?1, full_text_fetch_error = NULL WHERE id = ?2",
@@ -507,7 +507,7 @@ pub async fn get_short_content_stats(
 ) -> Result<ShortContentStats, String> {
     info!("Getting short content statistics");
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Total fetched articles
@@ -625,7 +625,7 @@ pub async fn delete_null_content_articles(
 
     info!("Deleting articles with NULL or empty content_full");
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Use transaction wrapper for atomic multi-delete operation
     with_transaction_result(db.conn(), |conn| {
@@ -686,7 +686,7 @@ pub async fn exclude_short_from_ai(
         threshold
     );
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Mark short articles as processed so they won't be picked up by batch processing
@@ -724,7 +724,7 @@ pub async fn refetch_feed_short_articles(
 
     // Get articles with short content for specific feed (sync)
     let (articles, use_headless): (Vec<(i64, String, String, i64)>, bool) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
 
         let sql = "
             SELECT id, url, title, COALESCE(LENGTH(content_full), 0) as content_length
@@ -817,7 +817,7 @@ pub async fn refetch_feed_short_articles(
 
                 // Update in database (sync) - short lock, clear error on success
                 {
-                    let db = state.db.lock().map_err(|e| e.to_string())?;
+                    let db = state.db_conn()?;
                     db.conn()
                         .execute(
                             "UPDATE fnords SET content_full = ?1, full_text_fetch_error = NULL WHERE id = ?2",
@@ -922,7 +922,7 @@ pub async fn fetch_fulltext_batch(
 
     // Get articles that need fulltext fetching (sync)
     let (articles, use_headless): (Vec<(i64, String)>, bool) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
 
         let sql = "
             SELECT id, url FROM fnords

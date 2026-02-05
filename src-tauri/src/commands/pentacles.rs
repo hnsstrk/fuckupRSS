@@ -20,7 +20,7 @@ pub struct Pentacle {
 
 #[tauri::command]
 pub fn get_pentacles(state: State<AppState>) -> Result<Vec<Pentacle>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -99,7 +99,7 @@ pub fn add_pentacle(state: State<AppState>, url: String, title: Option<String>) 
         }
     }
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     db.conn()
         .execute(
@@ -127,7 +127,7 @@ pub fn add_pentacle(state: State<AppState>, url: String, title: Option<String>) 
 
 #[tauri::command]
 pub fn delete_pentacle(state: State<AppState>, id: i64) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     db.conn()
         .execute("DELETE FROM pentacles WHERE id = ?1", [id])

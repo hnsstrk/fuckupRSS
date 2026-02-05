@@ -48,7 +48,7 @@ pub struct AddStopwordsResult {
 /// Get all user-defined stopwords
 #[tauri::command]
 pub fn get_user_stopwords(state: State<AppState>) -> Result<Vec<UserStopword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -74,7 +74,7 @@ pub fn get_user_stopwords(state: State<AppState>) -> Result<Vec<UserStopword>, S
 /// Get all system stopwords
 #[tauri::command]
 pub fn get_system_stopwords(state: State<AppState>) -> Result<Vec<UserStopword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -100,7 +100,7 @@ pub fn get_system_stopwords(state: State<AppState>) -> Result<Vec<UserStopword>,
 /// Get all stopwords (system + user)
 #[tauri::command]
 pub fn get_all_stopwords_list(state: State<AppState>) -> Result<Vec<UserStopword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -126,7 +126,7 @@ pub fn get_all_stopwords_list(state: State<AppState>) -> Result<Vec<UserStopword
 /// Add a single stopword
 #[tauri::command]
 pub fn add_stopword(state: State<AppState>, word: String) -> Result<bool, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let word_trimmed = word.trim().to_lowercase();
     if word_trimmed.is_empty() || word_trimmed.len() < 2 {
@@ -150,7 +150,7 @@ pub fn add_stopwords_batch(
     state: State<AppState>,
     words: Vec<String>,
 ) -> Result<AddStopwordsResult, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Load existing stopwords once for efficiency
     let existing = load_all_db_stopwords(db.conn()).map_err(|e| e.to_string())?;
@@ -183,7 +183,7 @@ pub fn add_stopwords_batch(
 /// Remove a stopword
 #[tauri::command]
 pub fn remove_stopword(state: State<AppState>, word: String) -> Result<bool, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     remove_user_stopword(db.conn(), &word).map_err(|e| e.to_string())
 }
@@ -191,7 +191,7 @@ pub fn remove_stopword(state: State<AppState>, word: String) -> Result<bool, Str
 /// Get stopword statistics
 #[tauri::command]
 pub fn get_stopwords_stats(state: State<AppState>) -> Result<StopwordStatsResponse, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let stats = get_stopword_stats(db.conn()).map_err(|e| e.to_string())?;
 
@@ -206,7 +206,7 @@ pub fn get_stopwords_stats(state: State<AppState>) -> Result<StopwordStatsRespon
 /// Check if a word is a stopword (system or user-defined)
 #[tauri::command]
 pub fn is_stopword_check(state: State<AppState>, word: String) -> Result<bool, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let word_lower = word.trim().to_lowercase();
 
@@ -228,7 +228,7 @@ pub fn search_stopwords(
     query: String,
     limit: Option<usize>,
 ) -> Result<Vec<StopwordSearchResult>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let limit = limit.unwrap_or(50);
     let query_lower = query.trim().to_lowercase();
 
@@ -268,7 +268,7 @@ pub struct StopwordSearchResult {
 /// Clear all user stopwords (keeps system stopwords)
 #[tauri::command]
 pub fn clear_user_stopwords(state: State<AppState>) -> Result<i64, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let deleted = db
         .conn()
@@ -281,7 +281,7 @@ pub fn clear_user_stopwords(state: State<AppState>) -> Result<i64, String> {
 /// Reset all stopwords to system defaults (removes user stopwords and re-seeds from txt files)
 #[tauri::command]
 pub fn reset_stopwords(state: State<AppState>) -> Result<ResetStopwordsResult, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let restored =
         reset_stopwords_to_default(db.conn()).map_err(|e: rusqlite::Error| e.to_string())?;
@@ -294,7 +294,7 @@ pub fn reset_stopwords(state: State<AppState>) -> Result<ResetStopwordsResult, S
 /// Restore missing system stopwords (adds any missing from txt files without removing user stopwords)
 #[tauri::command]
 pub fn restore_system_stopwords(state: State<AppState>) -> Result<ResetStopwordsResult, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let restored =
         restore_default_stopwords(db.conn()).map_err(|e: rusqlite::Error| e.to_string())?;
@@ -331,7 +331,7 @@ pub struct StopwordImportResult {
 /// Export user stopwords to JSON format (only user-added, not system stopwords)
 #[tauri::command]
 pub fn export_stopwords(state: State<AppState>) -> Result<String, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -361,7 +361,7 @@ pub fn import_stopwords(
     let backup: StopwordBackup =
         serde_json::from_str(&content).map_err(|e| format!("Invalid JSON format: {}", e))?;
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Load existing stopwords once for efficiency
     let existing = load_all_db_stopwords(db.conn()).map_err(|e| e.to_string())?;

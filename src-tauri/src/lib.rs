@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod embedding_worker;
 mod embeddings;
+pub mod error;
 mod keywords;
 mod logging;
 mod ollama;
@@ -38,6 +39,13 @@ pub struct AppState {
     pub batch_cancel: AtomicBool,
     pub batch_running: Arc<AtomicBool>,
     pub embedding_worker: Arc<EmbeddingWorker>,
+}
+
+impl AppState {
+    /// Acquire the database lock, converting PoisonError to String for Tauri compatibility.
+    pub fn db_conn(&self) -> Result<std::sync::MutexGuard<'_, Database>, String> {
+        self.db.lock().map_err(|e| e.to_string())
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

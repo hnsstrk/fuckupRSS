@@ -30,7 +30,7 @@ pub struct VacuumResult {
 pub async fn vacuum_database(state: State<'_, AppState>) -> Result<VacuumResult, String> {
     info!("Starting database VACUUM operation");
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Get size before VACUUM

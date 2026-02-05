@@ -9,7 +9,7 @@ use tauri::State;
 /// This allows the frontend to access any setting without needing to update the struct
 #[tauri::command]
 pub fn get_settings(state: State<AppState>) -> Result<HashMap<String, serde_json::Value>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -94,7 +94,7 @@ pub fn get_settings(state: State<AppState>) -> Result<HashMap<String, serde_json
 
 #[tauri::command]
 pub fn set_setting(state: State<AppState>, key: String, value: String) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     db.conn()
         .execute(
@@ -108,7 +108,7 @@ pub fn set_setting(state: State<AppState>, key: String, value: String) -> Result
 
 #[tauri::command]
 pub fn get_setting(state: State<AppState>, key: String) -> Result<Option<String>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let result = db
         .conn()

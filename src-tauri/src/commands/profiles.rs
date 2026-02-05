@@ -37,7 +37,7 @@ pub fn get_default_profiles() -> Vec<HardwareProfile> {
 
 #[tauri::command]
 pub fn get_hardware_profiles(state: State<AppState>) -> Result<Vec<HardwareProfile>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Read from settings "hardware_profiles"
     let json: Option<String> = db.conn()
@@ -66,7 +66,7 @@ pub fn save_hardware_profile(state: State<AppState>, profile: HardwareProfile) -
 
     let json = serde_json::to_string(&profiles).map_err(|e| e.to_string())?;
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     db.conn()
         .execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('hardware_profiles', ?1)",
@@ -85,7 +85,7 @@ pub fn delete_hardware_profile(state: State<AppState>, profile_id: String) -> Re
 
     let json = serde_json::to_string(&profiles).map_err(|e| e.to_string())?;
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     db.conn()
         .execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('hardware_profiles', ?1)",
@@ -101,7 +101,7 @@ pub fn apply_hardware_profile(state: State<AppState>, profile_id: String) -> Res
     let profiles = get_hardware_profiles(state.clone())?;
 
     if let Some(profile) = profiles.into_iter().find(|p| p.id == profile_id) {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
 
         // Save parallelism setting
         db.conn()

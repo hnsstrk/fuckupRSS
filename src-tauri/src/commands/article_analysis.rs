@@ -211,7 +211,7 @@ pub fn get_article_keywords(
     state: State<AppState>,
     fnord_id: i64,
 ) -> Result<Vec<ArticleKeyword>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Load bias weights to apply source weighting
     let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
@@ -303,7 +303,7 @@ pub fn add_article_keyword(
     fnord_id: i64,
     keyword: String,
 ) -> Result<ArticleKeyword, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let keyword_trimmed = keyword.trim();
 
     if keyword_trimmed.len() < 2 || keyword_trimmed.len() > 100 {
@@ -397,7 +397,7 @@ pub fn remove_article_keyword(
     fnord_id: i64,
     keyword_id: i64,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Use transaction wrapper for atomic multi-write operation
     with_transaction_result(db.conn(), |conn| {
@@ -448,7 +448,7 @@ pub fn get_article_categories_detailed(
     state: State<AppState>,
     fnord_id: i64,
 ) -> Result<Vec<ArticleCategory>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Load bias weights to apply source weighting
     let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
@@ -508,7 +508,7 @@ pub fn update_article_categories(
     fnord_id: i64,
     categories: Vec<i64>,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Remove all existing categories
     db.conn()
@@ -536,7 +536,7 @@ pub fn add_article_category(
     fnord_id: i64,
     sephiroth_id: i64,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Get category name for bias learning
     let category_name: String = db
@@ -575,7 +575,7 @@ pub fn remove_article_category(
     fnord_id: i64,
     sephiroth_id: i64,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Get category name for bias learning
     let category_name: String = db
@@ -616,7 +616,7 @@ pub fn analyze_article_statistical(
     state: State<AppState>,
     fnord_id: i64,
 ) -> Result<StatisticalAnalysis, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Get article content
     let content: String = db
@@ -695,7 +695,7 @@ pub struct BatchStatisticalResult {
 /// and have NOT been statistically processed yet
 #[tauri::command]
 pub fn get_unprocessed_statistical_count(state: State<AppState>) -> Result<i64, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let count: i64 = db
         .conn()
@@ -739,7 +739,7 @@ pub async fn process_statistical_batch(
 ) -> Result<BatchStatisticalResult, String> {
     // Phase 1: Load articles and config (short lock)
     let (articles, bias, user_stopwords, db_stopwords) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
 
         // Load bias weights
         let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
@@ -842,7 +842,7 @@ pub async fn process_statistical_batch(
 
         // Phase 3: Database operations with transaction (short lock per article)
         let article_result = {
-            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let db = state.db_conn()?;
             let conn = db.conn();
 
             // Use transaction for atomicity
@@ -977,7 +977,7 @@ pub async fn process_statistical_batch(
 /// Record a user correction for bias learning
 #[tauri::command]
 pub fn record_correction(state: State<AppState>, correction: CorrectionInput) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let correction_type = match correction.correction_type.as_str() {
         "keyword_added" => CorrectionType::KeywordAdded,
@@ -1005,7 +1005,7 @@ pub fn record_correction(state: State<AppState>, correction: CorrectionInput) ->
 /// Get bias statistics
 #[tauri::command]
 pub fn get_bias_stats(state: State<AppState>) -> Result<BiasStats, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     bias_get_stats(db.conn()).map_err(|e| e.to_string())
 }
 
@@ -1034,7 +1034,7 @@ pub fn get_similar_keywords(
     limit: Option<i64>,
     method: Option<String>,
 ) -> Result<Vec<SimilarKeywordInfo>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let limit_val = limit.unwrap_or(10);
 
     // Configure similarity options
@@ -1075,7 +1075,7 @@ pub fn get_keyword_suggestions_from_network(
     fnord_id: i64,
     limit: Option<i64>,
 ) -> Result<Vec<SimilarKeywordInfo>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let limit_val = limit.unwrap_or(5);
 
     // Get neighbors of assigned keywords that are not already assigned
@@ -1146,7 +1146,7 @@ pub async fn score_keywords_semantically(
     keywords: Vec<String>,
     semantic_weight: Option<f64>,
 ) -> Result<Vec<SemanticKeywordScore>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let weight = semantic_weight.unwrap_or(0.3);
 
     // Get article embedding
@@ -1266,7 +1266,7 @@ pub struct CategoryFixResult {
 pub fn fix_category_assignments(
     state: State<AppState>,
 ) -> Result<CategoryFixResult, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Configuration

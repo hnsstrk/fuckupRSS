@@ -10,7 +10,7 @@ use crate::AppState;
 use log::{info, warn};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use std::sync::PoisonError;
+
 use tauri::State;
 
 /// Result of keyword type detection
@@ -136,7 +136,7 @@ fn detect_keyword_type_with_confidence(keyword: &str) -> KeywordTypeResult {
 /// Initialize prototype embeddings database table
 #[tauri::command]
 pub fn init_keyword_type_prototypes(state: State<AppState>) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e: PoisonError<_>| e.to_string())?;
+    let db = state.db_conn()?;
     init_prototype_table(db.conn())?;
 
     // Insert prototype entries (without embeddings initially)
@@ -156,7 +156,7 @@ pub fn init_keyword_type_prototypes(state: State<AppState>) -> Result<(), String
 /// Get prototype embedding statistics
 #[tauri::command]
 pub fn get_prototype_stats(state: State<AppState>) -> Result<PrototypeStats, String> {
-    let db = state.db.lock().map_err(|e: PoisonError<_>| e.to_string())?;
+    let db = state.db_conn()?;
     let conn = db.conn();
 
     // Check if table exists
@@ -212,7 +212,7 @@ pub async fn generate_keyword_type_prototypes(
 ) -> Result<PrototypeGenerationResult, String> {
     // First, ensure prototypes are in the table
     {
-        let db = state.db.lock().map_err(|e: PoisonError<_>| e.to_string())?;
+        let db = state.db_conn()?;
         init_prototype_table(db.conn())?;
 
         for (ktype, prototypes) in TYPE_PROTOTYPES {
@@ -226,7 +226,7 @@ pub async fn generate_keyword_type_prototypes(
     }
 
     // Count what we have
-    let db = state.db.lock().map_err(|e: PoisonError<_>| e.to_string())?;
+    let db = state.db_conn()?;
     let total: i64 = db.conn()
         .query_row(
             "SELECT COUNT(*) FROM keyword_type_prototypes",
@@ -268,7 +268,7 @@ pub async fn update_keyword_types_hybrid(
 ) -> Result<KeywordTypeBatchResult, String> {
     // Get all keywords
     let keywords: Vec<(i64, String)> = {
-        let db = state.db.lock().map_err(|e: PoisonError<_>| e.to_string())?;
+        let db = state.db_conn()?;
         let mut stmt = db.conn()
             .prepare("SELECT id, name FROM immanentize")
             .map_err(|e| e.to_string())?;
@@ -296,7 +296,7 @@ pub async fn update_keyword_types_hybrid(
 
         // Update database
         let update_result = {
-            let db = state.db.lock().map_err(|e: PoisonError<_>| e.to_string())?;
+            let db = state.db_conn()?;
             db.conn().execute(
                 "UPDATE immanentize SET keyword_type = ?1 WHERE id = ?2",
                 params![&detection.keyword_type, id],
@@ -349,7 +349,7 @@ pub async fn update_keyword_types_hybrid(
 /// Count keywords without a type
 #[tauri::command]
 pub fn count_untyped_keywords(state: State<AppState>) -> Result<i64, String> {
-    let db = state.db.lock().map_err(|e: PoisonError<_>| e.to_string())?;
+    let db = state.db_conn()?;
     let count: i64 = db
         .conn()
         .query_row(
@@ -368,7 +368,7 @@ pub async fn update_untyped_keywords(
 ) -> Result<KeywordTypeBatchResult, String> {
     // Get only keywords without a type
     let keywords: Vec<(i64, String)> = {
-        let db = state.db.lock().map_err(|e: PoisonError<_>| e.to_string())?;
+        let db = state.db_conn()?;
         let mut stmt = db
             .conn()
             .prepare("SELECT id, name FROM immanentize WHERE keyword_type IS NULL")
@@ -397,7 +397,7 @@ pub async fn update_untyped_keywords(
 
         // Update database
         let update_result = {
-            let db = state.db.lock().map_err(|e: PoisonError<_>| e.to_string())?;
+            let db = state.db_conn()?;
             db.conn().execute(
                 "UPDATE immanentize SET keyword_type = ?1 WHERE id = ?2",
                 params![&detection.keyword_type, id],

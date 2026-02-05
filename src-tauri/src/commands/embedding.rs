@@ -15,7 +15,7 @@ pub struct EmbeddingQueueStatus {
 /// Get the current status of the embedding queue
 #[tauri::command]
 pub fn get_embedding_queue_status(state: State<AppState>) -> Result<EmbeddingQueueStatus, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let queue_size: i64 = db
         .conn()
         .query_row("SELECT COUNT(*) FROM embedding_queue", [], |row| row.get(0))
@@ -112,7 +112,7 @@ pub fn get_embedding_queue_details(
     limit: Option<i64>,
 ) -> Result<Vec<QueueEntry>, String> {
     let limit = limit.unwrap_or(50);
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db.conn()
         .prepare(
@@ -171,7 +171,7 @@ pub fn calculate_neighbor_similarities(
 
     // Get remaining count
     let remaining = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         db.conn()
             .query_row(
                 r#"SELECT COUNT(*) FROM immanentize_neighbors n

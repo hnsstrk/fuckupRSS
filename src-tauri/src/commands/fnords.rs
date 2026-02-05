@@ -164,7 +164,7 @@ pub fn get_fnords(
     state: State<AppState>,
     filter: Option<FnordFilter>,
 ) -> Result<Vec<Fnord>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let filter = filter.unwrap_or(FnordFilter {
         pentacle_id: None,
@@ -240,7 +240,7 @@ pub fn get_fnords(
 
 #[tauri::command]
 pub fn get_fnord(state: State<AppState>, id: i64) -> Result<Fnord, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let sql = format!(
         "SELECT {} FROM fnords f LEFT JOIN pentacles p ON p.id = f.pentacle_id WHERE f.id = ?1",
@@ -267,7 +267,7 @@ pub fn update_fnord_status(state: State<AppState>, id: i64, status: String) -> R
         return Err(format!("Invalid status: {}", status));
     }
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Only set read_at on first read (when transitioning from concealed to read status)
     // and preserve existing read_at value
@@ -291,7 +291,7 @@ pub fn update_fnord_status(state: State<AppState>, id: i64, status: String) -> R
 
 #[tauri::command]
 pub fn get_changed_fnords(state: State<AppState>) -> Result<Vec<Fnord>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let sql = format!(
         "SELECT {} FROM fnords f LEFT JOIN pentacles p ON p.id = f.pentacle_id WHERE f.has_changes = TRUE ORDER BY f.changed_at DESC",
@@ -321,7 +321,7 @@ pub fn get_changed_fnords(state: State<AppState>) -> Result<Vec<Fnord>, String> 
 /// Acknowledge changes for an article (dismiss change notification)
 #[tauri::command]
 pub fn acknowledge_changes(state: State<AppState>, id: i64) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     db.conn()
         .execute("UPDATE fnords SET has_changes = FALSE WHERE id = ?1", [id])
@@ -336,7 +336,7 @@ pub fn get_fnord_revisions(
     state: State<AppState>,
     fnord_id: i64,
 ) -> Result<Vec<FnordRevision>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -377,7 +377,7 @@ pub fn get_fnords_count(
     state: State<AppState>,
     filter: Option<FnordFilter>,
 ) -> Result<i64, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut sql = String::from("SELECT COUNT(*) FROM fnords f WHERE 1=1");
     let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
@@ -418,7 +418,7 @@ pub fn get_fnords_count(
 /// Get count of changed articles
 #[tauri::command]
 pub fn get_changed_count(state: State<AppState>) -> Result<i64, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let count: i64 = db
         .conn()
@@ -435,7 +435,7 @@ pub fn get_changed_count(state: State<AppState>) -> Result<i64, String> {
 /// Reset change flags for articles without actual revisions (false positives from migration)
 #[tauri::command]
 pub fn reset_all_changes(state: State<AppState>) -> Result<i64, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Only reset changes for articles that have no actual revisions
     // (these are false positives from the migration bug)
@@ -485,7 +485,7 @@ pub struct SourceRevisionStats {
 /// Get Fnord statistics: revision counts by category and source
 #[tauri::command]
 pub fn get_fnord_stats(state: State<AppState>) -> Result<FnordStats, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Total revisions
     let total_revisions: i64 = db
@@ -583,7 +583,7 @@ pub fn get_subcategory_stats(
     state: State<AppState>,
     main_category_id: i64,
 ) -> Result<Vec<CategoryRevisionStats>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -716,7 +716,7 @@ pub fn get_article_timeline(
     state: State<AppState>,
     days: i64,
 ) -> Result<ArticleTimeline, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // SQLite doesn't have generate_series by default, use a different approach
     let mut data = Vec::new();
@@ -786,7 +786,7 @@ pub fn get_article_timeline(
 /// Get the Greyface Index (bias metrics)
 #[tauri::command]
 pub fn get_greyface_index(state: State<AppState>) -> Result<GreyfaceIndex, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Get bias distribution
     let mut stmt = db
@@ -869,7 +869,7 @@ pub fn get_top_keywords_stats(
     days: i64,
     limit: i64,
 ) -> Result<Vec<KeywordStats>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Current period counts
     let mut stmt = db
@@ -934,7 +934,7 @@ pub fn get_feed_activity(
     days: i64,
     limit: i64,
 ) -> Result<Vec<FeedActivity>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -986,7 +986,7 @@ pub fn get_feed_activity(
 /// Get bias heatmap (feeds x bias levels)
 #[tauri::command]
 pub fn get_bias_heatmap(state: State<AppState>) -> Result<Vec<BiasHeatmapEntry>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -1037,7 +1037,7 @@ pub fn get_keyword_cloud(
     days: i64,
     limit: i64,
 ) -> Result<Vec<KeywordCloudEntry>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()

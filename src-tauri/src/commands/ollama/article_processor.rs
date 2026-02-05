@@ -48,7 +48,7 @@ pub async fn generate_summary(
     let prompt_template = get_summary_prompt(&state, &locale);
 
     let (client, content): (OllamaClient, String) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let client = create_ollama_client(&db);
         let content = db
             .conn()
@@ -75,7 +75,7 @@ pub async fn generate_summary(
         .await
     {
         Ok(summary) => {
-            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let db = state.db_conn()?;
             db.conn()
                 .execute(
                     "UPDATE fnords SET summary = ?1, processed_at = CURRENT_TIMESTAMP WHERE id = ?2",
@@ -110,7 +110,7 @@ pub async fn analyze_article(
     let prompt_template = get_analysis_prompt(&state, &locale);
 
     let (client, title, content): (OllamaClient, String, String) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let client = create_ollama_client(&db);
         let (title, content) = db
             .conn()
@@ -137,7 +137,7 @@ pub async fn analyze_article(
         .await
     {
         Ok(analysis) => {
-            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let db = state.db_conn()?;
             db.conn()
                 .execute(
                     r#"UPDATE fnords SET
@@ -177,7 +177,7 @@ pub async fn process_article(
     let analysis_prompt_template = get_analysis_prompt(&state, &locale);
 
     let (client, title, content): (OllamaClient, String, String) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let client = create_ollama_client(&db);
         let (title, content) = db
             .conn()
@@ -217,7 +217,7 @@ pub async fn process_article(
 
     let summary_response = match summary_result {
         Ok(summary) => {
-            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let db = state.db_conn()?;
             let _ = db.conn().execute(
                 "UPDATE fnords SET summary = ?1 WHERE id = ?2",
                 (&summary, fnord_id),
@@ -239,7 +239,7 @@ pub async fn process_article(
 
     let analysis_response = match analysis_result {
         Ok(analysis) => {
-            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let db = state.db_conn()?;
             let _ = db.conn().execute(
                 r#"UPDATE fnords SET
                     political_bias = ?1,
@@ -285,7 +285,7 @@ pub async fn process_article_discordian(
         BiasWeights,
         Option<CorpusStats>,
     ) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let client = create_ollama_client(&db);
         let (title, content, article_date) = db
             .conn()
@@ -374,7 +374,7 @@ pub async fn process_article_discordian(
             );
             // Step 4: Learn from LLM rejections
             {
-                let db = state.db.lock().map_err(|e| e.to_string())?;
+                let db = state.db_conn()?;
 
                 for rejected_kw in &analysis_with_rejections.rejected_keywords {
                     let _ = record_correction(
@@ -422,7 +422,7 @@ pub async fn process_article_discordian(
 
             // Save to database
             {
-                let db = state.db.lock().map_err(|e| e.to_string())?;
+                let db = state.db_conn()?;
 
                 db.conn()
                     .execute(
@@ -438,7 +438,7 @@ pub async fn process_article_discordian(
             }
 
             let (categories_saved, tags_saved) = {
-                let db = state.db.lock().map_err(|e| e.to_string())?;
+                let db = state.db_conn()?;
 
                 let merged_categories =
                     validate_and_merge_categories(&analysis.categories, local_categories);
@@ -470,7 +470,7 @@ pub async fn process_article_discordian(
 
             // Update corpus stats
             {
-                let db = state.db.lock().map_err(|e| e.to_string())?;
+                let db = state.db_conn()?;
                 if let Err(e) = CorpusStats::update_db_with_document(db.conn(), &document_tokens) {
                     warn!("Failed to update corpus stats: {}", e);
                 }
@@ -497,7 +497,7 @@ pub async fn process_article_discordian(
 
             // Fallback: Use statistical + local extraction
             let (categories_saved, tags_saved) = {
-                let db = state.db.lock().map_err(|e| e.to_string())?;
+                let db = state.db_conn()?;
 
                 let combined_keywords: Vec<String> = stat_keywords
                     .into_iter()

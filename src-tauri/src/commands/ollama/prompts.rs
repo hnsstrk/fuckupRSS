@@ -20,7 +20,7 @@ pub fn get_default_prompts() -> DefaultPrompts {
 /// Get current prompts (custom or default)
 #[tauri::command]
 pub fn get_prompts(state: State<AppState>) -> Result<PromptTemplates, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let summary_prompt: Option<String> = db
         .conn()
@@ -64,7 +64,7 @@ pub fn set_prompts(
     analysis_prompt: String,
     discordian_prompt: String,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     db.conn()
         .execute(
@@ -93,7 +93,7 @@ pub fn set_prompts(
 /// Reset prompts to default values
 #[tauri::command]
 pub fn reset_prompts(state: State<AppState>) -> Result<PromptTemplates, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     db.conn()
         .execute("DELETE FROM settings WHERE key = 'summary_prompt'", [])
@@ -121,7 +121,7 @@ pub fn reset_articles_for_reprocessing(
     state: State<AppState>,
     only_with_content: Option<bool>,
 ) -> Result<ResetForReprocessingResult, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
     let only_with_content = only_with_content.unwrap_or(true);
 
     let sql = if only_with_content {

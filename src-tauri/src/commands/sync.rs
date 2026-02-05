@@ -172,7 +172,7 @@ pub async fn sync_all_feeds(state: State<'_, AppState>) -> Result<SyncResponse, 
 
     // Get all pentacles (sync)
     let pentacles: Vec<(i64, String, Option<String>)> = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let mut stmt = db
             .conn()
             .prepare("SELECT id, url, title FROM pentacles")
@@ -197,7 +197,7 @@ pub async fn sync_all_feeds(state: State<'_, AppState>) -> Result<SyncResponse, 
             Ok(fetched) => {
                 // Store in database (sync) - use scope to release lock before async
                 let store_result = {
-                    let db = state.db.lock().map_err(|e| e.to_string())?;
+                    let db = state.db_conn()?;
                     FeedSyncer::store_feed(db.conn(), fetched)
                 }; // db lock released here
 
@@ -289,7 +289,7 @@ pub async fn sync_feed(state: State<'_, AppState>, pentacle_id: i64) -> Result<S
 
     // Get feed URL (sync)
     let (url, title): (String, Option<String>) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         db.conn()
             .query_row(
                 "SELECT url, title FROM pentacles WHERE id = ?1",
@@ -316,7 +316,7 @@ pub async fn sync_feed(state: State<'_, AppState>, pentacle_id: i64) -> Result<S
 
     // Store in database (sync) - use scope to release lock before async
     let store_result = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         FeedSyncer::store_feed(db.conn(), fetched)
     }; // db lock released here
 

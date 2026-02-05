@@ -123,7 +123,7 @@ fn load_articles_for_clustering(
     state: &AppState,
     limit: Option<i64>,
 ) -> Result<Vec<ArticleWithEmbedding>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let query = match limit {
         Some(n) => format!(
@@ -241,7 +241,7 @@ fn apply_clustering(
 /// Get count of hopeless articles (failed 3+ times)
 #[tauri::command]
 pub fn get_hopeless_count(state: State<AppState>) -> Result<HopelessCount, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let count: i64 = db
         .conn()
@@ -258,7 +258,7 @@ pub fn get_hopeless_count(state: State<AppState>) -> Result<HopelessCount, Strin
 /// Get count of failed articles (attempted but not processed successfully, not hopeless)
 #[tauri::command]
 pub fn get_failed_count(state: State<AppState>) -> Result<FailedCount, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let count: i64 = db
         .conn()
@@ -278,7 +278,7 @@ pub fn get_failed_count(state: State<AppState>) -> Result<FailedCount, String> {
 /// Get count of unprocessed articles
 #[tauri::command]
 pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let total: i64 = db
         .conn()
@@ -315,7 +315,7 @@ pub fn get_failed_articles(
 ) -> Result<Vec<super::types::AnalysisStatusArticle>, String> {
     let limit = limit.unwrap_or(50);
     let offset = offset.unwrap_or(0);
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -363,7 +363,7 @@ pub fn get_hopeless_articles(
 ) -> Result<Vec<super::types::AnalysisStatusArticle>, String> {
     let limit = limit.unwrap_or(50);
     let offset = offset.unwrap_or(0);
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -737,7 +737,7 @@ pub async fn process_batch(
 
     // Load shared context ONCE before batch processing starts
     let batch_context = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
         let corpus_stats = match CorpusStats::load_from_db(db.conn()) {
             Ok(stats) => Some(stats),
@@ -769,7 +769,7 @@ pub async fn process_batch(
     };
 
     let (articles, num_ctx): (Vec<BatchArticle>, u32) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let num_ctx = get_num_ctx_setting(&db);
 
         let query = match limit {
@@ -933,7 +933,7 @@ pub async fn process_batch(
     // Process embedding queue after batch
     if succeeded > 0 && !state.batch_cancel.load(Ordering::SeqCst) {
         let queue_size = {
-            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let db = state.db_conn()?;
             db.conn()
                 .query_row("SELECT COUNT(*) FROM embedding_queue", [], |row| {
                     row.get::<_, i64>(0)
@@ -996,7 +996,7 @@ pub async fn process_batch(
 
             // Load articles for embedding generation
             let articles_for_embedding: Vec<(i64, String, String)> = {
-                let db = state.db.lock().map_err(|e| e.to_string())?;
+                let db = state.db_conn()?;
                 // Query each article individually to avoid lifetime issues
                 let mut result = Vec::new();
                 for &fnord_id in &successful_fnord_ids {
@@ -1124,7 +1124,7 @@ async fn transfer_keywords_to_cluster_members(
 
         // Acquire lock for this article only, use transaction for atomicity
         {
-            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let db = state.db_conn()?;
             let conn = db.conn();
 
             conn.execute("BEGIN TRANSACTION", [])
@@ -1229,7 +1229,7 @@ pub async fn process_batch_clustered(
 
     // Load batch context
     let batch_context = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
         let corpus_stats = match CorpusStats::load_from_db(db.conn()) {
             Ok(stats) => Some(stats),
@@ -1327,7 +1327,7 @@ pub async fn process_batch_clustered(
 
     // Get num_ctx setting
     let num_ctx = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db_conn()?;
         get_num_ctx_setting(&db)
     };
 
@@ -1501,7 +1501,7 @@ pub async fn process_batch_clustered(
     // Process embedding queue after batch
     if succeeded > 0 && !state.batch_cancel.load(Ordering::SeqCst) {
         let queue_size = {
-            let db = state.db.lock().map_err(|e| e.to_string())?;
+            let db = state.db_conn()?;
             db.conn()
                 .query_row("SELECT COUNT(*) FROM embedding_queue", [], |row| {
                     row.get::<_, i64>(0)

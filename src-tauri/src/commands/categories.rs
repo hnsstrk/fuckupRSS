@@ -58,7 +58,7 @@ pub struct ArticleCategory {
 /// Get all available categories (Sephiroth) - both main and sub
 #[tauri::command]
 pub fn get_all_categories(state: State<AppState>) -> Result<Vec<Sephiroth>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -94,7 +94,7 @@ pub fn get_all_categories(state: State<AppState>) -> Result<Vec<Sephiroth>, Stri
 /// Get main categories (level 0) for sidebar display
 #[tauri::command]
 pub fn get_main_categories(state: State<AppState>) -> Result<Vec<Sephiroth>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -135,7 +135,7 @@ pub fn get_main_categories(state: State<AppState>) -> Result<Vec<Sephiroth>, Str
 /// Get subcategories (level 1) for KI classification
 #[tauri::command]
 pub fn get_subcategories(state: State<AppState>) -> Result<Vec<Sephiroth>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -172,7 +172,7 @@ pub fn get_subcategories(state: State<AppState>) -> Result<Vec<Sephiroth>, Strin
 /// Get main categories with full hierarchy and stats for Operation Mindfuck
 #[tauri::command]
 pub fn get_categories_with_stats(state: State<AppState>) -> Result<Vec<MainCategory>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // Get main categories
     let mut main_stmt = db
@@ -273,7 +273,7 @@ pub fn get_article_categories(
     state: State<AppState>,
     fnord_id: i64,
 ) -> Result<Vec<ArticleCategory>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
@@ -324,7 +324,7 @@ pub fn set_article_categories(
     fnord_id: i64,
     category_names: Vec<String>,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     // First, delete existing category assignments
     db.conn()
@@ -369,7 +369,7 @@ pub fn set_article_categories(
 /// Get subcategory names for KI prompt
 #[tauri::command]
 pub fn get_subcategory_names(state: State<AppState>) -> Result<Vec<String>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
