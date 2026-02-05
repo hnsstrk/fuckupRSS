@@ -42,9 +42,10 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Acquire the database lock, converting PoisonError to String for Tauri compatibility.
-    pub fn db_conn(&self) -> Result<std::sync::MutexGuard<'_, Database>, String> {
-        self.db.lock().map_err(|e| e.to_string())
+    /// Acquire the database lock.
+    /// Returns CmdResult with automatic PoisonError -> FuckupError conversion.
+    pub fn db_conn(&self) -> error::CmdResult<std::sync::MutexGuard<'_, Database>> {
+        Ok(self.db.lock()?)
     }
 }
 

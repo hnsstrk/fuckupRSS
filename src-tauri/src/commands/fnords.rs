@@ -1,3 +1,4 @@
+use crate::error::{CmdResult, FuckupError};
 use crate::AppState;
 use rusqlite::Row;
 use serde::{Deserialize, Serialize};
@@ -163,7 +164,7 @@ const FNORD_SELECT_COLUMNS: &str = r#"
 pub fn get_fnords(
     state: State<AppState>,
     filter: Option<FnordFilter>,
-) -> Result<Vec<Fnord>, String> {
+) -> CmdResult<Vec<Fnord>> {
     let db = state.db_conn()?;
 
     let filter = filter.unwrap_or(FnordFilter {
@@ -174,6 +175,10 @@ pub fn get_fnords(
         limit: Some(50),
         offset: None,
     });
+
+    // Input validation for limit/offset
+    let limit = filter.limit.map(|l| l.max(1).min(1000));
+    let offset = filter.offset.map(|o| o.max(0));
 
     let mut sql = format!(
         "SELECT {} FROM fnords f LEFT JOIN pentacles p ON p.id = f.pentacle_id WHERE 1=1",
@@ -206,25 +211,23 @@ pub fn get_fnords(
     sql.push_str(" ORDER BY f.published_at DESC");
 
     // Use parameterized queries for LIMIT/OFFSET (security best practice)
-    if let Some(limit) = filter.limit {
+    if let Some(l) = limit {
         sql.push_str(" LIMIT ?");
-        params.push(Box::new(limit));
+        params.push(Box::new(l));
     }
 
-    if let Some(offset) = filter.offset {
+    if let Some(o) = offset {
         sql.push_str(" OFFSET ?");
-        params.push(Box::new(offset));
+        params.push(Box::new(o));
     }
 
-    let mut stmt = db.conn().prepare(&sql).map_err(|e| e.to_string())?;
+    let mut stmt = db.conn().prepare(&sql)?;
 
     let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
 
     let mut fnords: Vec<Fnord> = stmt
-        .query_map(param_refs.as_slice(), fnord_from_row)
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        .query_map(param_refs.as_slice(), fnord_from_row)?
+        .collect::<Result<Vec<_>, _>>()?;
 
     let fnord_ids: Vec<i64> = fnords.iter().map(|f| f.id).collect();
     let categories_map = load_categories_for_fnords(db.conn(), &fnord_ids);
@@ -239,7 +242,7 @@ pub fn get_fnords(
 }
 
 #[tauri::command]
-pub fn get_fnord(state: State<AppState>, id: i64) -> Result<Fnord, String> {
+pub fn get_fnord(state: State<AppState>, id: i64) -> CmdResult<Fnord> {
     let db = state.db_conn()?;
 
     let sql = format!(
@@ -249,8 +252,7 @@ pub fn get_fnord(state: State<AppState>, id: i64) -> Result<Fnord, String> {
 
     let mut fnord = db
         .conn()
-        .query_row(&sql, [id], fnord_from_row)
-        .map_err(|e| e.to_string())?;
+        .query_row(&sql, [id], fnord_from_row)?;
 
     let categories_map = load_categories_for_fnords(db.conn(), &[id]);
     if let Some(cats) = categories_map.get(&id) {
@@ -261,10 +263,10 @@ pub fn get_fnord(state: State<AppState>, id: i64) -> Result<Fnord, String> {
 }
 
 #[tauri::command]
-pub fn update_fnord_status(state: State<AppState>, id: i64, status: String) -> Result<(), String> {
+pub fn update_fnord_status(state: State<AppState>, id: i64, status: String) -> CmdResult<()> {
     // Validate status
     if !["concealed", "illuminated", "golden_apple"].contains(&status.as_str()) {
-        return Err(format!("Invalid status: {}", status));
+        return Err(FuckupError::Validation(format!("Invalid status: {}", status)));
     }
 
     let db = state.db_conn()?;
@@ -277,20 +279,18 @@ pub fn update_fnord_status(state: State<AppState>, id: i64, status: String) -> R
             .execute(
                 "UPDATE fnords SET status = ?1, read_at = COALESCE(read_at, ?2) WHERE id = ?3",
                 (&status, chrono::Utc::now().to_rfc3339(), id),
-            )
-            .map_err(|e| e.to_string())?;
+            )?;
     } else {
         // Just update status, don't touch read_at (preserve reading history)
         db.conn()
-            .execute("UPDATE fnords SET status = ?1 WHERE id = ?2", (&status, id))
-            .map_err(|e| e.to_string())?;
+            .execute("UPDATE fnords SET status = ?1 WHERE id = ?2", (&status, id))?;
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_changed_fnords(state: State<AppState>) -> Result<Vec<Fnord>, String> {
+pub fn get_changed_fnords(state: State<AppState>) -> CmdResult<Vec<Fnord>> {
     let db = state.db_conn()?;
 
     let sql = format!(
@@ -298,13 +298,11 @@ pub fn get_changed_fnords(state: State<AppState>) -> Result<Vec<Fnord>, String> 
         FNORD_SELECT_COLUMNS
     );
 
-    let mut stmt = db.conn().prepare(&sql).map_err(|e| e.to_string())?;
+    let mut stmt = db.conn().prepare(&sql)?;
 
     let mut fnords: Vec<Fnord> = stmt
-        .query_map([], fnord_from_row)
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        .query_map([], fnord_from_row)?
+        .collect::<Result<Vec<_>, _>>()?;
 
     let fnord_ids: Vec<i64> = fnords.iter().map(|f| f.id).collect();
     let categories_map = load_categories_for_fnords(db.conn(), &fnord_ids);
@@ -320,12 +318,11 @@ pub fn get_changed_fnords(state: State<AppState>) -> Result<Vec<Fnord>, String> 
 
 /// Acknowledge changes for an article (dismiss change notification)
 #[tauri::command]
-pub fn acknowledge_changes(state: State<AppState>, id: i64) -> Result<(), String> {
+pub fn acknowledge_changes(state: State<AppState>, id: i64) -> CmdResult<()> {
     let db = state.db_conn()?;
 
     db.conn()
-        .execute("UPDATE fnords SET has_changes = FALSE WHERE id = ?1", [id])
-        .map_err(|e| e.to_string())?;
+        .execute("UPDATE fnords SET has_changes = FALSE WHERE id = ?1", [id])?;
 
     Ok(())
 }
@@ -335,7 +332,7 @@ pub fn acknowledge_changes(state: State<AppState>, id: i64) -> Result<(), String
 pub fn get_fnord_revisions(
     state: State<AppState>,
     fnord_id: i64,
-) -> Result<Vec<FnordRevision>, String> {
+) -> CmdResult<Vec<FnordRevision>> {
     let db = state.db_conn()?;
 
     let mut stmt = db
@@ -347,8 +344,7 @@ pub fn get_fnord_revisions(
             WHERE fnord_id = ?1
             ORDER BY revision_at DESC
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let revisions = stmt
         .query_map([fnord_id], |row| {
@@ -363,10 +359,8 @@ pub fn get_fnord_revisions(
                 content_hash: row.get(7)?,
                 revision_at: row.get(8)?,
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(revisions)
 }
@@ -376,7 +370,7 @@ pub fn get_fnord_revisions(
 pub fn get_fnords_count(
     state: State<AppState>,
     filter: Option<FnordFilter>,
-) -> Result<i64, String> {
+) -> CmdResult<i64> {
     let db = state.db_conn()?;
 
     let mut sql = String::from("SELECT COUNT(*) FROM fnords f WHERE 1=1");
@@ -409,15 +403,14 @@ pub fn get_fnords_count(
 
     let count: i64 = db
         .conn()
-        .query_row(&sql, param_refs.as_slice(), |row| row.get(0))
-        .map_err(|e| e.to_string())?;
+        .query_row(&sql, param_refs.as_slice(), |row| row.get(0))?;
 
     Ok(count)
 }
 
 /// Get count of changed articles
 #[tauri::command]
-pub fn get_changed_count(state: State<AppState>) -> Result<i64, String> {
+pub fn get_changed_count(state: State<AppState>) -> CmdResult<i64> {
     let db = state.db_conn()?;
 
     let count: i64 = db
@@ -426,15 +419,14 @@ pub fn get_changed_count(state: State<AppState>) -> Result<i64, String> {
             "SELECT COUNT(*) FROM fnords WHERE has_changes = TRUE",
             [],
             |row| row.get(0),
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     Ok(count)
 }
 
 /// Reset change flags for articles without actual revisions (false positives from migration)
 #[tauri::command]
-pub fn reset_all_changes(state: State<AppState>) -> Result<i64, String> {
+pub fn reset_all_changes(state: State<AppState>) -> CmdResult<i64> {
     let db = state.db_conn()?;
 
     // Only reset changes for articles that have no actual revisions
@@ -446,8 +438,7 @@ pub fn reset_all_changes(state: State<AppState>) -> Result<i64, String> {
                WHERE has_changes = TRUE
                AND id NOT IN (SELECT DISTINCT fnord_id FROM fnord_revisions)"#,
             [],
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     Ok(affected as i64)
 }
@@ -484,7 +475,7 @@ pub struct SourceRevisionStats {
 
 /// Get Fnord statistics: revision counts by category and source
 #[tauri::command]
-pub fn get_fnord_stats(state: State<AppState>) -> Result<FnordStats, String> {
+pub fn get_fnord_stats(state: State<AppState>) -> CmdResult<FnordStats> {
     let db = state.db_conn()?;
 
     // Total revisions
@@ -521,8 +512,7 @@ pub fn get_fnord_stats(state: State<AppState>) -> Result<FnordStats, String> {
             GROUP BY m.id
             ORDER BY revision_count DESC
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let by_category = stmt_cat
         .query_map([], |row| {
@@ -534,10 +524,8 @@ pub fn get_fnord_stats(state: State<AppState>) -> Result<FnordStats, String> {
                 revision_count: row.get(4)?,
                 article_count: row.get(5)?,
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
 
     // By source - count revisions for articles from each pentacle
     let mut stmt_src = db
@@ -553,8 +541,7 @@ pub fn get_fnord_stats(state: State<AppState>) -> Result<FnordStats, String> {
             GROUP BY p.id
             ORDER BY revision_count DESC
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let by_source = stmt_src
         .query_map([], |row| {
@@ -564,10 +551,8 @@ pub fn get_fnord_stats(state: State<AppState>) -> Result<FnordStats, String> {
                 revision_count: row.get(2)?,
                 article_count: row.get(3)?,
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(FnordStats {
         total_revisions,
@@ -582,7 +567,7 @@ pub fn get_fnord_stats(state: State<AppState>) -> Result<FnordStats, String> {
 pub fn get_subcategory_stats(
     state: State<AppState>,
     main_category_id: i64,
-) -> Result<Vec<CategoryRevisionStats>, String> {
+) -> CmdResult<Vec<CategoryRevisionStats>> {
     let db = state.db_conn()?;
 
     let mut stmt = db
@@ -600,8 +585,7 @@ pub fn get_subcategory_stats(
             GROUP BY s.id
             ORDER BY revision_count DESC
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let subcategories = stmt
         .query_map([main_category_id], |row| {
@@ -613,10 +597,8 @@ pub fn get_subcategory_stats(
                 revision_count: row.get(4)?,
                 article_count: row.get(5)?,
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(subcategories)
 }
@@ -715,7 +697,10 @@ pub struct KeywordCloudEntry {
 pub fn get_article_timeline(
     state: State<AppState>,
     days: i64,
-) -> Result<ArticleTimeline, String> {
+) -> CmdResult<ArticleTimeline> {
+    // Input validation: clamp days to reasonable range
+    let days = days.max(1).min(365);
+
     let db = state.db_conn()?;
 
     // SQLite doesn't have generate_series by default, use a different approach
@@ -731,12 +716,10 @@ pub fn get_article_timeline(
             WHERE published_at >= date('now', '-' || ?1 || ' days')
             GROUP BY date(published_at)
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let articles_by_date: std::collections::HashMap<String, i64> = stmt_articles
-        .query_map([days], |row| Ok((row.get::<_, String>(0)?, row.get(1)?)))
-        .map_err(|e| e.to_string())?
+        .query_map([days], |row| Ok((row.get::<_, String>(0)?, row.get(1)?)))?
         .filter_map(|r| r.ok())
         .collect();
 
@@ -750,12 +733,10 @@ pub fn get_article_timeline(
             WHERE revision_at >= date('now', '-' || ?1 || ' days')
             GROUP BY date(revision_at)
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let revisions_by_date: std::collections::HashMap<String, i64> = stmt_revisions
-        .query_map([days], |row| Ok((row.get::<_, String>(0)?, row.get(1)?)))
-        .map_err(|e| e.to_string())?
+        .query_map([days], |row| Ok((row.get::<_, String>(0)?, row.get(1)?)))?
         .filter_map(|r| r.ok())
         .collect();
 
@@ -767,8 +748,7 @@ pub fn get_article_timeline(
                 "SELECT date('now', '-' || ?1 || ' days')",
                 [days - 1 - i],
                 |row| row.get(0),
-            )
-            .map_err(|e| e.to_string())?;
+            )?;
 
         data.push(TimelineDataPoint {
             date: date.clone(),
@@ -785,7 +765,7 @@ pub fn get_article_timeline(
 
 /// Get the Greyface Index (bias metrics)
 #[tauri::command]
-pub fn get_greyface_index(state: State<AppState>) -> Result<GreyfaceIndex, String> {
+pub fn get_greyface_index(state: State<AppState>) -> CmdResult<GreyfaceIndex> {
     let db = state.db_conn()?;
 
     // Get bias distribution
@@ -800,12 +780,10 @@ pub fn get_greyface_index(state: State<AppState>) -> Result<GreyfaceIndex, Strin
             WHERE political_bias IS NOT NULL
             GROUP BY political_bias
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let bias_counts: std::collections::HashMap<i32, i64> = stmt
-        .query_map([], |row| Ok((row.get::<_, i32>(0)?, row.get(1)?)))
-        .map_err(|e| e.to_string())?
+        .query_map([], |row| Ok((row.get::<_, i32>(0)?, row.get(1)?)))?
         .filter_map(|r| r.ok())
         .collect();
 
@@ -831,13 +809,11 @@ pub fn get_greyface_index(state: State<AppState>) -> Result<GreyfaceIndex, Strin
             "#,
             [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let total_articles: i64 = db
         .conn()
-        .query_row("SELECT COUNT(*) FROM fnords", [], |row| row.get(0))
-        .map_err(|e| e.to_string())?;
+        .query_row("SELECT COUNT(*) FROM fnords", [], |row| row.get(0))?;
 
     // Calculate Greyface Index
     // Formula: combines bias imbalance and lack of neutrality
@@ -868,7 +844,11 @@ pub fn get_top_keywords_stats(
     state: State<AppState>,
     days: i64,
     limit: i64,
-) -> Result<Vec<KeywordStats>, String> {
+) -> CmdResult<Vec<KeywordStats>> {
+    // Input validation
+    let days = days.max(1).min(365);
+    let limit = limit.max(1).min(1000);
+
     let db = state.db_conn()?;
 
     // Current period counts
@@ -897,8 +877,7 @@ pub fn get_top_keywords_stats(
             ORDER BY count DESC
             LIMIT ?2
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let keywords = stmt
         .query_map([days, limit], |row| {
@@ -919,10 +898,8 @@ pub fn get_top_keywords_stats(
                 count,
                 trend,
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(keywords)
 }
@@ -933,7 +910,11 @@ pub fn get_feed_activity(
     state: State<AppState>,
     days: i64,
     limit: i64,
-) -> Result<Vec<FeedActivity>, String> {
+) -> CmdResult<Vec<FeedActivity>> {
+    // Input validation
+    let days = days.max(1).min(365);
+    let limit = limit.max(1).min(1000);
+
     let db = state.db_conn()?;
 
     let mut stmt = db
@@ -962,8 +943,7 @@ pub fn get_feed_activity(
             ORDER BY articles_period DESC
             LIMIT ?2
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let feeds = stmt
         .query_map([days, limit], |row| {
@@ -975,17 +955,15 @@ pub fn get_feed_activity(
                 revisions_period: row.get(4)?,
                 last_sync: row.get(5)?,
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(feeds)
 }
 
 /// Get bias heatmap (feeds x bias levels)
 #[tauri::command]
-pub fn get_bias_heatmap(state: State<AppState>) -> Result<Vec<BiasHeatmapEntry>, String> {
+pub fn get_bias_heatmap(state: State<AppState>) -> CmdResult<Vec<BiasHeatmapEntry>> {
     let db = state.db_conn()?;
 
     let mut stmt = db
@@ -1007,8 +985,7 @@ pub fn get_bias_heatmap(state: State<AppState>) -> Result<Vec<BiasHeatmapEntry>,
             HAVING (bias_m2 + bias_m1 + bias_0 + bias_p1 + bias_p2) > 0
             ORDER BY avg_bias ASC
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let heatmap = stmt
         .query_map([], |row| {
@@ -1022,10 +999,8 @@ pub fn get_bias_heatmap(state: State<AppState>) -> Result<Vec<BiasHeatmapEntry>,
                 bias_plus_2: row.get(6)?,
                 avg_bias: row.get(7)?,
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(heatmap)
 }
@@ -1036,7 +1011,11 @@ pub fn get_keyword_cloud(
     state: State<AppState>,
     days: i64,
     limit: i64,
-) -> Result<Vec<KeywordCloudEntry>, String> {
+) -> CmdResult<Vec<KeywordCloudEntry>> {
+    // Input validation
+    let days = days.max(1).min(365);
+    let limit = limit.max(1).min(1000);
+
     let db = state.db_conn()?;
 
     let mut stmt = db
@@ -1056,14 +1035,12 @@ pub fn get_keyword_cloud(
             ORDER BY count DESC
             LIMIT ?2
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let keywords: Vec<(i64, String, Option<String>, i64)> = stmt
         .query_map([days, limit], |row| {
             Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-        })
-        .map_err(|e| e.to_string())?
+        })?
         .filter_map(|r| r.ok())
         .collect();
 

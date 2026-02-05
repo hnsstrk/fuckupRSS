@@ -1,3 +1,4 @@
+use crate::error::{CmdResult, FuckupError};
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -19,7 +20,7 @@ pub struct Pentacle {
 }
 
 #[tauri::command]
-pub fn get_pentacles(state: State<AppState>) -> Result<Vec<Pentacle>, String> {
+pub fn get_pentacles(state: State<AppState>) -> CmdResult<Vec<Pentacle>> {
     let db = state.db_conn()?;
 
     let mut stmt = db
@@ -43,8 +44,7 @@ pub fn get_pentacles(state: State<AppState>) -> Result<Vec<Pentacle>, String> {
             GROUP BY p.id
             ORDER BY p.title COLLATE NOCASE
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let pentacles = stmt
         .query_map([], |row| {
@@ -61,41 +61,39 @@ pub fn get_pentacles(state: State<AppState>) -> Result<Vec<Pentacle>, String> {
                 illuminated_count: row.get(9)?,
                 golden_apple_count: row.get(10)?,
             })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(pentacles)
 }
 
 #[tauri::command]
-pub fn add_pentacle(state: State<AppState>, url: String, title: Option<String>) -> Result<Pentacle, String> {
+pub fn add_pentacle(state: State<AppState>, url: String, title: Option<String>) -> CmdResult<Pentacle> {
     // Input validation
     const MAX_URL_LEN: usize = 2048;
     const MAX_TITLE_LEN: usize = 500;
 
     if url.is_empty() {
-        return Err("URL cannot be empty".to_string());
+        return Err(FuckupError::Validation("URL cannot be empty".to_string()));
     }
 
     if url.len() > MAX_URL_LEN {
-        return Err(format!("URL too long (max {} characters)", MAX_URL_LEN));
+        return Err(FuckupError::Validation(format!("URL too long (max {} characters)", MAX_URL_LEN)));
     }
 
     // Validate URL format and scheme
     let parsed_url = Url::parse(&url)
-        .map_err(|_| "Invalid URL format".to_string())?;
+        .map_err(|_| FuckupError::Validation("Invalid URL format".to_string()))?;
 
     match parsed_url.scheme() {
         "http" | "https" => {}
-        scheme => return Err(format!("Invalid URL scheme '{}'. Only http and https are allowed.", scheme)),
+        scheme => return Err(FuckupError::Validation(format!("Invalid URL scheme '{}'. Only http and https are allowed.", scheme))),
     }
 
     // Validate title length if provided
     if let Some(ref t) = title {
         if t.len() > MAX_TITLE_LEN {
-            return Err(format!("Title too long (max {} characters)", MAX_TITLE_LEN));
+            return Err(FuckupError::Validation(format!("Title too long (max {} characters)", MAX_TITLE_LEN)));
         }
     }
 
@@ -105,8 +103,7 @@ pub fn add_pentacle(state: State<AppState>, url: String, title: Option<String>) 
         .execute(
             "INSERT INTO pentacles (url, title) VALUES (?1, ?2)",
             (&url, &title),
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     let id = db.conn().last_insert_rowid();
 
@@ -126,12 +123,11 @@ pub fn add_pentacle(state: State<AppState>, url: String, title: Option<String>) 
 }
 
 #[tauri::command]
-pub fn delete_pentacle(state: State<AppState>, id: i64) -> Result<(), String> {
+pub fn delete_pentacle(state: State<AppState>, id: i64) -> CmdResult<()> {
     let db = state.db_conn()?;
 
     db.conn()
-        .execute("DELETE FROM pentacles WHERE id = ?1", [id])
-        .map_err(|e| e.to_string())?;
+        .execute("DELETE FROM pentacles WHERE id = ?1", [id])?;
 
     Ok(())
 }

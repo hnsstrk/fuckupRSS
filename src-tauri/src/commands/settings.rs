@@ -1,3 +1,4 @@
+use crate::error::{CmdResult, FuckupError};
 use crate::ollama::{DEFAULT_NUM_CTX, RECOMMENDED_EMBEDDING_MODEL};
 use crate::{AppState, LogLevel};
 use log::{debug, info};
@@ -8,19 +9,17 @@ use tauri::State;
 /// Returns all settings as a key-value map
 /// This allows the frontend to access any setting without needing to update the struct
 #[tauri::command]
-pub fn get_settings(state: State<AppState>) -> Result<HashMap<String, serde_json::Value>, String> {
+pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_json::Value>> {
     let db = state.db_conn()?;
 
     let mut stmt = db
         .conn()
-        .prepare("SELECT key, value FROM settings")
-        .map_err(|e| e.to_string())?;
+        .prepare("SELECT key, value FROM settings")?;
 
     let settings_map: HashMap<String, String> = stmt
         .query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })
-        .map_err(|e| e.to_string())?
+        })?
         .filter_map(|r| r.ok())
         .collect();
 
@@ -93,21 +92,28 @@ pub fn get_settings(state: State<AppState>) -> Result<HashMap<String, serde_json
 }
 
 #[tauri::command]
-pub fn set_setting(state: State<AppState>, key: String, value: String) -> Result<(), String> {
+pub fn set_setting(state: State<AppState>, key: String, value: String) -> CmdResult<()> {
+    // Input validation
+    if key.is_empty() {
+        return Err(FuckupError::Validation("Setting key cannot be empty".to_string()));
+    }
+    if key.len() > 256 {
+        return Err(FuckupError::Validation("Setting key too long (max 256 characters)".to_string()));
+    }
+
     let db = state.db_conn()?;
 
     db.conn()
         .execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
             (&key, &value),
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_setting(state: State<AppState>, key: String) -> Result<Option<String>, String> {
+pub fn get_setting(state: State<AppState>, key: String) -> CmdResult<Option<String>> {
     let db = state.db_conn()?;
 
     let result = db
@@ -252,7 +258,12 @@ pub fn get_platform() -> &'static str {
 /// Note: This changes the log level for the current session
 /// To persist, also call set_setting with key="logLevel"
 #[tauri::command]
-pub fn set_log_level(level: String) -> Result<(), String> {
+pub fn set_log_level(level: String) -> CmdResult<()> {
+    // Input validation
+    if !["error", "warn", "info", "debug", "trace"].contains(&level.as_str()) {
+        return Err(FuckupError::Validation(format!("Invalid log level: {}", level)));
+    }
+
     let log_level = LogLevel::from(level.as_str());
     info!("Setting log level to: {}", log_level);
 
