@@ -15,6 +15,86 @@ use std::time::Instant;
 use tauri::State;
 use uuid::Uuid;
 
+// ============================================================
+// Constants
+// ============================================================
+
+// --- Query Limits ---
+/// Default number of recommendations returned
+const DEFAULT_RECOMMENDATION_LIMIT: i32 = 10;
+/// Maximum number of recommendations a user can request
+const MAX_RECOMMENDATION_LIMIT: i32 = 50;
+/// Default number of saved articles returned
+const DEFAULT_SAVED_LIMIT: i32 = 50;
+/// Maximum saved articles a user can request
+const MAX_SAVED_LIMIT: i32 = 100;
+/// Total candidate pool size before reranking
+const CANDIDATE_POOL_SIZE: usize = 100;
+/// Candidates from embedding similarity search
+const EMBEDDING_CANDIDATE_LIMIT: usize = 50;
+/// Candidates from keyword overlap search
+const KEYWORD_CANDIDATE_LIMIT: usize = 50;
+/// Candidates from popular/recent articles (cold start)
+const POPULAR_CANDIDATE_LIMIT: usize = 30;
+/// Max read articles with embeddings to sample for similarity
+const MAX_SAMPLE_READ_ARTICLES: usize = 10;
+/// Max user keywords to consider
+const MAX_USER_KEYWORDS: usize = 20;
+/// Max matching keywords to display per recommendation
+const MAX_DISPLAY_KEYWORDS: usize = 5;
+/// Top keywords shown in recommendation stats
+const STATS_TOP_KEYWORDS: usize = 10;
+/// Top categories shown in recommendation stats
+const STATS_TOP_CATEGORIES: usize = 5;
+/// Limit for keyword aggregation query
+const KEYWORD_AGGREGATION_LIMIT: usize = 50;
+
+// --- Scoring Weights (must sum to ~1.0) ---
+/// Weight of embedding similarity in final score
+const WEIGHT_EMBEDDING: f64 = 0.40;
+/// Weight of keyword overlap in final score
+const WEIGHT_KEYWORD: f64 = 0.30;
+/// Weight of freshness in final score
+const WEIGHT_FRESHNESS: f64 = 0.25;
+/// Baseline/bias term in final score
+const WEIGHT_BASELINE: f64 = 0.05;
+
+// --- Thresholds ---
+/// Minimum embedding similarity to consider an article relevant
+const MIN_EMBEDDING_SIMILARITY: f64 = 0.4;
+/// Minimum keyword weight to count as a user keyword
+const MIN_KEYWORD_WEIGHT: f64 = 0.3;
+/// Default quality_score fallback for keywords without explicit quality
+const DEFAULT_KEYWORD_QUALITY: f64 = 0.5;
+/// Minimum keyword overlap count for keyword-based candidates
+const MIN_KEYWORD_OVERLAP: i64 = 2;
+/// Default embedding score when not available
+const DEFAULT_EMBEDDING_SCORE: f64 = 0.3;
+
+// --- Boost Multipliers ---
+/// Boost for keywords from saved articles
+const SAVED_KEYWORD_BOOST: f64 = 3.0;
+/// Category match boost multiplier
+const CATEGORY_BOOST: f64 = 1.1;
+/// Smoothing parameter for keyword overlap scoring
+const KEYWORD_OVERLAP_SMOOTHING: f64 = 5.0;
+
+// --- Freshness ---
+/// Hours for popular articles window (cold start)
+const POPULAR_ARTICLES_HOURS: i64 = 48;
+/// Freshness decay constant (48-hour half-life ≈ ln(2) * 100)
+const FRESHNESS_DECAY_CONSTANT: f64 = 69.3;
+
+// --- Diversity ---
+/// Allow same source after this many diverse results
+const SOURCE_DIVERSITY_THRESHOLD: usize = 5;
+
+// --- Profile Strength ---
+/// Articles read threshold for "Hot" profile
+const PROFILE_STRENGTH_HOT: i64 = 50;
+/// Articles read threshold for "Warm" profile (below = "Cold")
+const PROFILE_STRENGTH_WARM: i64 = 10;
+
 /// Type alias for article details query result
 /// (title, summary, url, image_url, pentacle_id, pentacle_title, pentacle_icon, published_at, political_bias, sachlichkeit)
 type ArticleDetailsRow = (
@@ -150,7 +230,7 @@ pub fn get_recommendations(
 
     info!("[{}] Starting recommendation generation", request_id);
 
-    let limit = limit.unwrap_or(10).min(50) as usize;
+    let limit = limit.unwrap_or(DEFAULT_RECOMMENDATION_LIMIT).min(MAX_RECOMMENDATION_LIMIT) as usize;
     let db = state.db_conn()?;
 
     let lock_time = start_time.elapsed();
@@ -173,7 +253,7 @@ pub fn get_recommendations(
 
     // Generate candidates
     let candidates_start = Instant::now();
-    let mut candidates = generate_candidates(db.conn(), &profile, 100)?;
+    let mut candidates = generate_candidates(db.conn(), &profile, CANDIDATE_POOL_SIZE)?;
     let candidates_time = candidates_start.elapsed();
     debug!("[{}] Generated {} candidates in {:?}",
            request_id, candidates.len(), candidates_time);
@@ -282,7 +362,7 @@ pub fn get_saved_articles(
     state: State<AppState>,
     limit: Option<i32>,
 ) -> Result<Vec<SavedArticle>, String> {
-    let limit = limit.unwrap_or(50).min(100);
+    let limit = limit.unwrap_or(DEFAULT_SAVED_LIMIT).min(MAX_SAVED_LIMIT);
     let db = state.db_conn()?;
 
     let mut stmt = db
@@ -380,9 +460,9 @@ pub fn get_recommendation_stats(state: State<AppState>) -> Result<Recommendation
         .unwrap_or(0);
 
     // Calculate profile strength based on read articles
-    let profile_strength = if articles_read >= 50 {
+    let profile_strength = if articles_read >= PROFILE_STRENGTH_HOT {
         "Hot".to_string()
-    } else if articles_read >= 10 {
+    } else if articles_read >= PROFILE_STRENGTH_WARM {
         "Warm".to_string()
     } else {
         "Cold".to_string()
@@ -391,10 +471,10 @@ pub fn get_recommendation_stats(state: State<AppState>) -> Result<Recommendation
     let candidate_pool_size = total_articles - articles_read - total_hidden;
 
     // Top keywords from read articles
-    let top_keywords = get_top_user_keywords(db.conn(), 10)?;
+    let top_keywords = get_top_user_keywords(db.conn(), STATS_TOP_KEYWORDS as i64)?;
 
     // Top categories
-    let top_categories = get_top_user_categories(db.conn(), 5)?;
+    let top_categories = get_top_user_categories(db.conn(), STATS_TOP_CATEGORIES as i64)?;
 
     let stats = RecommendationStats {
         total_saved,
@@ -495,14 +575,17 @@ fn aggregate_keywords(
     // Get keywords from read articles
     let mut stmt = conn
         .prepare(
-            r#"SELECT fi.immanentize_id, COUNT(*) as count, COALESCE(i.quality_score, 0.5) as quality
+            &format!(
+                r#"SELECT fi.immanentize_id, COUNT(*) as count, COALESCE(i.quality_score, {}) as quality
                FROM fnord_immanentize fi
                JOIN immanentize i ON i.id = fi.immanentize_id
                JOIN fnords f ON f.id = fi.fnord_id
                WHERE f.read_at IS NOT NULL
                GROUP BY fi.immanentize_id
                ORDER BY count DESC
-               LIMIT 50"#,
+               LIMIT {}"#,
+                DEFAULT_KEYWORD_QUALITY, KEYWORD_AGGREGATION_LIMIT
+            ),
         )
         .map_err(|e| e.to_string())?;
 
@@ -543,7 +626,7 @@ fn aggregate_keywords(
 
         for kw_id in saved_keywords {
             if let Some(w) = weights.get_mut(&kw_id) {
-                *w *= 3.0;
+                *w *= SAVED_KEYWORD_BOOST;
             }
         }
     }
@@ -599,13 +682,13 @@ fn generate_candidates(
     let mut candidates: HashMap<i64, Candidate> = HashMap::new();
 
     // Source 1: Embedding similarity (if user has read articles with embeddings)
-    let embedding_candidates = get_embedding_candidates(conn, profile, 50)?;
+    let embedding_candidates = get_embedding_candidates(conn, profile, EMBEDDING_CANDIDATE_LIMIT)?;
     for c in embedding_candidates {
         candidates.insert(c.fnord_id, c);
     }
 
     // Source 2: Keyword overlap
-    let keyword_candidates = get_keyword_candidates(conn, profile, 50)?;
+    let keyword_candidates = get_keyword_candidates(conn, profile, KEYWORD_CANDIDATE_LIMIT)?;
     for c in keyword_candidates {
         candidates
             .entry(c.fnord_id)
@@ -617,7 +700,7 @@ fn generate_candidates(
     }
 
     // Source 3: Recent popular (fallback)
-    let popular_candidates = get_popular_candidates(conn, 30)?;
+    let popular_candidates = get_popular_candidates(conn, POPULAR_CANDIDATE_LIMIT)?;
     for c in popular_candidates {
         candidates.entry(c.fnord_id).or_insert(c);
     }
@@ -652,8 +735,8 @@ fn get_embedding_candidates(
 
         let placeholders = read_list.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let query = format!(
-            "SELECT id FROM fnords WHERE id IN ({}) AND embedding IS NOT NULL LIMIT 10",
-            placeholders
+            "SELECT id FROM fnords WHERE id IN ({}) AND embedding IS NOT NULL LIMIT {}",
+            placeholders, MAX_SAMPLE_READ_ARTICLES
         );
 
         let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
@@ -717,7 +800,7 @@ fn get_embedding_candidates(
 
     for (fnord_id, distance, pentacle_id, published_at) in rows {
         let similarity = 1.0 - (distance / 2.0);
-        if similarity < 0.4 {
+        if similarity < MIN_EMBEDDING_SIMILARITY {
             continue;
         }
 
@@ -748,9 +831,9 @@ fn get_keyword_candidates(
     let user_keywords: Vec<i64> = profile
         .keyword_weights
         .iter()
-        .filter(|(_, w)| **w > 0.3)
+        .filter(|(_, w)| **w > MIN_KEYWORD_WEIGHT)
         .map(|(id, _)| *id)
-        .take(20)
+        .take(MAX_USER_KEYWORDS)
         .collect();
 
     if user_keywords.is_empty() {
@@ -777,10 +860,10 @@ fn get_keyword_candidates(
           AND f.read_at IS NULL
           AND f.embedding IS NOT NULL
         GROUP BY f.id
-        HAVING overlap_count >= 2
+        HAVING overlap_count >= {}
         ORDER BY overlap_count DESC
         LIMIT ?"#,
-        placeholders
+        placeholders, MIN_KEYWORD_OVERLAP
     );
 
     let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
@@ -809,12 +892,12 @@ fn get_keyword_candidates(
 
     for (fnord_id, pentacle_id, published_at, overlap, matching) in rows {
         let user_kw_count = user_keywords.len() as f64;
-        let overlap_score = overlap as f64 / (user_kw_count + 5.0);
+        let overlap_score = overlap as f64 / (user_kw_count + KEYWORD_OVERLAP_SMOOTHING);
         let freshness = calculate_freshness(&published_at);
 
         let matching_keywords: Vec<String> = matching
             .split(',')
-            .take(5)
+            .take(MAX_DISPLAY_KEYWORDS)
             .map(|s| s.trim().to_string())
             .collect();
 
@@ -837,7 +920,8 @@ fn get_keyword_candidates(
 fn get_popular_candidates(conn: &rusqlite::Connection, limit: usize) -> Result<Vec<Candidate>, String> {
     let mut stmt = conn
         .prepare(
-            r#"SELECT
+            &format!(
+                r#"SELECT
                 f.id,
                 f.pentacle_id,
                 f.published_at
@@ -845,9 +929,11 @@ fn get_popular_candidates(conn: &rusqlite::Connection, limit: usize) -> Result<V
             JOIN pentacles p ON p.id = f.pentacle_id
             WHERE f.read_at IS NULL
               AND f.embedding IS NOT NULL
-              AND f.published_at > datetime('now', '-48 hours')
+              AND f.published_at > datetime('now', '-{} hours')
             ORDER BY p.article_count DESC, f.published_at DESC
             LIMIT ?"#,
+                POPULAR_ARTICLES_HOURS
+            ),
         )
         .map_err(|e| e.to_string())?;
 
@@ -878,22 +964,22 @@ fn get_popular_candidates(conn: &rusqlite::Connection, limit: usize) -> Result<V
 }
 
 fn score_candidate(candidate: &mut Candidate, profile: &UserProfile) {
-    let embedding_score = candidate.embedding_score.unwrap_or(0.3);
+    let embedding_score = candidate.embedding_score.unwrap_or(DEFAULT_EMBEDDING_SCORE);
     let keyword_score = candidate.keyword_score.unwrap_or(0.0);
     let freshness_score = candidate.freshness_score;
 
     // Category boost
     let category_boost = if candidate.category_ids.iter().any(|id| profile.category_weights.contains_key(id)) {
-        1.1
+        CATEGORY_BOOST
     } else {
         1.0
     };
 
     // Weighted combination
-    candidate.final_score = (0.40 * embedding_score
-        + 0.30 * keyword_score
-        + 0.25 * freshness_score
-        + 0.05)
+    candidate.final_score = (WEIGHT_EMBEDDING * embedding_score
+        + WEIGHT_KEYWORD * keyword_score
+        + WEIGHT_FRESHNESS * freshness_score
+        + WEIGHT_BASELINE)
         * category_boost;
 }
 
@@ -916,8 +1002,8 @@ fn rerank_for_diversity(mut candidates: Vec<Candidate>, limit: usize) -> Vec<Can
                 best_idx = i;
                 break;
             }
-            // Allow same source but with penalty after first 5
-            if i == 0 && selected.len() >= 5 {
+            // Allow same source but with penalty after SOURCE_DIVERSITY_THRESHOLD
+            if i == 0 && selected.len() >= SOURCE_DIVERSITY_THRESHOLD {
                 break;
             }
         }
@@ -1061,7 +1147,7 @@ fn calculate_freshness(published_at: &Option<String>) -> f64 {
                 let age_hours = (chrono::Utc::now() - parsed.with_timezone(&chrono::Utc))
                     .num_hours() as f64;
                 // Half-life: 48 hours
-                let decay = (-age_hours / 69.3).exp();
+                let decay = (-age_hours / FRESHNESS_DECAY_CONSTANT).exp();
                 decay.clamp(0.0, 1.0)
             } else {
                 0.5
@@ -1077,16 +1163,19 @@ fn get_cold_start_recommendations(
 ) -> Result<Vec<Recommendation>, String> {
     let mut stmt = conn
         .prepare(
-            r#"SELECT
+            &format!(
+                r#"SELECT
                 f.id, f.title, f.summary, f.url, f.image_url,
                 f.pentacle_id, p.title, p.icon_url,
                 f.published_at, f.political_bias, f.sachlichkeit
             FROM fnords f
             JOIN pentacles p ON p.id = f.pentacle_id
             WHERE f.summary IS NOT NULL
-              AND f.published_at > datetime('now', '-48 hours')
+              AND f.published_at > datetime('now', '-{} hours')
             ORDER BY f.published_at DESC
             LIMIT ?"#,
+                POPULAR_ARTICLES_HOURS
+            ),
         )
         .map_err(|e| e.to_string())?;
 
