@@ -256,13 +256,13 @@
                 </div>
                 <div class="greyface-details">
                   <div class="detail-row">
-                    <span class="detail-label">{$_('fnordView.greyface.avgBias') || 'Durchschn. Tendenz'}</span>
+                    <span class="detail-label">{$_('fnordView.greyface.avgBias')}</span>
                     <span class="detail-value" style="color: {getBiasColor(greyfaceIndex.avg_political_bias)}">
                       {greyfaceIndex.avg_political_bias.toFixed(2)}
                     </span>
                   </div>
                   <div class="detail-row">
-                    <span class="detail-label">{$_('fnordView.greyface.avgSachlichkeit') || 'Durchschn. Sachlichkeit'}</span>
+                    <span class="detail-label">{$_('fnordView.greyface.avgSachlichkeit')}</span>
                     <span class="detail-value">{greyfaceIndex.avg_sachlichkeit.toFixed(2)}</span>
                   </div>
                   <div class="detail-row">

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { _, locale } from "svelte-i18n";
+  import { _ } from "svelte-i18n";
   import { appState } from "../stores/state.svelte";
   import { ArticleItemCompact, ArticleItemSearch } from "./article";
   import type { SearchResult } from "../types";
@@ -51,7 +51,7 @@
       <h2 class="list-title">{$_("search.results")}</h2>
       <p class="list-count">
         {appState.searchResults.length}
-        {$locale?.startsWith("de") ? "Ergebnisse" : "results"}
+        {$_('articleList.results')}
         {#if appState.searchQuery}
           <span class="search-query">"{appState.searchQuery}"</span>
         {/if}
@@ -67,7 +67,7 @@
       <p class="list-count">
         {appState.fnords
           .length}{#if appState.totalFnordsCount > appState.fnords.length}/{appState.totalFnordsCount}{/if}
-        {$locale?.startsWith("de") ? "Artikel" : "articles"}
+        {$_('articleList.articles')}
       </p>
     {/if}
   </div>
@@ -122,11 +122,11 @@
       {#if appState.loadingMore}
         <div class="loading-more">
           <i class="loading-spinner fa-solid fa-rotate fa-spin"></i>
-          {$locale?.startsWith("de") ? "Lade mehr..." : "Loading more..."}
+          {$_('articleList.loadingMore')}
         </div>
       {:else if appState.hasMoreFnords && appState.fnords.length > 0}
         <div class="load-more-hint">
-          {$locale?.startsWith("de") ? "Scrolle für mehr" : "Scroll for more"}
+          {$_('articleList.scrollForMore')}
         </div>
       {/if}
 

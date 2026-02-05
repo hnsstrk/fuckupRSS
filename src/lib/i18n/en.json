@@ -15,7 +15,11 @@
     "title": "Fnords",
     "noArticles": "No articles available",
     "selectFeed": "Select a feed from the sidebar",
-    "loading": "Loading articles..."
+    "loading": "Loading articles...",
+    "results": "results",
+    "articles": "articles",
+    "loadingMore": "Loading more...",
+    "scrollForMore": "Scroll for more"
   },
   "articleView": {
     "noSelection": "No article selected",
@@ -832,10 +836,12 @@
       "leaningLeft": "Left-leaning",
       "leaningRight": "Right-leaning",
       "yourPosition": "Your position",
-      "articlesAnalyzed": "Articles with bias analysis"
+      "articlesAnalyzed": "Articles with bias analysis",
+      "noData": "No bias data available yet"
     },
     "sachlichkeit": {
       "title": "Objectivity",
+      "noData": "No objectivity data available yet",
       "highlyEmotional": "Highly emotional",
       "emotional": "Emotional",
       "mixed": "Mixed",

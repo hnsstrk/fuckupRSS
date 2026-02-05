@@ -239,14 +239,14 @@
                 </div>
                 <div class="card-stats">
                   <div class="stat-row">
-                    <span class="stat-label">{$_("mindfuck.categories.read") || 'Gelesen'}</span>
+                    <span class="stat-label">{$_("mindfuck.categories.read")}</span>
                     <span class="stat-value">{cat.read_count}</span>
                   </div>
                   <div class="progress-bar">
                     <div class="progress-fill" style="width: {barWidth}%"></div>
                   </div>
                   <div class="stat-row secondary">
-                    <span class="stat-label">{$_("mindfuck.categories.available") || 'Verfügbar'}</span>
+                    <span class="stat-label">{$_("mindfuck.categories.available")}</span>
                     <span class="stat-value">{cat.total_count}</span>
                   </div>
                 </div>
@@ -266,11 +266,11 @@
                           {/if}
                         </div>
                         <div class="subcategory-stats">
-                          <span class="subcategory-count" title="{$_('mindfuck.categories.read') || 'Gelesen'}">
+                          <span class="subcategory-count" title="{$_('mindfuck.categories.read')}">
                             {sub.read_count}
                           </span>
                           <span class="subcategory-divider">/</span>
-                          <span class="subcategory-count" title="{$_('mindfuck.categories.available') || 'Verfügbar'}">
+                          <span class="subcategory-count" title="{$_('mindfuck.categories.available')}">
                             {sub.total_count}
                           </span>
                         </div>
@@ -289,9 +289,9 @@
           <div class="political-spectrum-card">
             <!-- Spectrum Header -->
             <div class="spectrum-header">
-              <span class="spectrum-label left">{$_("mindfuck.bias.left") || "Links"}</span>
-              <span class="spectrum-label center">{$_("mindfuck.bias.neutral") || "Neutral"}</span>
-              <span class="spectrum-label right">{$_("mindfuck.bias.right") || "Rechts"}</span>
+              <span class="spectrum-label left">{$_("mindfuck.bias.left")}</span>
+              <span class="spectrum-label center">{$_("mindfuck.bias.neutral")}</span>
+              <span class="spectrum-label right">{$_("mindfuck.bias.right")}</span>
             </div>
 
             <!-- Main Spectrum Bar -->
@@ -325,7 +325,7 @@
                   <div
                     class="position-indicator"
                     style="left: {indicatorPosition}%"
-                    title="{$_('mindfuck.bias.yourPosition') || 'Deine Position'}: {avgBias.toFixed(2)}"
+                    title="{$_('mindfuck.bias.yourPosition')}: {avgBias.toFixed(2)}"
                   >
                     <i class="fa-solid fa-caret-down"></i>
                   </div>
@@ -366,14 +366,14 @@
                   </div>
                   <div class="summary-stat">
                     <span class="summary-value">{totalBiasReads}</span>
-                    <span class="summary-label">{$_("mindfuck.bias.articlesAnalyzed") || "Artikel mit Bias-Analyse"}</span>
+                    <span class="summary-label">{$_("mindfuck.bias.articlesAnalyzed")}</span>
                   </div>
                 </div>
               {/if}
             {:else}
               <div class="spectrum-empty">
                 <i class="fa-solid fa-scale-balanced"></i>
-                <p>{$_("mindfuck.bias.noData") || "Noch keine Bias-Daten vorhanden"}</p>
+                <p>{$_("mindfuck.bias.noData")}</p>
               </div>
             {/if}
           </div>
@@ -454,7 +454,7 @@
             {:else}
               <div class="sachlichkeit-empty">
                 <i class="fa-solid fa-gauge-high"></i>
-                <p>{$_("mindfuck.bias.noData") || "Noch keine Sachlichkeits-Daten vorhanden"}</p>
+                <p>{$_("mindfuck.sachlichkeit.noData")}</p>
               </div>
             {/if}
           </div>
