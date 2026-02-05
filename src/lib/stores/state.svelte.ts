@@ -324,9 +324,9 @@ class AppState {
     const status = this.currentFilter?.status;
 
     if (id !== null) {
-      this.loadFnords({ pentacle_id: id, status });
+      void this.loadFnords({ pentacle_id: id, status }); // Fire-and-forget: UI updates reactively via $state
     } else {
-      this.loadFnords({ status });
+      void this.loadFnords({ status }); // Fire-and-forget: UI updates reactively via $state
     }
   }
 
@@ -344,13 +344,13 @@ class AppState {
       const category = this.sephiroth.find(s => s.id === id);
       if (category && category.level === 0) {
         // Main category - filter by all its subcategories
-        this.loadFnords({ main_sephiroth_id: id, status });
+        void this.loadFnords({ main_sephiroth_id: id, status }); // Fire-and-forget: UI updates reactively via $state
       } else {
         // Subcategory - filter by exact sephiroth_id
-        this.loadFnords({ sephiroth_id: id, status });
+        void this.loadFnords({ sephiroth_id: id, status }); // Fire-and-forget: UI updates reactively via $state
       }
     } else {
-      this.loadFnords({ status });
+      void this.loadFnords({ status }); // Fire-and-forget: UI updates reactively via $state
     }
   }
 
@@ -360,7 +360,7 @@ class AppState {
     if (id !== null) {
       const fnord = this.fnords.find((f) => f.id === id);
       if (fnord && fnord.status === "concealed") {
-        this.updateFnordStatus(id, "illuminated");
+        void this.updateFnordStatus(id, "illuminated"); // Fire-and-forget: UI updates reactively via $state
       }
     }
   }
@@ -415,7 +415,7 @@ class AppState {
 
     const newStatus =
       fnord.status === "golden_apple" ? "illuminated" : "golden_apple";
-    this.updateFnordStatus(id, newStatus);
+    void this.updateFnordStatus(id, newStatus); // Fire-and-forget: UI updates reactively via $state
   }
 
   async syncAllFeeds(): Promise<SyncResponse | null> {
@@ -763,13 +763,13 @@ class AppState {
     if (view === "changed") {
       this.selectedPentacleId = null;
       this.selectedSephirothId = null;
-      this.loadChangedFnords();
+      void this.loadChangedFnords(); // Fire-and-forget: UI updates reactively via $state
       // Use changedFnords for display
       this.fnords = this.changedFnords;
     } else if (view === "all") {
       this.selectedPentacleId = null;
       this.selectedSephirothId = null;
-      this.loadFnords();
+      void this.loadFnords(); // Fire-and-forget: UI updates reactively via $state
     }
     // "pentacle" view is handled by selectPentacle
     // "sephiroth" view is handled by selectSephiroth
