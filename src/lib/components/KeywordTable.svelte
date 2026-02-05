@@ -4,6 +4,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import type { Keyword, KeywordType } from '../types';
   import KeywordContextTooltip from './KeywordContextTooltip.svelte';
+  import { formatChangedDate } from '$lib/utils/articleFormat';
 
   // Props
   interface Props {
@@ -157,12 +158,6 @@
   function getSortIcon(column: SortColumn): string {
     if (sortColumn !== column) return 'fa-solid fa-sort';
     return sortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
-  }
-
-  function formatDate(dateStr: string | null): string {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   function handleRowClick(keyword: Keyword) {
@@ -374,8 +369,8 @@
                 <td class="numeric">
                   <span class="article-count">{keyword.article_count}</span>
                 </td>
-                <td class="date-cell">{formatDate(keyword.first_seen)}</td>
-                <td class="date-cell">{formatDate(keyword.last_used)}</td>
+                <td class="date-cell">{formatChangedDate(keyword.first_seen)}</td>
+                <td class="date-cell">{formatChangedDate(keyword.last_used)}</td>
                 <td class="actions-cell">
                   {#if onShowKeywordArticles}
                     <button

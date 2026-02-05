@@ -2,22 +2,7 @@
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
   import type { ArticleCategoryDetailed, Sephiroth, CorrectionInput } from '$lib/types';
-
-  // Get the main category ID (1-6) from a category or subcategory ID
-  function getMainCategoryId(id: number | undefined): number {
-    if (!id) return 0;
-    if (id <= 6) return id;
-    return Math.floor(id / 100); // Subcategory IDs are 101, 102, 201, etc.
-  }
-
-  // Get CSS variable name for category color
-  function getCategoryColorVar(id: number | undefined): string {
-    const mainId = getMainCategoryId(id);
-    if (mainId >= 1 && mainId <= 6) {
-      return `var(--category-${mainId})`;
-    }
-    return 'var(--accent-primary)';
-  }
+  import { getCategoryColorVar } from '$lib/utils/articleFormat';
 
   interface Props {
     fnordId: number;

@@ -5,7 +5,9 @@
     formatSimilarity,
     getStatusIcon,
     getStatusColorClass,
-    getBiasLabel
+    getBiasLabel,
+    getBiasColor,
+    getCategoryColorVar,
   } from '../../utils/articleFormat';
 
   interface Category {
@@ -13,22 +15,6 @@
     name: string;
     color: string | null;
     icon: string | null;
-  }
-
-  // Get the main category ID (1-6) from a category or subcategory ID
-  function getMainCategoryId(id: number | undefined): number {
-    if (!id) return 0;
-    if (id <= 6) return id;
-    return Math.floor(id / 100); // Subcategory IDs are 101, 102, 201, etc.
-  }
-
-  // Get CSS variable name for category color
-  function getCategoryColorVar(id: number | undefined): string {
-    const mainId = getMainCategoryId(id);
-    if (mainId >= 1 && mainId <= 6) {
-      return `var(--category-${mainId})`;
-    }
-    return 'var(--bg-overlay)';
   }
 
   interface Tag {
@@ -92,15 +78,6 @@
     (showTags && tags.length > 0)
   );
 
-  function getBiasColor(bias: number | null): string {
-    if (bias === null) return 'var(--text-muted)';
-    if (bias <= -1.5) return 'var(--ctp-red)';
-    if (bias <= -0.5) return 'var(--ctp-maroon)';
-    if (bias <= 0.5) return 'var(--ctp-green)';
-    if (bias <= 1.5) return 'var(--ctp-blue)';
-    return 'var(--ctp-sapphire)';
-  }
-
   function handleAction(e: MouseEvent) {
     e.stopPropagation();
     onaction?.();
@@ -153,7 +130,7 @@
           {#each categories as cat (cat.name)}
             <span
               class="card-category"
-              style="background-color: {getCategoryColorVar(cat.id)}"
+              style="background-color: {getCategoryColorVar(cat.id, 'var(--bg-overlay)')}"
               title={cat.name}
             >
               {#if cat.icon}<i class={cat.icon}></i>{:else}{cat.name}{/if}

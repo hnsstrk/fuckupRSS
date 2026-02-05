@@ -3,14 +3,7 @@
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
   import { appState, type Fnord, type FnordStats, type CategoryRevisionStats } from '../stores/state.svelte';
-
-  // Get CSS variable for category color (theme-aware)
-  function getCategoryColorVar(id: number | undefined): string {
-    if (id && id >= 1 && id <= 6) {
-      return `var(--category-${id})`;
-    }
-    return 'var(--accent-primary)';
-  }
+  import { getCategoryColorVar, getBiasColor } from '$lib/utils/articleFormat';
   import type {
     ArticleTimeline,
     GreyfaceIndex,
@@ -167,14 +160,6 @@
     if (index < 60) return 'moderate';
     if (index < 80) return 'concerning';
     return 'critical';
-  }
-
-  function getBiasColor(bias: number): string {
-    if (bias <= -1.5) return 'var(--category-2)';
-    if (bias <= -0.5) return 'color-mix(in srgb, var(--category-2) 50%, var(--text-muted))';
-    if (bias < 0.5) return 'var(--text-muted)';
-    if (bias < 1.5) return 'color-mix(in srgb, var(--category-5) 50%, var(--text-muted))';
-    return 'var(--category-5)';
   }
 
   // Keyword type color mapping

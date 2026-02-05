@@ -1,5 +1,6 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
+  import { getCategoryColorVar } from '$lib/utils/articleFormat';
 
   // Generic category structure that all variants can map to
   interface CategoryData {
@@ -65,13 +66,6 @@
     return 'weight-low';
   }
 
-  // Helper to get theme-aware category color CSS variable
-  function getCategoryColorVar(id: number | undefined): string {
-    if (id && id >= 1 && id <= 6) {
-      return `var(--category-${id})`;
-    }
-    return 'var(--accent-primary)';
-  }
 </script>
 
 {#if title}

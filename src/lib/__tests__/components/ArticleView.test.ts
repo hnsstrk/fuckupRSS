@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
+import { getMainCategoryId, getCategoryColorVar, getSachlichkeitLabel, getSachlichkeitIcon, getSachlichkeitColor } from '$lib/utils/articleFormat';
 
 // Mock the invoke function
 vi.mock('@tauri-apps/api/core', () => ({
@@ -128,30 +129,17 @@ describe('ArticleView Component Logic', () => {
 
   describe('Sachlichkeit Labels', () => {
     it('returns correct sachlichkeit label for each value', () => {
-      const getSachlichkeitLabel = (s: number | null): string => {
-        if (s === null) return 'Not Rated';
-        switch (s) {
-          case 0:
-            return 'Highly Emotional';
-          case 1:
-            return 'Emotional';
-          case 2:
-            return 'Mixed';
-          case 3:
-            return 'Mostly Objective';
-          case 4:
-            return 'Objective';
-          default:
-            return 'Unknown';
-        }
-      };
+      expect(getSachlichkeitLabel(null, 'en')).toBe('');
+      expect(getSachlichkeitLabel(0, 'en')).toBe('Highly emotional');
+      expect(getSachlichkeitLabel(1, 'en')).toBe('Emotional');
+      expect(getSachlichkeitLabel(2, 'en')).toBe('Mixed');
+      expect(getSachlichkeitLabel(3, 'en')).toBe('Mostly objective');
+      expect(getSachlichkeitLabel(4, 'en')).toBe('Objective');
+    });
 
-      expect(getSachlichkeitLabel(null)).toBe('Not Rated');
-      expect(getSachlichkeitLabel(0)).toBe('Highly Emotional');
-      expect(getSachlichkeitLabel(1)).toBe('Emotional');
-      expect(getSachlichkeitLabel(2)).toBe('Mixed');
-      expect(getSachlichkeitLabel(3)).toBe('Mostly Objective');
-      expect(getSachlichkeitLabel(4)).toBe('Objective');
+    it('returns correct sachlichkeit label in German', () => {
+      expect(getSachlichkeitLabel(0, 'de')).toBe('Hoch emotional');
+      expect(getSachlichkeitLabel(4, 'de')).toBe('Sachlich');
     });
   });
 
@@ -195,13 +183,6 @@ describe('ArticleView Component Logic', () => {
 
   describe('Sachlichkeit Icons', () => {
     it('returns correct sachlichkeit icon class', () => {
-      const getSachlichkeitIcon = (s: number | null): string => {
-        if (s === null) return 'fa-face-meh';
-        if (s <= 1) return 'fa-heart';
-        if (s === 2) return 'fa-face-meh';
-        return 'fa-brain';
-      };
-
       expect(getSachlichkeitIcon(null)).toBe('fa-face-meh');
       expect(getSachlichkeitIcon(0)).toBe('fa-heart');
       expect(getSachlichkeitIcon(1)).toBe('fa-heart');
@@ -213,13 +194,6 @@ describe('ArticleView Component Logic', () => {
 
   describe('Sachlichkeit Colors', () => {
     it('returns correct sachlichkeit color class', () => {
-      const getSachlichkeitColor = (s: number | null): string => {
-        if (s === null) return 'neutral';
-        if (s <= 1) return 'emotional';
-        if (s === 2) return 'mixed';
-        return 'objective';
-      };
-
       expect(getSachlichkeitColor(null)).toBe('neutral');
       expect(getSachlichkeitColor(0)).toBe('emotional');
       expect(getSachlichkeitColor(1)).toBe('emotional');
@@ -231,12 +205,6 @@ describe('ArticleView Component Logic', () => {
 
   describe('Category Color Helpers', () => {
     it('gets main category ID from subcategory ID', () => {
-      const getMainCategoryId = (id: number | undefined): number => {
-        if (!id) return 0;
-        if (id <= 6) return id;
-        return Math.floor(id / 100);
-      };
-
       expect(getMainCategoryId(undefined)).toBe(0);
       expect(getMainCategoryId(1)).toBe(1);
       expect(getMainCategoryId(6)).toBe(6);
@@ -246,22 +214,8 @@ describe('ArticleView Component Logic', () => {
     });
 
     it('gets CSS variable for category color', () => {
-      const getCategoryColorVar = (id: number | undefined): string => {
-        const getMainCategoryId = (catId: number | undefined): number => {
-          if (!catId) return 0;
-          if (catId <= 6) return catId;
-          return Math.floor(catId / 100);
-        };
-
-        const mainId = getMainCategoryId(id);
-        if (mainId >= 1 && mainId <= 6) {
-          return `var(--category-${mainId})`;
-        }
-        return 'var(--bg-overlay)';
-      };
-
-      expect(getCategoryColorVar(undefined)).toBe('var(--bg-overlay)');
-      expect(getCategoryColorVar(0)).toBe('var(--bg-overlay)');
+      expect(getCategoryColorVar(undefined, 'var(--bg-overlay)')).toBe('var(--bg-overlay)');
+      expect(getCategoryColorVar(0, 'var(--bg-overlay)')).toBe('var(--bg-overlay)');
       expect(getCategoryColorVar(1)).toBe('var(--category-1)');
       expect(getCategoryColorVar(3)).toBe('var(--category-3)');
       expect(getCategoryColorVar(101)).toBe('var(--category-1)');

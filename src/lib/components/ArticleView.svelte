@@ -9,22 +9,7 @@
   import { ArticleCard, ArticleKeywords, ArticleCategories } from "./article";
   import StatisticalPreview from "./article/StatisticalPreview.svelte";
   import { sanitizeArticleContent } from '$lib/utils/sanitizer';
-
-  // Get the main category ID (1-6) from a category or subcategory ID
-  function getMainCategoryId(id: number | undefined): number {
-    if (!id) return 0;
-    if (id <= 6) return id;
-    return Math.floor(id / 100); // Subcategory IDs are 101, 102, 201, etc.
-  }
-
-  // Get CSS variable name for category color
-  function getCategoryColorVar(id: number | undefined): string {
-    const mainId = getMainCategoryId(id);
-    if (mainId >= 1 && mainId <= 6) {
-      return `var(--category-${mainId})`;
-    }
-    return 'var(--bg-overlay)';
-  }
+  import { getCategoryColorVar, getBiasColor, getSachlichkeitColor, getSachlichkeitIcon, formatFullDate } from '$lib/utils/articleFormat';
 
   // Track component mount state to prevent state updates after unmount
   let mounted = $state(true);
@@ -226,20 +211,6 @@
     return div.textContent || div.innerText || '';
   }
 
-  function formatDate(dateStr: string | null): string {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    const currentLocale = $locale || 'de';
-    return date.toLocaleDateString(currentLocale.startsWith('de') ? "de-DE" : "en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
   function getBiasLabel(bias: number | null): string {
     if (bias === null) return $_('articleView.notRated');
     switch (bias) {
@@ -270,29 +241,6 @@
     if (bias < 0) return 'fa-scale-unbalanced';
     if (bias > 0) return 'fa-scale-unbalanced-flip';
     return 'fa-scale-balanced';
-  }
-
-  function getBiasColor(bias: number | null): string {
-    if (bias === null) return 'neutral';
-    if (bias <= -2) return 'strong-left';
-    if (bias === -1) return 'lean-left';
-    if (bias === 0) return 'center';
-    if (bias === 1) return 'lean-right';
-    return 'strong-right';
-  }
-
-  function getSachlichkeitIcon(s: number | null): string {
-    if (s === null) return 'fa-face-meh';
-    if (s <= 1) return 'fa-heart';
-    if (s === 2) return 'fa-face-meh';
-    return 'fa-brain';
-  }
-
-  function getSachlichkeitColor(s: number | null): string {
-    if (s === null) return 'neutral';
-    if (s <= 1) return 'emotional';
-    if (s === 2) return 'mixed';
-    return 'objective';
   }
 
   async function openInBrowser() {
@@ -477,7 +425,7 @@
         <div class="article-meta">
           <span class="source">{fnord.pentacle_title || "Unknown Source"}</span>
           <span class="separator">·</span>
-          <span>{formatDate(fnord.published_at)}</span>
+          <span>{formatFullDate(fnord.published_at, $locale || 'de')}</span>
           {#if fnord.author}
             <span class="separator">·</span>
             <span>{$_('articleView.by')} {fnord.author}</span>
@@ -595,7 +543,7 @@
             </div>
             <div class="greyface-indicators">
               {#if fnord.political_bias !== null}
-                <span class="indicator bias-{getBiasColor(fnord.political_bias)}" title="{$_('articleView.greyface.bias')}: {getBiasLabel(fnord.political_bias)}">
+                <span class="indicator bias-{getBiasColor(fnord.political_bias, 'class')}" title="{$_('articleView.greyface.bias')}: {getBiasLabel(fnord.political_bias)}">
                   <i class="fa-solid {getBiasIcon(fnord.political_bias)}"></i>
                   <span class="indicator-text">{getBiasLabel(fnord.political_bias)}</span>
                 </span>
@@ -658,7 +606,7 @@
                 <!-- Fallback to old display for articles not yet loaded with detailed info -->
                 <div class="category-badges">
                   {#each categories as cat (cat.sephiroth_id)}
-                    <span class="category-badge" style="background-color: {getCategoryColorVar(cat.sephiroth_id)}; color: white">
+                    <span class="category-badge" style="background-color: {getCategoryColorVar(cat.sephiroth_id, 'var(--bg-overlay)')}; color: white">
                       {#if cat.icon}<i class="{cat.icon} badge-icon"></i>{/if}
                       {cat.name}
                     </span>

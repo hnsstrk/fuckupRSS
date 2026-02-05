@@ -82,6 +82,23 @@ export function formatChangedDate(dateStr: string | null): string {
   });
 }
 
+/**
+ * Formatiert ein Datum mit Uhrzeit kurz (TT.MM.JJJJ, HH:MM)
+ * @example "05.01.2025, 14:32"
+ */
+export function formatDateTimeShort(dateStr: string | null, locale: string = 'de'): string {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  const isGerman = locale.startsWith('de');
+  return date.toLocaleDateString(isGerman ? 'de-DE' : 'en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 // ============================================================
 // Status-Funktionen
 // ============================================================
@@ -115,6 +132,29 @@ export function getStatusColorClass(status: string): string {
 // ============================================================
 // Bias-Funktionen
 // ============================================================
+
+/**
+ * Gibt die CSS-Klasse oder CSS-Variable für die Bias-Farbe zurück.
+ * @param bias - Bias-Wert (-2 bis +2 oder fließend)
+ * @param format - 'class' für CSS-Klassen-Suffix, 'variable' für CSS-Variable
+ */
+export function getBiasColor(bias: number | null, format: 'class' | 'variable' = 'variable'): string {
+  if (format === 'class') {
+    if (bias === null) return 'neutral';
+    if (bias <= -2) return 'strong-left';
+    if (bias === -1) return 'lean-left';
+    if (bias === 0) return 'center';
+    if (bias === 1) return 'lean-right';
+    return 'strong-right';
+  }
+  // format === 'variable'
+  if (bias === null) return 'var(--text-muted)';
+  if (bias <= -1.5) return 'var(--bias-strong-left)';
+  if (bias <= -0.5) return 'var(--bias-lean-left)';
+  if (bias <= 0.5) return 'var(--bias-center)';
+  if (bias <= 1.5) return 'var(--bias-lean-right)';
+  return 'var(--bias-strong-right)';
+}
 
 /**
  * Gibt das Font Awesome Icon für einen Bias-Wert zurück
@@ -153,6 +193,73 @@ export function getBiasLabel(bias: number | null, locale: string = 'de'): string
 export function getBiasDirectionClass(bias: number | null): string {
   if (bias === null || bias === 0) return "";
   return bias < 0 ? "bias-left" : "bias-right";
+}
+
+// ============================================================
+// Sachlichkeit-Funktionen
+// ============================================================
+
+/**
+ * Gibt das Label für einen Sachlichkeits-Wert zurück
+ */
+export function getSachlichkeitLabel(s: number | null, locale: string = 'de'): string {
+  if (s === null) return "";
+  const isGerman = locale.startsWith('de');
+  switch (s) {
+    case 0: return isGerman ? "Hoch emotional" : "Highly emotional";
+    case 1: return isGerman ? "Emotional" : "Emotional";
+    case 2: return isGerman ? "Gemischt" : "Mixed";
+    case 3: return isGerman ? "Überwiegend sachlich" : "Mostly objective";
+    case 4: return isGerman ? "Sachlich" : "Objective";
+    default: return "";
+  }
+}
+
+/**
+ * Gibt die CSS-Klasse für einen Sachlichkeits-Wert zurück
+ */
+export function getSachlichkeitColor(s: number | null): string {
+  if (s === null) return 'neutral';
+  if (s <= 1) return 'emotional';
+  if (s === 2) return 'mixed';
+  return 'objective';
+}
+
+/**
+ * Gibt das Font Awesome Icon für einen Sachlichkeits-Wert zurück
+ */
+export function getSachlichkeitIcon(s: number | null): string {
+  if (s === null) return 'fa-face-meh';
+  if (s <= 1) return 'fa-heart';
+  if (s === 2) return 'fa-face-meh';
+  return 'fa-brain';
+}
+
+// ============================================================
+// Kategorie-Funktionen
+// ============================================================
+
+/**
+ * Gibt die Haupt-Kategorie-ID zurück (1-6).
+ * Subcategory-IDs (z.B. 101, 205) werden auf ihre Haupt-ID gemappt.
+ */
+export function getMainCategoryId(id: number | undefined): number {
+  if (!id) return 0;
+  if (id <= 6) return id;
+  return Math.floor(id / 100); // Subcategory IDs are 101, 102, 201, etc.
+}
+
+/**
+ * Gibt die CSS-Variable für eine Kategorie-Farbe zurück.
+ * @param id - Kategorie-ID (1-6 oder Subcategory wie 101, 205)
+ * @param fallback - Fallback CSS-Variable wenn keine gültige Kategorie (default: 'var(--accent-primary)')
+ */
+export function getCategoryColorVar(id: number | undefined, fallback: string = 'var(--accent-primary)'): string {
+  const mainId = getMainCategoryId(id);
+  if (mainId >= 1 && mainId <= 6) {
+    return `var(--category-${mainId})`;
+  }
+  return fallback;
 }
 
 // ============================================================

@@ -2,33 +2,8 @@
   import { _ } from 'svelte-i18n';
   import { locale } from 'svelte-i18n';
   import type { Recommendation } from '../../types';
-  import { formatRelativeDate } from '../../utils/articleFormat';
+  import { formatRelativeDate, getCategoryColorVar, getBiasColor } from '../../utils/articleFormat';
   import Tooltip from '../Tooltip.svelte';
-
-  // Get the main category ID (1-6) from a category or subcategory ID
-  function getMainCategoryId(id: number | undefined): number {
-    if (!id) return 0;
-    if (id <= 6) return id;
-    return Math.floor(id / 100);
-  }
-
-  // Get CSS variable name for category color
-  function getCategoryColorVar(id: number | undefined): string {
-    const mainId = getMainCategoryId(id);
-    if (mainId >= 1 && mainId <= 6) {
-      return `var(--category-${mainId})`;
-    }
-    return 'var(--accent-primary)';
-  }
-
-  function getBiasColor(bias: number | null): string {
-    if (bias === null) return 'var(--text-muted)';
-    if (bias <= -1.5) return 'var(--ctp-red)';
-    if (bias <= -0.5) return 'var(--ctp-maroon)';
-    if (bias <= 0.5) return 'var(--ctp-green)';
-    if (bias <= 1.5) return 'var(--ctp-blue)';
-    return 'var(--ctp-sapphire)';
-  }
 
   interface Props {
     recommendation: Recommendation;

@@ -7,22 +7,7 @@
   import type { Keyword, KeywordNeighbor, KeywordCategory } from '../../types';
   import { SvelteSet } from 'svelte/reactivity';
   import { tick } from 'svelte';
-
-  // Get the main category ID (1-6) from a category or subcategory ID
-  function getMainCategoryId(id: number | undefined): number {
-    if (!id) return 0;
-    if (id <= 6) return id;
-    return Math.floor(id / 100); // Subcategory IDs are 101, 102, 201, etc.
-  }
-
-  // Get CSS variable name for category color
-  function getCategoryColorVar(id: number | undefined): string {
-    const mainId = getMainCategoryId(id);
-    if (mainId >= 1 && mainId <= 6) {
-      return `var(--category-${mainId})`;
-    }
-    return 'var(--accent-primary)';
-  }
+  import { getCategoryColorVar, formatChangedDate } from '$lib/utils/articleFormat';
 
   // Type for keyword articles
   interface KeywordArticle {
@@ -205,17 +190,6 @@
     }
   }
 
-  function formatDate(dateStr: string | null): string {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString();
-  }
-
-  function formatArticleDate(dateStr: string | null): string {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  }
-
   function getWeightClass(weight: number): string {
     if (weight >= 0.7) return 'weight-high';
     if (weight >= 0.4) return 'weight-medium';
@@ -361,11 +335,11 @@
         </span>
         <span class="meta-item">
           <span class="meta-label">{$_('network.firstSeen')}:</span>
-          <span class="meta-value">{formatDate(selectedKeyword.first_seen)}</span>
+          <span class="meta-value">{formatChangedDate(selectedKeyword.first_seen)}</span>
         </span>
         <span class="meta-item">
           <span class="meta-label">{$_('network.lastUsed')}:</span>
-          <span class="meta-value">{formatDate(selectedKeyword.last_used)}</span>
+          <span class="meta-value">{formatChangedDate(selectedKeyword.last_used)}</span>
         </span>
       </div>
 
@@ -582,7 +556,7 @@
                       <span class="article-source">{article.pentacle_title}</span>
                     {/if}
                     {#if article.published_at}
-                      <span class="article-date">{formatArticleDate(article.published_at)}</span>
+                      <span class="article-date">{formatChangedDate(article.published_at)}</span>
                     {/if}
                   </span>
                 </div>

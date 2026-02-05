@@ -3,6 +3,7 @@
   import type { Fnord, FnordRevision } from '../stores/state.svelte';
   import { computeWordDiff, diffToHtml, getDiffStats, detectModifications, type DiffSegment } from '../utils/textDiff';
   import { sanitizeArticleContent } from '$lib/utils/sanitizer';
+  import { formatDateTimeShort } from '$lib/utils/articleFormat';
 
   // Browser check for Tauri app (not using SvelteKit's $app/environment)
   const browser = typeof window !== 'undefined';
@@ -76,18 +77,6 @@
   const stats = $derived(getDiffStats(diffSegments));
 
   // Format date using user's locale
-  function formatDate(dateStr: string): string {
-    const date = new Date(dateStr);
-    const currentLocale = $locale || 'de-DE';
-    return date.toLocaleDateString(currentLocale, {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }
-
   // Select a revision
   function selectRevision(index: number | null) {
     selectedRevisionIndex = index;
@@ -113,7 +102,7 @@
         tabindex={selectedRevisionIndex === i ? 0 : -1}
         class="revision-tab {selectedRevisionIndex === i ? 'active' : ''}"
         onclick={() => selectRevision(i)}
-        title={formatDate(rev.revision_at)}
+        title={formatDateTimeShort(rev.revision_at)}
       >
         v{revisions.length - i}
       </button>
@@ -158,7 +147,7 @@
       {/if}
 
       <div class="revision-date">
-        {formatDate(revisions[selectedRevisionIndex].revision_at)}
+        {formatDateTimeShort(revisions[selectedRevisionIndex].revision_at)}
       </div>
     </div>
   {/if}

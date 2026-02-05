@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
+  import { formatChangedDate } from '$lib/utils/articleFormat';
 
   // Type for keyword context from backend
   interface KeywordContext {
@@ -102,12 +103,6 @@
     }
   }
 
-  function formatDate(dateStr: string | null): string {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  }
-
   function handleClick() {
     if (onclick) {
       onclick();
@@ -176,7 +171,7 @@
         {#if context.article_date}
           <div class="tooltip-date">
             <i class="fa-solid fa-calendar"></i>
-            {formatDate(context.article_date)}
+            {formatChangedDate(context.article_date)}
           </div>
         {/if}
       </div>

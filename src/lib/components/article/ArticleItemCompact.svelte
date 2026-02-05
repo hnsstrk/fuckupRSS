@@ -8,28 +8,13 @@
     getBiasIcon,
     getBiasLabel,
     getBiasDirectionClass,
+    getCategoryColorVar,
   } from "../../utils/articleFormat";
 
   interface Category {
     id?: number;
     name: string;
     color: string | null;
-  }
-
-  // Get the main category ID (1-6) from a category or subcategory ID
-  function getMainCategoryId(id: number | undefined): number {
-    if (!id) return 0;
-    if (id <= 6) return id;
-    return Math.floor(id / 100); // Subcategory IDs are 101, 102, 201, etc.
-  }
-
-  // Get CSS variable name for category color
-  function getCategoryColorVar(id: number | undefined): string {
-    const mainId = getMainCategoryId(id);
-    if (mainId >= 1 && mainId <= 6) {
-      return `var(--category-${mainId})`;
-    }
-    return "var(--text-muted)";
   }
 
   interface Props {
@@ -113,7 +98,7 @@
                 <span
                   class="category-dot"
                   style="background-color: {cat.color ||
-                    getCategoryColorVar(cat.id)}"
+                    getCategoryColorVar(cat.id, 'var(--text-muted)')}"
                 ></span>
               {/each}
             </div>

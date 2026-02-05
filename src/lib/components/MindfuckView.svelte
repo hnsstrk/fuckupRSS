@@ -11,14 +11,7 @@
   import Tabs, { type Tab } from "./Tabs.svelte";
   import Tooltip from "./Tooltip.svelte";
   import { RecommendationList } from "./recommendation";
-
-  // Get CSS variable for category color (theme-aware)
-  function getCategoryColorVar(id: number | undefined): string {
-    if (id && id >= 1 && id <= 6) {
-      return `var(--category-${id})`;
-    }
-    return 'var(--accent-primary)';
-  }
+  import { getCategoryColorVar, getBiasColor } from '$lib/utils/articleFormat';
 
   // Tab state
   let activeTab = $state<string>("overview");
@@ -130,15 +123,6 @@
     if (bias <= 0.5) return $_("mindfuck.bias.neutral");
     if (bias <= 1.5) return $_("mindfuck.bias.right");
     return $_("mindfuck.bias.strongRight");
-  }
-
-  function getBiasColor(bias: number | null): string {
-    if (bias === null) return "var(--text-muted)";
-    if (bias <= -1.5) return "var(--bias-strong-left)";
-    if (bias <= -0.5) return "var(--bias-lean-left)";
-    if (bias <= 0.5) return "var(--bias-center)";
-    if (bias <= 1.5) return "var(--bias-lean-right)";
-    return "var(--bias-strong-right)";
   }
 
   function getSeverityColor(severity: string): string {

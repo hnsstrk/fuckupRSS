@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
+import { getCategoryColorVar } from '$lib/utils/articleFormat';
 
 // Mock the invoke function
 vi.mock('@tauri-apps/api/core', () => ({
@@ -136,13 +137,6 @@ describe('MindfuckView Component Logic', () => {
 
   describe('Category Color Variables', () => {
     it('returns correct CSS variable for category', () => {
-      const getCategoryColorVar = (id: number | undefined): string => {
-        if (id && id >= 1 && id <= 6) {
-          return `var(--category-${id})`;
-        }
-        return 'var(--accent-primary)';
-      };
-
       expect(getCategoryColorVar(undefined)).toBe('var(--accent-primary)');
       expect(getCategoryColorVar(0)).toBe('var(--accent-primary)');
       expect(getCategoryColorVar(1)).toBe('var(--category-1)');
