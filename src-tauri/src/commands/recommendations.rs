@@ -1346,8 +1346,10 @@ mod tests {
     }
 
     fn insert_test_keyword(conn: &rusqlite::Connection, id: i64, name: &str) {
+        // Use INSERT OR REPLACE to handle collisions with seeded keywords.
+        // Use high IDs (callers should use 90000+) to avoid ID collisions with seed data.
         conn.execute(
-            "INSERT INTO immanentize (id, name, article_count, quality_score) VALUES (?1, ?2, ?3, ?4)",
+            "INSERT OR REPLACE INTO immanentize (id, name, article_count, quality_score) VALUES (?1, ?2, ?3, ?4)",
             params![id, name, 5, 0.8],
         )
         .expect("Failed to insert test keyword");
@@ -1928,11 +1930,11 @@ mod tests {
         insert_test_pentacle(conn, 1, "Test Feed");
         insert_test_fnord(conn, 1, 1, "Article 1", true, false);
         insert_test_fnord(conn, 2, 1, "Article 2", true, false);
-        insert_test_keyword(conn, 100, "Politik");
-        insert_test_keyword(conn, 101, "Wirtschaft");
-        link_fnord_keyword(conn, 1, 100);
-        link_fnord_keyword(conn, 2, 100);
-        link_fnord_keyword(conn, 2, 101);
+        insert_test_keyword(conn, 90100, "TestKW_ReadArticles_A");
+        insert_test_keyword(conn, 90101, "TestKW_ReadArticles_B");
+        link_fnord_keyword(conn, 1, 90100);
+        link_fnord_keyword(conn, 2, 90100);
+        link_fnord_keyword(conn, 2, 90101);
 
         let read_ids: HashSet<i64> = [1, 2].into_iter().collect();
         let saved_ids: HashSet<i64> = HashSet::new();
@@ -1941,8 +1943,8 @@ mod tests {
             .expect("Failed to aggregate keywords");
 
         assert!(!weights.is_empty());
-        // "Politik" appears in 2 articles, should have higher weight
-        assert!(weights.get(&100).unwrap_or(&0.0) >= weights.get(&101).unwrap_or(&0.0));
+        // "TestKW_ReadArticles_A" appears in 2 articles, should have higher weight
+        assert!(weights.get(&90100).unwrap_or(&0.0) >= weights.get(&90101).unwrap_or(&0.0));
     }
 
     #[test]
@@ -1953,10 +1955,10 @@ mod tests {
         insert_test_pentacle(conn, 1, "Test Feed");
         insert_test_fnord(conn, 1, 1, "Article 1", true, false);
         insert_test_fnord(conn, 2, 1, "Article 2", true, false);
-        insert_test_keyword(conn, 100, "Politik");
-        insert_test_keyword(conn, 101, "Wirtschaft");
-        link_fnord_keyword(conn, 1, 100);
-        link_fnord_keyword(conn, 2, 101);
+        insert_test_keyword(conn, 90200, "TestKW_SavedBoost_A");
+        insert_test_keyword(conn, 90201, "TestKW_SavedBoost_B");
+        link_fnord_keyword(conn, 1, 90200);
+        link_fnord_keyword(conn, 2, 90201);
 
         // Without save
         let read_ids: HashSet<i64> = [1, 2].into_iter().collect();
@@ -1964,15 +1966,15 @@ mod tests {
         let weights_no_save = aggregate_keywords(conn, &read_ids, &saved_ids_empty)
             .expect("Failed to aggregate keywords");
 
-        // With save on article 1 (has keyword 100)
+        // With save on article 1 (has keyword 90200)
         insert_feedback(conn, 1, "save");
         let saved_ids: HashSet<i64> = [1].into_iter().collect();
         let weights_with_save = aggregate_keywords(conn, &read_ids, &saved_ids)
             .expect("Failed to aggregate keywords");
 
-        // Keyword 100 should have higher weight when its article is saved
-        let weight_no_save = weights_no_save.get(&100).unwrap_or(&0.0);
-        let weight_with_save = weights_with_save.get(&100).unwrap_or(&0.0);
+        // Keyword 90200 should have higher weight when its article is saved
+        let weight_no_save = weights_no_save.get(&90200).unwrap_or(&0.0);
+        let weight_with_save = weights_with_save.get(&90200).unwrap_or(&0.0);
         assert!(weight_with_save >= weight_no_save,
                 "Saved article should boost keyword weight");
     }
@@ -2114,18 +2116,18 @@ mod tests {
         insert_test_pentacle(conn, 1, "Test Feed");
         insert_test_fnord(conn, 1, 1, "Article 1", true, false);
         insert_test_fnord(conn, 2, 1, "Article 2", true, false);
-        insert_test_keyword(conn, 100, "Trump");
-        insert_test_keyword(conn, 101, "NATO");
-        link_fnord_keyword(conn, 1, 100);
-        link_fnord_keyword(conn, 1, 101);
-        link_fnord_keyword(conn, 2, 100);
+        insert_test_keyword(conn, 90300, "TestKW_TopUser_Alpha");
+        insert_test_keyword(conn, 90301, "TestKW_TopUser_Beta");
+        link_fnord_keyword(conn, 1, 90300);
+        link_fnord_keyword(conn, 1, 90301);
+        link_fnord_keyword(conn, 2, 90300);
 
         let keywords = get_top_user_keywords(conn, 5)
             .expect("Failed to get top keywords");
 
         assert!(!keywords.is_empty());
-        // "Trump" should be first (appears in 2 articles)
-        assert_eq!(keywords[0].name, "Trump");
+        // "TestKW_TopUser_Alpha" should be first (appears in 2 articles)
+        assert_eq!(keywords[0].name, "TestKW_TopUser_Alpha");
     }
 
     #[test]
@@ -2498,20 +2500,20 @@ mod tests {
         insert_test_fnord(conn, 4, 1, "New AI Model", false, true);
         insert_test_fnord(conn, 5, 2, "Senate Vote", false, true);
 
-        // Keywords
-        insert_test_keyword(conn, 100, "AI");
-        insert_test_keyword(conn, 101, "Machine Learning");
-        insert_test_keyword(conn, 102, "Politics");
+        // Keywords (using high IDs and unique names to avoid seed data collisions)
+        insert_test_keyword(conn, 90400, "TestKW_Flow_AI");
+        insert_test_keyword(conn, 90401, "TestKW_Flow_ML");
+        insert_test_keyword(conn, 90402, "TestKW_Flow_Politics");
 
         // Link read articles to keywords
-        link_fnord_keyword(conn, 1, 100);
-        link_fnord_keyword(conn, 2, 100);
-        link_fnord_keyword(conn, 2, 101);
-        link_fnord_keyword(conn, 3, 102);
+        link_fnord_keyword(conn, 1, 90400);
+        link_fnord_keyword(conn, 2, 90400);
+        link_fnord_keyword(conn, 2, 90401);
+        link_fnord_keyword(conn, 3, 90402);
 
         // Link candidate to keywords
-        link_fnord_keyword(conn, 4, 100);
-        link_fnord_keyword(conn, 4, 101);
+        link_fnord_keyword(conn, 4, 90400);
+        link_fnord_keyword(conn, 4, 90401);
 
         // Build profile
         let profile = build_user_profile(conn).expect("Failed to build profile");

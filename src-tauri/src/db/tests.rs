@@ -238,11 +238,11 @@ fn test_immanentize_keyword() {
     let db = Database::new_in_memory().expect("Failed to create database");
     let conn = db.conn();
 
-    // Insert a keyword
+    // Insert a keyword (using unique name to avoid collision with seeded keywords)
     let result = conn.execute(
         r#"INSERT INTO immanentize (name, count, article_count)
            VALUES (?1, ?2, ?3)"#,
-        ("Cybersecurity", 5, 3),
+        ("TestOnlyKeyword_Cybersec", 5, 3),
     );
 
     assert!(result.is_ok(), "Failed to insert keyword");
@@ -250,7 +250,7 @@ fn test_immanentize_keyword() {
     // Verify keyword exists
     let count: i64 = conn
         .query_row(
-            "SELECT count FROM immanentize WHERE name = 'Cybersecurity'",
+            "SELECT count FROM immanentize WHERE name = 'TestOnlyKeyword_Cybersec'",
             [],
             |row| row.get(0),
         )
@@ -264,19 +264,22 @@ fn test_immanentize_neighbors() {
     let db = Database::new_in_memory().expect("Failed to create database");
     let conn = db.conn();
 
-    // Insert two keywords
+    // Insert two keywords (using unique names to avoid collision with seeded keywords)
     conn.execute(
         "INSERT INTO immanentize (name) VALUES (?1)",
-        ["Cybersecurity"],
+        ["TestOnlyKeyword_AlphaNode"],
     )
     .expect("Failed to insert keyword 1");
 
-    conn.execute("INSERT INTO immanentize (name) VALUES (?1)", ["Hacking"])
-        .expect("Failed to insert keyword 2");
+    conn.execute(
+        "INSERT INTO immanentize (name) VALUES (?1)",
+        ["TestOnlyKeyword_BetaNode"],
+    )
+    .expect("Failed to insert keyword 2");
 
     let id_a: i64 = conn
         .query_row(
-            "SELECT id FROM immanentize WHERE name = 'Cybersecurity'",
+            "SELECT id FROM immanentize WHERE name = 'TestOnlyKeyword_AlphaNode'",
             [],
             |row| row.get(0),
         )
@@ -284,7 +287,7 @@ fn test_immanentize_neighbors() {
 
     let id_b: i64 = conn
         .query_row(
-            "SELECT id FROM immanentize WHERE name = 'Hacking'",
+            "SELECT id FROM immanentize WHERE name = 'TestOnlyKeyword_BetaNode'",
             [],
             |row| row.get(0),
         )
