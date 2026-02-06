@@ -3,6 +3,7 @@
 //! This module provides a background worker that continuously processes
 //! the embedding queue, generating embeddings for new keywords.
 
+use crate::commands::ai::helpers::get_ollama_url;
 use crate::commands::settings::get_embedding_model_from_db;
 use crate::db::Database;
 use crate::embeddings::{cosine_similarity_from_blobs, embedding_to_blob};
@@ -163,18 +164,20 @@ pub async fn process_embedding_queue(
         return Ok((0, 0));
     }
 
-    let client = Arc::new(OllamaClient::new(None));
+    // Get Ollama URL and embedding model from settings
+    let (ollama_url, model) = {
+        let db_guard = db.lock().map_err(|e| e.to_string())?;
+        let url = get_ollama_url(&db_guard);
+        let model = get_embedding_model_from_db(db_guard.conn());
+        (url, model)
+    };
+
+    let client = Arc::new(OllamaClient::new(Some(ollama_url)));
 
     // Check if Ollama is available
     if !client.is_available().await {
         debug!("Ollama not available, skipping embedding generation");
         return Ok((0, 0));
-    }
-
-    // Get configured embedding model from settings
-    let model = {
-        let db_guard = db.lock().map_err(|e| e.to_string())?;
-        get_embedding_model_from_db(db_guard.conn())
     };
     let concurrency = 10; // Process 10 embeddings in parallel
 

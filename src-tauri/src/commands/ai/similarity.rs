@@ -1,5 +1,6 @@
 //! Similar articles and semantic search commands
 
+use crate::commands::ai::helpers::get_ollama_url;
 use crate::commands::settings::get_embedding_model_from_db;
 use crate::embeddings::embedding_to_blob;
 use crate::ollama::OllamaClient;
@@ -176,7 +177,8 @@ pub async fn semantic_search(
     let (embedding_model, client) = {
         let db = state.db_conn()?;
         let model = get_embedding_model_from_db(db.conn());
-        (model, OllamaClient::new(None))
+        let url = get_ollama_url(&db);
+        (model, OllamaClient::new(Some(url)))
     };
 
     let query_embedding = client
@@ -331,7 +333,11 @@ pub async fn generate_article_embeddings_batch(
         },
     );
 
-    let client = OllamaClient::new(None);
+    let client = {
+        let db = state.db_conn()?;
+        let url = get_ollama_url(&db);
+        OllamaClient::new(Some(url))
+    };
     let mut succeeded = 0i64;
     let mut failed = 0i64;
 
