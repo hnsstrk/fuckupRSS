@@ -5,6 +5,36 @@
   import { onDestroy } from "svelte";
   import { appState, toasts } from "../../stores/state.svelte";
 
+  // AI Provider state
+  let aiTextProvider = $state("ollama");
+  let ollamaUrl = $state("http://localhost:11434");
+  let openaiBaseUrl = $state("https://api.openai.com");
+  let openaiApiKey = $state("");
+  let openaiModel = $state("gpt-4.1-nano");
+  let showApiKey = $state(false);
+  let costLimit = $state(5.0);
+  let monthlyCost = $state<{
+    spent: number;
+    limit: number;
+    remaining: number;
+    percentage: number;
+  } | null>(null);
+
+  // Connection test state
+  let testingOllama = $state(false);
+  let ollamaTestResult = $state<{
+    success: boolean;
+    latency_ms: number;
+    models: string[];
+  } | null>(null);
+  let testingOpenai = $state(false);
+  let openaiTestResult = $state<{
+    success: boolean;
+    latency_ms: number;
+    models: string[];
+    error: string | null;
+  } | null>(null);
+
   // Ollama state
   let ollamaStatus = $state<{
     available: boolean;
@@ -62,6 +92,41 @@
   }
 
   export async function init() {
+    // Load AI provider settings
+    const savedProvider = await invoke<string | null>("get_setting", {
+      key: "ai_text_provider",
+    });
+    if (savedProvider) aiTextProvider = savedProvider;
+
+    const savedOllamaUrl = await invoke<string | null>("get_setting", {
+      key: "ollama_url",
+    });
+    if (savedOllamaUrl) ollamaUrl = savedOllamaUrl;
+
+    const savedOpenaiBaseUrl = await invoke<string | null>("get_setting", {
+      key: "openai_base_url",
+    });
+    if (savedOpenaiBaseUrl) openaiBaseUrl = savedOpenaiBaseUrl;
+
+    const savedOpenaiApiKey = await invoke<string | null>("get_setting", {
+      key: "openai_api_key",
+    });
+    if (savedOpenaiApiKey) openaiApiKey = savedOpenaiApiKey;
+
+    const savedOpenaiModel = await invoke<string | null>("get_setting", {
+      key: "openai_model",
+    });
+    if (savedOpenaiModel) openaiModel = savedOpenaiModel;
+
+    const savedCostLimit = await invoke<string | null>("get_setting", {
+      key: "cost_limit_monthly",
+    });
+    if (savedCostLimit) costLimit = parseFloat(savedCostLimit) || 5.0;
+
+    // Load cost data
+    await loadMonthlyCost();
+
+    // Load existing Ollama settings
     await loadOllamaStatus();
     await loadHardwareProfiles();
 
@@ -91,6 +156,78 @@
     profileDropdownOpen = false;
   }
 
+  // --- Provider handler functions ---
+
+  async function handleProviderChange(provider: string) {
+    aiTextProvider = provider;
+    await invoke("set_setting", { key: "ai_text_provider", value: provider });
+  }
+
+  async function testOllamaConnection() {
+    testingOllama = true;
+    ollamaTestResult = null;
+    try {
+      ollamaTestResult = await invoke("test_ai_provider", {
+        providerType: "ollama",
+        baseUrl: ollamaUrl,
+        apiKey: null,
+      });
+    } catch (e) {
+      ollamaTestResult = { success: false, latency_ms: 0, models: [] };
+    }
+    testingOllama = false;
+  }
+
+  async function saveOllamaUrl() {
+    await invoke("set_setting", { key: "ollama_url", value: ollamaUrl });
+  }
+
+  async function testOpenaiConnection() {
+    testingOpenai = true;
+    openaiTestResult = null;
+    try {
+      openaiTestResult = await invoke("test_ai_provider", {
+        providerType: "openai_compatible",
+        baseUrl: openaiBaseUrl,
+        apiKey: openaiApiKey || null,
+      });
+    } catch (e) {
+      openaiTestResult = {
+        success: false,
+        latency_ms: 0,
+        models: [],
+        error: String(e),
+      };
+    }
+    testingOpenai = false;
+  }
+
+  async function saveOpenaiSettings() {
+    await invoke("set_setting", {
+      key: "openai_base_url",
+      value: openaiBaseUrl,
+    });
+    await invoke("set_setting", { key: "openai_api_key", value: openaiApiKey });
+    await invoke("set_setting", { key: "openai_model", value: openaiModel });
+  }
+
+  async function saveCostLimit() {
+    await invoke("set_setting", {
+      key: "cost_limit_monthly",
+      value: costLimit.toString(),
+    });
+  }
+
+  async function loadMonthlyCost() {
+    try {
+      monthlyCost = await invoke("get_monthly_cost");
+    } catch (e) {
+      monthlyCost = null;
+    }
+  }
+
+  // --- Existing handler functions ---
+
   async function loadOllamaStatus() {
     try {
       ollamaStatus = await invoke("check_ollama");
@@ -103,7 +240,8 @@
 
       if (ollamaStatus) {
         selectedMainModel = savedMainModel || ollamaStatus.recommended_main;
-        selectedEmbeddingModel = savedEmbeddingModel || ollamaStatus.recommended_embedding;
+        selectedEmbeddingModel =
+          savedEmbeddingModel || ollamaStatus.recommended_embedding;
         appState.ollamaStatus = ollamaStatus;
         // Sync selectedModel to appState for batch processing if not already set
         if (selectedMainModel && !appState.selectedModel) {
@@ -120,7 +258,8 @@
 
   async function loadLoadedModels() {
     try {
-      const response = await invoke<{ models: typeof loadedModels }>("get_loaded_models");
+      const response =
+        await invoke<{ models: typeof loadedModels }>("get_loaded_models");
       loadedModels = response.models;
     } catch (e) {
       console.error("Failed to load loaded models:", e);
@@ -130,7 +269,8 @@
 
   async function loadHardwareProfiles() {
     try {
-      hardwareProfiles = await invoke<HardwareProfile[]>("get_hardware_profiles");
+      hardwareProfiles =
+        await invoke<HardwareProfile[]>("get_hardware_profiles");
       const active = await invoke<string | null>("get_setting", {
         key: "active_hardware_profile",
       });
@@ -151,7 +291,8 @@
 
   function isRecommendedModel(model: string, recommended: string): boolean {
     return (
-      model === recommended || model.startsWith(recommended.split(":")[0] + ":")
+      model === recommended ||
+      model.startsWith(recommended.split(":")[0] + ":")
     );
   }
 
@@ -162,12 +303,16 @@
 
   // Check if main model is missing (selected but not installed)
   let isMainModelMissing = $derived(
-    selectedMainModel && ollamaStatus?.available && !isModelInstalled(selectedMainModel)
+    selectedMainModel &&
+      ollamaStatus?.available &&
+      !isModelInstalled(selectedMainModel),
   );
 
   // Check if embedding model is missing (selected but not installed)
   let isEmbeddingModelMissing = $derived(
-    selectedEmbeddingModel && ollamaStatus?.available && !isModelInstalled(selectedEmbeddingModel)
+    selectedEmbeddingModel &&
+      ollamaStatus?.available &&
+      !isModelInstalled(selectedEmbeddingModel),
   );
 
   async function handleNumCtxChange(value: number) {
@@ -286,7 +431,82 @@
 
 <h3>{$_("settings.ollama.title")}</h3>
 
-<!-- Ollama Status -->
+<!-- 1. Provider Radio Selection -->
+<div class="setting-group">
+  <span class="label">{$_("settings.ollama.textProvider")}</span>
+  <div class="provider-radios">
+    <label class="radio-label">
+      <input
+        type="radio"
+        name="ai_text_provider"
+        value="ollama"
+        checked={aiTextProvider === "ollama"}
+        onchange={() => handleProviderChange("ollama")}
+      />
+      <span class="radio-text">{$_("settings.ollama.providerOllama")}</span>
+    </label>
+    <label class="radio-label">
+      <input
+        type="radio"
+        name="ai_text_provider"
+        value="openai_compatible"
+        checked={aiTextProvider === "openai_compatible"}
+        onchange={() => handleProviderChange("openai_compatible")}
+      />
+      <span class="radio-text">{$_("settings.ollama.providerOpenAi")}</span>
+    </label>
+  </div>
+  <p class="setting-description">
+    {$_("settings.ollama.providerDescription")}
+  </p>
+</div>
+
+<!-- 2. Ollama Server URL + Connection Test -->
+<div class="setting-group">
+  <span class="label">{$_("settings.ollama.ollamaSection")}</span>
+  <div class="url-row">
+    <input
+      type="text"
+      class="text-input"
+      bind:value={ollamaUrl}
+      onblur={saveOllamaUrl}
+      placeholder="http://localhost:11434"
+    />
+    <button
+      type="button"
+      class="btn-test"
+      onclick={testOllamaConnection}
+      disabled={testingOllama}
+    >
+      {#if testingOllama}
+        {$_("settings.ollama.testing")}
+      {:else}
+        {$_("settings.ollama.testConnection")}
+      {/if}
+    </button>
+  </div>
+  <p class="setting-description">
+    {$_("settings.ollama.ollamaUrlDescription")}
+  </p>
+  {#if ollamaTestResult}
+    <div
+      class="connection-result {ollamaTestResult.success ? 'success' : 'error'}"
+    >
+      {#if ollamaTestResult.success}
+        <i class="fa-solid fa-check"></i>
+        {$_("settings.ollama.connected")}
+        <span class="latency"
+          >{$_("settings.ollama.latency", { values: { ms: ollamaTestResult.latency_ms } })}</span
+        >
+      {:else}
+        <i class="fa-solid fa-xmark"></i>
+        {$_("settings.ollama.disconnected")}
+      {/if}
+    </div>
+  {/if}
+</div>
+
+<!-- 3. Ollama Status -->
 <div class="setting-group">
   <span class="label">{$_("settings.ollama.status")}</span>
   {#if ollamaStatus === null}
@@ -310,104 +530,124 @@
 {#if ollamaStatus?.available}
   <!-- Loaded Models Display -->
   <div class="setting-group">
-    <span class="label">{$_("settings.ollama.loadedModels") || "Geladene Modelle (VRAM)"}</span>
+    <span class="label"
+      >{$_("settings.ollama.loadedModels") || "Geladene Modelle (VRAM)"}</span
+    >
     <div class="loaded-models">
       {#if loadedModels.length === 0}
         <div class="no-models">
           {$_("settings.ollama.noLoadedModels") || "Keine Modelle geladen"}
         </div>
       {:else}
-        {#each loadedModels as model}
+        {#each loadedModels as model (model.name)}
           <div class="loaded-model">
             <span class="model-name">{model.name}</span>
-            <span class="model-info">{model.parameter_size} · {formatBytes(model.size_vram)}</span>
+            <span class="model-info"
+              >{model.parameter_size} · {formatBytes(model.size_vram)}</span
+            >
           </div>
         {/each}
       {/if}
     </div>
   </div>
 
-  <!-- Main Model Selection -->
-  <div class="setting-group">
-    <span class="label">{$_("settings.ollama.mainModel")}</span>
-    <div class="model-row">
-      <div class="custom-select model-select">
-        <button
-          type="button"
-          class="select-trigger"
-          onclick={toggleMainModelDropdown}
-        >
-          <span>
-            {selectedMainModel || $_("settings.ollama.noModels")}
-            {#if isModelLoaded(selectedMainModel)}
-              <i class="loaded-badge fa-solid fa-circle"></i>
+  <!-- Main Model Selection (only when Ollama provider) -->
+  {#if aiTextProvider === "ollama"}
+    <div class="setting-group">
+      <span class="label">{$_("settings.ollama.mainModel")}</span>
+      <div class="model-row">
+        <div class="custom-select model-select">
+          <button
+            type="button"
+            class="select-trigger"
+            onclick={toggleMainModelDropdown}
+          >
+            <span>
+              {selectedMainModel || $_("settings.ollama.noModels")}
+              {#if isModelLoaded(selectedMainModel)}
+                <i class="loaded-badge fa-solid fa-circle"></i>
+              {/if}
+              {#if ollamaStatus && isRecommendedModel(selectedMainModel, ollamaStatus.recommended_main)}
+                <span class="recommended"
+                  >{$_("settings.ollama.recommended")}</span
+                >
+              {/if}
+            </span>
+            <i
+              class="arrow fa-solid {mainModelDropdownOpen
+                ? 'fa-caret-up'
+                : 'fa-caret-down'}"
+            ></i>
+          </button>
+          {#if mainModelDropdownOpen}
+            <div class="select-options">
+              {#each ollamaStatus.models as model (model)}
+                <button
+                  type="button"
+                  class="select-option {selectedMainModel === model
+                    ? 'selected'
+                    : ''}"
+                  onclick={() => selectMainModel(model)}
+                >
+                  {model}
+                  {#if isModelLoaded(model)}
+                    <i class="loaded-badge fa-solid fa-circle"></i>
+                  {/if}
+                  {#if isRecommendedModel(model, ollamaStatus.recommended_main)}
+                    <span class="recommended"
+                      >{$_("settings.ollama.recommended")}</span
+                    >
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        {#if ollamaStatus && !ollamaStatus.has_recommended_main}
+          <button
+            type="button"
+            class="btn-download"
+            onclick={() => handleDownloadModel(ollamaStatus!.recommended_main)}
+            disabled={downloadingModel !== null}
+          >
+            {#if downloadingModel === ollamaStatus.recommended_main}
+              {$_("settings.ollama.downloading")}
+            {:else}
+              {$_("settings.ollama.downloadModel")}
+              {ollamaStatus.recommended_main}
             {/if}
-            {#if ollamaStatus && isRecommendedModel(selectedMainModel, ollamaStatus.recommended_main)}
-              <span class="recommended">{$_("settings.ollama.recommended")}</span>
-            {/if}
-          </span>
-          <i class="arrow fa-solid {mainModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
-        </button>
-        {#if mainModelDropdownOpen}
-          <div class="select-options">
-            {#each ollamaStatus.models as model}
-              <button
-                type="button"
-                class="select-option {selectedMainModel === model ? 'selected' : ''}"
-                onclick={() => selectMainModel(model)}
-              >
-                {model}
-                {#if isModelLoaded(model)}
-                  <i class="loaded-badge fa-solid fa-circle"></i>
-                {/if}
-                {#if isRecommendedModel(model, ollamaStatus.recommended_main)}
-                  <span class="recommended">{$_("settings.ollama.recommended")}</span>
-                {/if}
-              </button>
-            {/each}
-          </div>
+          </button>
         {/if}
       </div>
-      {#if ollamaStatus && !ollamaStatus.has_recommended_main}
-        <button
-          type="button"
-          class="btn-download"
-          onclick={() => handleDownloadModel(ollamaStatus!.recommended_main)}
-          disabled={downloadingModel !== null}
-        >
-          {#if downloadingModel === ollamaStatus.recommended_main}
-            {$_("settings.ollama.downloading")}
-          {:else}
-            {$_("settings.ollama.downloadModel")}
-            {ollamaStatus.recommended_main}
-          {/if}
-        </button>
+      {#if isMainModelMissing}
+        <div class="model-warning">
+          <i class="warning-icon fa-solid fa-triangle-exclamation"></i>
+          <div class="warning-content">
+            <span class="warning-text"
+              >{$_("settings.ollama.modelMissing", { values: { model: selectedMainModel } })}</span
+            >
+            <span class="warning-hint"
+              >{$_("settings.ollama.modelMissingHint")}</span
+            >
+          </div>
+          <button
+            type="button"
+            class="btn-download-inline"
+            onclick={() => handleDownloadModel(selectedMainModel)}
+            disabled={downloadingModel !== null}
+          >
+            {#if downloadingModel === selectedMainModel}
+              {$_("settings.ollama.downloading")}
+            {:else}
+              {$_("settings.ollama.downloadNow")}
+            {/if}
+          </button>
+        </div>
       {/if}
     </div>
-    {#if isMainModelMissing}
-      <div class="model-warning">
-        <i class="warning-icon fa-solid fa-triangle-exclamation"></i>
-        <div class="warning-content">
-          <span class="warning-text">{$_("settings.ollama.modelMissing", { values: { model: selectedMainModel } })}</span>
-          <span class="warning-hint">{$_("settings.ollama.modelMissingHint")}</span>
-        </div>
-        <button
-          type="button"
-          class="btn-download-inline"
-          onclick={() => handleDownloadModel(selectedMainModel)}
-          disabled={downloadingModel !== null}
-        >
-          {#if downloadingModel === selectedMainModel}
-            {$_("settings.ollama.downloading")}
-          {:else}
-            {$_("settings.ollama.downloadNow")}
-          {/if}
-        </button>
-      </div>
-    {/if}
-  </div>
+  {/if}
 
-  <!-- Embedding Model Selection -->
+  <!-- Embedding Model Selection (always visible - embeddings always use Ollama) -->
   <div class="setting-group">
     <span class="label">{$_("settings.ollama.embeddingModel")}</span>
     <div class="model-row">
@@ -420,22 +660,32 @@
           <span>
             {selectedEmbeddingModel || $_("settings.ollama.noModels")}
             {#if ollamaStatus && isRecommendedModel(selectedEmbeddingModel, ollamaStatus.recommended_embedding)}
-              <span class="recommended">{$_("settings.ollama.recommended")}</span>
+              <span class="recommended"
+                >{$_("settings.ollama.recommended")}</span
+              >
             {/if}
           </span>
-          <i class="arrow fa-solid {embeddingModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
+          <i
+            class="arrow fa-solid {embeddingModelDropdownOpen
+              ? 'fa-caret-up'
+              : 'fa-caret-down'}"
+          ></i>
         </button>
         {#if embeddingModelDropdownOpen}
           <div class="select-options">
-            {#each ollamaStatus.models as model}
+            {#each ollamaStatus.models as model (model)}
               <button
                 type="button"
-                class="select-option {selectedEmbeddingModel === model ? 'selected' : ''}"
+                class="select-option {selectedEmbeddingModel === model
+                  ? 'selected'
+                  : ''}"
                 onclick={() => selectEmbeddingModel(model)}
               >
                 {model}
                 {#if isRecommendedModel(model, ollamaStatus.recommended_embedding)}
-                  <span class="recommended">{$_("settings.ollama.recommended")}</span>
+                  <span class="recommended"
+                    >{$_("settings.ollama.recommended")}</span
+                  >
                 {/if}
               </button>
             {/each}
@@ -446,7 +696,8 @@
         <button
           type="button"
           class="btn-download"
-          onclick={() => handleDownloadModel(ollamaStatus!.recommended_embedding)}
+          onclick={() =>
+            handleDownloadModel(ollamaStatus!.recommended_embedding)}
           disabled={downloadingModel !== null}
         >
           {#if downloadingModel === ollamaStatus.recommended_embedding}
@@ -462,8 +713,12 @@
       <div class="model-warning">
         <i class="warning-icon fa-solid fa-triangle-exclamation"></i>
         <div class="warning-content">
-          <span class="warning-text">{$_("settings.ollama.modelMissing", { values: { model: selectedEmbeddingModel } })}</span>
-          <span class="warning-hint">{$_("settings.ollama.modelMissingHint")}</span>
+          <span class="warning-text"
+            >{$_("settings.ollama.modelMissing", { values: { model: selectedEmbeddingModel } })}</span
+          >
+          <span class="warning-hint"
+            >{$_("settings.ollama.modelMissingHint")}</span
+          >
         </div>
         <button
           type="button"
@@ -480,7 +735,159 @@
       </div>
     {/if}
   </div>
+{/if}
 
+<!-- 7. OpenAI Section (only when openai_compatible provider) -->
+{#if aiTextProvider === "openai_compatible"}
+  <div class="setting-group">
+    <span class="label section-label"
+      >{$_("settings.ollama.openaiSection")}</span
+    >
+
+    <!-- API Base URL -->
+    <div class="sub-field">
+      <span class="sub-label">{$_("settings.ollama.apiBaseUrl")}</span>
+      <input
+        type="text"
+        class="text-input"
+        bind:value={openaiBaseUrl}
+        onblur={saveOpenaiSettings}
+        placeholder="https://api.openai.com"
+      />
+      <p class="setting-description">
+        {$_("settings.ollama.apiBaseUrlDescription")}
+      </p>
+    </div>
+
+    <!-- API Key -->
+    <div class="sub-field">
+      <span class="sub-label">{$_("settings.ollama.apiKey")}</span>
+      <div class="api-key-row">
+        <input
+          type={showApiKey ? "text" : "password"}
+          class="text-input api-key-input"
+          bind:value={openaiApiKey}
+          onblur={saveOpenaiSettings}
+          placeholder={$_("settings.ollama.apiKeyPlaceholder")}
+        />
+        <button
+          type="button"
+          class="btn-toggle-key"
+          onclick={() => (showApiKey = !showApiKey)}
+          aria-label={showApiKey ? "Hide API key" : "Show API key"}
+        >
+          <i
+            class="fa-solid {showApiKey ? 'fa-eye-slash' : 'fa-eye'}"
+          ></i>
+        </button>
+      </div>
+      <p class="setting-description">
+        {$_("settings.ollama.apiKeyDescription")}
+      </p>
+    </div>
+
+    <!-- Model Name -->
+    <div class="sub-field">
+      <span class="sub-label">{$_("settings.ollama.openaiModel")}</span>
+      <input
+        type="text"
+        class="text-input"
+        bind:value={openaiModel}
+        onblur={saveOpenaiSettings}
+        placeholder="gpt-4.1-nano"
+      />
+      <p class="setting-description">
+        {$_("settings.ollama.openaiModelDescription")}
+      </p>
+    </div>
+
+    <!-- Test Connection -->
+    <div class="sub-field">
+      <button
+        type="button"
+        class="btn-test"
+        onclick={testOpenaiConnection}
+        disabled={testingOpenai}
+      >
+        {#if testingOpenai}
+          {$_("settings.ollama.testing")}
+        {:else}
+          {$_("settings.ollama.testConnection")}
+        {/if}
+      </button>
+      {#if openaiTestResult}
+        <div
+          class="connection-result {openaiTestResult.success
+            ? 'success'
+            : 'error'}"
+        >
+          {#if openaiTestResult.success}
+            <i class="fa-solid fa-check"></i>
+            {$_("settings.ollama.connected")}
+            <span class="latency"
+              >{$_("settings.ollama.latency", { values: { ms: openaiTestResult.latency_ms } })}</span
+            >
+          {:else}
+            <i class="fa-solid fa-xmark"></i>
+            {$_("settings.ollama.disconnected")}
+            {#if openaiTestResult.error}
+              <span class="error-detail">{openaiTestResult.error}</span>
+            {/if}
+          {/if}
+        </div>
+      {/if}
+    </div>
+  </div>
+
+  <!-- 8. Cost Tracking Section -->
+  <div class="setting-group">
+    <span class="label">{$_("settings.ollama.costSection")}</span>
+
+    {#if monthlyCost}
+      <div class="cost-display">
+        <div class="cost-header">
+          <span class="cost-spent"
+            >{$_("settings.ollama.costSpent")}: ${monthlyCost.spent.toFixed(2)}</span
+          >
+          <span class="cost-limit">/ ${monthlyCost.limit.toFixed(2)}</span>
+        </div>
+        <div class="cost-bar-container">
+          <div
+            class="cost-bar"
+            style="width: {Math.min(monthlyCost.percentage, 100)}%"
+            class:cost-bar-warning={monthlyCost.percentage > 80}
+            class:cost-bar-danger={monthlyCost.percentage > 95}
+          ></div>
+        </div>
+        <div class="cost-footer">
+          <span class="cost-remaining"
+            >{$_("settings.ollama.costRemaining")}: ${monthlyCost.remaining.toFixed(2)}</span
+          >
+          <span class="cost-percentage"
+            >{monthlyCost.percentage.toFixed(0)}%</span
+          >
+        </div>
+      </div>
+    {/if}
+
+    <div class="sub-field">
+      <span class="sub-label">{$_("settings.ollama.costLimit")}</span>
+      <input
+        type="number"
+        class="text-input cost-input"
+        bind:value={costLimit}
+        onblur={saveCostLimit}
+        min="0"
+        step="0.5"
+      />
+      <p class="setting-description">
+        {$_("settings.ollama.costLimitDescription")}
+      </p>
+    </div>
+  </div>
+{/if}
+
+{#if ollamaStatus?.available}
   <!-- Load Models Button -->
   <div class="setting-group">
     <button
@@ -496,7 +903,8 @@
       {/if}
     </button>
     <p class="setting-description">
-      {$_("settings.ollama.loadModelsDescription") || "Ladt die ausgewahlten Modelle in den Grafikspeicher. Die Auswahl wird automatisch gespeichert."}
+      {$_("settings.ollama.loadModelsDescription") ||
+        "Ladt die ausgewahlten Modelle in den Grafikspeicher. Die Auswahl wird automatisch gespeichert."}
     </p>
   </div>
 
@@ -510,19 +918,28 @@
         onclick={toggleProfileDropdown}
       >
         <span>
-          {hardwareProfiles.find((p) => p.id === selectedProfileId)?.name || "Default"}
+          {hardwareProfiles.find((p) => p.id === selectedProfileId)?.name ||
+            "Default"}
           <span class="profile-parallelism">
-            ({hardwareProfiles.find((p) => p.id === selectedProfileId)?.ai_parallelism || 1}x Parallel)
+            ({hardwareProfiles.find((p) => p.id === selectedProfileId)
+              ?.ai_parallelism || 1}x Parallel)
           </span>
         </span>
-        <i class="arrow fa-solid {profileDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
+        <i
+          class="arrow fa-solid {profileDropdownOpen
+            ? 'fa-caret-up'
+            : 'fa-caret-down'}"
+        ></i>
       </button>
       {#if profileDropdownOpen}
         <div class="select-options">
-          {#each hardwareProfiles as profile}
+          {#each hardwareProfiles as profile (profile.id)}
             <button
               type="button"
-              class="select-option profile-option {selectedProfileId === profile.id ? 'selected' : ''}"
+              class="select-option profile-option {selectedProfileId ===
+              profile.id
+                ? 'selected'
+                : ''}"
               onclick={() => handleProfileSelect(profile.id)}
             >
               <div class="profile-info">
@@ -542,7 +959,10 @@
 
   <!-- Context Length (num_ctx) -->
   <div class="setting-group">
-    <span class="label">{$_("settings.ollama.contextLength") || "Kontext-Lange (num_ctx)"}</span>
+    <span class="label"
+      >{$_("settings.ollama.contextLength") ||
+        "Kontext-Lange (num_ctx)"}</span
+    >
     <div class="custom-select">
       <button
         type="button"
@@ -555,19 +975,26 @@
         }}
       >
         <span>
-          {numCtxOptions.find(o => o.value === ollamaNumCtx)?.label || ollamaNumCtx}
+          {numCtxOptions.find((o) => o.value === ollamaNumCtx)?.label ||
+            ollamaNumCtx}
           <span class="ctx-desc">
-            ({numCtxOptions.find(o => o.value === ollamaNumCtx)?.desc || ""})
+            ({numCtxOptions.find((o) => o.value === ollamaNumCtx)?.desc || ""})
           </span>
         </span>
-        <i class="arrow fa-solid {numCtxDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
+        <i
+          class="arrow fa-solid {numCtxDropdownOpen
+            ? 'fa-caret-up'
+            : 'fa-caret-down'}"
+        ></i>
       </button>
       {#if numCtxDropdownOpen}
         <div class="select-options">
-          {#each numCtxOptions as option}
+          {#each numCtxOptions as option (option.value)}
             <button
               type="button"
-              class="select-option ctx-option {ollamaNumCtx === option.value ? 'selected' : ''}"
+              class="select-option ctx-option {ollamaNumCtx === option.value
+                ? 'selected'
+                : ''}"
               onclick={() => handleNumCtxChange(option.value)}
             >
               <span class="ctx-label">{option.label}</span>
@@ -578,7 +1005,8 @@
       {/if}
     </div>
     <p class="setting-description">
-      {$_("settings.ollama.contextLengthDescription") || "Hohere Werte erlauben langere Artikel, benotigen aber mehr VRAM. 4K ist fur die meisten Artikel ausreichend."}
+      {$_("settings.ollama.contextLengthDescription") ||
+        "Hohere Werte erlauben langere Artikel, benotigen aber mehr VRAM. 4K ist fur die meisten Artikel ausreichend."}
     </p>
   </div>
 
@@ -612,6 +1040,229 @@
     margin: 0.25rem 0 0 0;
     font-size: 0.875rem;
     color: var(--text-muted);
+  }
+
+  /* Provider Radio Selection */
+  .provider-radios {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+  }
+
+  .radio-label input[type="radio"] {
+    accent-color: var(--accent-primary);
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+  }
+
+  .radio-text {
+    user-select: none;
+  }
+
+  /* URL row / connection test */
+  .url-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+
+  .text-input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    background-color: var(--bg-overlay);
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+    font-family: inherit;
+  }
+
+  .text-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+  }
+
+  .text-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .btn-test {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--accent-primary);
+    border-radius: 0.375rem;
+    background: none;
+    color: var(--accent-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+
+  .btn-test:hover:not(:disabled) {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+  }
+
+  .btn-test:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .connection-result {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    margin-top: 0.375rem;
+  }
+
+  .connection-result.success {
+    color: var(--status-success);
+    background-color: rgba(166, 227, 161, 0.1);
+  }
+
+  .connection-result.error {
+    color: var(--status-error);
+    background-color: rgba(243, 139, 168, 0.1);
+  }
+
+  .latency {
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    margin-left: 0.25rem;
+  }
+
+  .error-detail {
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    margin-left: 0.25rem;
+    word-break: break-all;
+  }
+
+  /* OpenAI section */
+  .section-label {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .sub-field {
+    margin-bottom: 0.75rem;
+  }
+
+  .sub-label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+  }
+
+  .api-key-row {
+    display: flex;
+    gap: 0.375rem;
+    align-items: flex-start;
+  }
+
+  .api-key-input {
+    flex: 1;
+  }
+
+  .btn-toggle-key {
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-toggle-key:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-primary);
+  }
+
+  /* Cost tracking */
+  .cost-display {
+    padding: 0.75rem;
+    background-color: var(--bg-overlay);
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .cost-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .cost-spent {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+  }
+
+  .cost-limit {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+
+  .cost-bar-container {
+    width: 100%;
+    height: 6px;
+    background-color: var(--bg-muted, rgba(255, 255, 255, 0.1));
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .cost-bar {
+    height: 100%;
+    background-color: var(--accent-primary);
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+
+  .cost-bar-warning {
+    background-color: var(--accent-warning, #fab387);
+  }
+
+  .cost-bar-danger {
+    background-color: var(--status-error);
+  }
+
+  .cost-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.375rem;
+    font-size: 0.8125rem;
+  }
+
+  .cost-remaining {
+    color: var(--text-muted);
+  }
+
+  .cost-percentage {
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .cost-input {
+    max-width: 120px;
   }
 
   /* Custom Select */

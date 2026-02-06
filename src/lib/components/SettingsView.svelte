@@ -36,7 +36,7 @@
   // Tabs definition
   let tabs = $derived<Tab[]>([
     { id: "general", label: $_("settings.title") },
-    { id: "ollama", label: "Ollama" },
+    { id: "ollama", label: $_("settings.ollama.title") },
     { id: "prompts", label: "Prompts" },
     { id: "stopwords", label: $_("settings.stopwords.title") },
     { id: "maintenance", label: $_("settings.maintenance.title") },
@@ -105,7 +105,7 @@
           <span class="stat-value">
             <i class="fa-solid {ollamaAvailable ? 'fa-check-circle' : 'fa-times-circle'}"></i>
           </span>
-          <span class="stat-label">{$_('settings.stats.ollama')}</span>
+          <span class="stat-label">AI</span>
         </span>
       </div>
     </div>
