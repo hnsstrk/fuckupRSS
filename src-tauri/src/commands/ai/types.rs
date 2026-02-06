@@ -117,6 +117,8 @@ pub struct BatchProgress {
     pub title: String,
     pub success: bool,
     pub error: Option<String>,
+    pub provider: String,
+    pub model: String,
 }
 
 #[derive(serde::Serialize)]
@@ -124,6 +126,8 @@ pub struct BatchResult {
     pub processed: i64,
     pub succeeded: i64,
     pub failed: i64,
+    pub provider: String,
+    pub model: String,
 }
 
 #[derive(serde::Serialize)]

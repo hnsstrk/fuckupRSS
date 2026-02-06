@@ -54,6 +54,22 @@ fn get_setting(db: &Database, key: &str, default: &str) -> String {
         .unwrap_or_else(|_| default.to_string())
 }
 
+/// Get provider config from database settings
+pub fn get_provider_config(db: &Database) -> ProviderConfig {
+    let provider_type_str = get_setting(db, "ai_text_provider", "ollama");
+    let provider_type = ProviderType::from_str_setting(&provider_type_str);
+
+    ProviderConfig {
+        provider_type: provider_type.clone(),
+        ollama_url: get_ollama_url(db),
+        ollama_model: get_setting(db, "main_model", RECOMMENDED_MAIN_MODEL),
+        ollama_num_ctx: get_num_ctx_setting(db),
+        openai_base_url: get_setting(db, "openai_base_url", "https://api.openai.com"),
+        openai_api_key: get_setting(db, "openai_api_key", ""),
+        openai_model: get_setting(db, "openai_model", "gpt-5-nano"),
+    }
+}
+
 /// Create OllamaClient with num_ctx and URL from settings
 pub fn create_ollama_client(db: &Database) -> OllamaClient {
     let num_ctx = get_num_ctx_setting(db);
@@ -103,8 +119,11 @@ pub fn get_locale_from_db(state: &State<'_, AppState>) -> String {
         .unwrap_or_else(|_| "de".to_string())
 }
 
-/// Get AI concurrency setting from database
-pub fn get_ai_concurrency(state: &AppState) -> usize {
+/// Get AI concurrency setting from database (provider-aware)
+///
+/// - Ollama: clamp(1, 10) - hardware-limited
+/// - OpenAiCompatible: clamp(1, 50) - API can handle more parallelism
+pub fn get_ai_concurrency(state: &AppState, provider_type: &ProviderType) -> usize {
     let db = match state.db.lock() {
         Ok(db) => db,
         Err(_) => return 1,
@@ -118,7 +137,25 @@ pub fn get_ai_concurrency(state: &AppState) -> usize {
         )
         .unwrap_or_else(|_| "1".to_string());
 
-    val.parse().unwrap_or(1).clamp(1, 10)
+    let raw_value = val.parse().unwrap_or(1);
+
+    let clamped = match provider_type {
+        ProviderType::Ollama => raw_value.clamp(1, 10),
+        ProviderType::OpenAiCompatible => raw_value.clamp(1, 50),
+    };
+
+    log::info!(
+        "AI concurrency for provider {:?}: {} (raw: {}, max: {})",
+        provider_type,
+        clamped,
+        raw_value,
+        match provider_type {
+            ProviderType::Ollama => 10,
+            ProviderType::OpenAiCompatible => 50,
+        }
+    );
+
+    clamped
 }
 
 // ============================================================

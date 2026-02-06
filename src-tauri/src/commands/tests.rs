@@ -17,6 +17,8 @@ fn test_batch_progress_serialize() {
         title: "Test Article".to_string(),
         success: true,
         error: None,
+        provider: "Ollama".to_string(),
+        model: "ministral-3:latest".to_string(),
     };
 
     let json = serde_json::to_string(&progress).expect("Serialization failed");
@@ -25,6 +27,8 @@ fn test_batch_progress_serialize() {
     assert!(json.contains("\"fnord_id\":123"));
     assert!(json.contains("\"title\":\"Test Article\""));
     assert!(json.contains("\"success\":true"));
+    assert!(json.contains("\"provider\":\"Ollama\""));
+    assert!(json.contains("\"model\":\"ministral-3:latest\""));
 }
 
 #[test]
@@ -38,6 +42,8 @@ fn test_batch_progress_with_error() {
         title: "Failed Article".to_string(),
         success: false,
         error: Some("Connection timeout".to_string()),
+        provider: "Ollama".to_string(),
+        model: "ministral-3:latest".to_string(),
     };
 
     let json = serde_json::to_string(&progress).expect("Serialization failed");
@@ -57,6 +63,8 @@ fn test_batch_progress_initial_state() {
         title: "Starting...".to_string(),
         success: true,
         error: None,
+        provider: "Ollama".to_string(),
+        model: "ministral-3:latest".to_string(),
     };
 
     assert_eq!(progress.current, 0);
@@ -74,6 +82,8 @@ fn test_batch_progress_cancellation() {
         title: "Cancelled".to_string(),
         success: false,
         error: Some("Batch cancelled by user".to_string()),
+        provider: "Ollama".to_string(),
+        model: "ministral-3:latest".to_string(),
     };
 
     assert!(!progress.success);
@@ -92,12 +102,16 @@ fn test_batch_result_serialize() {
         processed: 100,
         succeeded: 95,
         failed: 5,
+        provider: "Ollama".to_string(),
+        model: "ministral-3:latest".to_string(),
     };
 
     let json = serde_json::to_string(&result).expect("Serialization failed");
     assert!(json.contains("\"processed\":100"));
     assert!(json.contains("\"succeeded\":95"));
     assert!(json.contains("\"failed\":5"));
+    assert!(json.contains("\"provider\":\"Ollama\""));
+    assert!(json.contains("\"model\":\"ministral-3:latest\""));
 }
 
 #[test]
@@ -108,6 +122,8 @@ fn test_batch_result_all_success() {
         processed: 50,
         succeeded: 50,
         failed: 0,
+        provider: "Ollama".to_string(),
+        model: "ministral-3:latest".to_string(),
     };
 
     assert_eq!(result.processed, result.succeeded);
@@ -122,6 +138,8 @@ fn test_batch_result_all_failed() {
         processed: 10,
         succeeded: 0,
         failed: 10,
+        provider: "Ollama".to_string(),
+        model: "ministral-3:latest".to_string(),
     };
 
     assert_eq!(result.processed, result.failed);
@@ -489,6 +507,8 @@ fn test_batch_processing_flow() {
             title: title.to_string(),
             success: *success,
             error: if *success { None } else { Some("Failed".to_string()) },
+            provider: "Ollama".to_string(),
+            model: "ministral-3:latest".to_string(),
         };
 
         // Verify progress tracking
@@ -500,6 +520,8 @@ fn test_batch_processing_flow() {
         processed: total,
         succeeded,
         failed,
+        provider: "Ollama".to_string(),
+        model: "ministral-3:latest".to_string(),
     };
 
     assert_eq!(result.processed, 3);
@@ -541,6 +563,8 @@ fn test_batch_empty_articles() {
         processed: 0,
         succeeded: 0,
         failed: 0,
+        provider: "Ollama".to_string(),
+        model: "ministral-3:latest".to_string(),
     };
 
     assert_eq!(result.processed, 0);
