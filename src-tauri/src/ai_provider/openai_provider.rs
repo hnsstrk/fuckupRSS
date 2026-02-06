@@ -24,7 +24,8 @@ struct ChatCompletionRequest {
     response_format: Option<ResponseFormat>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_completion_tokens: Option<u32>,
-    temperature: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
 }
 
 #[derive(Serialize)]
@@ -133,7 +134,7 @@ impl AiTextProvider for OpenAiCompatibleProvider {
                 None
             },
             max_completion_tokens: Some(4096),
-            temperature: 0.3,
+            temperature: None,
         };
 
         let prompt_len = prompt.len();
