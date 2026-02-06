@@ -14,6 +14,7 @@ use super::{AiProviderError, AiTextProvider, GenerationResult};
 pub struct OpenAiCompatibleProvider {
     base_url: String,
     api_key: String,
+    client: reqwest_new::Client,
 }
 
 #[derive(Serialize)]
@@ -79,17 +80,15 @@ impl OpenAiCompatibleProvider {
     pub fn new(base_url: &str, api_key: &str) -> Self {
         // Normalize base URL: remove trailing slash
         let base_url = base_url.trim_end_matches('/').to_string();
+        let client = reqwest_new::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .build()
+            .unwrap_or_default();
         Self {
             base_url,
             api_key: api_key.to_string(),
+            client,
         }
-    }
-
-    fn client(&self) -> Result<reqwest_new::Client, AiProviderError> {
-        reqwest_new::Client::builder()
-            .timeout(std::time::Duration::from_secs(120))
-            .build()
-            .map_err(|e| AiProviderError::NotAvailable(format!("HTTP client error: {}", e)))
     }
 
     fn endpoint_url(&self) -> String {
@@ -105,7 +104,7 @@ impl AiTextProvider for OpenAiCompatibleProvider {
         prompt: &str,
         json_mode: bool,
     ) -> Result<GenerationResult, AiProviderError> {
-        let client = self.client()?;
+        let client = &self.client;
         let url = self.endpoint_url();
 
         let mut messages = Vec::new();
@@ -133,7 +132,11 @@ impl AiTextProvider for OpenAiCompatibleProvider {
             } else {
                 None
             },
-            max_completion_tokens: Some(4096),
+            max_completion_tokens: if json_mode {
+                Some(1024)
+            } else {
+                Some(4096)
+            },
             temperature: None,
         };
 
@@ -239,10 +242,7 @@ impl AiTextProvider for OpenAiCompatibleProvider {
     }
 
     async fn is_available(&self) -> bool {
-        let client = match self.client() {
-            Ok(c) => c,
-            Err(_) => return false,
-        };
+        let client = &self.client;
 
         // Try to list models as a health check
         let url = format!("{}/v1/models", self.base_url);

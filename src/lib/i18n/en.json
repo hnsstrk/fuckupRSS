@@ -602,7 +602,9 @@
     "cancelled": "Cancelled",
     "unprocessed": "{count} unprocessed",
     "progress": "{current} of {total}",
+    "progressVia": "{current} of {total} via {model}",
     "complete": "Done: {succeeded} succeeded, {failed} failed",
+    "completeVia": "Done: {succeeded} succeeded, {failed} failed ({model})",
     "noOllama": "Ollama not available",
     "modelMissing": "Model missing: {model}"
   },

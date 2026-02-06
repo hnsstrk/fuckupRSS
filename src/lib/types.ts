@@ -157,12 +157,20 @@ export interface BatchProgress {
   title: string;
   success: boolean;
   error: string | null;
+  provider?: string;
+  model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
 }
 
 export interface BatchResult {
   processed: number;
   succeeded: number;
   failed: number;
+  provider?: string;
+  model?: string;
+  total_input_tokens?: number;
+  total_output_tokens?: number;
 }
 
 export interface EmbeddingProgress {

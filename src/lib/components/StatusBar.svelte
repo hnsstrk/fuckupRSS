@@ -128,7 +128,12 @@
     <i class="status-icon fa-solid fa-bolt" class:active={batchStatus === 'processing'}></i>
     <span class="status-label">Analysis</span>
     {#if batchStatus === 'processing' && appState.batchProgress}
-      <span class="status-value">{appState.batchProgress.current}/{appState.batchProgress.total}</span>
+      <span class="status-value">
+        {appState.batchProgress.current}/{appState.batchProgress.total}
+        {#if appState.batchProgress.model}
+          <span class="provider-model">via {appState.batchProgress.model}</span>
+        {/if}
+      </span>
     {:else if appState.unprocessedCount.with_content > 0}
       <span class="status-value pending">{appState.unprocessedCount.with_content} pending</span>
     {:else}
@@ -189,7 +194,7 @@
       <i class="status-icon fa-solid fa-microchip active"></i>
       <span class="status-label">Ollama</span>
       <span class="status-value models">
-        {#each loadedModels as model, i}
+        {#each loadedModels as model, i (model.name)}
           <span class="model-name" title="{model.name} ({model.parameter_size})">{model.name.split(':')[0]}</span>
           {#if i < loadedModels.length - 1}<span class="sep">·</span>{/if}
         {/each}
@@ -252,6 +257,11 @@
 
   .status-value {
     color: var(--text-muted);
+  }
+
+  .provider-model {
+    opacity: 0.7;
+    font-size: 0.85em;
   }
 
   .status-value.done {
