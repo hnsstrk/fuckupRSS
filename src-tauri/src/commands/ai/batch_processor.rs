@@ -783,6 +783,13 @@ pub async fn process_batch(
         provider_model
     };
 
+    info!(
+        "[LLM] Batch using provider '{}' with model '{}' (frontend sent: '{}')",
+        provider_for_batch.provider_name(),
+        effective_model,
+        model
+    );
+
     let (articles, num_ctx): (Vec<BatchArticle>, u32) = {
         let db = state.db_conn()?;
         let num_ctx = get_num_ctx_setting(&db);
