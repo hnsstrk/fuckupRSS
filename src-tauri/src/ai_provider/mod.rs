@@ -128,3 +128,276 @@ pub struct ProviderTestResult {
     pub models: Vec<String>,
     pub error: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ============================================================
+    // ProviderType tests
+    // ============================================================
+
+    #[test]
+    fn test_provider_type_from_str_ollama() {
+        assert_eq!(ProviderType::from_str_setting("ollama"), ProviderType::Ollama);
+    }
+
+    #[test]
+    fn test_provider_type_from_str_openai() {
+        assert_eq!(
+            ProviderType::from_str_setting("openai_compatible"),
+            ProviderType::OpenAiCompatible
+        );
+    }
+
+    #[test]
+    fn test_provider_type_from_str_unknown_defaults_to_ollama() {
+        assert_eq!(ProviderType::from_str_setting("unknown"), ProviderType::Ollama);
+        assert_eq!(ProviderType::from_str_setting(""), ProviderType::Ollama);
+        assert_eq!(ProviderType::from_str_setting("openai"), ProviderType::Ollama);
+    }
+
+    #[test]
+    fn test_provider_type_to_setting_str() {
+        assert_eq!(ProviderType::Ollama.to_setting_str(), "ollama");
+        assert_eq!(
+            ProviderType::OpenAiCompatible.to_setting_str(),
+            "openai_compatible"
+        );
+    }
+
+    #[test]
+    fn test_provider_type_roundtrip() {
+        let ollama = ProviderType::Ollama;
+        assert_eq!(ProviderType::from_str_setting(ollama.to_setting_str()), ollama);
+
+        let openai = ProviderType::OpenAiCompatible;
+        assert_eq!(ProviderType::from_str_setting(openai.to_setting_str()), openai);
+    }
+
+    #[test]
+    fn test_provider_type_serde_serialize() {
+        let json = serde_json::to_string(&ProviderType::Ollama).unwrap();
+        assert_eq!(json, "\"ollama\"");
+
+        let json = serde_json::to_string(&ProviderType::OpenAiCompatible).unwrap();
+        assert_eq!(json, "\"open_ai_compatible\"");
+    }
+
+    #[test]
+    fn test_provider_type_serde_deserialize() {
+        let ollama: ProviderType = serde_json::from_str("\"ollama\"").unwrap();
+        assert_eq!(ollama, ProviderType::Ollama);
+
+        let openai: ProviderType = serde_json::from_str("\"open_ai_compatible\"").unwrap();
+        assert_eq!(openai, ProviderType::OpenAiCompatible);
+    }
+
+    // ============================================================
+    // ProviderConfig tests
+    // ============================================================
+
+    #[test]
+    fn test_provider_config_defaults() {
+        let config = ProviderConfig {
+            provider_type: ProviderType::Ollama,
+            ollama_url: "http://localhost:11434".to_string(),
+            ollama_model: "ministral-3:latest".to_string(),
+            ollama_num_ctx: 4096,
+            openai_base_url: "https://api.openai.com".to_string(),
+            openai_api_key: "".to_string(),
+            openai_model: "gpt-4.1-nano".to_string(),
+        };
+
+        assert_eq!(config.provider_type, ProviderType::Ollama);
+        assert_eq!(config.ollama_url, "http://localhost:11434");
+        assert_eq!(config.ollama_num_ctx, 4096);
+    }
+
+    #[test]
+    fn test_provider_config_clone() {
+        let config = ProviderConfig {
+            provider_type: ProviderType::OpenAiCompatible,
+            ollama_url: "http://192.168.1.100:11434".to_string(),
+            ollama_model: "test".to_string(),
+            ollama_num_ctx: 8192,
+            openai_base_url: "https://api.together.xyz".to_string(),
+            openai_api_key: "sk-test-key".to_string(),
+            openai_model: "meta-llama/Llama-3-70b".to_string(),
+        };
+
+        let cloned = config.clone();
+        assert_eq!(cloned.provider_type, ProviderType::OpenAiCompatible);
+        assert_eq!(cloned.openai_api_key, "sk-test-key");
+        assert_eq!(cloned.openai_base_url, "https://api.together.xyz");
+    }
+
+    // ============================================================
+    // Factory tests
+    // ============================================================
+
+    #[test]
+    fn test_create_provider_ollama() {
+        let config = ProviderConfig {
+            provider_type: ProviderType::Ollama,
+            ollama_url: "http://localhost:11434".to_string(),
+            ollama_model: "test".to_string(),
+            ollama_num_ctx: 4096,
+            openai_base_url: String::new(),
+            openai_api_key: String::new(),
+            openai_model: String::new(),
+        };
+
+        let provider = create_provider(&config);
+        assert_eq!(provider.provider_name(), "Ollama");
+    }
+
+    #[test]
+    fn test_create_provider_openai() {
+        let config = ProviderConfig {
+            provider_type: ProviderType::OpenAiCompatible,
+            ollama_url: String::new(),
+            ollama_model: String::new(),
+            ollama_num_ctx: 4096,
+            openai_base_url: "https://api.openai.com".to_string(),
+            openai_api_key: "sk-test".to_string(),
+            openai_model: "gpt-4.1-nano".to_string(),
+        };
+
+        let provider = create_provider(&config);
+        assert_eq!(provider.provider_name(), "OpenAI-compatible");
+    }
+
+    // ============================================================
+    // GenerationResult tests
+    // ============================================================
+
+    #[test]
+    fn test_generation_result_with_tokens() {
+        let result = GenerationResult {
+            text: "Hello world".to_string(),
+            input_tokens: Some(10),
+            output_tokens: Some(5),
+        };
+
+        assert_eq!(result.text, "Hello world");
+        assert_eq!(result.input_tokens, Some(10));
+        assert_eq!(result.output_tokens, Some(5));
+    }
+
+    #[test]
+    fn test_generation_result_without_tokens() {
+        let result = GenerationResult {
+            text: "Response".to_string(),
+            input_tokens: None,
+            output_tokens: None,
+        };
+
+        assert!(result.input_tokens.is_none());
+        assert!(result.output_tokens.is_none());
+    }
+
+    #[test]
+    fn test_generation_result_clone() {
+        let result = GenerationResult {
+            text: "Test".to_string(),
+            input_tokens: Some(100),
+            output_tokens: Some(50),
+        };
+
+        let cloned = result.clone();
+        assert_eq!(cloned.text, result.text);
+        assert_eq!(cloned.input_tokens, result.input_tokens);
+    }
+
+    // ============================================================
+    // AiProviderError tests
+    // ============================================================
+
+    #[test]
+    fn test_error_not_available() {
+        let err = AiProviderError::NotAvailable("Server down".to_string());
+        assert!(err.to_string().contains("Server down"));
+    }
+
+    #[test]
+    fn test_error_generation_failed() {
+        let err = AiProviderError::GenerationFailed("Timeout".to_string());
+        assert!(err.to_string().contains("Timeout"));
+    }
+
+    #[test]
+    fn test_error_rate_limited() {
+        let err = AiProviderError::RateLimited;
+        assert!(err.to_string().contains("Rate limit"));
+    }
+
+    #[test]
+    fn test_error_cost_limit_reached() {
+        let err = AiProviderError::CostLimitReached {
+            spent: 5.1234,
+            limit: 5.0,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("5.1234"));
+        assert!(msg.contains("5.0000"));
+    }
+
+    #[test]
+    fn test_error_json_parse() {
+        let err = AiProviderError::JsonParseError {
+            message: "invalid JSON".to_string(),
+            raw_response: "{bad}".to_string(),
+        };
+        assert!(err.to_string().contains("invalid JSON"));
+    }
+
+    #[test]
+    fn test_error_authentication_failed() {
+        let err = AiProviderError::AuthenticationFailed("Invalid key".to_string());
+        assert!(err.to_string().contains("Invalid key"));
+    }
+
+    // ============================================================
+    // ProviderTestResult tests
+    // ============================================================
+
+    #[test]
+    fn test_provider_test_result_success() {
+        let result = ProviderTestResult {
+            success: true,
+            latency_ms: 42,
+            models: vec!["gpt-4".to_string(), "gpt-3.5".to_string()],
+            error: None,
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"success\":true"));
+        assert!(json.contains("\"latency_ms\":42"));
+        assert!(json.contains("\"gpt-4\""));
+    }
+
+    #[test]
+    fn test_provider_test_result_failure() {
+        let result = ProviderTestResult {
+            success: false,
+            latency_ms: 0,
+            models: vec![],
+            error: Some("Connection refused".to_string()),
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"success\":false"));
+        assert!(json.contains("Connection refused"));
+    }
+
+    #[test]
+    fn test_provider_test_result_deserialize() {
+        let json = r#"{"success":true,"latency_ms":100,"models":["test-model"],"error":null}"#;
+        let result: ProviderTestResult = serde_json::from_str(json).unwrap();
+        assert!(result.success);
+        assert_eq!(result.latency_ms, 100);
+        assert_eq!(result.models.len(), 1);
+        assert!(result.error.is_none());
+    }
+}

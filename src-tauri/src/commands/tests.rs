@@ -1587,3 +1587,151 @@ fn test_keyword_context_serialize() {
     assert!(json.contains("\"article_title\""));
     assert!(json.contains("\"article_date\""));
 }
+
+// ============================================================
+// AI Provider Cost Tracking struct tests
+// ============================================================
+
+#[test]
+fn test_monthly_cost_serialize() {
+    use super::ai::model_management::MonthlyCost;
+
+    let cost = MonthlyCost {
+        spent: 1.23,
+        limit: 5.0,
+        remaining: 3.77,
+        percentage: 24.6,
+    };
+
+    let json = serde_json::to_string(&cost).expect("Serialization failed");
+    assert!(json.contains("\"spent\":1.23"));
+    assert!(json.contains("\"limit\":5.0"));
+    assert!(json.contains("\"remaining\":3.77"));
+    assert!(json.contains("\"percentage\":24.6"));
+}
+
+#[test]
+fn test_monthly_cost_zero_spend() {
+    use super::ai::model_management::MonthlyCost;
+
+    let cost = MonthlyCost {
+        spent: 0.0,
+        limit: 5.0,
+        remaining: 5.0,
+        percentage: 0.0,
+    };
+
+    assert_eq!(cost.spent, 0.0);
+    assert_eq!(cost.remaining, cost.limit);
+    assert_eq!(cost.percentage, 0.0);
+}
+
+#[test]
+fn test_monthly_cost_at_limit() {
+    use super::ai::model_management::MonthlyCost;
+
+    let cost = MonthlyCost {
+        spent: 5.0,
+        limit: 5.0,
+        remaining: 0.0,
+        percentage: 100.0,
+    };
+
+    assert_eq!(cost.spent, cost.limit);
+    assert_eq!(cost.remaining, 0.0);
+    assert_eq!(cost.percentage, 100.0);
+}
+
+#[test]
+fn test_cost_entry_serialize() {
+    use super::ai::model_management::CostEntry;
+
+    let entry = CostEntry {
+        id: 1,
+        provider: "openai_compatible".to_string(),
+        model: "gpt-4.1-nano".to_string(),
+        input_tokens: 1500,
+        output_tokens: 500,
+        estimated_cost_usd: 0.0023,
+        created_at: "2026-02-06 10:00:00".to_string(),
+    };
+
+    let json = serde_json::to_string(&entry).expect("Serialization failed");
+    assert!(json.contains("\"provider\":\"openai_compatible\""));
+    assert!(json.contains("\"model\":\"gpt-4.1-nano\""));
+    assert!(json.contains("\"input_tokens\":1500"));
+    assert!(json.contains("\"output_tokens\":500"));
+    assert!(json.contains("\"estimated_cost_usd\":0.0023"));
+}
+
+#[test]
+fn test_cost_entry_ollama_provider() {
+    use super::ai::model_management::CostEntry;
+
+    let entry = CostEntry {
+        id: 42,
+        provider: "ollama".to_string(),
+        model: "ministral-3:latest".to_string(),
+        input_tokens: 0,
+        output_tokens: 0,
+        estimated_cost_usd: 0.0,
+        created_at: "2026-01-01 00:00:00".to_string(),
+    };
+
+    assert_eq!(entry.provider, "ollama");
+    assert_eq!(entry.estimated_cost_usd, 0.0);
+}
+
+// ============================================================
+// ProviderTestResult struct tests
+// ============================================================
+
+#[test]
+fn test_provider_test_result_success_serialize() {
+    use crate::ai_provider::ProviderTestResult;
+
+    let result = ProviderTestResult {
+        success: true,
+        latency_ms: 150,
+        models: vec!["model-a".to_string(), "model-b".to_string()],
+        error: None,
+    };
+
+    let json = serde_json::to_string(&result).expect("Serialization failed");
+    assert!(json.contains("\"success\":true"));
+    assert!(json.contains("\"latency_ms\":150"));
+    assert!(json.contains("\"model-a\""));
+    assert!(json.contains("\"model-b\""));
+    assert!(json.contains("\"error\":null"));
+}
+
+#[test]
+fn test_provider_test_result_failure_serialize() {
+    use crate::ai_provider::ProviderTestResult;
+
+    let result = ProviderTestResult {
+        success: false,
+        latency_ms: 5000,
+        models: vec![],
+        error: Some("Connection timeout".to_string()),
+    };
+
+    let json = serde_json::to_string(&result).expect("Serialization failed");
+    assert!(json.contains("\"success\":false"));
+    assert!(json.contains("Connection timeout"));
+}
+
+#[test]
+fn test_provider_test_result_auth_error() {
+    use crate::ai_provider::ProviderTestResult;
+
+    let result = ProviderTestResult {
+        success: false,
+        latency_ms: 200,
+        models: vec![],
+        error: Some("Authentication failed - check API key".to_string()),
+    };
+
+    assert!(!result.success);
+    assert!(result.error.as_ref().unwrap().contains("Authentication"));
+}
