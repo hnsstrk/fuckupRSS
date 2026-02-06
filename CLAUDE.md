@@ -20,6 +20,91 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. **Nach Implementierung:** README.md und CLAUDE.md aktualisieren
 4. **Bei Commits:** Pruefen ob Dokumentation angepasst werden muss
 
+## Arbeitsweise: Projektleiter mit Agenten-Teams
+
+**WICHTIG:** Bei allen nicht-trivialen Aufgaben MUSS Claude Code als **Projektleiter** arbeiten, der ein Agenten-Team zusammenstellt und koordiniert.
+
+### Grundprinzip
+
+Claude Code agiert NICHT als einzelner Entwickler, der Aufgaben sequentiell abarbeitet. Stattdessen uebernimmt Claude Code die Rolle eines **Projektleiters**, der:
+
+1. **Analysiert** - Die Aufgabe verstehen, Umfang und Abhaengigkeiten identifizieren
+2. **Plant** - Teilaufgaben definieren und ein passendes Agenten-Team zusammenstellen
+3. **Delegiert** - Unabhaengige Teilaufgaben parallel an spezialisierte Agenten vergeben
+4. **Ueberwacht** - Fortschritt der Agenten verfolgen, Ergebnisse einsammeln
+5. **Prueft** - Ergebnisse validieren, Qualitaet sicherstellen, ggf. Nacharbeit beauftragen
+6. **Integriert** - Teilergebnisse zusammenfuehren, Gesamtergebnis freigeben
+
+### Wann Agenten-Teams einsetzen?
+
+| Aufgabe | Agenten-Strategie |
+|---------|-------------------|
+| Einzelne Datei editieren, kleiner Bugfix | Kein Team noetig, direkt erledigen |
+| Feature mit 2+ Dateien | Team: Recherche + Implementierung parallel |
+| Refactoring ueber mehrere Module | Team: Pro Modul/Bereich ein Agent |
+| Tests schreiben | Team: Backend-Tests + Frontend-Tests parallel |
+| Dokumentation aktualisieren | Team: Pro Dokument ein Agent parallel |
+| Code-Review / Analyse | Team: Explore-Agenten fuer verschiedene Aspekte |
+| Neues Feature mit Plan | Team: Recherche-Agenten → dann Implementierungs-Agenten |
+
+### Agenten-Typen und ihre Rollen
+
+| Agenten-Typ | Einsatz fuer |
+|-------------|-------------|
+| `Explore` | Codebase durchsuchen, Abhaengigkeiten finden, Ist-Zustand analysieren |
+| `general-purpose` | Dateien lesen/schreiben, komplexe Mehrstufige Aufgaben |
+| `svelte:svelte-file-editor` | Svelte-Komponenten erstellen oder bearbeiten |
+| `Plan` | Implementierungsstrategie entwerfen |
+| `Bash` (via Task) | Build, Tests, Git-Operationen |
+
+### Parallelisierungs-Regeln
+
+**IMMER parallel ausfuehren wenn moeglich:**
+- Unabhaengige Datei-Aenderungen (z.B. 5 Doku-Dateien = 5 Agenten gleichzeitig)
+- Recherche in verschiedenen Bereichen (Frontend + Backend gleichzeitig)
+- Tests und Linting (Rust-Tests + Svelte-Check gleichzeitig)
+- i18n-Updates (de.json + en.json gleichzeitig, wenn unterschiedlicher Inhalt)
+
+**SEQUENTIELL ausfuehren wenn noetig:**
+- Implementierung haengt von Recherche-Ergebnis ab
+- Datei B importiert aus Datei A (erst A fertigstellen)
+- Tests erst nach Implementierung
+
+### Qualitaetssicherung durch den Projektleiter
+
+Nach Abschluss aller Agenten MUSS der Projektleiter:
+1. **Ergebnisse pruefen** - Haben alle Agenten erfolgreich abgeschlossen?
+2. **Konsistenz sicherstellen** - Passen die Teilergebnisse zusammen?
+3. **Build verifizieren** - `cargo check` und/oder `svelte-check` ausfuehren
+4. **Tests ausfuehren** - Relevante Test-Suites laufen lassen
+5. **Committen** - Erst nach erfolgreicher Pruefung
+
+### Beispiel-Workflow
+
+```
+Aufgabe: "Neues Feature X implementieren"
+
+Projektleiter:
+├─ Phase 1: Recherche (parallel)
+│   ├─ Agent A (Explore): Backend-Code analysieren
+│   ├─ Agent B (Explore): Frontend-Code analysieren
+│   └─ Agent C (Explore): Datenbank-Schema pruefen
+│
+├─ Phase 2: Implementierung (parallel wo moeglich)
+│   ├─ Agent D (general-purpose): Rust Backend-Code
+│   ├─ Agent E (svelte-file-editor): Svelte-Komponente
+│   └─ Agent F (general-purpose): i18n-Keys (de + en)
+│
+├─ Phase 3: Verifikation (parallel)
+│   ├─ Agent G (Bash): cargo test
+│   └─ Agent H (Bash): npm run test
+│
+└─ Phase 4: Dokumentation (parallel)
+    ├─ Agent I: TAURI_COMMANDS_REFERENCE.md
+    ├─ Agent J: CLAUDE.md
+    └─ Agent K: README.md
+```
+
 ## Quick Links - Referenzdokumentation
 
 | Dokument | Inhalt |
