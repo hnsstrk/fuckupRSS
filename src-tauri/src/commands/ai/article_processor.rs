@@ -61,8 +61,12 @@ pub async fn generate_summary(
                 |row| row.get(0),
             )
             .map_err(|e| e.to_string())?;
-        // Use the provider's configured model if the frontend passes a generic model name
-        let effective_model = if model.is_empty() { provider_model } else { model };
+        // Use the provider's configured model for OpenAI (frontend sends Ollama model names)
+        let effective_model = if !model.is_empty() && provider.provider_name() == "Ollama" {
+            model
+        } else {
+            provider_model
+        };
         (provider, effective_model, content)
     };
 
@@ -124,7 +128,11 @@ pub async fn analyze_article(
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .map_err(|e| e.to_string())?;
-        let effective_model = if model.is_empty() { provider_model } else { model };
+        let effective_model = if !model.is_empty() && provider.provider_name() == "Ollama" {
+            model
+        } else {
+            provider_model
+        };
         (provider, effective_model, title, content)
     };
 
@@ -191,7 +199,11 @@ pub async fn process_article(
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .map_err(|e| e.to_string())?;
-        let effective_model = if model.is_empty() { provider_model } else { model };
+        let effective_model = if !model.is_empty() && provider.provider_name() == "Ollama" {
+            model
+        } else {
+            provider_model
+        };
         (provider, effective_model, title, content)
     };
 
@@ -309,7 +321,11 @@ pub async fn process_article_discordian(
             .map_err(|e| e.to_string())?;
         let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
         let corpus = CorpusStats::load_from_db(db.conn()).ok();
-        let effective_model = if model.is_empty() { provider_model } else { model };
+        let effective_model = if !model.is_empty() && provider.provider_name() == "Ollama" {
+            model
+        } else {
+            provider_model
+        };
         (provider, effective_model, client, title, content, article_date, bias, corpus)
     };
 

@@ -775,8 +775,13 @@ pub async fn process_batch(
         create_text_provider(&db)
     };
 
-    // Override model from frontend parameter if it's an Ollama provider and model was specified
-    let effective_model = if model.is_empty() { provider_model } else { model.clone() };
+    // Override model from frontend parameter only for Ollama provider
+    // For OpenAI-compatible providers, always use the configured model (the frontend sends Ollama model names)
+    let effective_model = if !model.is_empty() && provider_for_batch.provider_name() == "Ollama" {
+        model.clone()
+    } else {
+        provider_model
+    };
 
     let (articles, num_ctx): (Vec<BatchArticle>, u32) = {
         let db = state.db_conn()?;

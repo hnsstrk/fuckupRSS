@@ -73,11 +73,11 @@ pub fn create_text_provider(db: &Database) -> (Arc<dyn AiTextProvider>, String) 
     let config = ProviderConfig {
         provider_type: provider_type.clone(),
         ollama_url: get_ollama_url(db),
-        ollama_model: get_setting(db, "ollama_model", RECOMMENDED_MAIN_MODEL),
+        ollama_model: get_setting(db, "main_model", RECOMMENDED_MAIN_MODEL),
         ollama_num_ctx: get_num_ctx_setting(db),
         openai_base_url: get_setting(db, "openai_base_url", "https://api.openai.com"),
         openai_api_key: get_setting(db, "openai_api_key", ""),
-        openai_model: get_setting(db, "openai_model", "gpt-4.1-nano"),
+        openai_model: get_setting(db, "openai_model", "gpt-5-nano"),
     };
 
     let model = match provider_type {

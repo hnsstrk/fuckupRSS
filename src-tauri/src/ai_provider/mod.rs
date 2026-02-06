@@ -206,7 +206,7 @@ mod tests {
             ollama_num_ctx: 4096,
             openai_base_url: "https://api.openai.com".to_string(),
             openai_api_key: "".to_string(),
-            openai_model: "gpt-4.1-nano".to_string(),
+            openai_model: "gpt-5-nano".to_string(),
         };
 
         assert_eq!(config.provider_type, ProviderType::Ollama);
@@ -261,7 +261,7 @@ mod tests {
             ollama_num_ctx: 4096,
             openai_base_url: "https://api.openai.com".to_string(),
             openai_api_key: "sk-test".to_string(),
-            openai_model: "gpt-4.1-nano".to_string(),
+            openai_model: "gpt-5-nano".to_string(),
         };
 
         let provider = create_provider(&config);
