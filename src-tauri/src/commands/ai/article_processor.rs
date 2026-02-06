@@ -1,5 +1,6 @@
 //! Single article processing commands (summary, analysis, discordian)
 
+use crate::ai_provider::AiTextProvider;
 use crate::ollama::{DiscordianAnalysis, OllamaClient};
 use crate::text_analysis::{
     record_correction, BiasWeights, CategoryMatcher, CorrectionRecord, CorrectionType, CorpusStats,
@@ -8,6 +9,7 @@ use crate::text_analysis::{
 use crate::{classify_by_keywords, extract_keywords};
 use crate::AppState;
 use log::{info, warn};
+use std::sync::Arc;
 use std::time::Instant;
 use tauri::State;
 
@@ -17,9 +19,10 @@ use super::data_persistence::{
     save_article_keywords_with_source,
 };
 use super::helpers::{
-    create_ollama_client, determine_category_sources, determine_keyword_sources,
-    get_analysis_prompt, get_discordian_prompt, get_locale_from_db, get_summary_prompt, merge_keywords,
-    validate_and_merge_categories,
+    analyze_bias_via_provider, create_ollama_client, create_text_provider,
+    determine_category_sources, determine_keyword_sources, discordian_analysis_via_provider,
+    get_analysis_prompt, get_discordian_prompt, get_locale_from_db, get_summary_prompt,
+    merge_keywords, summarize_via_provider, validate_and_merge_categories,
 };
 use super::types::{AnalysisResponse, DiscordianResponse, SummaryResponse};
 
@@ -47,9 +50,9 @@ pub async fn generate_summary(
     let locale = get_locale_from_db(&state);
     let prompt_template = get_summary_prompt(&state, &locale);
 
-    let (client, content): (OllamaClient, String) = {
+    let (provider, effective_model, content): (Arc<dyn AiTextProvider>, String, String) = {
         let db = state.db_conn()?;
-        let client = create_ollama_client(&db);
+        let (provider, provider_model) = create_text_provider(&db);
         let content = db
             .conn()
             .query_row(
@@ -58,7 +61,9 @@ pub async fn generate_summary(
                 |row| row.get(0),
             )
             .map_err(|e| e.to_string())?;
-        (client, content)
+        // Use the provider's configured model if the frontend passes a generic model name
+        let effective_model = if model.is_empty() { provider_model } else { model };
+        (provider, effective_model, content)
     };
 
     if content.is_empty() {
@@ -70,8 +75,7 @@ pub async fn generate_summary(
         });
     }
 
-    match client
-        .summarize_with_prompt(&model, &content, &prompt_template)
+    match summarize_via_provider(provider.as_ref(), &effective_model, &content, &prompt_template)
         .await
     {
         Ok(summary) => {
@@ -109,9 +113,9 @@ pub async fn analyze_article(
     let locale = get_locale_from_db(&state);
     let prompt_template = get_analysis_prompt(&state, &locale);
 
-    let (client, title, content): (OllamaClient, String, String) = {
+    let (provider, effective_model, title, content): (Arc<dyn AiTextProvider>, String, String, String) = {
         let db = state.db_conn()?;
-        let client = create_ollama_client(&db);
+        let (provider, provider_model) = create_text_provider(&db);
         let (title, content) = db
             .conn()
             .query_row(
@@ -120,7 +124,8 @@ pub async fn analyze_article(
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .map_err(|e| e.to_string())?;
-        (client, title, content)
+        let effective_model = if model.is_empty() { provider_model } else { model };
+        (provider, effective_model, title, content)
     };
 
     if content.is_empty() {
@@ -132,8 +137,7 @@ pub async fn analyze_article(
         });
     }
 
-    match client
-        .analyze_bias_with_prompt(&model, &title, &content, &prompt_template)
+    match analyze_bias_via_provider(provider.as_ref(), &effective_model, &title, &content, &prompt_template)
         .await
     {
         Ok(analysis) => {
@@ -176,9 +180,9 @@ pub async fn process_article(
     let summary_prompt_template = get_summary_prompt(&state, &locale);
     let analysis_prompt_template = get_analysis_prompt(&state, &locale);
 
-    let (client, title, content): (OllamaClient, String, String) = {
+    let (provider, effective_model, title, content): (Arc<dyn AiTextProvider>, String, String, String) = {
         let db = state.db_conn()?;
-        let client = create_ollama_client(&db);
+        let (provider, provider_model) = create_text_provider(&db);
         let (title, content) = db
             .conn()
             .query_row(
@@ -187,7 +191,8 @@ pub async fn process_article(
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .map_err(|e| e.to_string())?;
-        (client, title, content)
+        let effective_model = if model.is_empty() { provider_model } else { model };
+        (provider, effective_model, title, content)
     };
 
     if content.is_empty() {
@@ -207,11 +212,15 @@ pub async fn process_article(
         ));
     }
 
-    let model_clone = model.clone();
+    let model_clone = effective_model.clone();
     let content_clone = content.clone();
-    let summary_future = client.summarize_with_prompt(&model, &content, &summary_prompt_template);
+    let summary_prompt = summary_prompt_template.clone();
+    let analysis_prompt = analysis_prompt_template.clone();
+    let provider_ref = provider.clone();
+
+    let summary_future = summarize_via_provider(provider.as_ref(), &effective_model, &content, &summary_prompt);
     let analysis_future =
-        client.analyze_bias_with_prompt(&model_clone, &title, &content_clone, &analysis_prompt_template);
+        analyze_bias_via_provider(provider_ref.as_ref(), &model_clone, &title, &content_clone, &analysis_prompt);
 
     let (summary_result, analysis_result) = tokio::join!(summary_future, analysis_future);
 
@@ -277,7 +286,9 @@ pub async fn process_article_discordian(
     let custom_discordian_prompt = get_discordian_prompt(&state);
 
     // Step 1: Load article content, bias weights, and corpus stats
-    let (client, title, content, article_date, bias_weights, corpus_stats): (
+    let (provider, effective_model, client, title, content, article_date, bias_weights, corpus_stats): (
+        Arc<dyn AiTextProvider>,
+        String,
         OllamaClient,
         String,
         String,
@@ -286,6 +297,7 @@ pub async fn process_article_discordian(
         Option<CorpusStats>,
     ) = {
         let db = state.db_conn()?;
+        let (provider, provider_model) = create_text_provider(&db);
         let client = create_ollama_client(&db);
         let (title, content, article_date) = db
             .conn()
@@ -297,7 +309,8 @@ pub async fn process_article_discordian(
             .map_err(|e| e.to_string())?;
         let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
         let corpus = CorpusStats::load_from_db(db.conn()).ok();
-        (client, title, content, article_date, bias, corpus)
+        let effective_model = if model.is_empty() { provider_model } else { model };
+        (provider, effective_model, client, title, content, article_date, bias, corpus)
     };
 
     if content.is_empty() {
@@ -352,9 +365,9 @@ pub async fn process_article_discordian(
     );
     let llm_start = Instant::now();
 
-    match client
-        .discordian_analysis_with_stats_custom(
-            &model,
+    match discordian_analysis_via_provider(
+            provider.as_ref(),
+            &effective_model,
             &title,
             &content,
             &locale,

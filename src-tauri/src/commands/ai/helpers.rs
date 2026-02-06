@@ -1,14 +1,16 @@
-//! Shared helper functions for Ollama commands
+//! Shared helper functions for AI commands
 
+use crate::ai_provider::{self, AiTextProvider, ProviderConfig, ProviderType};
 use crate::db::Database;
 use crate::ollama::{
     get_language_for_locale, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_NUM_CTX,
-    DEFAULT_SUMMARY_PROMPT,
+    DEFAULT_SUMMARY_PROMPT, RECOMMENDED_MAIN_MODEL,
 };
 use crate::AppState;
 use crate::SEPHIROTH_CATEGORIES;
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use tauri::State;
 
 use super::types::{CategoryWithSource, KeywordWithSource};
@@ -30,10 +32,60 @@ pub fn get_num_ctx_setting(db: &Database) -> u32 {
         .unwrap_or(DEFAULT_NUM_CTX)
 }
 
-/// Create OllamaClient with num_ctx from settings
+/// Get Ollama URL from database settings
+pub fn get_ollama_url(db: &Database) -> String {
+    db.conn()
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'ollama_url'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap_or_else(|_| "http://localhost:11434".to_string())
+}
+
+/// Get a string setting from database with a default
+fn get_setting(db: &Database, key: &str, default: &str) -> String {
+    db.conn()
+        .query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            [key],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap_or_else(|_| default.to_string())
+}
+
+/// Create OllamaClient with num_ctx and URL from settings
 pub fn create_ollama_client(db: &Database) -> OllamaClient {
     let num_ctx = get_num_ctx_setting(db);
-    OllamaClient::with_context(None, num_ctx)
+    let url = get_ollama_url(db);
+    OllamaClient::with_context(Some(url), num_ctx)
+}
+
+/// Create the configured text provider based on settings
+///
+/// Returns a provider that implements AiTextProvider trait.
+/// - If `ai_text_provider` is "openai_compatible", returns OpenAiCompatibleProvider
+/// - Otherwise returns OllamaTextProvider (default)
+pub fn create_text_provider(db: &Database) -> (Arc<dyn AiTextProvider>, String) {
+    let provider_type_str = get_setting(db, "ai_text_provider", "ollama");
+    let provider_type = ProviderType::from_str_setting(&provider_type_str);
+
+    let config = ProviderConfig {
+        provider_type: provider_type.clone(),
+        ollama_url: get_ollama_url(db),
+        ollama_model: get_setting(db, "ollama_model", RECOMMENDED_MAIN_MODEL),
+        ollama_num_ctx: get_num_ctx_setting(db),
+        openai_base_url: get_setting(db, "openai_base_url", "https://api.openai.com"),
+        openai_api_key: get_setting(db, "openai_api_key", ""),
+        openai_model: get_setting(db, "openai_model", "gpt-4.1-nano"),
+    };
+
+    let model = match provider_type {
+        ProviderType::Ollama => config.ollama_model.clone(),
+        ProviderType::OpenAiCompatible => config.openai_model.clone(),
+    };
+
+    (ai_provider::create_provider(&config), model)
 }
 
 /// Get locale from database settings
@@ -1106,6 +1158,232 @@ pub fn store_analysis_cache(
     )?;
 
     Ok(())
+}
+
+// ============================================================
+// PROVIDER-AWARE TEXT GENERATION
+// ============================================================
+
+use crate::ai_provider::AiProviderError;
+use crate::ollama::{
+    BiasAnalysis, DiscordianAnalysis, DiscordianAnalysisWithRejections, RawBiasAnalysis,
+    DEFAULT_DISCORDIAN_PROMPT_WITH_STATS, DEFAULT_DISCORDIAN_PROMPT,
+};
+use log::{debug, warn};
+
+/// Safely truncate a string to a maximum byte length, respecting UTF-8 char boundaries.
+fn truncate_str_helper(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
+/// Run Discordian analysis (summary + bias + categories + keywords) via the configured provider.
+///
+/// This is the provider-agnostic equivalent of OllamaClient::discordian_analysis_with_stats_custom.
+/// It builds the prompt, calls the provider for text generation, and parses the JSON response.
+///
+/// The `/no_think` prefix is NOT added here - the OllamaTextProvider handles that automatically.
+pub async fn discordian_analysis_via_provider(
+    provider: &dyn AiTextProvider,
+    model: &str,
+    title: &str,
+    content: &str,
+    locale: &str,
+    stat_keywords: &[String],
+    stat_categories: &[(String, f64)],
+    custom_prompt: Option<&str>,
+) -> Result<DiscordianAnalysisWithRejections, AiProviderError> {
+    debug!("Starting Discordian analysis via provider for: {}", truncate_str_helper(title, 60));
+    let language = get_language_for_locale(locale);
+    let truncated_content: String = content.chars().take(6000).collect();
+
+    // Format statistical keywords
+    let stat_keywords_str = if stat_keywords.is_empty() {
+        "none".to_string()
+    } else {
+        stat_keywords.join(", ")
+    };
+
+    // Format statistical categories with confidence
+    let stat_categories_str = if stat_categories.is_empty() {
+        "none".to_string()
+    } else {
+        stat_categories
+            .iter()
+            .map(|(name, conf)| format!("{} ({:.0}%)", name, conf * 100.0))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+
+    // Build prompt from template (without /no_think - provider handles that)
+    let prompt_template = custom_prompt.unwrap_or(DEFAULT_DISCORDIAN_PROMPT_WITH_STATS);
+
+    // Strip /no_think prefix if present in custom prompts (provider adds it for Ollama)
+    let prompt_template = prompt_template
+        .strip_prefix("/no_think\n")
+        .or_else(|| prompt_template.strip_prefix("/no_think"))
+        .unwrap_or(prompt_template);
+
+    let prompt = prompt_template
+        .replace("{language}", language)
+        .replace("{title}", title)
+        .replace("{content}", &truncated_content)
+        .replace("{stat_keywords}", &stat_keywords_str)
+        .replace("{stat_categories}", &stat_categories_str);
+
+    // Call provider with JSON mode
+    let result = provider.generate_text(model, &prompt, true).await?;
+
+    // Parse the JSON response (same parsing as OllamaClient)
+    let raw: crate::ollama::RawDiscordianAnalysisWithRejections =
+        serde_json::from_str(&result.text).map_err(|e| {
+            warn!(
+                "JSON parse error: {}. Response: {}",
+                e,
+                truncate_str_helper(&result.text, 300)
+            );
+            AiProviderError::JsonParseError {
+                message: e.to_string(),
+                raw_response: result.text.chars().take(500).collect(),
+            }
+        })?;
+
+    let analysis: DiscordianAnalysisWithRejections = raw.into();
+
+    debug!(
+        "Analysis via provider complete: {} categories, {} keywords",
+        analysis.categories.len(),
+        analysis.keywords.len()
+    );
+
+    Ok(analysis)
+}
+
+/// Summarize content via the configured provider.
+///
+/// Provider-agnostic equivalent of OllamaClient::summarize_with_prompt.
+pub async fn summarize_via_provider(
+    provider: &dyn AiTextProvider,
+    model: &str,
+    content: &str,
+    prompt_template: &str,
+) -> Result<String, AiProviderError> {
+    let truncated_content: String = content.chars().take(8000).collect();
+
+    // Strip /no_think from prompt template (provider handles that)
+    let template = prompt_template
+        .strip_prefix("/no_think\n")
+        .or_else(|| prompt_template.strip_prefix("/no_think"))
+        .unwrap_or(prompt_template);
+
+    let prompt = template.replace("{content}", &truncated_content);
+    let result = provider.generate_text(model, &prompt, false).await?;
+    Ok(result.text)
+}
+
+/// Analyze article bias via the configured provider.
+///
+/// Provider-agnostic equivalent of OllamaClient::analyze_bias_with_prompt.
+pub async fn analyze_bias_via_provider(
+    provider: &dyn AiTextProvider,
+    model: &str,
+    title: &str,
+    content: &str,
+    prompt_template: &str,
+) -> Result<BiasAnalysis, AiProviderError> {
+    let truncated_content: String = content.chars().take(4000).collect();
+
+    // Strip /no_think from prompt template (provider handles that)
+    let template = prompt_template
+        .strip_prefix("/no_think\n")
+        .or_else(|| prompt_template.strip_prefix("/no_think"))
+        .unwrap_or(prompt_template);
+
+    let prompt = template
+        .replace("{title}", title)
+        .replace("{content}", &truncated_content);
+
+    let result = provider.generate_text(model, &prompt, true).await?;
+
+    let raw: RawBiasAnalysis = serde_json::from_str(&result.text).map_err(|e| {
+        warn!(
+            "JSON parse error: {}. Response: {}",
+            e,
+            truncate_str_helper(&result.text, 300)
+        );
+        AiProviderError::JsonParseError {
+            message: e.to_string(),
+            raw_response: result.text.chars().take(500).collect(),
+        }
+    })?;
+
+    Ok(raw.into())
+}
+
+/// Run simple Discordian analysis (without stats) via the configured provider.
+#[allow(dead_code)]
+pub async fn discordian_analysis_simple_via_provider(
+    provider: &dyn AiTextProvider,
+    model: &str,
+    title: &str,
+    content: &str,
+    locale: &str,
+    previous_error: Option<&str>,
+) -> Result<DiscordianAnalysis, AiProviderError> {
+    let language = get_language_for_locale(locale);
+    let truncated_content: String = content.chars().take(6000).collect();
+
+    let prompt = if let Some(error) = previous_error {
+        format!(
+            r#"Your previous response could not be parsed. Error: {}
+Return ONLY valid JSON:
+{{
+  "political_bias": 0,
+  "sachlichkeit": 2,
+  "summary": "...",
+  "categories": ["..."],
+  "keywords": ["..."]
+}}
+
+Title: {}
+Content: {}"#,
+            error, title, truncated_content
+        )
+    } else {
+        // Strip /no_think from default prompt
+        let template = DEFAULT_DISCORDIAN_PROMPT
+            .strip_prefix("/no_think\n")
+            .or_else(|| DEFAULT_DISCORDIAN_PROMPT.strip_prefix("/no_think"))
+            .unwrap_or(DEFAULT_DISCORDIAN_PROMPT);
+
+        template
+            .replace("{language}", language)
+            .replace("{title}", title)
+            .replace("{content}", &truncated_content)
+    };
+
+    let result = provider.generate_text(model, &prompt, true).await?;
+
+    let raw: crate::ollama::RawDiscordianAnalysis =
+        serde_json::from_str(&result.text).map_err(|e| {
+            warn!(
+                "JSON parse error: {}. Response: {}",
+                e,
+                truncate_str_helper(&result.text, 300)
+            );
+            AiProviderError::JsonParseError {
+                message: e.to_string(),
+                raw_response: result.text.chars().take(500).collect(),
+            }
+        })?;
+
+    Ok(raw.into())
 }
 
 // ============================================================

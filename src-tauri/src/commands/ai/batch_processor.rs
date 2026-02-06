@@ -5,7 +5,8 @@ use crate::keywords::{
     cluster_articles, get_representatives, calculate_savings,
     ArticleForClustering, ClusterConfig, ClusteringResult,
 };
-use crate::ollama::{DiscordianAnalysis, OllamaClient, OllamaError};
+use crate::ai_provider::AiTextProvider;
+use crate::ollama::{DiscordianAnalysis, OllamaClient};
 use crate::text_analysis::{
     record_correction, BiasWeights, CategoryMatcher, CorrectionRecord, CorrectionType, CorpusStats,
     TfIdfExtractor,
@@ -43,9 +44,10 @@ use super::data_persistence::{
     save_article_keywords_with_source,
 };
 use super::helpers::{
-    check_analysis_cache, compute_content_hash, derive_categories_from_keywords,
-    determine_category_sources, determine_keyword_sources, get_ai_concurrency, get_locale_from_db,
-    get_num_ctx_setting, merge_categories_stat_primary, merge_keywords, store_analysis_cache,
+    check_analysis_cache, compute_content_hash, create_text_provider, derive_categories_from_keywords,
+    determine_category_sources, determine_keyword_sources, discordian_analysis_via_provider,
+    get_ai_concurrency, get_locale_from_db, get_num_ctx_setting, get_ollama_url,
+    merge_categories_stat_primary, merge_keywords, store_analysis_cache,
 };
 use super::types::{
     BatchArticle, BatchProgress, BatchResult, FailedCount, HopelessCount, UnprocessedCount,
@@ -401,7 +403,7 @@ pub fn get_hopeless_articles(
 
 /// Process a single article with full statistical + LLM pipeline
 async fn process_single_article(
-    client: &OllamaClient,
+    provider: &dyn AiTextProvider,
     state: &AppState,
     model: &str,
     locale: &str,
@@ -482,8 +484,8 @@ async fn process_single_article(
             active_count
         );
 
-        let analysis_result = client
-            .discordian_analysis_with_stats_custom(
+        let analysis_result = discordian_analysis_via_provider(
+                provider,
                 model,
                 &title,
                 &content,
@@ -582,7 +584,7 @@ async fn process_single_article(
 
                 // Handle LLM error (same as before)
                 let error_msg = e.to_string();
-                let is_json_error = matches!(e, OllamaError::JsonParseError { .. });
+                let is_json_error = matches!(e, crate::ai_provider::AiProviderError::JsonParseError { .. });
 
                 {
                     let db = match state.db.lock() {
@@ -767,6 +769,15 @@ pub async fn process_batch(
         }
     };
 
+    // Load provider config once for the batch
+    let (provider_for_batch, provider_model) = {
+        let db = state.db_conn()?;
+        create_text_provider(&db)
+    };
+
+    // Override model from frontend parameter if it's an Ollama provider and model was specified
+    let effective_model = if model.is_empty() { provider_model } else { model.clone() };
+
     let (articles, num_ctx): (Vec<BatchArticle>, u32) = {
         let db = state.db_conn()?;
         let num_ctx = get_num_ctx_setting(&db);
@@ -848,23 +859,33 @@ pub async fn process_batch(
 
     let stream = stream::iter(articles.into_iter().enumerate());
     let batch_context = Arc::new(batch_context);
+    let effective_model = Arc::new(effective_model);
+
+    // Read ollama_url for retry provider creation
+    let ollama_url = {
+        let db = state.db_conn()?;
+        get_ollama_url(&db)
+    };
+    let ollama_url = Arc::new(ollama_url);
 
     let results = stream
         .map(|(idx, article)| {
             let title = article.title.clone();
             let fnord_id = article.fnord_id;
-            let model = model.clone();
+            let effective_model = effective_model.clone();
             let locale = locale.clone();
             let state = state.clone();
             let window = window.clone();
             let batch_context = batch_context.clone();
+            let provider_for_batch = provider_for_batch.clone();
+            let ollama_url = ollama_url.clone();
 
             async move {
                 if state.batch_cancel.load(Ordering::SeqCst) {
                     return (idx, title, fnord_id, false, Some("Cancelled".to_string()));
                 }
 
-                let (ctx_multiplier, adjusted_num_ctx) = match article.attempts {
+                let (_ctx_multiplier, adjusted_num_ctx) = match article.attempts {
                     0 => (1.0, num_ctx),
                     1 => (1.5, ((num_ctx as f64) * 1.5) as u32),
                     _ => (2.0, num_ctx * 2),
@@ -875,15 +896,32 @@ pub async fn process_batch(
                         "Retry {}/3 for article {}: using {}x context (num_ctx={})",
                         article.attempts + 1,
                         fnord_id,
-                        ctx_multiplier,
+                        _ctx_multiplier,
                         adjusted_num_ctx
                     );
                 }
 
-                let client = OllamaClient::with_context(None, adjusted_num_ctx);
+                // For retries with adjusted context, create a new Ollama provider if using Ollama
+                // For OpenAI-compatible providers, retries use the same provider
+                let retry_provider: Option<Arc<dyn AiTextProvider>> = if article.attempts > 0 {
+                    // Create Ollama provider with adjusted num_ctx for retry
+                    Some(Arc::new(
+                        crate::ai_provider::ollama_provider::OllamaTextProvider::new(
+                            &ollama_url,
+                            adjusted_num_ctx,
+                        ),
+                    ))
+                } else {
+                    None
+                };
+
+                let provider: &dyn AiTextProvider = match &retry_provider {
+                    Some(p) => p.as_ref(),
+                    None => provider_for_batch.as_ref(),
+                };
 
                 let (success, error) =
-                    process_single_article(&client, &state, &model, &locale, article, &batch_context)
+                    process_single_article(provider, &state, &effective_model, &locale, article, &batch_context)
                         .await;
 
                 let _ = window.emit(
@@ -1012,7 +1050,7 @@ pub async fn process_batch(
 
             // Generate embeddings in parallel (uses embedding model, not LLM)
             // Use the same concurrency as LLM processing for consistency
-            let embedding_client = Arc::new(OllamaClient::new(None));
+            let embedding_client = Arc::new(OllamaClient::new(Some((*ollama_url).clone())));
             let embedding_concurrency = concurrency.max(4); // At least 4 for embeddings (faster than LLM)
 
             // Check for cancellation before starting parallel embedding generation
@@ -1324,11 +1362,23 @@ pub async fn process_batch_clustered(
         },
     );
 
-    // Get num_ctx setting
+    // Get num_ctx setting and create provider
     let num_ctx = {
         let db = state.db_conn()?;
         get_num_ctx_setting(&db)
     };
+
+    let (provider_for_batch, _provider_model) = {
+        let db = state.db_conn()?;
+        create_text_provider(&db)
+    };
+
+    // Read ollama_url for retry provider creation
+    let ollama_url_cluster = {
+        let db = state.db_conn()?;
+        get_ollama_url(&db)
+    };
+    let ollama_url_cluster = Arc::new(ollama_url_cluster);
 
     // Process only representatives
     let articles_to_process: Vec<BatchArticle> = representatives
@@ -1362,13 +1412,15 @@ pub async fn process_batch_clustered(
             let batch_context = batch_context.clone();
             let cluster_lookup = cluster_lookup.clone();
             let clustering_result = clustering_result.clone();
+            let provider_for_batch = provider_for_batch.clone();
+            let ollama_url_cluster = ollama_url_cluster.clone();
 
             async move {
                 if state.batch_cancel.load(Ordering::SeqCst) {
                     return (idx, title, fnord_id, false, Some("Cancelled".to_string()), 0usize);
                 }
 
-                let (ctx_multiplier, adjusted_num_ctx) = match article.attempts {
+                let (_ctx_multiplier, adjusted_num_ctx) = match article.attempts {
                     0 => (1.0, num_ctx),
                     1 => (1.5, ((num_ctx as f64) * 1.5) as u32),
                     _ => (2.0, num_ctx * 2),
@@ -1379,15 +1431,30 @@ pub async fn process_batch_clustered(
                         "Retry {}/3 for article {}: using {}x context (num_ctx={})",
                         article.attempts + 1,
                         fnord_id,
-                        ctx_multiplier,
+                        _ctx_multiplier,
                         adjusted_num_ctx
                     );
                 }
 
-                let client = OllamaClient::with_context(None, adjusted_num_ctx);
+                // For retries with adjusted context, create a new Ollama provider
+                let retry_provider: Option<Arc<dyn AiTextProvider>> = if article.attempts > 0 {
+                    Some(Arc::new(
+                        crate::ai_provider::ollama_provider::OllamaTextProvider::new(
+                            &ollama_url_cluster,
+                            adjusted_num_ctx,
+                        ),
+                    ))
+                } else {
+                    None
+                };
+
+                let provider: &dyn AiTextProvider = match &retry_provider {
+                    Some(p) => p.as_ref(),
+                    None => provider_for_batch.as_ref(),
+                };
 
                 let (success, error) =
-                    process_single_article(&client, &state, &model, &locale, article, &batch_context)
+                    process_single_article(provider, &state, &model, &locale, article, &batch_context)
                         .await;
 
                 // If this is a cluster representative, transfer keywords to members

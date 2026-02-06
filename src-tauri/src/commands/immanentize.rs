@@ -1889,26 +1889,18 @@ pub async fn verify_synonym_pair(
     keyword_a: String,
     keyword_b: String,
 ) -> Result<SynonymVerificationResult, String> {
-    use crate::ollama::{OllamaClient, RECOMMENDED_MAIN_MODEL};
+    use crate::commands::ai::helpers::create_text_provider;
 
-    // Get the configured model from settings, or use default
-    let model = {
+    // Get the configured provider and model from settings
+    let (provider, model) = {
         let db = state.db_conn()?;
-        db.conn()
-            .query_row(
-                "SELECT value FROM settings WHERE key = 'main_model'",
-                [],
-                |row| row.get::<_, String>(0),
-            )
-            .unwrap_or_else(|_| RECOMMENDED_MAIN_MODEL.to_string())
+        create_text_provider(&db)
     };
 
-    let client = OllamaClient::new(None);
-
     // Prompt designed for YES/NO response with optional explanation
+    // No /no_think prefix - provider handles that automatically for Ollama
     let prompt = format!(
-        r#"/no_think
-Are "{}" and "{}" synonyms, alternate names, or abbreviations referring to the SAME entity or concept?
+        r#"Are "{}" and "{}" synonyms, alternate names, or abbreviations referring to the SAME entity or concept?
 
 Rules:
 - YES if they refer to the exact same thing (e.g., "EU" = "European Union", "AI" = "Artificial Intelligence")
@@ -1924,11 +1916,12 @@ Keywords: "{}" and "{}""#,
         keyword_a, keyword_b, keyword_a, keyword_b
     );
 
-    // Generate response
-    let response = client
-        .generate_simple(&model, &prompt)
+    // Generate response via provider (JSON mode)
+    let result = provider
+        .generate_text(&model, &prompt, true)
         .await
         .map_err(|e| format!("LLM error: {}", e))?;
+    let response = result.text;
 
     // Parse JSON response
     #[derive(Deserialize)]

@@ -770,9 +770,9 @@ Content: {}"#,
 
 /// Raw bias analysis from LLM (accepts floats)
 #[derive(Deserialize, Debug)]
-struct RawBiasAnalysis {
-    political_bias: f64,
-    sachlichkeit: f64,
+pub struct RawBiasAnalysis {
+    pub political_bias: f64,
+    pub sachlichkeit: f64,
 }
 
 /// Bias analysis with integer values (for storage and display)
@@ -800,7 +800,7 @@ impl Default for OllamaClient {
 /// Raw Discordian analysis from LLM (accepts floats)
 /// Uses flexible deserializers to handle LLM responses that return objects instead of strings
 #[derive(Deserialize, Debug)]
-struct RawDiscordianAnalysis {
+pub struct RawDiscordianAnalysis {
     #[serde(default, deserialize_with = "flexible_deser::flexible_string")]
     summary: String,
     #[serde(default, deserialize_with = "flexible_deser::flexible_string_vec")]
@@ -838,7 +838,7 @@ impl From<RawDiscordianAnalysis> for DiscordianAnalysis {
 /// Raw Discordian analysis with rejections from LLM (for statistical validation workflow)
 /// Uses flexible deserializers to handle LLM responses that return objects instead of strings
 #[derive(Deserialize, Debug)]
-struct RawDiscordianAnalysisWithRejections {
+pub struct RawDiscordianAnalysisWithRejections {
     #[serde(default, deserialize_with = "flexible_deser::flexible_string")]
     summary: String,
     #[serde(default, deserialize_with = "flexible_deser::flexible_string_vec")]
