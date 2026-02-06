@@ -23,7 +23,7 @@ struct ChatCompletionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     response_format: Option<ResponseFormat>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    max_tokens: Option<u32>,
+    max_completion_tokens: Option<u32>,
     temperature: f32,
 }
 
@@ -132,7 +132,7 @@ impl AiTextProvider for OpenAiCompatibleProvider {
             } else {
                 None
             },
-            max_tokens: Some(4096),
+            max_completion_tokens: Some(4096),
             temperature: 0.3,
         };
 
