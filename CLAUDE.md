@@ -29,80 +29,153 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Claude Code agiert NICHT als einzelner Entwickler, der Aufgaben sequentiell abarbeitet. Stattdessen uebernimmt Claude Code die Rolle eines **Projektleiters**, der:
 
 1. **Analysiert** - Die Aufgabe verstehen, Umfang und Abhaengigkeiten identifizieren
-2. **Plant** - Teilaufgaben definieren und ein passendes Agenten-Team zusammenstellen
-3. **Delegiert** - Unabhaengige Teilaufgaben parallel an spezialisierte Agenten vergeben
-4. **Ueberwacht** - Fortschritt der Agenten verfolgen, Ergebnisse einsammeln
-5. **Prueft** - Ergebnisse validieren, Qualitaet sicherstellen, ggf. Nacharbeit beauftragen
-6. **Integriert** - Teilergebnisse zusammenfuehren, Gesamtergebnis freigeben
+2. **Plant** - Teilaufgaben definieren, Abhaengigkeiten mit `TaskCreate` + `blockedBy` abbilden
+3. **Delegiert** - Bis zu 7 Agenten gleichzeitig in einer einzigen Nachricht starten
+4. **Ueberwacht** - `TaskOutput` fuer Ergebnisse, `TaskUpdate` fuer Statuswechsel
+5. **Korrigiert** - Bei Fehlern: Agent via `resume` mit seiner Agent-ID fortsetzen
+6. **Integriert** - Teilergebnisse zusammenfuehren, Build + Tests, dann committen
+
+### Technische Grundlagen (Task-Tool)
+
+Das `Task`-Tool startet spezialisierte Sub-Agenten. Jeder Agent laeuft in einem **eigenen Kontext** (erbt NICHT die Konversation). Daher muessen Prompts vollstaendig und selbsterklaerend sein.
+
+**Wichtige Parameter:**
+
+| Parameter | Funktion |
+|-----------|----------|
+| `subagent_type` | Agent-Typ (siehe unten) |
+| `prompt` | Vollstaendige Aufgabenbeschreibung mit allem noetigem Kontext |
+| `model` | `haiku` (schnell/guenstig), `sonnet` (Standard), `opus` (komplex) |
+| `run_in_background` | `true` = nicht-blockierend, Ergebnis spaeter via `TaskOutput` abrufen |
+| `resume` | Agent-ID eines frueheren Agenten → setzt Arbeit mit vollem Kontext fort |
+
+**Kritische Einschraenkungen:**
+- Agenten koennen **keine weiteren Agenten starten** (kein Nesting)
+- Agenten erhalten **keinen Konversationsverlauf** - Prompt muss alles enthalten
+- Background-Agenten haben **keinen MCP-Zugriff** (Ollama, Svelte MCP etc.)
+- Background-Agenten koennen **keine Rueckfragen stellen**
+
+### Agenten-Typen und Faehigkeiten
+
+| Typ | Tools | Modell | Einsatz |
+|-----|-------|--------|---------|
+| `Explore` | Read, Glob, Grep (nur lesen) | haiku | Schnelle Codebase-Suche, Ist-Analyse |
+| `general-purpose` | **Alle** (lesen + schreiben) | erbt | Implementierung, Multi-File-Aenderungen |
+| `svelte:svelte-file-editor` | Alle + Svelte MCP | erbt | Svelte-Komponenten (Foreground!) |
+| `Plan` | Alle ausser Edit/Write/Task | erbt | Architektur-Entwurf |
+| `Bash` | Nur Bash | erbt | Shell-Kommandos isoliert ausfuehren |
+| `claude-code-guide` | Read, Glob, Grep, Web | haiku | Fragen zu Claude Code Features |
+
+**Modell-Auswahl:**
+- **haiku** → Explore, einfache Suchen, schnelle Checks (schnell + guenstig)
+- **sonnet** → Standard-Implementierung, Code-Review, Analyse
+- **opus** → Komplexe Architektur-Entscheidungen, schwierige Bugs
 
 ### Wann Agenten-Teams einsetzen?
 
-| Aufgabe | Agenten-Strategie |
-|---------|-------------------|
-| Einzelne Datei editieren, kleiner Bugfix | Kein Team noetig, direkt erledigen |
-| Feature mit 2+ Dateien | Team: Recherche + Implementierung parallel |
-| Refactoring ueber mehrere Module | Team: Pro Modul/Bereich ein Agent |
-| Tests schreiben | Team: Backend-Tests + Frontend-Tests parallel |
-| Dokumentation aktualisieren | Team: Pro Dokument ein Agent parallel |
-| Code-Review / Analyse | Team: Explore-Agenten fuer verschiedene Aspekte |
-| Neues Feature mit Plan | Team: Recherche-Agenten → dann Implementierungs-Agenten |
-
-### Agenten-Typen und ihre Rollen
-
-| Agenten-Typ | Einsatz fuer |
-|-------------|-------------|
-| `Explore` | Codebase durchsuchen, Abhaengigkeiten finden, Ist-Zustand analysieren |
-| `general-purpose` | Dateien lesen/schreiben, komplexe Mehrstufige Aufgaben |
-| `svelte:svelte-file-editor` | Svelte-Komponenten erstellen oder bearbeiten |
-| `Plan` | Implementierungsstrategie entwerfen |
-| `Bash` (via Task) | Build, Tests, Git-Operationen |
+| Aufgabe | Strategie |
+|---------|-----------|
+| Einzelne Datei, kleiner Bugfix | Direkt erledigen, kein Team |
+| Feature mit 2+ Dateien | Explore parallel → dann general-purpose parallel |
+| Refactoring mehrerer Module | Pro Modul ein general-purpose Agent |
+| Tests schreiben | Backend + Frontend parallel |
+| Dokumentation | Pro Dokument ein Agent (bis zu 7 parallel) |
+| Analyse / Code-Review | Mehrere Explore-Agenten fuer verschiedene Aspekte |
+| Svelte-Komponente | svelte-file-editor im **Foreground** (braucht MCP) |
 
 ### Parallelisierungs-Regeln
 
-**IMMER parallel ausfuehren wenn moeglich:**
-- Unabhaengige Datei-Aenderungen (z.B. 5 Doku-Dateien = 5 Agenten gleichzeitig)
-- Recherche in verschiedenen Bereichen (Frontend + Backend gleichzeitig)
-- Tests und Linting (Rust-Tests + Svelte-Check gleichzeitig)
-- i18n-Updates (de.json + en.json gleichzeitig, wenn unterschiedlicher Inhalt)
+**IMMER parallel (bis zu 7 Agenten in einer Nachricht):**
+- Unabhaengige Datei-Aenderungen (z.B. 5 Doku-Dateien = 5 Agenten)
+- Recherche in verschiedenen Bereichen (Frontend + Backend + DB)
+- Tests und Linting (cargo test + npm run test + svelte-check)
+- i18n-Updates (de.json + en.json gleichzeitig)
 
-**SEQUENTIELL ausfuehren wenn noetig:**
+**SEQUENTIELL (Abhaengigkeiten via TaskCreate blockedBy):**
 - Implementierung haengt von Recherche-Ergebnis ab
-- Datei B importiert aus Datei A (erst A fertigstellen)
+- Datei B importiert aus Datei A → erst A fertigstellen
 - Tests erst nach Implementierung
+- Svelte-Agenten im Foreground (MCP noetig)
+
+### Aufgaben-Tracking mit TaskCreate/TaskUpdate
+
+Fuer komplexe Aufgaben MUSS der Projektleiter TaskCreate nutzen:
+
+```
+TaskCreate: "Backend API implementieren"
+  → status: pending → in_progress → completed
+  → activeForm: "Implementiere Backend API"
+
+TaskCreate: "Frontend anbinden"
+  → blockedBy: [Backend-Task-ID]
+  → Startet erst wenn Backend fertig
+
+TaskUpdate: { taskId: "1", status: "completed" }
+  → Gibt blockierte Tasks automatisch frei
+```
+
+### Prompt-Design fuer Agenten
+
+Da Agenten **keinen Konversationsverlauf** haben, MUSS jeder Prompt enthalten:
+1. **Kontext** - Welche Dateien relevant sind und warum
+2. **Aufgabe** - Was genau getan werden soll
+3. **Dateipfade** - Absolute Pfade zu allen relevanten Dateien
+4. **Erwartetes Ergebnis** - Was der Agent zurueckliefern oder aendern soll
+5. **Einschraenkungen** - Was NICHT getan werden soll
+
+**Anti-Pattern:** `"Aktualisiere die Doku"` (Agent weiss nicht welche Datei, was sich geaendert hat)
+**Korrekt:** `"Lies /pfad/zur/DATEI.md und fuege unter Section X einen Eintrag fuer Feature Y hinzu. Feature Y macht Z. Nutze den Edit-Tool."`
+
+### Fehlerbehandlung und Nacharbeit
+
+| Situation | Aktion |
+|-----------|--------|
+| Agent schlaegt fehl | `resume` mit Agent-ID → setzt mit vollem Kontext fort |
+| Ergebnis unvollstaendig | `resume` mit Korrektur-Prompt |
+| Background-Agent braucht MCP | Im Foreground neu starten (`run_in_background: false`) |
+| Inkonsistenz zwischen Agenten | Projektleiter korrigiert manuell oder startet Fix-Agent |
 
 ### Qualitaetssicherung durch den Projektleiter
 
 Nach Abschluss aller Agenten MUSS der Projektleiter:
-1. **Ergebnisse pruefen** - Haben alle Agenten erfolgreich abgeschlossen?
+1. **Ergebnisse pruefen** - `TaskOutput` fuer jeden Agent abrufen, Status checken
 2. **Konsistenz sicherstellen** - Passen die Teilergebnisse zusammen?
-3. **Build verifizieren** - `cargo check` und/oder `svelte-check` ausfuehren
-4. **Tests ausfuehren** - Relevante Test-Suites laufen lassen
-5. **Committen** - Erst nach erfolgreicher Pruefung
+3. **Build verifizieren** - `cargo check` und/oder `npx svelte-check`
+4. **Tests ausfuehren** - `cargo test` und/oder `npm run test`
+5. **Committen** - Erst nach erfolgreicher Pruefung aller Schritte
 
-### Beispiel-Workflow
+### Beispiel-Workflow: Neues Feature
 
 ```
 Aufgabe: "Neues Feature X implementieren"
 
 Projektleiter:
-├─ Phase 1: Recherche (parallel)
-│   ├─ Agent A (Explore): Backend-Code analysieren
-│   ├─ Agent B (Explore): Frontend-Code analysieren
-│   └─ Agent C (Explore): Datenbank-Schema pruefen
 │
-├─ Phase 2: Implementierung (parallel wo moeglich)
-│   ├─ Agent D (general-purpose): Rust Backend-Code
-│   ├─ Agent E (svelte-file-editor): Svelte-Komponente
-│   └─ Agent F (general-purpose): i18n-Keys (de + en)
+├─ Phase 1: Recherche (parallel, Background, haiku)
+│   ├─ Explore-Agent A: Backend-Code analysieren
+│   ├─ Explore-Agent B: Frontend-Code analysieren
+│   └─ Explore-Agent C: Datenbank-Schema pruefen
+│   → TaskOutput fuer A, B, C abrufen und auswerten
 │
-├─ Phase 3: Verifikation (parallel)
-│   ├─ Agent G (Bash): cargo test
-│   └─ Agent H (Bash): npm run test
+├─ Phase 2: Implementierung (parallel, Background)
+│   ├─ general-purpose Agent D (sonnet): Rust Backend + DB-Migration
+│   ├─ general-purpose Agent E (sonnet): i18n-Keys (de + en)
+│   └─ svelte-file-editor Agent F (Foreground!): Svelte-Komponente
+│   → Ergebnisse pruefen, bei Fehlern via resume korrigieren
 │
-└─ Phase 4: Dokumentation (parallel)
-    ├─ Agent I: TAURI_COMMANDS_REFERENCE.md
-    ├─ Agent J: CLAUDE.md
-    └─ Agent K: README.md
+├─ Phase 3: Verifikation (parallel, Background)
+│   ├─ Bash: cargo check && cargo test
+│   └─ Bash: npx svelte-check && npm run test
+│   → Bei Fehlern: Fix-Agent starten oder manuell korrigieren
+│
+├─ Phase 4: Dokumentation (parallel, Background)
+│   ├─ general-purpose Agent G: TAURI_COMMANDS_REFERENCE.md
+│   ├─ general-purpose Agent H: DATABASE_SCHEMA.md
+│   └─ general-purpose Agent I: CLAUDE.md + README.md
+│
+└─ Phase 5: Abschluss
+    ├─ Build + Tests final verifizieren
+    └─ git add + git commit
 ```
 
 ## Quick Links - Referenzdokumentation
