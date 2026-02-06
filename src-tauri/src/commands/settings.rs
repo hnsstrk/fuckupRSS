@@ -1,5 +1,5 @@
 use crate::error::{CmdResult, FuckupError};
-use crate::ollama::{DEFAULT_NUM_CTX, RECOMMENDED_EMBEDDING_MODEL};
+use crate::ollama::{DEFAULT_NUM_CTX, RECOMMENDED_EMBEDDING_MODEL, RECOMMENDED_MAIN_MODEL};
 use crate::{AppState, LogLevel};
 use log::{debug, info};
 use std::collections::HashMap;
@@ -32,10 +32,18 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_j
             "showTerminologyTooltips" | "syncOnStart" | "enable_headless_browser" => {
                 serde_json::Value::Bool(value == "true")
             }
-            // Numeric settings
+            // Numeric settings (integer)
             "syncInterval" | "ollama_num_ctx" => {
                 if let Ok(num) = value.parse::<i64>() {
                     serde_json::Value::Number(num.into())
+                } else {
+                    serde_json::Value::String(value)
+                }
+            }
+            // Numeric settings (float)
+            "cost_limit_monthly" => {
+                if let Ok(num) = value.parse::<f64>() {
+                    serde_json::json!(num)
                 } else {
                     serde_json::Value::String(value)
                 }
@@ -86,6 +94,29 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_j
     }
     if !result.contains_key("enable_headless_browser") {
         result.insert("enable_headless_browser".to_string(), serde_json::Value::Bool(false));
+    }
+
+    // AI provider defaults
+    if !result.contains_key("ai_text_provider") {
+        result.insert("ai_text_provider".to_string(), serde_json::Value::String("ollama".to_string()));
+    }
+    if !result.contains_key("ollama_url") {
+        result.insert("ollama_url".to_string(), serde_json::Value::String("http://localhost:11434".to_string()));
+    }
+    if !result.contains_key("ollama_model") {
+        result.insert("ollama_model".to_string(), serde_json::Value::String(RECOMMENDED_MAIN_MODEL.to_string()));
+    }
+    if !result.contains_key("openai_base_url") {
+        result.insert("openai_base_url".to_string(), serde_json::Value::String("https://api.openai.com".to_string()));
+    }
+    if !result.contains_key("openai_api_key") {
+        result.insert("openai_api_key".to_string(), serde_json::Value::String(String::new()));
+    }
+    if !result.contains_key("openai_model") {
+        result.insert("openai_model".to_string(), serde_json::Value::String("gpt-4.1-nano".to_string()));
+    }
+    if !result.contains_key("cost_limit_monthly") {
+        result.insert("cost_limit_monthly".to_string(), serde_json::json!(5.0));
     }
 
     Ok(result)

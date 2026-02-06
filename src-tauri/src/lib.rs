@@ -156,6 +156,10 @@ pub fn run() {
             commands::ai::model_management::unload_model,
             commands::ai::model_management::ensure_models_loaded,
             commands::ai::model_management::pull_model,
+            // AI Provider Management
+            commands::ai::model_management::test_ai_provider,
+            commands::ai::model_management::get_monthly_cost,
+            commands::ai::model_management::get_cost_history,
             // Article Processing
             commands::ai::article_processor::generate_summary,
             commands::ai::article_processor::analyze_article,
