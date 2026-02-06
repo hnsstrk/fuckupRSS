@@ -89,7 +89,7 @@ pub fn save_article_keywords_and_network(
     article_date: Option<&str>,
 ) -> (Vec<String>, Vec<i64>) {
     use crate::keywords::types::KeywordSource;
-    use crate::commands::ollama::helpers::detect_keyword_type;
+    use crate::commands::ai::helpers::detect_keyword_type;
     let kws_with_source: Vec<KeywordWithSource> = keywords
         .iter()
         .map(|k| KeywordWithSource {

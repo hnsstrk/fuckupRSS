@@ -6,7 +6,7 @@ pub mod immanentize;
 pub mod keyword_type_detection;
 pub mod maintenance;
 pub mod mindfuck;
-pub mod ollama;
+pub mod ai;
 pub mod opml;
 pub mod pentacles;
 pub mod profiles;

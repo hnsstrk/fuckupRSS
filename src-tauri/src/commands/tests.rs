@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 #[test]
 fn test_batch_progress_serialize() {
-    use super::ollama::BatchProgress;
+    use super::ai::BatchProgress;
 
     let progress = BatchProgress {
         current: 5,
@@ -29,7 +29,7 @@ fn test_batch_progress_serialize() {
 
 #[test]
 fn test_batch_progress_with_error() {
-    use super::ollama::BatchProgress;
+    use super::ai::BatchProgress;
 
     let progress = BatchProgress {
         current: 3,
@@ -47,7 +47,7 @@ fn test_batch_progress_with_error() {
 
 #[test]
 fn test_batch_progress_initial_state() {
-    use super::ollama::BatchProgress;
+    use super::ai::BatchProgress;
 
     // Initial progress event (current=0)
     let progress = BatchProgress {
@@ -65,7 +65,7 @@ fn test_batch_progress_initial_state() {
 
 #[test]
 fn test_batch_progress_cancellation() {
-    use super::ollama::BatchProgress;
+    use super::ai::BatchProgress;
 
     let progress = BatchProgress {
         current: 25,
@@ -86,7 +86,7 @@ fn test_batch_progress_cancellation() {
 
 #[test]
 fn test_batch_result_serialize() {
-    use super::ollama::BatchResult;
+    use super::ai::BatchResult;
 
     let result = BatchResult {
         processed: 100,
@@ -102,7 +102,7 @@ fn test_batch_result_serialize() {
 
 #[test]
 fn test_batch_result_all_success() {
-    use super::ollama::BatchResult;
+    use super::ai::BatchResult;
 
     let result = BatchResult {
         processed: 50,
@@ -116,7 +116,7 @@ fn test_batch_result_all_success() {
 
 #[test]
 fn test_batch_result_all_failed() {
-    use super::ollama::BatchResult;
+    use super::ai::BatchResult;
 
     let result = BatchResult {
         processed: 10,
@@ -134,7 +134,7 @@ fn test_batch_result_all_failed() {
 
 #[test]
 fn test_unprocessed_count_serialize() {
-    use super::ollama::UnprocessedCount;
+    use super::ai::UnprocessedCount;
 
     let count = UnprocessedCount {
         total: 150,
@@ -148,7 +148,7 @@ fn test_unprocessed_count_serialize() {
 
 #[test]
 fn test_unprocessed_count_all_have_content() {
-    use super::ollama::UnprocessedCount;
+    use super::ai::UnprocessedCount;
 
     let count = UnprocessedCount {
         total: 100,
@@ -160,7 +160,7 @@ fn test_unprocessed_count_all_have_content() {
 
 #[test]
 fn test_unprocessed_count_none_have_content() {
-    use super::ollama::UnprocessedCount;
+    use super::ai::UnprocessedCount;
 
     let count = UnprocessedCount {
         total: 50,
@@ -176,7 +176,7 @@ fn test_unprocessed_count_none_have_content() {
 
 #[test]
 fn test_ollama_status_available() {
-    use super::ollama::OllamaStatus;
+    use super::ai::OllamaStatus;
 
     let status = OllamaStatus {
         available: true,
@@ -195,7 +195,7 @@ fn test_ollama_status_available() {
 
 #[test]
 fn test_ollama_status_unavailable() {
-    use super::ollama::OllamaStatus;
+    use super::ai::OllamaStatus;
 
     let status = OllamaStatus {
         available: false,
@@ -213,7 +213,7 @@ fn test_ollama_status_unavailable() {
 
 #[test]
 fn test_ollama_status_partial_models() {
-    use super::ollama::OllamaStatus;
+    use super::ai::OllamaStatus;
 
     let status = OllamaStatus {
         available: true,
@@ -276,7 +276,7 @@ fn test_cancellation_flag_multiple_toggles() {
 
 #[test]
 fn test_summary_response_success() {
-    use super::ollama::SummaryResponse;
+    use super::ai::SummaryResponse;
 
     let response = SummaryResponse {
         fnord_id: 123,
@@ -292,7 +292,7 @@ fn test_summary_response_success() {
 
 #[test]
 fn test_summary_response_failure() {
-    use super::ollama::SummaryResponse;
+    use super::ai::SummaryResponse;
 
     let response = SummaryResponse {
         fnord_id: 456,
@@ -312,7 +312,7 @@ fn test_summary_response_failure() {
 
 #[test]
 fn test_analysis_response_success() {
-    use super::ollama::AnalysisResponse;
+    use super::ai::AnalysisResponse;
     use crate::ollama::BiasAnalysis;
 
     let analysis = BiasAnalysis {
@@ -340,7 +340,7 @@ fn test_analysis_response_success() {
 
 #[test]
 fn test_discordian_response_success() {
-    use super::ollama::DiscordianResponse;
+    use super::ai::DiscordianResponse;
     use crate::ollama::DiscordianAnalysis;
 
     let analysis = DiscordianAnalysis {
@@ -367,7 +367,7 @@ fn test_discordian_response_success() {
 
 #[test]
 fn test_discordian_response_no_content() {
-    use super::ollama::DiscordianResponse;
+    use super::ai::DiscordianResponse;
 
     let response = DiscordianResponse {
         fnord_id: 111,
@@ -389,7 +389,7 @@ fn test_discordian_response_no_content() {
 
 #[test]
 fn test_prompt_templates_serialize() {
-    use super::ollama::PromptTemplates;
+    use super::ai::PromptTemplates;
 
     let templates = PromptTemplates {
         summary_prompt: "Summarize: {content}".to_string(),
@@ -405,7 +405,7 @@ fn test_prompt_templates_serialize() {
 
 #[test]
 fn test_default_prompts_serialize() {
-    use super::ollama::DefaultPrompts;
+    use super::ai::DefaultPrompts;
 
     let defaults = DefaultPrompts {
         summary_prompt: "Default summary prompt".to_string(),
@@ -424,7 +424,7 @@ fn test_default_prompts_serialize() {
 
 #[test]
 fn test_model_pull_result_success() {
-    use super::ollama::ModelPullResult;
+    use super::ai::ModelPullResult;
 
     let result = ModelPullResult {
         success: true,
@@ -440,7 +440,7 @@ fn test_model_pull_result_success() {
 
 #[test]
 fn test_model_pull_result_failure() {
-    use super::ollama::ModelPullResult;
+    use super::ai::ModelPullResult;
 
     let result = ModelPullResult {
         success: false,
@@ -459,7 +459,7 @@ fn test_model_pull_result_failure() {
 
 #[test]
 fn test_batch_processing_flow() {
-    use super::ollama::{BatchProgress, BatchResult};
+    use super::ai::{BatchProgress, BatchResult};
 
     // Simulate a batch of 3 articles
     let total = 3i64;
@@ -534,7 +534,7 @@ fn test_batch_processing_with_cancellation() {
 
 #[test]
 fn test_batch_empty_articles() {
-    use super::ollama::BatchResult;
+    use super::ai::BatchResult;
 
     // No articles to process
     let result = BatchResult {
@@ -643,7 +643,7 @@ fn distance_to_similarity(distance: f64) -> f64 {
 
 #[test]
 fn test_similar_article_response_serialize() {
-    use super::ollama::types::{SimilarArticle, SimilarArticlesResponse, SimilarArticleTag, SimilarArticleCategory};
+    use super::ai::types::{SimilarArticle, SimilarArticlesResponse, SimilarArticleTag, SimilarArticleCategory};
 
     let similar = SimilarArticle {
         fnord_id: 123,
@@ -679,7 +679,7 @@ fn test_similar_article_response_serialize() {
 
 #[test]
 fn test_similar_articles_empty_response() {
-    use super::ollama::types::SimilarArticlesResponse;
+    use super::ai::types::SimilarArticlesResponse;
 
     // When article has no embedding, return empty similar list
     let response = SimilarArticlesResponse {
@@ -693,7 +693,7 @@ fn test_similar_articles_empty_response() {
 
 #[test]
 fn test_search_result_serialize() {
-    use super::ollama::types::{SearchResult, SemanticSearchResponse};
+    use super::ai::types::{SearchResult, SemanticSearchResponse};
 
     let result = SearchResult {
         fnord_id: 789,
@@ -717,7 +717,7 @@ fn test_search_result_serialize() {
 
 #[test]
 fn test_semantic_search_empty_query() {
-    use super::ollama::types::SemanticSearchResponse;
+    use super::ai::types::SemanticSearchResponse;
 
     // Empty query should return empty results
     let response = SemanticSearchResponse {
@@ -731,7 +731,7 @@ fn test_semantic_search_empty_query() {
 
 #[test]
 fn test_article_embedding_count_serialize() {
-    use super::ollama::types::ArticleEmbeddingCount;
+    use super::ai::types::ArticleEmbeddingCount;
 
     let count = ArticleEmbeddingCount {
         total_articles: 1000,
@@ -749,7 +749,7 @@ fn test_article_embedding_count_serialize() {
 
 #[test]
 fn test_article_embedding_count_consistency() {
-    use super::ollama::types::ArticleEmbeddingCount;
+    use super::ai::types::ArticleEmbeddingCount;
 
     let count = ArticleEmbeddingCount {
         total_articles: 100,
@@ -767,7 +767,7 @@ fn test_article_embedding_count_consistency() {
 
 #[test]
 fn test_article_embedding_batch_result_serialize() {
-    use super::ollama::types::ArticleEmbeddingBatchResult;
+    use super::ai::types::ArticleEmbeddingBatchResult;
 
     let result = ArticleEmbeddingBatchResult {
         processed: 50,
@@ -783,7 +783,7 @@ fn test_article_embedding_batch_result_serialize() {
 
 #[test]
 fn test_article_embedding_batch_result_consistency() {
-    use super::ollama::types::ArticleEmbeddingBatchResult;
+    use super::ai::types::ArticleEmbeddingBatchResult;
 
     let result = ArticleEmbeddingBatchResult {
         processed: 100,
@@ -797,7 +797,7 @@ fn test_article_embedding_batch_result_consistency() {
 
 #[test]
 fn test_article_embedding_progress_serialize() {
-    use super::ollama::types::ArticleEmbeddingProgress;
+    use super::ai::types::ArticleEmbeddingProgress;
 
     let progress = ArticleEmbeddingProgress {
         current: 25,
@@ -817,7 +817,7 @@ fn test_article_embedding_progress_serialize() {
 
 #[test]
 fn test_article_embedding_progress_with_error() {
-    use super::ollama::types::ArticleEmbeddingProgress;
+    use super::ai::types::ArticleEmbeddingProgress;
 
     let progress = ArticleEmbeddingProgress {
         current: 10,
@@ -976,7 +976,7 @@ fn test_valid_embedding_allows_search() {
 
 #[test]
 fn test_embedding_stats_all_embedded() {
-    use super::ollama::types::ArticleEmbeddingCount;
+    use super::ai::types::ArticleEmbeddingCount;
 
     // All articles have embeddings
     let count = ArticleEmbeddingCount {
@@ -993,7 +993,7 @@ fn test_embedding_stats_all_embedded() {
 
 #[test]
 fn test_embedding_stats_none_embedded() {
-    use super::ollama::types::ArticleEmbeddingCount;
+    use super::ai::types::ArticleEmbeddingCount;
 
     // No articles have embeddings yet
     let count = ArticleEmbeddingCount {
@@ -1067,7 +1067,7 @@ fn test_embedding_stats_processable_constraint() {
 
 #[test]
 fn test_batch_embedding_flow() {
-    use super::ollama::types::{ArticleEmbeddingProgress, ArticleEmbeddingBatchResult};
+    use super::ai::types::{ArticleEmbeddingProgress, ArticleEmbeddingBatchResult};
 
     // Simulate a batch of 5 articles
     let total = 5i64;
@@ -1117,7 +1117,7 @@ fn test_batch_embedding_flow() {
 
 #[test]
 fn test_batch_embedding_empty() {
-    use super::ollama::types::ArticleEmbeddingBatchResult;
+    use super::ai::types::ArticleEmbeddingBatchResult;
 
     // No articles to process
     let result = ArticleEmbeddingBatchResult {
@@ -1133,7 +1133,7 @@ fn test_batch_embedding_empty() {
 
 #[test]
 fn test_batch_embedding_initial_progress() {
-    use super::ollama::types::ArticleEmbeddingProgress;
+    use super::ai::types::ArticleEmbeddingProgress;
 
     // Initial progress event (before processing starts)
     let progress = ArticleEmbeddingProgress {
@@ -1156,7 +1156,7 @@ fn test_batch_embedding_initial_progress() {
 
 #[test]
 fn test_similar_article_tag_serialize() {
-    use super::ollama::types::SimilarArticleTag;
+    use super::ai::types::SimilarArticleTag;
 
     let tag = SimilarArticleTag {
         id: 42,
@@ -1170,7 +1170,7 @@ fn test_similar_article_tag_serialize() {
 
 #[test]
 fn test_similar_article_category_serialize() {
-    use super::ollama::types::SimilarArticleCategory;
+    use super::ai::types::SimilarArticleCategory;
 
     let category = SimilarArticleCategory {
         id: 1,
@@ -1188,7 +1188,7 @@ fn test_similar_article_category_serialize() {
 
 #[test]
 fn test_similar_article_category_optional_fields() {
-    use super::ollama::types::SimilarArticleCategory;
+    use super::ai::types::SimilarArticleCategory;
 
     // Category without icon and color
     let category = SimilarArticleCategory {

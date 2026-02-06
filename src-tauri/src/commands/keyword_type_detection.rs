@@ -5,7 +5,7 @@
 //! 2. Prototype embedding preparation for future semantic matching
 //! 3. Progress reporting for batch operations
 
-use super::ollama::helpers::detect_keyword_type;
+use super::ai::helpers::detect_keyword_type;
 use crate::AppState;
 use log::{info, warn};
 use rusqlite::params;

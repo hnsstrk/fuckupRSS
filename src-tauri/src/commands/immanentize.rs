@@ -2572,7 +2572,7 @@ pub struct KeywordTypeUpdateResult {
 /// Re-analyzes all keywords and updates their type based on pattern matching
 #[tauri::command]
 pub fn update_keyword_types(state: State<AppState>) -> Result<KeywordTypeUpdateResult, String> {
-    use super::ollama::helpers::detect_keyword_type;
+    use super::ai::helpers::detect_keyword_type;
 
     let db = state.db_conn()?;
     let conn = db.conn();
@@ -2648,7 +2648,7 @@ pub struct KeywordCleanupResult {
 #[tauri::command]
 pub fn cleanup_keywords(state: State<AppState>) -> Result<KeywordCleanupResult, String> {
     use crate::text_analysis::{STOPWORDS, seed_known_keywords, update_types_from_seeds};
-    use super::ollama::helpers::detect_keyword_type;
+    use super::ai::helpers::detect_keyword_type;
 
     let db = state.db_conn()?;
     let conn = db.conn();
