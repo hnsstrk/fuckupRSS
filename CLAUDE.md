@@ -33,7 +33,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U.C.K.U.P. from the Illuminatus! trilogy. It uses Ollama for local AI processing with no cloud dependencies.
+fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U.C.K.U.P. from the Illuminatus! trilogy. It supports both Ollama (local) and OpenAI-compatible APIs for text generation. Ollama remains required for embeddings. The AI provider is configurable via Settings.
 
 **Status:** Phase 3 abgeschlossen, Phase 4 (Polish) in Entwicklung
 
@@ -193,10 +193,15 @@ fuckupRSS/
 │   ├── src/
 │   │   ├── main.rs               # Entry Point
 │   │   ├── lib.rs                # Tauri Setup + State
+│   │   ├── ai_provider/          # AI Provider Abstraction
+│   │   │   ├── mod.rs            # AiTextProvider Trait + Factory
+│   │   │   ├── ollama_provider.rs # Ollama-Implementierung
+│   │   │   └── openai_provider.rs # OpenAI-kompatible API-Implementierung
 │   │   ├── db/                   # Datenbank-Layer
 │   │   │   ├── mod.rs            # Database Struct
 │   │   │   └── schema.rs         # SQLite Schema
 │   │   └── commands/             # Tauri Commands (IPC)
+│   │       ├── ai/               # KI-Provider Commands (Test, Kosten)
 │   │       ├── pentacles.rs      # Feed-Operationen
 │   │       └── fnords.rs         # Artikel-Operationen
 │   └── Cargo.toml
@@ -259,6 +264,7 @@ Siehe [README.md](README.md#illuminatus-terminology) fuer die vollstaendige Term
 | Ollama API | `ollama-rs` | aktiv |
 | Vector Search | `sqlite-vec` | aktiv (bundled, O(log n) KNN) |
 | OPML Parsing | `opml` | aktiv |
+| Async Traits | `async-trait` | aktiv (AiTextProvider Trait) |
 
 ## Tauri Commands
 
@@ -278,6 +284,11 @@ await invoke('update_fnord_status', { id, status });
 // KI-Verarbeitung
 await invoke('process_batch', { limit });
 await invoke('check_ollama');
+
+// KI-Provider
+await invoke('test_ai_provider');
+await invoke('get_monthly_cost', { year, month });
+await invoke('get_cost_history', { months });
 ```
 
 ## Database Schema
@@ -289,6 +300,7 @@ Siehe [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.m
 - `fnords` - Artikel
 - `sephiroth` - Kategorien (13 fest definiert)
 - `immanentize` - Keywords mit Embeddings
+- `ai_cost_log` - Kostenprotokoll fuer OpenAI-kompatible API-Aufrufe
 
 Schema-Definition: `src-tauri/src/db/schema.rs`
 
@@ -464,6 +476,8 @@ ollama pull snowflake-arctic-embed2:latest
 ```
 
 **Hinweis:** Bei Modellwechsel muessen alle Keywords neu eingebettet werden (Settings -> Wartung -> Embeddings generieren).
+
+**Alternative Text-Generation:** Anstelle von Ollama kann fuer Textgenerierung (Zusammenfassungen, Kategorisierung, Bias-Erkennung) auch eine OpenAI-kompatible API verwendet werden. Die Konfiguration erfolgt in Settings -> KI-Provider (API-URL, API-Key, Modellname). Ollama bleibt weiterhin erforderlich fuer Embeddings (snowflake-arctic-embed2).
 
 ## Data Paths
 

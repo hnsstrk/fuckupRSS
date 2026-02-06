@@ -397,6 +397,28 @@ Adaptive weights learned from LLM rejections and user corrections.
 
 ---
 
+## AI Cost Tracking
+
+### `ai_cost_log` - API Cost Log
+
+Tracks token usage and estimated costs for OpenAI-compatible API providers. Used for monthly cost limit enforcement.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER | Primary key (autoincrement) |
+| `provider` | TEXT | API provider name (e.g. 'openai') |
+| `model` | TEXT | Model used for the request |
+| `input_tokens` | INTEGER | Number of input tokens consumed |
+| `output_tokens` | INTEGER | Number of output tokens consumed |
+| `estimated_cost_usd` | REAL | Estimated cost in USD |
+| `created_at` | TEXT | Timestamp (default: current datetime) |
+
+**Indizes:**
+- `idx_ai_cost_log_created` auf `created_at DESC`
+- `idx_ai_cost_log_provider` auf `provider`
+
+---
+
 ## Settings & Configuration
 
 ### `settings` - Application Settings
@@ -415,6 +437,12 @@ Key-value store for application settings. Einstellungen werden in der SQLite-Dat
 | `locale` | String | `'de'` | Sprache: `de`, `en` |
 | `theme` | String | `'mocha'` | Theme: `mocha`, `macchiato`, `frappe`, `latte` |
 | `showTerminologyTooltips` | Boolean | `'true'` | Illuminatus!-Tooltips anzeigen |
+| `ai_text_provider` | String | `'ollama'` | Active text generation provider (`ollama` or `openai`) |
+| `ollama_url` | String | `'http://localhost:11434'` | Ollama server URL (local or remote) |
+| `openai_base_url` | String | `'https://api.openai.com'` | OpenAI-compatible API base URL |
+| `openai_api_key` | String | `''` | API key for OpenAI-compatible provider |
+| `openai_model` | String | `'gpt-4.1-nano'` | Model for text generation |
+| `cost_limit_monthly` | Float | `'5.0'` | Monthly cost limit in USD (enforced via `ai_cost_log`) |
 
 **Geplante Settings (spätere Phasen):**
 
@@ -422,8 +450,6 @@ Key-value store for application settings. Einstellungen werden in der SQLite-Dat
 |-----|-----|--------------|
 | `syncInterval` | Integer | Sync-Intervall in Minuten |
 | `syncOnStart` | Boolean | Sync bei App-Start |
-| `ollamaHost` | String | Ollama-Server URL |
-| `mainModel` | String | Haupt-LLM für Analyse |
 | `embeddingModel` | String | Modell für Embeddings |
 
 **Persistenz-Mechanismus:**
@@ -490,6 +516,7 @@ bias_weights (Standalone)
 settings (Standalone)
 hardware_profiles (Standalone)
 keyword_type_prototype (Standalone)
+ai_cost_log (Standalone)
 ```
 
 ---
@@ -514,3 +541,4 @@ The `source` field in mapping tables indicates provenance:
 4. **WAL mode:** Database uses Write-Ahead Logging for concurrent access
 5. **Settings persistence:** Alle Einstellungen werden in der `settings`-Tabelle gespeichert (Key-Value-Store)
 6. **Revisionsverwaltung:** Artikeländerungen werden vollständig in `fnord_revisions` protokolliert
+7. **AI cost tracking:** Token usage and estimated costs for OpenAI-compatible providers are logged in `ai_cost_log`, with monthly limits enforced via `cost_limit_monthly` setting

@@ -6,14 +6,15 @@
 ## Table of Contents
 
 1. [Pipeline Overview](#pipeline-overview)
-2. [Content Fields](#content-fields-in-fnords)
-3. [Greyface Alert (Bias-Erkennung)](#greyface-alert-bias-erkennung)
-4. [Prompt-Design](#prompt-design)
-5. [Statistical Text Analysis](#statistical-text-analysis)
-6. [Bias Learning System](#bias-learning-system)
-7. [Advanced Keyword Extraction](#advanced-keyword-extraction)
-8. [Article Clustering](#article-clustering-batch-optimization)
-9. [Relevant Modules](#relevant-modules)
+2. [AI Provider Abstraction](#ai-provider-abstraction)
+3. [Content Fields](#content-fields-in-fnords)
+4. [Greyface Alert (Bias-Erkennung)](#greyface-alert-bias-erkennung)
+5. [Prompt-Design](#prompt-design)
+6. [Statistical Text Analysis](#statistical-text-analysis)
+7. [Bias Learning System](#bias-learning-system)
+8. [Advanced Keyword Extraction](#advanced-keyword-extraction)
+9. [Article Clustering](#article-clustering-batch-optimization)
+10. [Relevant Modules](#relevant-modules)
 
 ---
 
@@ -30,7 +31,7 @@ The AI processing pipeline consists of 5 sequential stages that transform raw RS
 │     └─ Fetch full text for ALL new articles (automatic after sync)          │
 │                                                                             │
 │  2. DISCORDIAN ANALYSIS                                                     │
-│     └─ Summarize, categorize, extract keywords via ministral                │
+│     └─ Summarize, categorize, extract keywords via AiTextProvider           │
 │                                                                             │
 │  3. ARTICLE EMBEDDING                                                       │
 │     └─ Generate embedding for similarity search                             │
@@ -66,7 +67,8 @@ AI-powered summarization, bias detection, and keyword validation.
 
 | Aspect | Details |
 |--------|---------|
-| **Model** | ministral-3:latest |
+| **Provider** | Configurable via `AiTextProvider` (Ollama or OpenAI-compatible) |
+| **Default Model** | ministral-3:latest (Ollama) or configurable (OpenAI-compatible) |
 | **Input** | `content_full` ONLY (no fallback) |
 | **Primary Output** | Summary, political_bias, sachlichkeit |
 | **Secondary Output** | Validated keywords |
@@ -117,6 +119,71 @@ Processing steps:
 2. **Category Association**: Update `immanentize_sephiroth` table
 3. **Neighbor Update**: Calculate co-occurrence + embedding similarity
 4. **Synonym Detection**: Flag pairs with `embedding_similarity > 0.92`
+
+---
+
+## AI Provider Abstraction
+
+Text generation is decoupled from any specific backend through the `AiTextProvider` trait defined in `src-tauri/src/ai_provider/mod.rs`. This allows switching between local Ollama and remote OpenAI-compatible APIs without changing pipeline code.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       AI PROVIDER ARCHITECTURE                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────────────────────────────────────┐                          │
+│  │         AiTextProvider (trait)                 │                          │
+│  │  generate_text(model, prompt, json_mode)       │                          │
+│  │  is_available()                                │                          │
+│  │  provider_name()                               │                          │
+│  └──────────────┬───────────────┬────────────────┘                          │
+│                 │               │                                            │
+│    ┌────────────▼──┐   ┌───────▼───────────────┐                           │
+│    │ OllamaText    │   │ OpenAiCompatible       │                           │
+│    │ Provider      │   │ Provider               │                           │
+│    │               │   │                        │                           │
+│    │ - wraps       │   │ - reqwest HTTP client  │                           │
+│    │   OllamaClient│   │ - /v1/chat/completions │                           │
+│    │ - auto-       │   │ - token usage tracking │                           │
+│    │   prepends    │   │ - supports OpenAI,     │                           │
+│    │   /no_think   │   │   Together.ai, Mistral,│                           │
+│    └───────────────┘   │   Groq, etc.           │                           │
+│                        └────────────────────────┘                           │
+│                                                                             │
+│  EMBEDDINGS: Always go through OllamaClient directly (unchanged)           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Provider Selection
+
+The active text generation provider is configured via the `ai_text_provider` setting in the database:
+
+| Setting Value | Provider | Description |
+|---------------|----------|-------------|
+| `ollama` (default) | `OllamaTextProvider` | Local Ollama instance, auto-prepends `/no_think` |
+| `openai_compatible` | `OpenAiCompatibleProvider` | Any OpenAI-compatible API endpoint |
+
+Additional settings for `openai_compatible`:
+- `openai_base_url` - API base URL (e.g. `https://api.openai.com`, `https://api.together.xyz`)
+- `openai_api_key` - Bearer token for authentication
+- `openai_model` - Model name to use (e.g. `gpt-4.1-nano`, `meta-llama/Llama-3-70b`)
+
+### Cost Tracking
+
+When using the OpenAI-compatible provider, token usage is tracked for cost estimation. The `ai_cost_log` SQLite table records per-request token counts (input/output) returned by the API. Ollama does not report token usage in non-streaming mode, so its entries have `NULL` token counts.
+
+### Embeddings
+
+Embeddings are **not** part of the `AiTextProvider` trait. They always go through `OllamaClient` directly using the `snowflake-arctic-embed2` model, regardless of which text generation provider is active.
+
+### Source Modules
+
+| Module | Purpose |
+|--------|---------|
+| `src-tauri/src/ai_provider/mod.rs` | `AiTextProvider` trait, `ProviderType` enum, factory |
+| `src-tauri/src/ai_provider/ollama_provider.rs` | `OllamaTextProvider` (wraps OllamaClient) |
+| `src-tauri/src/ai_provider/openai_provider.rs` | `OpenAiCompatibleProvider` (reqwest-based) |
 
 ---
 
@@ -347,7 +414,11 @@ struct GreyfaceAlert {
     article_type: String,
 }
 
-async fn analyze_article(fnord: &Fnord) -> Result<DiscordianAnalysis> {
+async fn analyze_article(
+    provider: &dyn AiTextProvider,
+    model: &str,
+    fnord: &Fnord,
+) -> Result<DiscordianAnalysis> {
     let prompt = format!(
         r#"Du bist ein Nachrichtenanalyst...
 
@@ -361,8 +432,8 @@ async fn analyze_article(fnord: &Fnord) -> Result<DiscordianAnalysis> {
         fnord.content_full.as_ref().unwrap_or(&fnord.content_raw)
     );
 
-    let response = ollama.generate("ministral-3:latest", &prompt).await?;
-    let analysis: DiscordianAnalysis = serde_json::from_str(&response)?;
+    let result = provider.generate_text(model, &prompt, true).await?;
+    let analysis: DiscordianAnalysis = serde_json::from_str(&result.text)?;
 
     Ok(analysis)
 }
@@ -370,7 +441,7 @@ async fn analyze_article(fnord: &Fnord) -> Result<DiscordianAnalysis> {
 
 ### Parsing-Regeln
 
-1. **Native JSON Mode:** Ollama wird mit JSON-Mode aufgerufen für garantiert valide JSON-Antworten
+1. **Native JSON Mode:** Provider wird mit `json_mode: true` aufgerufen (Ollama: native JSON mode, OpenAI-compatible: `response_format: json_object`)
 2. **Validierung:** Alle Werte werden auf gültige Bereiche geprüft (z.B. political_bias zwischen -2 und +2)
 3. **Fallback:** Bei ungültigen Werten werden Defaults verwendet (political_bias=0, sachlichkeit=2, article_type="unknown")
 4. **Error Handling:** Bei komplettem Parse-Fehler wird der Artikel als "nicht analysiert" markiert
@@ -419,7 +490,7 @@ Statistical analysis runs **BEFORE** LLM analysis. Categories are now **primaril
 |----------|--------|--------|
 | Keyword Extraction | TF-IDF + Corpus-Stats | `keyword_candidates` with score |
 | Category Matching | Word frequency + word lists | `category_scores` with `matching_terms` |
-| LLM Validation | ministral-3 | `rejected_keywords`, `rejected_categories` |
+| LLM Validation | AiTextProvider (configurable) | `rejected_keywords`, `rejected_categories` |
 
 ### Corpus-wide TF-IDF
 
@@ -684,16 +755,28 @@ await invoke('process_batch_clustered', {
 
 | Module | Purpose |
 |--------|---------|
-| `src-tauri/src/ollama/mod.rs` | Ollama API integration |
-| `src-tauri/src/ollama/mod.rs` | `discordian_analysis_with_stats` function |
+| `src-tauri/src/ai_provider/mod.rs` | `AiTextProvider` trait, provider factory |
+| `src-tauri/src/ai_provider/ollama_provider.rs` | Ollama text generation (wraps OllamaClient) |
+| `src-tauri/src/ai_provider/openai_provider.rs` | OpenAI-compatible text generation (reqwest) |
+| `src-tauri/src/ollama/mod.rs` | OllamaClient for embeddings and direct Ollama API access |
 | `src-tauri/src/retrieval/mod.rs` | Hagbard's Retrieval (full-text fetching) |
+
+### AI Commands
+
+| Module | Purpose |
+|--------|---------|
+| `src-tauri/src/commands/ai/mod.rs` | AI command entry points (Tauri commands) |
+| `src-tauri/src/commands/ai/batch_processor.rs` | Batch processing |
+| `src-tauri/src/commands/ai/article_processor.rs` | Single-article AI processing |
+| `src-tauri/src/commands/ai/model_management.rs` | Model listing, pulling, provider testing |
+| `src-tauri/src/commands/ai/prompts.rs` | Prompt templates |
 
 ### Database Operations
 
 | Module | Purpose |
 |--------|---------|
 | `src-tauri/src/immanentize.rs` | Keyword network operations |
-| `src-tauri/src/commands/batch_processor.rs` | Batch processing |
+| `src-tauri/src/commands/ai/data_persistence.rs` | AI result persistence, cost logging |
 | `src-tauri/src/commands/article_analysis.rs` | Statistical article analysis |
 
 ---

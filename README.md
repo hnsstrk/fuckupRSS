@@ -37,6 +37,7 @@ Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
 - **Kategorisierung** – Artikel werden Themen zugeordnet
 - **Stichwort-Extraktion** – Wichtige Begriffe, Personen, Orte
 - **Semantische Suche** – Finde Artikel nach Bedeutung, nicht nur Keywords
+- **Flexible KI-Backends** – Ollama (lokal) oder OpenAI-kompatible APIs (OpenAI, Together.ai, Mistral, Groq etc.)
 
 ### ⚠️ Bias-Erkennung (Greyface Alert)
 - **Politische Tendenz** – Links ↔ Rechts Spektrum
@@ -282,10 +283,12 @@ Die Einstellungen können direkt in der App unter "Einstellungen" geändert werd
 - Theme (Mocha, Macchiato, Frappé, Latte)
 - Tooltips für Illuminatus!-Begriffe
 
-### Ollama (KI)
-- Ollama-Status anzeigen
+### KI-Provider
+- **Ollama (Standard):** Lokale Modelle, vollständig offline
+- **OpenAI-kompatible APIs:** OpenAI, Together.ai, Mistral, Groq etc. als Alternative für Textgenerierung
 - Modell-Auswahl (Hauptmodell, Embedding-Modell)
 - Empfohlene Modelle direkt herunterladen
+- **Hinweis:** Embeddings (für Ähnlichkeitssuche) erfordern weiterhin Ollama
 
 ### Prompts
 - Anpassbare KI-Prompts für Zusammenfassung und Analyse
@@ -303,7 +306,7 @@ Die Einstellungen können direkt in der App unter "Einstellungen" geändert werd
 | Frontend | Svelte 5 |
 | Datenbank | SQLite + sqlite-vec |
 | i18n | [svelte-i18n](https://github.com/kaisermann/svelte-i18n) |
-| KI | [Ollama](https://ollama.com/) (lokal) |
+| KI | [Ollama](https://ollama.com/) (lokal) + OpenAI-kompatible APIs |
 | Modelle | ministral-3:latest, snowflake-arctic-embed2:latest |
 
 ### Mehrsprachigkeit

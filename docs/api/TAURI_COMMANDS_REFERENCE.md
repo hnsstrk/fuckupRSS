@@ -12,7 +12,7 @@ This document provides a comprehensive reference for all Tauri commands availabl
 - [Fnords (Articles)](#fnords-articles)
 - [Sync](#sync)
 - [Retrieval (Full-text)](#retrieval-full-text)
-- [Ollama (AI)](#ollama-ai)
+- [AI Provider](#ai-provider)
 - [Settings](#settings)
 - [Immanentize (Keyword Quality & Synonyms)](#immanentize-keyword-quality--synonyms)
 - [Hardware Profiles](#hardware-profiles)
@@ -27,6 +27,7 @@ This document provides a comprehensive reference for all Tauri commands availabl
 - [Categories (Extended)](#categories-extended)
 - [Embedding Management](#embedding-management)
 - [Model Management (Extended)](#model-management-extended)
+- [Cost Tracking](#cost-tracking)
 - [Batch Processing](#batch-processing)
 - [OPML Import/Export](#opml-importexport)
 - [Settings (Extended)](#settings-extended)
@@ -76,11 +77,12 @@ This document provides a comprehensive reference for all Tauri commands availabl
 
 ---
 
-## Ollama (AI)
+## AI Provider
 
 | Command | Parameter | Return | Description |
 |---------|-----------|--------|-------------|
 | `check_ollama` | - | `OllamaStatus` | Check Ollama availability |
+| `test_ai_provider` | `provider_type`, `base_url`, `api_key?` | `ProviderTestResult` | Test AI provider connection |
 | `generate_summary` | `fnord_id`, `model` | `SummaryResponse` | Generate article summary |
 | `analyze_article` | `fnord_id`, `model` | `AnalysisResponse` | Perform bias analysis |
 | `process_article` | `fnord_id`, `model` | `(Summary, Analysis)` | Combined summary and analysis |
@@ -91,6 +93,23 @@ This document provides a comprehensive reference for all Tauri commands availabl
 | `set_prompts` | `summary_prompt`, `analysis_prompt` | - | Save prompts |
 | `reset_prompts` | - | `PromptTemplates` | Reset prompts to defaults |
 | `get_default_prompts` | - | `DefaultPrompts` | Get default prompts |
+
+### ProviderTestResult Structure
+
+```typescript
+interface ProviderTestResult {
+  success: boolean;         // Whether the connection succeeded
+  latency_ms: number;       // Response time in milliseconds
+  models: string[];         // Available models from the provider
+  error: string | null;     // Error message if connection failed
+}
+```
+
+**Notes:**
+- `provider_type` accepts `"ollama"` or `"openai_compatible"`
+- For Ollama, tests by listing available models
+- For OpenAI-compatible APIs, tests the `/v1/models` endpoint
+- Returns `success: false` with error details on authentication failure (HTTP 401)
 
 ---
 
@@ -368,11 +387,52 @@ struct ArticleKeyword {
 | Command | Parameter | Return | Description |
 |---------|-----------|--------|-------------|
 | `check_ollama` | - | `OllamaStatus` | Check Ollama status |
+| `test_ai_provider` | `provider_type`, `base_url`, `api_key?` | `ProviderTestResult` | Test AI provider connection |
 | `get_loaded_models` | - | `LoadedModelsResponse` | Get loaded models |
 | `load_model` | `model` | `bool` | Load model |
 | `unload_model` | `model` | `bool` | Unload model |
-| `ensure_models_loaded` | `main_model`, `embed_model` | `bool` | Ensure models are loaded |
+| `ensure_models_loaded` | `main_model`, `embedding_model` | `LoadedModelsResponse` | Ensure models are loaded |
 | `pull_model` | `model` | `ModelPullResult` | Download model |
+
+---
+
+## Cost Tracking
+
+| Command | Parameter | Return | Description |
+|---------|-----------|--------|-------------|
+| `get_monthly_cost` | - | `MonthlyCost` | Get current monthly cost summary |
+| `get_cost_history` | `limit?` | `Vec<CostEntry>` | Get cost history entries (default: 100) |
+
+### MonthlyCost Structure
+
+```typescript
+interface MonthlyCost {
+  spent: number;       // Total spent this month in USD
+  limit: number;       // Monthly cost limit from settings (default: 5.0)
+  remaining: number;   // Remaining budget (limit - spent, min 0)
+  percentage: number;  // Percentage of limit used (0-100)
+}
+```
+
+### CostEntry Structure
+
+```typescript
+interface CostEntry {
+  id: number;
+  provider: string;           // e.g. "ollama", "openai_compatible"
+  model: string;              // Model name used
+  input_tokens: number;       // Input tokens consumed
+  output_tokens: number;      // Output tokens generated
+  estimated_cost_usd: number; // Estimated cost in USD
+  created_at: string;         // ISO timestamp
+}
+```
+
+**Notes:**
+- Cost data is stored in the `ai_cost_log` table
+- Monthly cost is calculated from the start of the current month
+- The cost limit is configurable via the `cost_limit_monthly` setting (default: 5.0 USD)
+- When the cost limit is reached, AI processing is blocked with a `CostLimitReached` error
 
 ---
 
@@ -477,6 +537,6 @@ const searchResults = await invoke<SemanticSearchResponse>('semantic_search', {
 
 ---
 
-*Last updated: January 2025*
+*Last updated: February 2026*
 
 *For development guidelines, database patterns, and project architecture, see [CLAUDE.md](../../CLAUDE.md).*
