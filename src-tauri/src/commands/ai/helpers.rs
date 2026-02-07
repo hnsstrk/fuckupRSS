@@ -131,45 +131,6 @@ pub fn get_locale_from_db(state: &State<'_, AppState>) -> String {
         .unwrap_or_else(|_| "de".to_string())
 }
 
-/// Get AI concurrency setting from database (provider-aware)
-///
-/// - Ollama: clamp(1, 10) - hardware-limited
-/// - OpenAiCompatible: clamp(1, 50) - API can handle more parallelism
-pub fn get_ai_concurrency(state: &AppState, provider_type: &ProviderType) -> usize {
-    let db = match state.db.lock() {
-        Ok(db) => db,
-        Err(_) => return 1,
-    };
-    let val: String = db
-        .conn()
-        .query_row(
-            "SELECT value FROM settings WHERE key = 'ai_parallelism'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or_else(|_| "1".to_string());
-
-    let raw_value = val.parse().unwrap_or(1);
-
-    let clamped = match provider_type {
-        ProviderType::Ollama => raw_value.clamp(1, 10),
-        ProviderType::OpenAiCompatible => raw_value.clamp(1, 50),
-    };
-
-    log::info!(
-        "AI concurrency for provider {:?}: {} (raw: {}, max: {})",
-        provider_type,
-        clamped,
-        raw_value,
-        match provider_type {
-            ProviderType::Ollama => 10,
-            ProviderType::OpenAiCompatible => 50,
-        }
-    );
-
-    clamped
-}
-
 // ============================================================
 // PROMPT HELPERS
 // ============================================================

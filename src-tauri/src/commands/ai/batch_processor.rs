@@ -13,16 +13,12 @@ use crate::text_analysis::{
 };
 use crate::{classify_by_keywords, extract_keywords};
 use crate::AppState;
-use futures::{stream, StreamExt};
 use log::{debug, info, warn};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::{Emitter, Manager, State, Window};
-
-/// Global counter for tracking active parallel LLM requests
-static ACTIVE_LLM_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
 /// Safely truncate a string to a maximum byte length, respecting UTF-8 char boundaries.
 /// Returns a slice that ends at a valid char boundary.
@@ -46,7 +42,7 @@ use super::data_persistence::{
 use super::helpers::{
     check_analysis_cache, compute_content_hash, create_text_provider, derive_categories_from_keywords,
     determine_category_sources, determine_keyword_sources, discordian_analysis_via_provider,
-    get_ai_concurrency, get_locale_from_db, get_num_ctx_setting,
+    get_locale_from_db, get_num_ctx_setting,
     get_provider_config, log_generation_cost, merge_categories_stat_primary, merge_keywords, store_analysis_cache,
 };
 use super::types::{
@@ -472,16 +468,12 @@ async fn process_single_article(
         )
     } else {
         // === LLM ANALYSIS ===
-        // Track active parallel requests
-        let active_before = ACTIVE_LLM_REQUESTS.fetch_add(1, Ordering::SeqCst);
-        let active_count = active_before + 1;
         let llm_start = Instant::now();
 
         info!(
-            "[LLM] Starting analysis for \"{}\" (ID: {}) [{} parallel active]",
+            "[LLM] Starting analysis for \"{}\" (ID: {})",
             truncate_str(&title, 60),
-            fnord_id,
-            active_count
+            fnord_id
         );
 
         let analysis_result = discordian_analysis_via_provider(
@@ -496,18 +488,15 @@ async fn process_single_article(
             )
             .await;
 
-        // Decrement active counter after request completes
-        let active_after = ACTIVE_LLM_REQUESTS.fetch_sub(1, Ordering::SeqCst);
         let duration = llm_start.elapsed();
 
         match analysis_result {
             Ok((analysis_with_rejections, usage)) => {
                 info!(
-                    "[LLM] Completed \"{}\" (ID: {}) in {:.2}s [{} parallel remaining]",
+                    "[LLM] Completed \"{}\" (ID: {}) in {:.2}s",
                     truncate_str(&title, 50),
                     fnord_id,
-                    duration.as_secs_f64(),
-                    active_after.saturating_sub(1)
+                    duration.as_secs_f64()
                 );
 
                 // === LOG COST + LEARN FROM LLM REJECTIONS ===
@@ -577,12 +566,11 @@ async fn process_single_article(
             }
             Err(e) => {
                 warn!(
-                    "[LLM] FAILED \"{}\" (ID: {}) after {:.2}s: {} [{} parallel remaining]",
+                    "[LLM] FAILED \"{}\" (ID: {}) after {:.2}s: {}",
                     truncate_str(&title, 50),
                     fnord_id,
                     duration.as_secs_f64(),
-                    e,
-                    active_after.saturating_sub(1)
+                    e
                 );
 
                 // Handle LLM error (same as before)
@@ -736,14 +724,13 @@ pub async fn process_batch(
 ) -> Result<BatchResult, String> {
     let locale = get_locale_from_db(&state);
 
-    // Get provider config to determine concurrency limits
+    // Get provider config
     let provider_config = {
         let db = state.db_conn()?;
         get_provider_config(&db)
     };
-    let concurrency = get_ai_concurrency(&state, &provider_config.provider_type);
 
-    info!("Starting batch processing: frontend_model={}, limit={:?}, concurrency={}", model, limit, concurrency);
+    info!("Starting batch processing: frontend_model={}, limit={:?}", model, limit);
 
     // Load shared context ONCE before batch processing starts
     let batch_context = {
@@ -867,14 +854,14 @@ pub async fn process_batch(
         match provider_config.provider_type {
             ProviderType::Ollama => {
                 info!(
-                    "[LLM] Batch starting: {} articles with {} parallel workers (provider: Ollama, model: {}, num_ctx: {})",
-                    total, concurrency, effective_model, num_ctx
+                    "[LLM] Batch starting: {} articles sequentially (provider: Ollama, model: {}, num_ctx: {})",
+                    total, effective_model, num_ctx
                 );
             }
             ProviderType::OpenAiCompatible => {
                 info!(
-                    "[LLM] Batch starting: {} articles with {} parallel workers (provider: OpenAI-compatible, model: {})",
-                    total, concurrency, effective_model
+                    "[LLM] Batch starting: {} articles sequentially (provider: OpenAI-compatible, model: {})",
+                    total, effective_model
                 );
             }
         }
@@ -887,7 +874,7 @@ pub async fn process_batch(
             current: 0,
             total,
             fnord_id: 0,
-            title: format!("Starting batch ({} parallel)...", concurrency),
+            title: "Starting batch...".to_string(),
             success: true,
             error: None,
             provider: provider_name.clone(),
@@ -895,112 +882,92 @@ pub async fn process_batch(
         },
     );
 
-    let stream = stream::iter(articles.into_iter().enumerate());
     let batch_context = Arc::new(batch_context);
-    let effective_model_arc = Arc::new(effective_model.clone());
-    let provider_name_arc = Arc::new(provider_name.clone());
 
     // Read provider config for retry logic (only needed for Ollama retries with adjusted num_ctx)
-    let provider_config_for_retry = Arc::new(provider_config);
+    let provider_config_for_retry = provider_config;
 
     // Get ollama_url for embedding generation (separate from provider config)
     let ollama_url = provider_config_for_retry.ollama_url.clone();
-    let ollama_url_arc = Arc::new(ollama_url);
 
-    let results = stream
-        .map(|(idx, article)| {
-            let title = article.title.clone();
-            let fnord_id = article.fnord_id;
-            let effective_model = effective_model_arc.clone();
-            let locale = locale.clone();
-            let state = state.clone();
-            let window = window.clone();
-            let batch_context = batch_context.clone();
-            let provider_for_batch = provider_for_batch.clone();
-            let provider_name = provider_name_arc.clone();
-            let provider_config_for_retry = provider_config_for_retry.clone();
-
-            async move {
-                if state.batch_cancel.load(Ordering::SeqCst) {
-                    return (idx, title, fnord_id, false, Some("Cancelled".to_string()));
-                }
-
-                // For retries with adjusted context (ONLY for Ollama)
-                // OpenAI-compatible providers use the same provider for retries
-                let retry_provider: Option<Arc<dyn AiTextProvider>> = if article.attempts > 0 {
-                    use crate::ai_provider::{ProviderType, create_provider};
-
-                    match provider_config_for_retry.provider_type {
-                        ProviderType::Ollama => {
-                            // Ollama: adjust num_ctx for retries
-                            let (_ctx_multiplier, adjusted_num_ctx) = match article.attempts {
-                                1 => (1.5, ((num_ctx as f64) * 1.5) as u32),
-                                _ => (2.0, num_ctx * 2),
-                            };
-
-                            info!(
-                                "Retry {}/3 for article {} (Ollama): using {}x context (num_ctx={})",
-                                article.attempts + 1,
-                                fnord_id,
-                                _ctx_multiplier,
-                                adjusted_num_ctx
-                            );
-
-                            let mut retry_config = (*provider_config_for_retry).clone();
-                            retry_config.ollama_num_ctx = adjusted_num_ctx;
-                            Some(create_provider(&retry_config))
-                        }
-                        ProviderType::OpenAiCompatible => {
-                            // OpenAI-compatible: use same provider (no num_ctx adjustment)
-                            info!(
-                                "Retry {}/3 for article {} (OpenAI-compatible): using same provider",
-                                article.attempts + 1,
-                                fnord_id
-                            );
-                            None
-                        }
-                    }
-                } else {
-                    None
-                };
-
-                let provider: &dyn AiTextProvider = match &retry_provider {
-                    Some(p) => p.as_ref(),
-                    None => provider_for_batch.as_ref(),
-                };
-
-                let (success, error) =
-                    process_single_article(provider, &state, &effective_model, &locale, article, &batch_context)
-                        .await;
-
-                let _ = window.emit(
-                    "batch-progress",
-                    BatchProgress {
-                        current: (idx + 1) as i64,
-                        total,
-                        fnord_id,
-                        title: title.clone(),
-                        success,
-                        error: error.clone(),
-                        provider: (*provider_name).clone(),
-                        model: (*effective_model).clone(),
-                    },
-                );
-
-                (idx, title, fnord_id, success, error)
-            }
-        })
-        .buffer_unordered(concurrency)
-        .collect::<Vec<_>>()
-        .await;
-
-    let mut succeeded = 0;
-    let mut failed = 0;
+    let mut succeeded: i64 = 0;
+    let mut failed: i64 = 0;
     let mut successful_fnord_ids: Vec<i64> = Vec::new();
-    for (_, _, fnord_id, success, _) in &results {
-        if *success {
+
+    // Process articles sequentially
+    for (idx, article) in articles.into_iter().enumerate() {
+        if state.batch_cancel.load(Ordering::SeqCst) {
+            break;
+        }
+
+        let fnord_id = article.fnord_id;
+        let title = article.title.clone();
+
+        // For retries with adjusted context (ONLY for Ollama)
+        // OpenAI-compatible providers use the same provider for retries
+        let retry_provider: Option<Arc<dyn AiTextProvider>> = if article.attempts > 0 {
+            use crate::ai_provider::{ProviderType, create_provider};
+
+            match provider_config_for_retry.provider_type {
+                ProviderType::Ollama => {
+                    // Ollama: adjust num_ctx for retries
+                    let (ctx_multiplier, adjusted_num_ctx) = match article.attempts {
+                        1 => (1.5, ((num_ctx as f64) * 1.5) as u32),
+                        _ => (2.0, num_ctx * 2),
+                    };
+
+                    info!(
+                        "Retry {}/3 for article {} (Ollama): using {}x context (num_ctx={})",
+                        article.attempts + 1,
+                        fnord_id,
+                        ctx_multiplier,
+                        adjusted_num_ctx
+                    );
+
+                    let mut retry_config = provider_config_for_retry.clone();
+                    retry_config.ollama_num_ctx = adjusted_num_ctx;
+                    Some(create_provider(&retry_config))
+                }
+                ProviderType::OpenAiCompatible => {
+                    // OpenAI-compatible: use same provider (no num_ctx adjustment)
+                    info!(
+                        "Retry {}/3 for article {} (OpenAI-compatible): using same provider",
+                        article.attempts + 1,
+                        fnord_id
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        let provider: &dyn AiTextProvider = match &retry_provider {
+            Some(p) => p.as_ref(),
+            None => provider_for_batch.as_ref(),
+        };
+
+        let (success, error) =
+            process_single_article(provider, &state, &effective_model, &locale, article, &batch_context)
+                .await;
+
+        let _ = window.emit(
+            "batch-progress",
+            BatchProgress {
+                current: (idx + 1) as i64,
+                total,
+                fnord_id,
+                title: title.clone(),
+                success,
+                error: error.clone(),
+                provider: provider_name.clone(),
+                model: effective_model.clone(),
+            },
+        );
+
+        if success {
             succeeded += 1;
-            successful_fnord_ids.push(*fnord_id);
+            successful_fnord_ids.push(fnord_id);
         } else {
             failed += 1;
         }
@@ -1079,15 +1046,14 @@ pub async fn process_batch(
                     title: format!("Generating {} article embeddings...", successful_fnord_ids.len()),
                     success: true,
                     error: None,
-                    provider: (*provider_name_arc).clone(),
-                    model: (*effective_model_arc).clone(),
+                    provider: provider_name.clone(),
+                    model: effective_model.clone(),
                 },
             );
 
             // Load articles for embedding generation
             let articles_for_embedding: Vec<(i64, String, String)> = {
                 let db = state.db_conn()?;
-                // Query each article individually to avoid lifetime issues
                 let mut result = Vec::new();
                 for &fnord_id in &successful_fnord_ids {
                     if let Ok((title, content)) = db.conn().query_row(
@@ -1101,40 +1067,31 @@ pub async fn process_batch(
                 result
             };
 
-            // Generate embeddings in parallel (uses embedding model, not LLM)
-            // Use the same concurrency as LLM processing for consistency
-            let embedding_client = Arc::new(OllamaClient::new(Some((*ollama_url_arc).clone())));
-            let embedding_concurrency = concurrency.max(4); // At least 4 for embeddings (faster than LLM)
+            // Generate embeddings sequentially (uses embedding model, not LLM)
+            let embedding_client = OllamaClient::new(Some(ollama_url.clone()));
 
-            // Check for cancellation before starting parallel embedding generation
+            // Check for cancellation before starting embedding generation
             let cancelled = state.batch_cancel.load(Ordering::SeqCst);
             if cancelled {
                 info!("Embedding generation cancelled");
             } else {
-                let embedding_results = stream::iter(articles_for_embedding)
-                    .map(|(fnord_id, title, content)| {
-                        let client = Arc::clone(&embedding_client);
-                        let db = state.db.clone();
-                        async move {
-                            let result = generate_and_save_article_embedding(
-                                &client,
-                                &db,
-                                fnord_id,
-                                &title,
-                                &content,
-                            )
-                            .await;
-                            (fnord_id, result)
-                        }
-                    })
-                    .buffer_unordered(embedding_concurrency)
-                    .collect::<Vec<_>>()
-                    .await;
-
-                // Log any failed embeddings
                 let mut embed_succeeded = 0;
-                for (fnord_id, result) in &embedding_results {
-                    match result {
+                let mut embed_total = 0;
+
+                for (fnord_id, title, content) in &articles_for_embedding {
+                    if state.batch_cancel.load(Ordering::SeqCst) {
+                        break;
+                    }
+                    embed_total += 1;
+                    match generate_and_save_article_embedding(
+                        &embedding_client,
+                        &state.db,
+                        *fnord_id,
+                        title,
+                        content,
+                    )
+                    .await
+                    {
                         Ok(_) => embed_succeeded += 1,
                         Err(e) => {
                             debug!("[Embedding] Failed for article {}: {}", fnord_id, e);
@@ -1146,7 +1103,7 @@ pub async fn process_batch(
                 info!(
                     "[Embedding] Completed: {}/{} succeeded in {:.1}s",
                     embed_succeeded,
-                    embedding_results.len(),
+                    embed_total,
                     embed_duration.as_secs_f64()
                 );
             }
@@ -1183,8 +1140,8 @@ pub async fn process_batch(
         processed: total,
         succeeded,
         failed,
-        provider: (*provider_name_arc).clone(),
-        model: (*effective_model_arc).clone(),
+        provider: provider_name,
+        model: effective_model,
     })
 }
 
@@ -1361,17 +1318,16 @@ pub async fn process_batch_clustered(
 ) -> Result<ClusterBatchResult, String> {
     let locale = get_locale_from_db(&state);
 
-    // Get provider config to determine concurrency limits
+    // Get provider config
     let provider_config = {
         let db = state.db_conn()?;
         get_provider_config(&db)
     };
-    let concurrency = get_ai_concurrency(&state, &provider_config.provider_type);
     let should_cluster = use_clustering.unwrap_or(true);
 
     info!(
-        "Starting clustered batch processing with concurrency: {}, clustering: {}",
-        concurrency, should_cluster
+        "Starting clustered batch processing, clustering: {}",
+        should_cluster
     );
 
     // Load batch context
@@ -1465,7 +1421,7 @@ pub async fn process_batch_clustered(
     let effective_model = crate::ai_provider::resolve_effective_model(&provider_name, &model, &provider_model);
 
     // Provider config for retry logic
-    let provider_config_for_retry = Arc::new(provider_config);
+    let provider_config_for_retry = provider_config;
 
     info!(
         "Clustering: {} clusters found, {} representatives, {} LLM calls saved ({:.1}%)",
@@ -1500,11 +1456,7 @@ pub async fn process_batch_clustered(
         .filter_map(|&id| article_map.get(&id).cloned())
         .collect();
 
-    // Wrap in Arc first, then build cluster lookup
-    let clustering_result = Arc::new(clustering_result);
     let batch_context = Arc::new(batch_context);
-    let provider_name_arc = Arc::new(provider_name.clone());
-    let effective_model_arc = Arc::new(effective_model.clone());
 
     // Build cluster lookup: representative_id -> cluster index
     let cluster_lookup: HashMap<i64, usize> = clustering_result
@@ -1513,180 +1465,160 @@ pub async fn process_batch_clustered(
         .enumerate()
         .map(|(idx, c)| (c.representative_id, idx))
         .collect();
-    let cluster_lookup = Arc::new(cluster_lookup);
 
-    let stream = stream::iter(articles_to_process.into_iter().enumerate());
+    let mut succeeded: i64 = 0;
+    let mut failed: i64 = 0;
+    let mut total_transferred: usize = 0;
 
-    let results = stream
-        .map(|(idx, article)| {
-            let title = article.title.clone();
-            let fnord_id = article.fnord_id;
-            let effective_model = effective_model_arc.clone();
-            let locale = locale.clone();
-            let state = state.clone();
-            let window = window.clone();
-            let batch_context = batch_context.clone();
-            let cluster_lookup = cluster_lookup.clone();
-            let clustering_result = clustering_result.clone();
-            let provider_for_batch = provider_for_batch.clone();
-            let provider_name = provider_name_arc.clone();
-            let provider_config_for_retry = provider_config_for_retry.clone();
+    // Process articles sequentially
+    for (idx, article) in articles_to_process.into_iter().enumerate() {
+        if state.batch_cancel.load(Ordering::SeqCst) {
+            break;
+        }
 
-            async move {
-                if state.batch_cancel.load(Ordering::SeqCst) {
-                    return (idx, title, fnord_id, false, Some("Cancelled".to_string()), 0usize);
+        let fnord_id = article.fnord_id;
+        let title = article.title.clone();
+
+        // For retries with adjusted context (ONLY for Ollama)
+        // OpenAI-compatible providers use the same provider for retries
+        let retry_provider: Option<Arc<dyn AiTextProvider>> = if article.attempts > 0 {
+            use crate::ai_provider::{ProviderType, create_provider};
+
+            match provider_config_for_retry.provider_type {
+                ProviderType::Ollama => {
+                    // Ollama: adjust num_ctx for retries
+                    let (ctx_multiplier, adjusted_num_ctx) = match article.attempts {
+                        1 => (1.5, ((num_ctx as f64) * 1.5) as u32),
+                        _ => (2.0, num_ctx * 2),
+                    };
+
+                    info!(
+                        "Retry {}/3 for article {} (Ollama): using {}x context (num_ctx={})",
+                        article.attempts + 1,
+                        fnord_id,
+                        ctx_multiplier,
+                        adjusted_num_ctx
+                    );
+
+                    let mut retry_config = provider_config_for_retry.clone();
+                    retry_config.ollama_num_ctx = adjusted_num_ctx;
+                    Some(create_provider(&retry_config))
                 }
-
-                // For retries with adjusted context (ONLY for Ollama)
-                // OpenAI-compatible providers use the same provider for retries
-                let retry_provider: Option<Arc<dyn AiTextProvider>> = if article.attempts > 0 {
-                    use crate::ai_provider::{ProviderType, create_provider};
-
-                    match provider_config_for_retry.provider_type {
-                        ProviderType::Ollama => {
-                            // Ollama: adjust num_ctx for retries
-                            let (_ctx_multiplier, adjusted_num_ctx) = match article.attempts {
-                                1 => (1.5, ((num_ctx as f64) * 1.5) as u32),
-                                _ => (2.0, num_ctx * 2),
-                            };
-
-                            info!(
-                                "Retry {}/3 for article {} (Ollama): using {}x context (num_ctx={})",
-                                article.attempts + 1,
-                                fnord_id,
-                                _ctx_multiplier,
-                                adjusted_num_ctx
-                            );
-
-                            let mut retry_config = (*provider_config_for_retry).clone();
-                            retry_config.ollama_num_ctx = adjusted_num_ctx;
-                            Some(create_provider(&retry_config))
-                        }
-                        ProviderType::OpenAiCompatible => {
-                            // OpenAI-compatible: use same provider (no num_ctx adjustment)
-                            info!(
-                                "Retry {}/3 for article {} (OpenAI-compatible): using same provider",
-                                article.attempts + 1,
-                                fnord_id
-                            );
-                            None
-                        }
-                    }
-                } else {
+                ProviderType::OpenAiCompatible => {
+                    // OpenAI-compatible: use same provider (no num_ctx adjustment)
+                    info!(
+                        "Retry {}/3 for article {} (OpenAI-compatible): using same provider",
+                        article.attempts + 1,
+                        fnord_id
+                    );
                     None
-                };
+                }
+            }
+        } else {
+            None
+        };
 
-                let provider: &dyn AiTextProvider = match &retry_provider {
-                    Some(p) => p.as_ref(),
-                    None => provider_for_batch.as_ref(),
-                };
+        let provider: &dyn AiTextProvider = match &retry_provider {
+            Some(p) => p.as_ref(),
+            None => provider_for_batch.as_ref(),
+        };
 
-                let (success, error) =
-                    process_single_article(provider, &state, &effective_model, &locale, article, &batch_context)
-                        .await;
+        let (success, error) =
+            process_single_article(provider, &state, &effective_model, &locale, article, &batch_context)
+                .await;
 
-                // If this is a cluster representative, transfer keywords to members
-                let mut transferred = 0;
-                if success {
-                    if let Some(&cluster_idx) = cluster_lookup.get(&fnord_id) {
-                        if let Some(cluster) = clustering_result.clusters.get(cluster_idx) {
-                            // Load keywords and categories for this article
-                            let (keywords, categories) = {
-                                let db = match state.db.lock() {
-                                    Ok(db) => db,
+        // If this is a cluster representative, transfer keywords to members
+        let mut transferred = 0;
+        if success {
+            if let Some(&cluster_idx) = cluster_lookup.get(&fnord_id) {
+                if let Some(cluster) = clustering_result.clusters.get(cluster_idx) {
+                    // Load keywords and categories for this article
+                    let (keywords, categories) = {
+                        let db = match state.db.lock() {
+                            Ok(db) => db,
+                            Err(e) => {
+                                warn!("Failed to acquire DB lock for cluster transfer: {}", e);
+                                if success { succeeded += 1; } else { failed += 1; }
+                                continue;
+                            }
+                        };
+
+                        let keywords: Vec<String> = match db.conn().prepare(
+                            r#"SELECT i.name FROM immanentize i
+                               JOIN fnord_immanentize fi ON fi.immanentize_id = i.id
+                               WHERE fi.fnord_id = ?1"#
+                        ) {
+                            Ok(mut stmt) => {
+                                match stmt.query_map([fnord_id], |row| row.get(0)) {
+                                    Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
                                     Err(e) => {
-                                        warn!("Failed to acquire DB lock for cluster transfer: {}", e);
-                                        return (idx, title, fnord_id, success, error, 0);
-                                    }
-                                };
-
-                                let keywords: Vec<String> = match db.conn().prepare(
-                                    r#"SELECT i.name FROM immanentize i
-                                       JOIN fnord_immanentize fi ON fi.immanentize_id = i.id
-                                       WHERE fi.fnord_id = ?1"#
-                                ) {
-                                    Ok(mut stmt) => {
-                                        match stmt.query_map([fnord_id], |row| row.get(0)) {
-                                            Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
-                                            Err(e) => {
-                                                warn!("Failed to query keywords for article {}: {}", fnord_id, e);
-                                                vec![]
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        warn!("Failed to prepare keyword query for article {}: {}", fnord_id, e);
+                                        warn!("Failed to query keywords for article {}: {}", fnord_id, e);
                                         vec![]
-                                    }
-                                };
-
-                                let categories: Vec<i64> = match db.conn().prepare(
-                                    r#"SELECT sephiroth_id FROM fnord_sephiroth
-                                       WHERE fnord_id = ?1"#
-                                ) {
-                                    Ok(mut stmt) => {
-                                        match stmt.query_map([fnord_id], |row| row.get(0)) {
-                                            Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
-                                            Err(e) => {
-                                                warn!("Failed to query categories for article {}: {}", fnord_id, e);
-                                                vec![]
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        warn!("Failed to prepare category query for article {}: {}", fnord_id, e);
-                                        vec![]
-                                    }
-                                };
-
-                                (keywords, categories)
-                            };
-
-                            if !keywords.is_empty() || !categories.is_empty() {
-                                match transfer_keywords_to_cluster_members(&state, cluster, &keywords, &categories).await {
-                                    Ok(n) => {
-                                        transferred = n;
-                                        info!(
-                                            "Transferred {} keywords to {} cluster members",
-                                            keywords.len(),
-                                            transferred
-                                        );
-                                    }
-                                    Err(e) => {
-                                        warn!("Failed to transfer keywords to cluster: {}", e);
                                     }
                                 }
+                            }
+                            Err(e) => {
+                                warn!("Failed to prepare keyword query for article {}: {}", fnord_id, e);
+                                vec![]
+                            }
+                        };
+
+                        let categories: Vec<i64> = match db.conn().prepare(
+                            r#"SELECT sephiroth_id FROM fnord_sephiroth
+                               WHERE fnord_id = ?1"#
+                        ) {
+                            Ok(mut stmt) => {
+                                match stmt.query_map([fnord_id], |row| row.get(0)) {
+                                    Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+                                    Err(e) => {
+                                        warn!("Failed to query categories for article {}: {}", fnord_id, e);
+                                        vec![]
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                warn!("Failed to prepare category query for article {}: {}", fnord_id, e);
+                                vec![]
+                            }
+                        };
+
+                        (keywords, categories)
+                    };
+
+                    if !keywords.is_empty() || !categories.is_empty() {
+                        match transfer_keywords_to_cluster_members(&state, cluster, &keywords, &categories).await {
+                            Ok(n) => {
+                                transferred = n;
+                                info!(
+                                    "Transferred {} keywords to {} cluster members",
+                                    keywords.len(),
+                                    transferred
+                                );
+                            }
+                            Err(e) => {
+                                warn!("Failed to transfer keywords to cluster: {}", e);
                             }
                         }
                     }
                 }
-
-                let _ = window.emit(
-                    "batch-progress",
-                    BatchProgress {
-                        current: (idx + 1) as i64,
-                        total: total_to_process,
-                        fnord_id,
-                        title: title.clone(),
-                        success,
-                        error: error.clone(),
-                        provider: (*provider_name).clone(),
-                        model: (*effective_model).clone(),
-                    },
-                );
-
-                (idx, title, fnord_id, success, error, transferred)
             }
-        })
-        .buffer_unordered(concurrency)
-        .collect::<Vec<_>>()
-        .await;
+        }
 
-    let mut succeeded = 0;
-    let mut failed = 0;
-    let mut total_transferred = 0;
-    for (_, _, _, success, _, transferred) in &results {
-        if *success {
+        let _ = window.emit(
+            "batch-progress",
+            BatchProgress {
+                current: (idx + 1) as i64,
+                total: total_to_process,
+                fnord_id,
+                title: title.clone(),
+                success,
+                error: error.clone(),
+                provider: provider_name.clone(),
+                model: effective_model.clone(),
+            },
+        );
+
+        if success {
             succeeded += 1;
             total_transferred += transferred;
         } else {
