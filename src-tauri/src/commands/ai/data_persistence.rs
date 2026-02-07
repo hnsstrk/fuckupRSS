@@ -362,8 +362,14 @@ pub fn save_article_embedding(
     .map_err(|e| format!("Failed to save article embedding: {}", e))?;
 
     // Vec table update is optional (used for fast vector search)
+    // NOTE: sqlite-vec virtual tables don't support INSERT OR REPLACE properly,
+    // so we need to DELETE first, then INSERT
+    let _ = conn.execute(
+        "DELETE FROM vec_fnords WHERE fnord_id = ?1",
+        rusqlite::params![fnord_id],
+    );
     if let Err(e) = conn.execute(
-        "INSERT OR REPLACE INTO vec_fnords (fnord_id, embedding) VALUES (?1, ?2)",
+        "INSERT INTO vec_fnords (fnord_id, embedding) VALUES (?1, ?2)",
         rusqlite::params![fnord_id, blob],
     ) {
         warn!("Failed to update vec_fnords: {}", e);
