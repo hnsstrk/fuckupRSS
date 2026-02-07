@@ -1,4 +1,4 @@
-use crate::ai_provider::DEFAULT_OPENAI_MODEL;
+use crate::ai_provider::{DEFAULT_OPENAI_EMBEDDING_MODEL, DEFAULT_OPENAI_MODEL};
 use crate::error::{CmdResult, FuckupError};
 use crate::ollama::{DEFAULT_NUM_CTX, RECOMMENDED_EMBEDDING_MODEL, RECOMMENDED_MAIN_MODEL};
 use crate::{AppState, LogLevel};
@@ -34,7 +34,7 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_j
                 serde_json::Value::Bool(value == "true")
             }
             // Numeric settings (integer)
-            "syncInterval" | "ollama_num_ctx" => {
+            "syncInterval" | "ollama_num_ctx" | "embedding_dimensions" => {
                 if let Ok(num) = value.parse::<i64>() {
                     serde_json::Value::Number(num.into())
                 } else {
@@ -118,6 +118,17 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_j
     }
     if !result.contains_key("cost_limit_monthly") {
         result.insert("cost_limit_monthly".to_string(), serde_json::json!(5.0));
+    }
+
+    // Embedding provider defaults
+    if !result.contains_key("embedding_provider") {
+        result.insert("embedding_provider".to_string(), serde_json::Value::String("ollama".to_string()));
+    }
+    if !result.contains_key("openai_embedding_model") {
+        result.insert("openai_embedding_model".to_string(), serde_json::Value::String(DEFAULT_OPENAI_EMBEDDING_MODEL.to_string()));
+    }
+    if !result.contains_key("embedding_dimensions") {
+        result.insert("embedding_dimensions".to_string(), serde_json::Value::Number(1024.into()));
     }
 
     Ok(result)

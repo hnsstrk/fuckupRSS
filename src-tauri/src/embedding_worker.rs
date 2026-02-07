@@ -3,11 +3,10 @@
 //! This module provides a background worker that continuously processes
 //! the embedding queue, generating embeddings for new keywords.
 
-use crate::commands::ai::helpers::get_ollama_url;
-use crate::commands::settings::get_embedding_model_from_db;
+use crate::ai_provider::EmbeddingProvider;
+use crate::commands::ai::helpers::create_embedding_provider_from_db;
 use crate::db::Database;
 use crate::embeddings::{cosine_similarity_from_blobs, embedding_to_blob};
-use crate::ollama::OllamaClient;
 use futures::future::join_all;
 use log::{debug, error, info, trace, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -164,21 +163,17 @@ pub async fn process_embedding_queue(
         return Ok((0, 0));
     }
 
-    // Get Ollama URL and embedding model from settings
-    let (ollama_url, model) = {
+    // Create embedding provider from settings
+    let provider: Arc<dyn EmbeddingProvider> = {
         let db_guard = db.lock().map_err(|e| e.to_string())?;
-        let url = get_ollama_url(&db_guard);
-        let model = get_embedding_model_from_db(db_guard.conn());
-        (url, model)
+        create_embedding_provider_from_db(&db_guard)
     };
 
-    let client = Arc::new(OllamaClient::new(Some(ollama_url)));
+    debug!(
+        "Embedding worker using provider: {}",
+        provider.provider_name()
+    );
 
-    // Check if Ollama is available
-    if !client.is_available().await {
-        debug!("Ollama not available, skipping embedding generation");
-        return Ok((0, 0));
-    };
     let concurrency = 10; // Process 10 embeddings in parallel
 
     let mut processed = 0i64;
@@ -189,8 +184,7 @@ pub async fn process_embedding_queue(
         let futures: Vec<_> = chunk
             .iter()
             .map(|(queue_id, keyword_id, name)| {
-                let client = Arc::clone(&client);
-                let model = model.clone();
+                let provider = Arc::clone(&provider);
                 let name = name.clone();
                 let queue_id = *queue_id;
                 let keyword_id = *keyword_id;
@@ -198,7 +192,7 @@ pub async fn process_embedding_queue(
                 async move {
                     // Add unique suffix to work around Ollama embedding cache issue
                     let embedding_text = format!("{}_{}", name, keyword_id);
-                    let result = client.generate_embedding(&model, &embedding_text).await;
+                    let result = provider.generate_embedding(&embedding_text).await;
                     (queue_id, keyword_id, name, result)
                 }
             })

@@ -1,9 +1,7 @@
 //! Similar articles and semantic search commands
 
-use crate::commands::ai::helpers::get_ollama_url;
-use crate::commands::settings::get_embedding_model_from_db;
+use crate::commands::ai::helpers::create_embedding_provider_from_db;
 use crate::embeddings::embedding_to_blob;
-use crate::ollama::OllamaClient;
 use crate::AppState;
 use log::info;
 use tauri::{Emitter, State, Window};
@@ -174,15 +172,13 @@ pub async fn semantic_search(
         });
     }
 
-    let (embedding_model, client) = {
+    let provider = {
         let db = state.db_conn()?;
-        let model = get_embedding_model_from_db(db.conn());
-        let url = get_ollama_url(&db);
-        (model, OllamaClient::new(Some(url)))
+        create_embedding_provider_from_db(&db)
     };
 
-    let query_embedding = client
-        .generate_embedding(&embedding_model, &query)
+    let query_embedding = provider
+        .generate_embedding(&query)
         .await
         .map_err(|e| format!("Failed to generate query embedding: {}", e))?;
 
@@ -333,17 +329,16 @@ pub async fn generate_article_embeddings_batch(
         },
     );
 
-    let client = {
+    let provider = {
         let db = state.db_conn()?;
-        let url = get_ollama_url(&db);
-        OllamaClient::new(Some(url))
+        create_embedding_provider_from_db(&db)
     };
     let mut succeeded = 0i64;
     let mut failed = 0i64;
 
     for (idx, (fnord_id, title, content)) in articles.into_iter().enumerate() {
         let result =
-            generate_and_save_article_embedding(&client, &state.db, fnord_id, &title, &content).await;
+            generate_and_save_article_embedding(provider.as_ref(), &state.db, fnord_id, &title, &content).await;
 
         let (success, error) = match result {
             Ok(()) => {

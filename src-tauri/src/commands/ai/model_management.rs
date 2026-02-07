@@ -480,6 +480,10 @@ pub fn log_ai_cost(
 }
 
 /// Check if the monthly cost limit has been exceeded
+///
+/// Currently not called but will be used for pre-batch cost limit enforcement
+/// when OpenAI-compatible provider is active.
+#[allow(dead_code)]
 pub fn check_cost_limit(conn: &rusqlite::Connection) -> Result<(), crate::ai_provider::AiProviderError> {
     let spent: f64 = conn
         .query_row(

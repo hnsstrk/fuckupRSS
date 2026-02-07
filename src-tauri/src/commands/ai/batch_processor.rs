@@ -5,8 +5,8 @@ use crate::keywords::{
     cluster_articles, get_representatives, calculate_savings,
     ArticleForClustering, ClusterConfig, ClusteringResult,
 };
-use crate::ai_provider::AiTextProvider;
-use crate::ollama::{DiscordianAnalysis, OllamaClient};
+use crate::ai_provider::{AiTextProvider, EmbeddingProvider};
+use crate::ollama::DiscordianAnalysis;
 use crate::text_analysis::{
     record_correction, BiasWeights, CategoryMatcher, CorrectionRecord, CorrectionType, CorpusStats,
     TfIdfExtractor,
@@ -887,8 +887,11 @@ pub async fn process_batch(
     // Read provider config for retry logic (only needed for Ollama retries with adjusted num_ctx)
     let provider_config_for_retry = provider_config;
 
-    // Get ollama_url for embedding generation (separate from provider config)
-    let ollama_url = provider_config_for_retry.ollama_url.clone();
+    // Create embedding provider for article embedding generation
+    let embedding_provider: Arc<dyn EmbeddingProvider> = {
+        let db = state.db_conn()?;
+        super::helpers::create_embedding_provider_from_db(&db)
+    };
 
     let mut succeeded: i64 = 0;
     let mut failed: i64 = 0;
@@ -1068,7 +1071,6 @@ pub async fn process_batch(
             };
 
             // Generate embeddings sequentially (uses embedding model, not LLM)
-            let embedding_client = OllamaClient::new(Some(ollama_url.clone()));
 
             // Check for cancellation before starting embedding generation
             let cancelled = state.batch_cancel.load(Ordering::SeqCst);
@@ -1084,7 +1086,7 @@ pub async fn process_batch(
                     }
                     embed_total += 1;
                     match generate_and_save_article_embedding(
-                        &embedding_client,
+                        embedding_provider.as_ref(),
                         &state.db,
                         *fnord_id,
                         title,

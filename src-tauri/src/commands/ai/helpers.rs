@@ -1,9 +1,13 @@
 //! Shared helper functions for AI commands
 
-use crate::ai_provider::{self, AiTextProvider, ProviderConfig, ProviderType, DEFAULT_OPENAI_MODEL};
+use crate::ai_provider::{
+    self, AiTextProvider, EmbeddingProvider, EmbeddingProviderConfig, ProviderConfig, ProviderType,
+    DEFAULT_OPENAI_EMBEDDING_MODEL, DEFAULT_OPENAI_MODEL,
+};
+use crate::commands::settings::get_embedding_model_from_db;
 use crate::db::Database;
 use crate::ollama::{
-    get_language_for_locale, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_NUM_CTX,
+    get_language_for_locale, DEFAULT_ANALYSIS_PROMPT, DEFAULT_NUM_CTX,
     DEFAULT_SUMMARY_PROMPT, RECOMMENDED_MAIN_MODEL,
 };
 use crate::AppState;
@@ -81,13 +85,6 @@ pub fn get_provider_config(db: &Database) -> ProviderConfig {
     }
 }
 
-/// Create OllamaClient with num_ctx and URL from settings
-pub fn create_ollama_client(db: &Database) -> OllamaClient {
-    let num_ctx = get_num_ctx_setting(db);
-    let url = get_ollama_url(db);
-    OllamaClient::with_context(Some(url), num_ctx)
-}
-
 /// Create the configured text provider based on settings
 ///
 /// Returns a provider that implements AiTextProvider trait.
@@ -114,6 +111,36 @@ pub fn create_text_provider(db: &Database) -> (Arc<dyn AiTextProvider>, String) 
     };
 
     (ai_provider::create_provider(&config), model)
+}
+
+/// Get embedding provider config from database settings
+pub fn get_embedding_provider_config(db: &Database) -> EmbeddingProviderConfig {
+    let provider_type_str = get_setting(db, "embedding_provider", "ollama");
+    let provider_type = ProviderType::from_str_setting(&provider_type_str);
+
+    let dimensions: usize = get_setting(db, "embedding_dimensions", "1024")
+        .parse()
+        .unwrap_or(1024);
+
+    EmbeddingProviderConfig {
+        provider_type,
+        ollama_url: get_ollama_url(db),
+        ollama_embedding_model: get_embedding_model_from_db(db.conn()),
+        openai_base_url: get_setting(db, "openai_base_url", "https://api.openai.com"),
+        openai_api_key: get_setting(db, "openai_api_key", ""),
+        openai_embedding_model: get_setting(
+            db,
+            "openai_embedding_model",
+            DEFAULT_OPENAI_EMBEDDING_MODEL,
+        ),
+        embedding_dimensions: dimensions,
+    }
+}
+
+/// Create the configured embedding provider based on settings
+pub fn create_embedding_provider_from_db(db: &Database) -> Arc<dyn EmbeddingProvider> {
+    let config = get_embedding_provider_config(db);
+    ai_provider::create_embedding_provider(&config)
 }
 
 /// Get locale from database settings

@@ -1,9 +1,8 @@
 //! Database persistence functions for article categories, keywords, and embeddings
 
-use crate::commands::settings::get_embedding_model_from_db;
+use crate::ai_provider::EmbeddingProvider;
 use crate::db::Database;
 use crate::embeddings::embedding_to_blob;
-use crate::ollama::OllamaClient;
 use crate::text_analysis::load_all_db_stopwords;
 use crate::{find_canonical_keyword_with_db, normalize_keyword, split_compound_keyword};
 use log::{debug, trace, warn};
@@ -375,22 +374,17 @@ pub fn save_article_embedding(
 
 /// Generate and save embedding for an article
 pub async fn generate_and_save_article_embedding(
-    client: &OllamaClient,
+    provider: &dyn EmbeddingProvider,
     db: &std::sync::Arc<std::sync::Mutex<Database>>,
     fnord_id: i64,
     title: &str,
     content: &str,
 ) -> Result<(), String> {
-    let model = {
-        let db_guard = db.lock().map_err(|e| e.to_string())?;
-        get_embedding_model_from_db(db_guard.conn())
-    };
-
     let content_preview: String = content.chars().take(500).collect();
     let embedding_text = format!("{}\n\n{}", title, content_preview);
 
-    let embedding = client
-        .generate_embedding(&model, &embedding_text)
+    let embedding = provider
+        .generate_embedding(&embedding_text)
         .await
         .map_err(|e| format!("Embedding generation failed: {}", e))?;
 

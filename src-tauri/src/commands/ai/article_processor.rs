@@ -1,7 +1,7 @@
 //! Single article processing commands (summary, analysis, discordian)
 
-use crate::ai_provider::AiTextProvider;
-use crate::ollama::{DiscordianAnalysis, OllamaClient};
+use crate::ai_provider::{AiTextProvider, EmbeddingProvider};
+use crate::ollama::DiscordianAnalysis;
 use crate::text_analysis::{
     record_correction, BiasWeights, CategoryMatcher, CorrectionRecord, CorrectionType, CorpusStats,
     TfIdfExtractor,
@@ -19,7 +19,7 @@ use super::data_persistence::{
     save_article_keywords_with_source,
 };
 use super::helpers::{
-    analyze_bias_via_provider, create_ollama_client, create_text_provider,
+    analyze_bias_via_provider, create_embedding_provider_from_db, create_text_provider,
     determine_category_sources, determine_keyword_sources, discordian_analysis_via_provider,
     get_analysis_prompt, get_discordian_prompt, get_locale_from_db, get_summary_prompt,
     log_generation_cost, merge_keywords, summarize_via_provider, validate_and_merge_categories,
@@ -290,10 +290,10 @@ pub async fn process_article_discordian(
     let custom_discordian_prompt = get_discordian_prompt(&state);
 
     // Step 1: Load article content, bias weights, and corpus stats
-    let (provider, effective_model, client, title, content, article_date, bias_weights, corpus_stats): (
+    let (provider, effective_model, embedding_provider, title, content, article_date, bias_weights, corpus_stats): (
         Arc<dyn AiTextProvider>,
         String,
-        OllamaClient,
+        Arc<dyn EmbeddingProvider>,
         String,
         String,
         Option<String>,
@@ -302,7 +302,7 @@ pub async fn process_article_discordian(
     ) = {
         let db = state.db_conn()?;
         let (provider, provider_model) = create_text_provider(&db);
-        let client = create_ollama_client(&db);
+        let embedding_provider = create_embedding_provider_from_db(&db);
         let (title, content, article_date) = db
             .conn()
             .query_row(
@@ -314,7 +314,7 @@ pub async fn process_article_discordian(
         let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
         let corpus = CorpusStats::load_from_db(db.conn()).ok();
         let effective_model = crate::ai_provider::resolve_effective_model(provider.provider_name(), &model, &provider_model);
-        (provider, effective_model, client, title, content, article_date, bias, corpus)
+        (provider, effective_model, embedding_provider, title, content, article_date, bias, corpus)
     };
 
     if content.is_empty() {
@@ -485,7 +485,7 @@ pub async fn process_article_discordian(
 
             // Generate article embedding
             if let Err(e) =
-                generate_and_save_article_embedding(&client, &state.db, fnord_id, &title, &content).await
+                generate_and_save_article_embedding(embedding_provider.as_ref(), &state.db, fnord_id, &title, &content).await
             {
                 warn!("Failed to generate embedding for article {}: {}", fnord_id, e);
             }
@@ -543,7 +543,7 @@ pub async fn process_article_discordian(
             // Generate article embedding even if LLM analysis failed
             // This ensures articles processed with fallback methods still get embeddings for similarity search
             if let Err(embed_err) =
-                generate_and_save_article_embedding(&client, &state.db, fnord_id, &title, &content).await
+                generate_and_save_article_embedding(embedding_provider.as_ref(), &state.db, fnord_id, &title, &content).await
             {
                 warn!("Failed to generate embedding for article {} in fallback mode: {}", fnord_id, embed_err);
             }

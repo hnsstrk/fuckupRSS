@@ -1,12 +1,13 @@
-//! AI Provider abstraction for text generation
+//! AI Provider abstraction for text generation and embeddings
 //!
 //! Supports multiple backends:
 //! - Ollama (local or remote)
 //! - OpenAI-compatible APIs (OpenAI, Together.ai, Mistral, Groq, etc.)
 //!
-//! Embeddings always go through Ollama (via OllamaClient directly).
+//! Embeddings can be generated via Ollama or OpenAI-compatible API.
 
 pub mod ollama_provider;
+pub mod openai_embedding_provider;
 pub mod openai_provider;
 
 use async_trait::async_trait;
@@ -16,6 +17,9 @@ use thiserror::Error;
 
 /// Default model for OpenAI-compatible providers
 pub const DEFAULT_OPENAI_MODEL: &str = "gpt-5-nano";
+
+/// Default embedding model for OpenAI-compatible providers
+pub const DEFAULT_OPENAI_EMBEDDING_MODEL: &str = "text-embedding-3-small";
 
 /// Provider type enum for serialization/settings
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -91,7 +95,7 @@ pub struct GenerationResult {
 
 /// Trait for AI text generation providers
 ///
-/// Embeddings are NOT part of this trait - they always go through OllamaClient.
+/// Embeddings use a separate `EmbeddingProvider` trait.
 #[async_trait]
 pub trait AiTextProvider: Send + Sync {
     /// Generate text from a prompt
@@ -109,6 +113,58 @@ pub trait AiTextProvider: Send + Sync {
 
     /// Human-readable provider name
     fn provider_name(&self) -> &str;
+}
+
+/// Trait for embedding generation providers
+///
+/// Supports Ollama and OpenAI-compatible embedding APIs.
+#[async_trait]
+pub trait EmbeddingProvider: Send + Sync {
+    /// Generate an embedding vector for the given text
+    async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>, AiProviderError>;
+
+    /// The number of dimensions produced by this provider
+    fn embedding_dimensions(&self) -> usize;
+
+    /// Human-readable provider name
+    fn provider_name(&self) -> &str;
+}
+
+/// Configuration for creating an embedding provider
+#[derive(Debug, Clone)]
+pub struct EmbeddingProviderConfig {
+    pub provider_type: ProviderType,
+    /// Ollama base URL
+    pub ollama_url: String,
+    /// Ollama embedding model name (e.g. "snowflake-arctic-embed2:latest")
+    pub ollama_embedding_model: String,
+    /// OpenAI-compatible API base URL
+    pub openai_base_url: String,
+    /// API key for OpenAI-compatible provider
+    pub openai_api_key: String,
+    /// OpenAI embedding model name (e.g. "text-embedding-3-small")
+    pub openai_embedding_model: String,
+    /// Number of dimensions to request (OpenAI supports this)
+    pub embedding_dimensions: usize,
+}
+
+/// Create an embedding provider based on configuration
+pub fn create_embedding_provider(config: &EmbeddingProviderConfig) -> Arc<dyn EmbeddingProvider> {
+    match config.provider_type {
+        ProviderType::Ollama => Arc::new(ollama_provider::OllamaEmbeddingProvider::new(
+            &config.ollama_url,
+            &config.ollama_embedding_model,
+            config.embedding_dimensions,
+        )),
+        ProviderType::OpenAiCompatible => Arc::new(
+            openai_embedding_provider::OpenAiEmbeddingProvider::new(
+                &config.openai_base_url,
+                &config.openai_api_key,
+                &config.openai_embedding_model,
+                config.embedding_dimensions,
+            ),
+        ),
+    }
 }
 
 /// Resolves the effective model name based on provider type.
@@ -453,5 +509,65 @@ mod tests {
     fn test_resolve_effective_model_openai_empty_frontend() {
         let result = resolve_effective_model("OpenAI-compatible", "", "gpt-5-nano");
         assert_eq!(result, "gpt-5-nano");
+    }
+
+    // ============================================================
+    // EmbeddingProviderConfig tests
+    // ============================================================
+
+    #[test]
+    fn test_embedding_provider_config_clone() {
+        let config = EmbeddingProviderConfig {
+            provider_type: ProviderType::OpenAiCompatible,
+            ollama_url: "http://localhost:11434".to_string(),
+            ollama_embedding_model: "snowflake-arctic-embed2:latest".to_string(),
+            openai_base_url: "https://api.openai.com".to_string(),
+            openai_api_key: "sk-test".to_string(),
+            openai_embedding_model: "text-embedding-3-small".to_string(),
+            embedding_dimensions: 1024,
+        };
+
+        let cloned = config.clone();
+        assert_eq!(cloned.embedding_dimensions, 1024);
+        assert_eq!(cloned.openai_embedding_model, "text-embedding-3-small");
+    }
+
+    #[test]
+    fn test_create_embedding_provider_ollama() {
+        let config = EmbeddingProviderConfig {
+            provider_type: ProviderType::Ollama,
+            ollama_url: "http://localhost:11434".to_string(),
+            ollama_embedding_model: "snowflake-arctic-embed2:latest".to_string(),
+            openai_base_url: String::new(),
+            openai_api_key: String::new(),
+            openai_embedding_model: String::new(),
+            embedding_dimensions: 1024,
+        };
+
+        let provider = create_embedding_provider(&config);
+        assert_eq!(provider.provider_name(), "Ollama Embedding");
+        assert_eq!(provider.embedding_dimensions(), 1024);
+    }
+
+    #[test]
+    fn test_create_embedding_provider_openai() {
+        let config = EmbeddingProviderConfig {
+            provider_type: ProviderType::OpenAiCompatible,
+            ollama_url: String::new(),
+            ollama_embedding_model: String::new(),
+            openai_base_url: "https://api.openai.com".to_string(),
+            openai_api_key: "sk-test".to_string(),
+            openai_embedding_model: "text-embedding-3-small".to_string(),
+            embedding_dimensions: 1024,
+        };
+
+        let provider = create_embedding_provider(&config);
+        assert_eq!(provider.provider_name(), "OpenAI Embedding");
+        assert_eq!(provider.embedding_dimensions(), 1024);
+    }
+
+    #[test]
+    fn test_default_openai_embedding_model_constant() {
+        assert_eq!(DEFAULT_OPENAI_EMBEDDING_MODEL, "text-embedding-3-small");
     }
 }

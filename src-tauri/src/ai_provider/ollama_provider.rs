@@ -7,7 +7,7 @@ use async_trait::async_trait;
 
 use crate::ollama::OllamaClient;
 
-use super::{AiProviderError, AiTextProvider, GenerationResult};
+use super::{AiProviderError, AiTextProvider, EmbeddingProvider, GenerationResult};
 
 /// Ollama text generation provider (local or remote)
 pub struct OllamaTextProvider {
@@ -88,5 +88,55 @@ impl AiTextProvider for OllamaTextProvider {
 
     fn provider_name(&self) -> &str {
         "Ollama"
+    }
+}
+
+/// Ollama-based embedding provider
+///
+/// Wraps `OllamaClient::generate_embedding()` to implement the `EmbeddingProvider` trait.
+pub struct OllamaEmbeddingProvider {
+    base_url: String,
+    model: String,
+    dimensions: usize,
+}
+
+impl OllamaEmbeddingProvider {
+    pub fn new(base_url: &str, model: &str, dimensions: usize) -> Self {
+        Self {
+            base_url: base_url.to_string(),
+            model: model.to_string(),
+            dimensions,
+        }
+    }
+
+    fn client(&self) -> OllamaClient {
+        OllamaClient::new(Some(self.base_url.clone()))
+    }
+}
+
+#[async_trait]
+impl EmbeddingProvider for OllamaEmbeddingProvider {
+    async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>, AiProviderError> {
+        let client = self.client();
+        client
+            .generate_embedding(&self.model, text)
+            .await
+            .map_err(|e| match e {
+                crate::ollama::OllamaError::NotAvailable(msg) => {
+                    AiProviderError::NotAvailable(msg)
+                }
+                crate::ollama::OllamaError::GenerationFailed(msg) => {
+                    AiProviderError::GenerationFailed(msg)
+                }
+                other => AiProviderError::GenerationFailed(other.to_string()),
+            })
+    }
+
+    fn embedding_dimensions(&self) -> usize {
+        self.dimensions
+    }
+
+    fn provider_name(&self) -> &str {
+        "Ollama Embedding"
     }
 }

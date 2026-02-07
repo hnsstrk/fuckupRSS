@@ -82,6 +82,15 @@
   let selectedProfileId = $state("default");
   let profileDropdownOpen = $state(false);
 
+  // Embedding provider state
+  let embeddingProvider = $state("ollama");
+  let openaiEmbeddingModel = $state("text-embedding-3-small");
+
+  const openaiEmbeddingPresets = [
+    { value: "text-embedding-3-small", label: "text-embedding-3-small", price: "$0.02 per 1M tokens" },
+    { value: "text-embedding-3-large", label: "text-embedding-3-large", price: "$0.13 per 1M tokens" },
+  ];
+
   // Context length (num_ctx)
   const DEFAULT_NUM_CTX = 4096;
   let ollamaNumCtx = $state(DEFAULT_NUM_CTX);
@@ -143,6 +152,17 @@
       key: "cost_limit_monthly",
     });
     if (savedCostLimit) costLimit = parseFloat(savedCostLimit) || 5.0;
+
+    // Load embedding provider settings
+    const savedEmbeddingProvider = await invoke<string | null>("get_setting", {
+      key: "embedding_provider",
+    });
+    if (savedEmbeddingProvider) embeddingProvider = savedEmbeddingProvider;
+
+    const savedOpenaiEmbeddingModel = await invoke<string | null>("get_setting", {
+      key: "openai_embedding_model",
+    });
+    if (savedOpenaiEmbeddingModel) openaiEmbeddingModel = savedOpenaiEmbeddingModel;
 
     // Load cost data
     await loadMonthlyCost();
@@ -455,6 +475,26 @@
       appState.selectedEmbeddingModel = value;
     } catch (e) {
       console.error("Failed to save embedding model setting:", e);
+      toasts.error($_("settings.saveError"));
+    }
+  }
+
+  async function saveEmbeddingProvider(value: string) {
+    embeddingProvider = value;
+    try {
+      await invoke("set_setting", { key: "embedding_provider", value });
+    } catch (e) {
+      console.error("Failed to save embedding provider setting:", e);
+      toasts.error($_("settings.saveError"));
+    }
+  }
+
+  async function saveOpenaiEmbeddingModel(value: string) {
+    openaiEmbeddingModel = value;
+    try {
+      await invoke("set_setting", { key: "openai_embedding_model", value });
+    } catch (e) {
+      console.error("Failed to save OpenAI embedding model setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -1054,14 +1094,35 @@
 <!-- ============================================ -->
 <!-- EMBEDDING SECTION (always visible)           -->
 <!-- ============================================ -->
-{#if ollamaStatus?.available}
-  <div class="setting-group">
-    <span class="label">{$_("settings.ollama.embeddingSection")}</span>
-    <p class="setting-description embedding-note">
-      <i class="fa-light fa-circle-info"></i>
-      {$_("settings.ollama.embeddingNote")}
-    </p>
+<div class="setting-group">
+  <span class="label">{$_("settings.ollama.embeddingSection")}</span>
+  <p class="setting-description embedding-note">
+    <i class="fa-light fa-circle-info"></i>
+    {$_("settings.ollama.embeddingNote")}
+  </p>
 
+  <!-- Embedding Provider Selection -->
+  <div class="provider-toggle">
+    <button
+      type="button"
+      class="toggle-btn {embeddingProvider === 'ollama' ? 'active' : ''}"
+      onclick={() => saveEmbeddingProvider("ollama")}
+    >
+      <i class="fa-solid fa-server"></i>
+      Ollama
+    </button>
+    <button
+      type="button"
+      class="toggle-btn {embeddingProvider === 'openai_compatible' ? 'active' : ''}"
+      onclick={() => saveEmbeddingProvider("openai_compatible")}
+    >
+      <i class="fa-solid fa-cloud"></i>
+      OpenAI
+    </button>
+  </div>
+
+  {#if embeddingProvider === "ollama"}
+    <!-- Ollama Embedding Configuration -->
     {#if aiTextProvider === "openai_compatible"}
       <!-- Show Ollama URL for embeddings when OpenAI is the text provider -->
       <div class="sub-field">
@@ -1106,92 +1167,120 @@
       </div>
     {/if}
 
-    <div class="model-row">
-      <div class="custom-select model-select">
-        <button
-          type="button"
-          class="select-trigger"
-          onclick={toggleEmbeddingModelDropdown}
-        >
-          <span>
-            {selectedEmbeddingModel || $_("settings.ollama.noModels")}
-            {#if ollamaStatus && isRecommendedModel(selectedEmbeddingModel, ollamaStatus.recommended_embedding)}
-              <span class="recommended"
-                >{$_("settings.ollama.recommended")}</span
-              >
+    {#if ollamaStatus?.available}
+      <div class="model-row">
+        <div class="custom-select model-select">
+          <button
+            type="button"
+            class="select-trigger"
+            onclick={toggleEmbeddingModelDropdown}
+          >
+            <span>
+              {selectedEmbeddingModel || $_("settings.ollama.noModels")}
+              {#if ollamaStatus && isRecommendedModel(selectedEmbeddingModel, ollamaStatus.recommended_embedding)}
+                <span class="recommended"
+                  >{$_("settings.ollama.recommended")}</span
+                >
+              {/if}
+            </span>
+            <i
+              class="arrow fa-solid {embeddingModelDropdownOpen
+                ? 'fa-caret-up'
+                : 'fa-caret-down'}"
+            ></i>
+          </button>
+          {#if embeddingModelDropdownOpen}
+            <div class="select-options">
+              {#each ollamaStatus.models as model (model)}
+                <button
+                  type="button"
+                  class="select-option {selectedEmbeddingModel === model
+                    ? 'selected'
+                    : ''}"
+                  onclick={() => selectEmbeddingModel(model)}
+                >
+                  {model}
+                  {#if isRecommendedModel(model, ollamaStatus.recommended_embedding)}
+                    <span class="recommended"
+                      >{$_("settings.ollama.recommended")}</span
+                    >
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        {#if ollamaStatus && !ollamaStatus.has_recommended_embedding}
+          <button
+            type="button"
+            class="btn-download"
+            onclick={() =>
+              handleDownloadModel(ollamaStatus!.recommended_embedding)}
+            disabled={downloadingModel !== null}
+          >
+            {#if downloadingModel === ollamaStatus.recommended_embedding}
+              {$_("settings.ollama.downloading")}
+            {:else}
+              {$_("settings.ollama.downloadModel")}
+              {ollamaStatus.recommended_embedding}
             {/if}
-          </span>
-          <i
-            class="arrow fa-solid {embeddingModelDropdownOpen
-              ? 'fa-caret-up'
-              : 'fa-caret-down'}"
-          ></i>
-        </button>
-        {#if embeddingModelDropdownOpen}
-          <div class="select-options">
-            {#each ollamaStatus.models as model (model)}
-              <button
-                type="button"
-                class="select-option {selectedEmbeddingModel === model
-                  ? 'selected'
-                  : ''}"
-                onclick={() => selectEmbeddingModel(model)}
-              >
-                {model}
-                {#if isRecommendedModel(model, ollamaStatus.recommended_embedding)}
-                  <span class="recommended"
-                    >{$_("settings.ollama.recommended")}</span
-                  >
-                {/if}
-              </button>
-            {/each}
-          </div>
+          </button>
         {/if}
       </div>
-      {#if ollamaStatus && !ollamaStatus.has_recommended_embedding}
-        <button
-          type="button"
-          class="btn-download"
-          onclick={() =>
-            handleDownloadModel(ollamaStatus!.recommended_embedding)}
-          disabled={downloadingModel !== null}
-        >
-          {#if downloadingModel === ollamaStatus.recommended_embedding}
-            {$_("settings.ollama.downloading")}
-          {:else}
-            {$_("settings.ollama.downloadModel")}
-            {ollamaStatus.recommended_embedding}
-          {/if}
-        </button>
-      {/if}
-    </div>
-    {#if isEmbeddingModelMissing}
-      <div class="model-warning">
-        <i class="warning-icon fa-solid fa-triangle-exclamation"></i>
-        <div class="warning-content">
-          <span class="warning-text"
-            >{$_("settings.ollama.modelMissing", { values: { model: selectedEmbeddingModel } })}</span
+      {#if isEmbeddingModelMissing}
+        <div class="model-warning">
+          <i class="warning-icon fa-solid fa-triangle-exclamation"></i>
+          <div class="warning-content">
+            <span class="warning-text"
+              >{$_("settings.ollama.modelMissing", { values: { model: selectedEmbeddingModel } })}</span
+            >
+            <span class="warning-hint"
+              >{$_("settings.ollama.modelMissingHint")}</span
+            >
+          </div>
+          <button
+            type="button"
+            class="btn-download-inline"
+            onclick={() => handleDownloadModel(selectedEmbeddingModel)}
+            disabled={downloadingModel !== null}
           >
-          <span class="warning-hint"
-            >{$_("settings.ollama.modelMissingHint")}</span
-          >
+            {#if downloadingModel === selectedEmbeddingModel}
+              {$_("settings.ollama.downloading")}
+            {:else}
+              {$_("settings.ollama.downloadNow")}
+            {/if}
+          </button>
         </div>
-        <button
-          type="button"
-          class="btn-download-inline"
-          onclick={() => handleDownloadModel(selectedEmbeddingModel)}
-          disabled={downloadingModel !== null}
-        >
-          {#if downloadingModel === selectedEmbeddingModel}
-            {$_("settings.ollama.downloading")}
-          {:else}
-            {$_("settings.ollama.downloadNow")}
-          {/if}
-        </button>
-      </div>
+      {/if}
     {/if}
-  </div>
-{/if}
+  {:else}
+    <!-- OpenAI Embedding Configuration -->
+    <div class="sub-field">
+      <span class="sub-label">{$_("settings.ollama.openaiEmbeddingModel")}</span>
+      <div class="openai-embedding-presets">
+        {#each openaiEmbeddingPresets as preset (preset.value)}
+          <button
+            type="button"
+            class="preset-btn {openaiEmbeddingModel === preset.value ? 'active' : ''}"
+            onclick={() => saveOpenaiEmbeddingModel(preset.value)}
+          >
+            <span class="preset-name">{preset.label}</span>
+            <span class="preset-price">{preset.price}</span>
+          </button>
+        {/each}
+      </div>
+      <p class="setting-description">
+        <i class="fa-light fa-circle-info"></i>
+        {$_("settings.ollama.openaiEmbeddingNote")}
+      </p>
+    </div>
+  {/if}
+
+  <p class="setting-description embedding-warning">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    {$_("settings.ollama.embeddingProviderWarning")}
+  </p>
+</div>
 
 <style>
   h3 {
@@ -1836,5 +1925,65 @@
   .embedding-note i {
     color: var(--accent-primary);
     flex-shrink: 0;
+  }
+
+  /* Embedding Provider Warning */
+  .embedding-warning {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: color-mix(in srgb, var(--warning) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+    border-radius: 0.375rem;
+    margin-top: 0.75rem !important;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+
+  .embedding-warning i {
+    color: var(--warning);
+    flex-shrink: 0;
+  }
+
+  /* OpenAI Embedding Presets */
+  .openai-embedding-presets {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .openai-embedding-presets .preset-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.5rem;
+    background: var(--bg-surface);
+    cursor: pointer;
+    flex: 1;
+    transition: all 0.15s ease;
+  }
+
+  .openai-embedding-presets .preset-btn:hover {
+    border-color: var(--accent-primary);
+    background: var(--bg-overlay);
+  }
+
+  .openai-embedding-presets .preset-btn.active {
+    border-color: var(--accent-primary);
+    background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  }
+
+  .openai-embedding-presets .preset-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .openai-embedding-presets .preset-price {
+    color: var(--text-muted);
+    font-size: 0.75rem;
   }
 </style>
