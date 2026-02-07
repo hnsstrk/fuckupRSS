@@ -1,6 +1,6 @@
 //! Shared helper functions for AI commands
 
-use crate::ai_provider::{self, AiTextProvider, ProviderConfig, ProviderType};
+use crate::ai_provider::{self, AiTextProvider, ProviderConfig, ProviderType, DEFAULT_OPENAI_MODEL};
 use crate::db::Database;
 use crate::ollama::{
     get_language_for_locale, OllamaClient, DEFAULT_ANALYSIS_PROMPT, DEFAULT_NUM_CTX,
@@ -66,7 +66,7 @@ pub fn get_provider_config(db: &Database) -> ProviderConfig {
         ollama_num_ctx: get_num_ctx_setting(db),
         openai_base_url: get_setting(db, "openai_base_url", "https://api.openai.com"),
         openai_api_key: get_setting(db, "openai_api_key", ""),
-        openai_model: get_setting(db, "openai_model", "gpt-5-nano"),
+        openai_model: get_setting(db, "openai_model", DEFAULT_OPENAI_MODEL),
     }
 }
 
@@ -93,7 +93,7 @@ pub fn create_text_provider(db: &Database) -> (Arc<dyn AiTextProvider>, String) 
         ollama_num_ctx: get_num_ctx_setting(db),
         openai_base_url: get_setting(db, "openai_base_url", "https://api.openai.com"),
         openai_api_key: get_setting(db, "openai_api_key", ""),
-        openai_model: get_setting(db, "openai_model", "gpt-5-nano"),
+        openai_model: get_setting(db, "openai_model", DEFAULT_OPENAI_MODEL),
     };
 
     let model = match provider_type {
@@ -1201,12 +1201,72 @@ pub fn store_analysis_cache(
 // PROVIDER-AWARE TEXT GENERATION
 // ============================================================
 
-use crate::ai_provider::AiProviderError;
+use crate::ai_provider::{AiProviderError, GenerationResult};
 use crate::ollama::{
     BiasAnalysis, DiscordianAnalysis, DiscordianAnalysisWithRejections, RawBiasAnalysis,
     DEFAULT_DISCORDIAN_PROMPT_WITH_STATS, DEFAULT_DISCORDIAN_PROMPT,
 };
-use log::{debug, warn};
+use log::{debug, info, warn};
+
+use super::model_management::log_ai_cost;
+
+/// Get pricing (input_price_per_1m, output_price_per_1m) in USD for a given model name.
+/// Returns conservative defaults for unknown models.
+fn get_model_pricing(model: &str) -> (f64, f64) {
+    match model {
+        m if m.starts_with("gpt-5-nano") => (0.05, 0.40),
+        m if m.starts_with("gpt-5-mini") => (0.25, 2.00),
+        m if m.starts_with("gpt-5") => (1.25, 10.00),
+        m if m.starts_with("gpt-4.1-nano") => (0.10, 0.40),
+        m if m.starts_with("gpt-4.1-mini") => (0.40, 1.60),
+        m if m.starts_with("gpt-4.1") => (2.00, 8.00),
+        m if m.starts_with("gpt-4o-mini") => (0.15, 0.60),
+        m if m.starts_with("gpt-4o") => (2.50, 10.00),
+        _ => (0.50, 2.00), // Conservative default
+    }
+}
+
+/// Token usage from an AI generation call.
+/// Used to pass cost info from helper functions to callers for logging.
+#[derive(Debug, Clone, Default)]
+pub struct TokenUsage {
+    pub input_tokens: Option<u32>,
+    pub output_tokens: Option<u32>,
+}
+
+impl From<&GenerationResult> for TokenUsage {
+    fn from(result: &GenerationResult) -> Self {
+        TokenUsage {
+            input_tokens: result.input_tokens,
+            output_tokens: result.output_tokens,
+        }
+    }
+}
+
+/// Log the cost of an AI generation to the database.
+/// Only logs if both token counts are available (i.e., provider reported them).
+/// Safe to call with Ollama results (tokens will be None, nothing logged).
+///
+/// Callers should acquire a brief DB lock, call this, then release the lock.
+pub fn log_generation_cost(
+    conn: &rusqlite::Connection,
+    provider_name: &str,
+    model: &str,
+    usage: &TokenUsage,
+) {
+    if let (Some(input_tokens), Some(output_tokens)) = (usage.input_tokens, usage.output_tokens) {
+        let (input_price, output_price) = get_model_pricing(model);
+        let cost = input_tokens as f64 * input_price / 1_000_000.0
+            + output_tokens as f64 * output_price / 1_000_000.0;
+
+        info!(
+            "AI cost: {} / {} - {} in / {} out = ${:.6}",
+            provider_name, model, input_tokens, output_tokens, cost
+        );
+
+        log_ai_cost(conn, provider_name, model, input_tokens, output_tokens, cost);
+    }
+}
 
 /// Safely truncate a string to a maximum byte length, respecting UTF-8 char boundaries.
 fn truncate_str_helper(s: &str, max_bytes: usize) -> &str {
@@ -1235,7 +1295,7 @@ pub async fn discordian_analysis_via_provider(
     stat_keywords: &[String],
     stat_categories: &[(String, f64)],
     custom_prompt: Option<&str>,
-) -> Result<DiscordianAnalysisWithRejections, AiProviderError> {
+) -> Result<(DiscordianAnalysisWithRejections, TokenUsage), AiProviderError> {
     debug!("Starting Discordian analysis via provider for: {}", truncate_str_helper(title, 60));
     let language = get_language_for_locale(locale);
     let truncated_content: String = content.chars().take(6000).collect();
@@ -1261,12 +1321,6 @@ pub async fn discordian_analysis_via_provider(
     // Build prompt from template (without /no_think - provider handles that)
     let prompt_template = custom_prompt.unwrap_or(DEFAULT_DISCORDIAN_PROMPT_WITH_STATS);
 
-    // Strip /no_think prefix if present in custom prompts (provider adds it for Ollama)
-    let prompt_template = prompt_template
-        .strip_prefix("/no_think\n")
-        .or_else(|| prompt_template.strip_prefix("/no_think"))
-        .unwrap_or(prompt_template);
-
     let prompt = prompt_template
         .replace("{language}", language)
         .replace("{title}", title)
@@ -1276,6 +1330,7 @@ pub async fn discordian_analysis_via_provider(
 
     // Call provider with JSON mode
     let result = provider.generate_text(model, &prompt, true).await?;
+    let usage = TokenUsage::from(&result);
 
     // Parse the JSON response (same parsing as OllamaClient)
     let raw: crate::ollama::RawDiscordianAnalysisWithRejections =
@@ -1299,7 +1354,7 @@ pub async fn discordian_analysis_via_provider(
         analysis.keywords.len()
     );
 
-    Ok(analysis)
+    Ok((analysis, usage))
 }
 
 /// Summarize content via the configured provider.
@@ -1310,18 +1365,14 @@ pub async fn summarize_via_provider(
     model: &str,
     content: &str,
     prompt_template: &str,
-) -> Result<String, AiProviderError> {
+) -> Result<(String, TokenUsage), AiProviderError> {
     let truncated_content: String = content.chars().take(8000).collect();
 
-    // Strip /no_think from prompt template (provider handles that)
-    let template = prompt_template
-        .strip_prefix("/no_think\n")
-        .or_else(|| prompt_template.strip_prefix("/no_think"))
-        .unwrap_or(prompt_template);
-
-    let prompt = template.replace("{content}", &truncated_content);
+    let prompt = prompt_template.replace("{content}", &truncated_content);
     let result = provider.generate_text(model, &prompt, false).await?;
-    Ok(result.text)
+    let usage = TokenUsage::from(&result);
+
+    Ok((result.text, usage))
 }
 
 /// Analyze article bias via the configured provider.
@@ -1333,20 +1384,15 @@ pub async fn analyze_bias_via_provider(
     title: &str,
     content: &str,
     prompt_template: &str,
-) -> Result<BiasAnalysis, AiProviderError> {
+) -> Result<(BiasAnalysis, TokenUsage), AiProviderError> {
     let truncated_content: String = content.chars().take(4000).collect();
 
-    // Strip /no_think from prompt template (provider handles that)
-    let template = prompt_template
-        .strip_prefix("/no_think\n")
-        .or_else(|| prompt_template.strip_prefix("/no_think"))
-        .unwrap_or(prompt_template);
-
-    let prompt = template
+    let prompt = prompt_template
         .replace("{title}", title)
         .replace("{content}", &truncated_content);
 
     let result = provider.generate_text(model, &prompt, true).await?;
+    let usage = TokenUsage::from(&result);
 
     let raw: RawBiasAnalysis = serde_json::from_str(&result.text).map_err(|e| {
         warn!(
@@ -1360,7 +1406,7 @@ pub async fn analyze_bias_via_provider(
         }
     })?;
 
-    Ok(raw.into())
+    Ok((raw.into(), usage))
 }
 
 /// Run simple Discordian analysis (without stats) via the configured provider.
@@ -1372,7 +1418,7 @@ pub async fn discordian_analysis_simple_via_provider(
     content: &str,
     locale: &str,
     previous_error: Option<&str>,
-) -> Result<DiscordianAnalysis, AiProviderError> {
+) -> Result<(DiscordianAnalysis, TokenUsage), AiProviderError> {
     let language = get_language_for_locale(locale);
     let truncated_content: String = content.chars().take(6000).collect();
 
@@ -1393,19 +1439,14 @@ Content: {}"#,
             error, title, truncated_content
         )
     } else {
-        // Strip /no_think from default prompt
-        let template = DEFAULT_DISCORDIAN_PROMPT
-            .strip_prefix("/no_think\n")
-            .or_else(|| DEFAULT_DISCORDIAN_PROMPT.strip_prefix("/no_think"))
-            .unwrap_or(DEFAULT_DISCORDIAN_PROMPT);
-
-        template
+        DEFAULT_DISCORDIAN_PROMPT
             .replace("{language}", language)
             .replace("{title}", title)
             .replace("{content}", &truncated_content)
     };
 
     let result = provider.generate_text(model, &prompt, true).await?;
+    let usage = TokenUsage::from(&result);
 
     let raw: crate::ollama::RawDiscordianAnalysis =
         serde_json::from_str(&result.text).map_err(|e| {
@@ -1420,7 +1461,7 @@ Content: {}"#,
             }
         })?;
 
-    Ok(raw.into())
+    Ok((raw.into(), usage))
 }
 
 // ============================================================

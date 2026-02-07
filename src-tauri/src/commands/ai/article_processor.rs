@@ -22,7 +22,7 @@ use super::helpers::{
     analyze_bias_via_provider, create_ollama_client, create_text_provider,
     determine_category_sources, determine_keyword_sources, discordian_analysis_via_provider,
     get_analysis_prompt, get_discordian_prompt, get_locale_from_db, get_summary_prompt,
-    merge_keywords, summarize_via_provider, validate_and_merge_categories,
+    log_generation_cost, merge_keywords, summarize_via_provider, validate_and_merge_categories,
 };
 use super::types::{AnalysisResponse, DiscordianResponse, SummaryResponse};
 
@@ -62,11 +62,7 @@ pub async fn generate_summary(
             )
             .map_err(|e| e.to_string())?;
         // Use the provider's configured model for OpenAI (frontend sends Ollama model names)
-        let effective_model = if !model.is_empty() && provider.provider_name() == "Ollama" {
-            model
-        } else {
-            provider_model
-        };
+        let effective_model = crate::ai_provider::resolve_effective_model(provider.provider_name(), &model, &provider_model);
         (provider, effective_model, content)
     };
 
@@ -82,8 +78,9 @@ pub async fn generate_summary(
     match summarize_via_provider(provider.as_ref(), &effective_model, &content, &prompt_template)
         .await
     {
-        Ok(summary) => {
+        Ok((summary, usage)) => {
             let db = state.db_conn()?;
+            log_generation_cost(db.conn(), provider.provider_name(), &effective_model, &usage);
             db.conn()
                 .execute(
                     "UPDATE fnords SET summary = ?1, processed_at = CURRENT_TIMESTAMP WHERE id = ?2",
@@ -128,11 +125,7 @@ pub async fn analyze_article(
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .map_err(|e| e.to_string())?;
-        let effective_model = if !model.is_empty() && provider.provider_name() == "Ollama" {
-            model
-        } else {
-            provider_model
-        };
+        let effective_model = crate::ai_provider::resolve_effective_model(provider.provider_name(), &model, &provider_model);
         (provider, effective_model, title, content)
     };
 
@@ -148,8 +141,9 @@ pub async fn analyze_article(
     match analyze_bias_via_provider(provider.as_ref(), &effective_model, &title, &content, &prompt_template)
         .await
     {
-        Ok(analysis) => {
+        Ok((analysis, usage)) => {
             let db = state.db_conn()?;
+            log_generation_cost(db.conn(), provider.provider_name(), &effective_model, &usage);
             db.conn()
                 .execute(
                     r#"UPDATE fnords SET
@@ -199,11 +193,7 @@ pub async fn process_article(
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .map_err(|e| e.to_string())?;
-        let effective_model = if !model.is_empty() && provider.provider_name() == "Ollama" {
-            model
-        } else {
-            provider_model
-        };
+        let effective_model = crate::ai_provider::resolve_effective_model(provider.provider_name(), &model, &provider_model);
         (provider, effective_model, title, content)
     };
 
@@ -237,8 +227,9 @@ pub async fn process_article(
     let (summary_result, analysis_result) = tokio::join!(summary_future, analysis_future);
 
     let summary_response = match summary_result {
-        Ok(summary) => {
+        Ok((summary, usage)) => {
             let db = state.db_conn()?;
+            log_generation_cost(db.conn(), provider.provider_name(), &effective_model, &usage);
             let _ = db.conn().execute(
                 "UPDATE fnords SET summary = ?1 WHERE id = ?2",
                 (&summary, fnord_id),
@@ -259,8 +250,9 @@ pub async fn process_article(
     };
 
     let analysis_response = match analysis_result {
-        Ok(analysis) => {
+        Ok((analysis, usage)) => {
             let db = state.db_conn()?;
+            log_generation_cost(db.conn(), provider.provider_name(), &effective_model, &usage);
             let _ = db.conn().execute(
                 r#"UPDATE fnords SET
                     political_bias = ?1,
@@ -321,11 +313,7 @@ pub async fn process_article_discordian(
             .map_err(|e| e.to_string())?;
         let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
         let corpus = CorpusStats::load_from_db(db.conn()).ok();
-        let effective_model = if !model.is_empty() && provider.provider_name() == "Ollama" {
-            model
-        } else {
-            provider_model
-        };
+        let effective_model = crate::ai_provider::resolve_effective_model(provider.provider_name(), &model, &provider_model);
         (provider, effective_model, client, title, content, article_date, bias, corpus)
     };
 
@@ -393,7 +381,12 @@ pub async fn process_article_discordian(
         )
         .await
     {
-        Ok(analysis_with_rejections) => {
+        Ok((analysis_with_rejections, usage)) => {
+            // Log cost with a brief DB lock
+            {
+                let db = state.db_conn()?;
+                log_generation_cost(db.conn(), provider.provider_name(), &effective_model, &usage);
+            }
             let duration = llm_start.elapsed();
             info!(
                 "[LLM] Single article completed \"{}\" (ID: {}) in {:.2}s",

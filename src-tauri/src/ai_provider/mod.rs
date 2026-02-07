@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
 
+/// Default model for OpenAI-compatible providers
+pub const DEFAULT_OPENAI_MODEL: &str = "gpt-5-nano";
+
 /// Provider type enum for serialization/settings
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -104,6 +107,21 @@ pub trait AiTextProvider: Send + Sync {
 
     /// Human-readable provider name
     fn provider_name(&self) -> &str;
+}
+
+/// Resolves the effective model name based on provider type.
+/// For Ollama: allows frontend model override.
+/// For OpenAI-compatible: always uses the configured model.
+pub fn resolve_effective_model(
+    provider_name: &str,
+    frontend_model: &str,
+    config_model: &str,
+) -> String {
+    if provider_name == "Ollama" && !frontend_model.is_empty() {
+        frontend_model.to_string()
+    } else {
+        config_model.to_string()
+    }
 }
 
 /// Create a text provider based on configuration
@@ -399,5 +417,33 @@ mod tests {
         assert_eq!(result.latency_ms, 100);
         assert_eq!(result.models.len(), 1);
         assert!(result.error.is_none());
+    }
+
+    // ============================================================
+    // resolve_effective_model tests
+    // ============================================================
+
+    #[test]
+    fn test_resolve_effective_model_ollama_with_frontend_model() {
+        let result = resolve_effective_model("Ollama", "ministral-3:latest", "default-model");
+        assert_eq!(result, "ministral-3:latest");
+    }
+
+    #[test]
+    fn test_resolve_effective_model_ollama_empty_frontend() {
+        let result = resolve_effective_model("Ollama", "", "default-model");
+        assert_eq!(result, "default-model");
+    }
+
+    #[test]
+    fn test_resolve_effective_model_openai_ignores_frontend() {
+        let result = resolve_effective_model("OpenAI-compatible", "ministral-3:latest", "gpt-5-nano");
+        assert_eq!(result, "gpt-5-nano");
+    }
+
+    #[test]
+    fn test_resolve_effective_model_openai_empty_frontend() {
+        let result = resolve_effective_model("OpenAI-compatible", "", "gpt-5-nano");
+        assert_eq!(result, "gpt-5-nano");
     }
 }

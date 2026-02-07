@@ -15,8 +15,10 @@
 
   // OpenAI model presets
   const openaiModelPresets = [
-    { value: "gpt-5-nano", label: "gpt-5-nano", price: "$0.05/$0.40 per 1M tokens" },
-    { value: "gpt-5-mini", label: "gpt-5-mini", price: "$0.25/$2.00 per 1M tokens" },
+    { value: "gpt-5-nano", label: "GPT-5 nano", price: "$0.05/$0.40 per 1M tokens" },
+    { value: "gpt-5-mini", label: "GPT-5 mini", price: "$0.25/$2.00 per 1M tokens" },
+    { value: "gpt-4.1-mini", label: "GPT-4.1 mini", price: "$0.40/$1.60 per 1M tokens" },
+    { value: "gpt-4.1-nano", label: "GPT-4.1 nano", price: "$0.10/$0.40 per 1M tokens" },
   ];
   let openaiModelPreset = $state<string>("gpt-5-nano");
   let openaiModelDropdownOpen = $state(false);

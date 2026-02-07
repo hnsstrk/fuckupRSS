@@ -47,7 +47,7 @@ use super::helpers::{
     check_analysis_cache, compute_content_hash, create_text_provider, derive_categories_from_keywords,
     determine_category_sources, determine_keyword_sources, discordian_analysis_via_provider,
     get_ai_concurrency, get_locale_from_db, get_num_ctx_setting,
-    get_provider_config, merge_categories_stat_primary, merge_keywords, store_analysis_cache,
+    get_provider_config, log_generation_cost, merge_categories_stat_primary, merge_keywords, store_analysis_cache,
 };
 use super::types::{
     BatchArticle, BatchProgress, BatchResult, FailedCount, HopelessCount, UnprocessedCount,
@@ -501,7 +501,7 @@ async fn process_single_article(
         let duration = llm_start.elapsed();
 
         match analysis_result {
-            Ok(analysis_with_rejections) => {
+            Ok((analysis_with_rejections, usage)) => {
                 info!(
                     "[LLM] Completed \"{}\" (ID: {}) in {:.2}s [{} parallel remaining]",
                     truncate_str(&title, 50),
@@ -510,12 +510,15 @@ async fn process_single_article(
                     active_after.saturating_sub(1)
                 );
 
-                // === LEARN FROM LLM REJECTIONS ===
+                // === LOG COST + LEARN FROM LLM REJECTIONS ===
                 {
                     let db = match state.db.lock() {
                         Ok(db) => db,
                         Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
                     };
+
+                    // Log cost with same brief DB lock
+                    log_generation_cost(db.conn(), provider.provider_name(), model, &usage);
 
                     for rejected_kw in &analysis_with_rejections.rejected_keywords {
                         let _ = record_correction(
@@ -786,11 +789,7 @@ pub async fn process_batch(
 
     // Override model from frontend parameter only for Ollama provider
     // For OpenAI-compatible providers, always use the configured model (the frontend sends Ollama model names)
-    let effective_model = if !model.is_empty() && provider_name == "Ollama" {
-        model.clone()
-    } else {
-        provider_model
-    };
+    let effective_model = crate::ai_provider::resolve_effective_model(&provider_name, &model, &provider_model);
 
     info!(
         "[LLM] Batch using provider '{}' with model '{}' (frontend sent: '{}')",
@@ -915,7 +914,7 @@ pub async fn process_batch(
                 // For retries with adjusted context (ONLY for Ollama)
                 // OpenAI-compatible providers use the same provider for retries
                 let retry_provider: Option<Arc<dyn AiTextProvider>> = if article.attempts > 0 {
-                    use crate::ai_provider::ProviderType;
+                    use crate::ai_provider::{ProviderType, create_provider};
 
                     match provider_config_for_retry.provider_type {
                         ProviderType::Ollama => {
@@ -933,12 +932,9 @@ pub async fn process_batch(
                                 adjusted_num_ctx
                             );
 
-                            Some(Arc::new(
-                                crate::ai_provider::ollama_provider::OllamaTextProvider::new(
-                                    &provider_config_for_retry.ollama_url,
-                                    adjusted_num_ctx,
-                                ),
-                            ))
+                            let mut retry_config = (*provider_config_for_retry).clone();
+                            retry_config.ollama_num_ctx = adjusted_num_ctx;
+                            Some(create_provider(&retry_config))
                         }
                         ProviderType::OpenAiCompatible => {
                             // OpenAI-compatible: use same provider (no num_ctx adjustment)
@@ -1403,11 +1399,7 @@ pub async fn process_batch_clustered(
     let provider_name = provider_for_batch.provider_name().to_string();
 
     // Override model from frontend parameter only for Ollama provider
-    let effective_model = if !model.is_empty() && provider_name == "Ollama" {
-        model.clone()
-    } else {
-        provider_model
-    };
+    let effective_model = crate::ai_provider::resolve_effective_model(&provider_name, &model, &provider_model);
 
     // Provider config for retry logic
     let provider_config_for_retry = Arc::new(provider_config);
@@ -1485,7 +1477,7 @@ pub async fn process_batch_clustered(
                 // For retries with adjusted context (ONLY for Ollama)
                 // OpenAI-compatible providers use the same provider for retries
                 let retry_provider: Option<Arc<dyn AiTextProvider>> = if article.attempts > 0 {
-                    use crate::ai_provider::ProviderType;
+                    use crate::ai_provider::{ProviderType, create_provider};
 
                     match provider_config_for_retry.provider_type {
                         ProviderType::Ollama => {
@@ -1503,12 +1495,9 @@ pub async fn process_batch_clustered(
                                 adjusted_num_ctx
                             );
 
-                            Some(Arc::new(
-                                crate::ai_provider::ollama_provider::OllamaTextProvider::new(
-                                    &provider_config_for_retry.ollama_url,
-                                    adjusted_num_ctx,
-                                ),
-                            ))
+                            let mut retry_config = (*provider_config_for_retry).clone();
+                            retry_config.ollama_num_ctx = adjusted_num_ctx;
+                            Some(create_provider(&retry_config))
                         }
                         ProviderType::OpenAiCompatible => {
                             // OpenAI-compatible: use same provider (no num_ctx adjustment)

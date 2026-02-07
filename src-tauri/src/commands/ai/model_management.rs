@@ -462,7 +462,6 @@ pub fn get_cost_history(
 }
 
 /// Log an AI API cost entry (called internally after API calls)
-#[allow(dead_code)]
 pub fn log_ai_cost(
     conn: &rusqlite::Connection,
     provider: &str,
@@ -481,7 +480,6 @@ pub fn log_ai_cost(
 }
 
 /// Check if the monthly cost limit has been exceeded
-#[allow(dead_code)]
 pub fn check_cost_limit(conn: &rusqlite::Connection) -> Result<(), crate::ai_provider::AiProviderError> {
     let spent: f64 = conn
         .query_row(

@@ -217,8 +217,7 @@ pub const RECOMMENDED_MAIN_MODEL: &str = "ministral-3:latest";
 pub const RECOMMENDED_EMBEDDING_MODEL: &str = "snowflake-arctic-embed2:latest";
 
 /// Default prompts (English prompts with {language} placeholder for output language)
-pub const DEFAULT_SUMMARY_PROMPT: &str = r#"/no_think
-You are a news article analyst. Create a brief, factual summary of the following article in 2-3 sentences.
+pub const DEFAULT_SUMMARY_PROMPT: &str = r#"You are a news article analyst. Create a brief, factual summary of the following article in 2-3 sentences.
 
 IMPORTANT: Respond ONLY in {language}. Do not use any other language.
 Respond ONLY with the summary, without introduction or explanation.
@@ -228,8 +227,7 @@ Article:
 
 Summary:"#;
 
-pub const DEFAULT_ANALYSIS_PROMPT: &str = r#"/no_think
-Analyze the following news article for political bias and objectivity.
+pub const DEFAULT_ANALYSIS_PROMPT: &str = r#"Analyze the following news article for political bias and objectivity.
 Respond in the following JSON format:
 {
   "political_bias": <-2 to 2, where -2=strong left, 0=neutral, 2=strong right>,
@@ -242,8 +240,7 @@ Content: {content}"#;
 /// Combined prompt for full Discordian Analysis (summary + bias + categories + keywords)
 /// NOTE: This is a legacy fallback. Prefer DEFAULT_DISCORDIAN_PROMPT_WITH_STATS.
 /// Categories are now primarily derived from the keyword network (statistical).
-pub const DEFAULT_DISCORDIAN_PROMPT: &str = r#"/no_think
-Analyze this news article. Respond in {language}. Return ONLY this JSON:
+pub const DEFAULT_DISCORDIAN_PROMPT: &str = r#"Analyze this news article. Respond in {language}. Return ONLY this JSON:
 
 {
   "political_bias": <-2 to 2>,
@@ -269,8 +266,7 @@ Content: {content}"#;
 /// LLM categories serve only as optional validation/fallback.
 ///
 /// OPTIMIZED: Reduced from ~37 lines to ~20 lines (~40% fewer tokens)
-pub const DEFAULT_DISCORDIAN_PROMPT_WITH_STATS: &str = r#"/no_think
-Analyze this article. Statistical pre-analysis already computed keywords and categories.
+pub const DEFAULT_DISCORDIAN_PROMPT_WITH_STATS: &str = r#"Analyze this article. Statistical pre-analysis already computed keywords and categories.
 
 PRE-COMPUTED: keywords={stat_keywords}, categories={stat_categories}
 

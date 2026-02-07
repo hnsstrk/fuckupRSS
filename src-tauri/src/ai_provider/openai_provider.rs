@@ -51,6 +51,8 @@ struct ChatCompletionResponse {
 #[derive(Deserialize)]
 struct ChatChoice {
     message: ChatMessageResponse,
+    #[serde(default)]
+    finish_reason: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -109,11 +111,16 @@ impl AiTextProvider for OpenAiCompatibleProvider {
 
         let mut messages = Vec::new();
 
-        // For JSON mode, add a system message (required by OpenAI for json_object mode)
+        // Add system message with role-specific instructions
         if json_mode {
             messages.push(ChatMessage {
                 role: "system".to_string(),
-                content: "You are a helpful assistant. Respond in valid JSON format only.".to_string(),
+                content: "You are a professional news article analyst. Always respond with valid JSON matching the exact schema specified in the user message. Be concise and factual.".to_string(),
+            });
+        } else {
+            messages.push(ChatMessage {
+                role: "system".to_string(),
+                content: "You are a professional news article analyst. Be concise and factual.".to_string(),
             });
         }
 
@@ -132,12 +139,8 @@ impl AiTextProvider for OpenAiCompatibleProvider {
             } else {
                 None
             },
-            max_completion_tokens: if json_mode {
-                Some(1024)
-            } else {
-                Some(4096)
-            },
-            temperature: None,
+            max_completion_tokens: Some(4096),
+            temperature: Some(0.3),
         };
 
         let prompt_len = prompt.len();
@@ -214,6 +217,13 @@ impl AiTextProvider for OpenAiCompatibleProvider {
         })?;
 
         let duration = request_start.elapsed();
+
+        // Check for truncation via finish_reason
+        if let Some(first_choice) = response.choices.first() {
+            if first_choice.finish_reason.as_deref() == Some("length") {
+                warn!("[OpenAI] Response was truncated (finish_reason: length)");
+            }
+        }
 
         let text = response
             .choices

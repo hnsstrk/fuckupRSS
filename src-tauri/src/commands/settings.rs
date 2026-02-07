@@ -1,3 +1,4 @@
+use crate::ai_provider::DEFAULT_OPENAI_MODEL;
 use crate::error::{CmdResult, FuckupError};
 use crate::ollama::{DEFAULT_NUM_CTX, RECOMMENDED_EMBEDDING_MODEL, RECOMMENDED_MAIN_MODEL};
 use crate::{AppState, LogLevel};
@@ -113,7 +114,7 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_j
         result.insert("openai_api_key".to_string(), serde_json::Value::String(String::new()));
     }
     if !result.contains_key("openai_model") {
-        result.insert("openai_model".to_string(), serde_json::Value::String("gpt-4.1-nano".to_string()));
+        result.insert("openai_model".to_string(), serde_json::Value::String(DEFAULT_OPENAI_MODEL.to_string()));
     }
     if !result.contains_key("cost_limit_monthly") {
         result.insert("cost_limit_monthly".to_string(), serde_json::json!(5.0));
