@@ -233,7 +233,6 @@
     "promptsSaved": "Prompts saved",
     "modelsLoaded": "Models loaded into VRAM",
     "modelsLoadError": "Could not load models",
-    "profileApplied": "Performance profile applied",
     "ollama": {
       "title": "AI Settings",
       "textProvider": "Text Analysis Provider",
@@ -288,8 +287,6 @@
       "downloadSuccess": "Successfully downloaded",
       "downloadError": "Download failed",
       "noModels": "No models installed",
-      "hardwareProfile": "Performance Profile (AI Concurrency)",
-      "profileDescription": "Controls the number of concurrent AI analyses. 'High-End' requires >12GB VRAM.",
       "contextLength": "Context Length (num_ctx)",
       "contextLengthDescription": "Higher values allow longer articles but require more VRAM. 4K is sufficient for most articles.",
       "loadedModels": "Loaded Models (VRAM)",

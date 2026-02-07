@@ -205,11 +205,7 @@ pub fn run() {
             commands::settings::get_log_levels,
             commands::settings::set_log_level,
             commands::settings::get_platform,
-            // Hardware Profiles
-            commands::profiles::get_hardware_profiles,
-            commands::profiles::save_hardware_profile,
-            commands::profiles::delete_hardware_profile,
-            commands::profiles::apply_hardware_profile,
+            commands::settings::get_platform,
             // Immanentize Network
             commands::immanentize::get_keywords,
             commands::immanentize::get_keyword,

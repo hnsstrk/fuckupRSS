@@ -15,10 +15,26 @@
 
   // OpenAI model presets
   const openaiModelPresets = [
-    { value: "gpt-5-nano", label: "GPT-5 nano", price: "$0.05/$0.40 per 1M tokens" },
-    { value: "gpt-5-mini", label: "GPT-5 mini", price: "$0.25/$2.00 per 1M tokens" },
-    { value: "gpt-4.1-mini", label: "GPT-4.1 mini", price: "$0.40/$1.60 per 1M tokens" },
-    { value: "gpt-4.1-nano", label: "GPT-4.1 nano", price: "$0.10/$0.40 per 1M tokens" },
+    {
+      value: "gpt-5-nano",
+      label: "GPT-5 nano",
+      price: "$0.05/$0.40 per 1M tokens",
+    },
+    {
+      value: "gpt-5-mini",
+      label: "GPT-5 mini",
+      price: "$0.25/$2.00 per 1M tokens",
+    },
+    {
+      value: "gpt-4.1-mini",
+      label: "GPT-4.1 mini",
+      price: "$0.40/$1.60 per 1M tokens",
+    },
+    {
+      value: "gpt-4.1-nano",
+      label: "GPT-4.1 nano",
+      price: "$0.10/$0.40 per 1M tokens",
+    },
   ];
   let openaiModelPreset = $state<string>("gpt-5-nano");
   let openaiModelDropdownOpen = $state(false);
@@ -56,12 +72,14 @@
     has_recommended_embedding: boolean;
   } | null>(null);
 
-  let loadedModels = $state<{
-    name: string;
-    size: number;
-    size_vram: number;
-    parameter_size: string;
-  }[]>([]);
+  let loadedModels = $state<
+    {
+      name: string;
+      size: number;
+      size_vram: number;
+      parameter_size: string;
+    }[]
+  >([]);
 
   let selectedMainModel = $state("");
   let selectedEmbeddingModel = $state("");
@@ -70,25 +88,21 @@
   let loadingModels = $state(false);
   let pullUnlisten: UnlistenFn | null = $state(null);
 
-  // Hardware Profiles
-  interface HardwareProfile {
-    id: string;
-    name: string;
-    description: string;
-    ai_parallelism: number;
-  }
-
-  let hardwareProfiles = $state<HardwareProfile[]>([]);
-  let selectedProfileId = $state("default");
-  let profileDropdownOpen = $state(false);
-
   // Embedding provider state
   let embeddingProvider = $state("ollama");
   let openaiEmbeddingModel = $state("text-embedding-3-small");
 
   const openaiEmbeddingPresets = [
-    { value: "text-embedding-3-small", label: "text-embedding-3-small", price: "$0.02 per 1M tokens" },
-    { value: "text-embedding-3-large", label: "text-embedding-3-large", price: "$0.13 per 1M tokens" },
+    {
+      value: "text-embedding-3-small",
+      label: "text-embedding-3-small",
+      price: "$0.02 per 1M tokens",
+    },
+    {
+      value: "text-embedding-3-large",
+      label: "text-embedding-3-large",
+      price: "$0.13 per 1M tokens",
+    },
   ];
 
   // Context length (num_ctx)
@@ -139,7 +153,9 @@
     if (savedOpenaiModel) {
       openaiModel = savedOpenaiModel;
       // Determine if the saved model matches a preset
-      const matchingPreset = openaiModelPresets.find(p => p.value === savedOpenaiModel);
+      const matchingPreset = openaiModelPresets.find(
+        (p) => p.value === savedOpenaiModel,
+      );
       openaiModelPreset = matchingPreset ? savedOpenaiModel : "custom";
     }
 
@@ -159,17 +175,21 @@
     });
     if (savedEmbeddingProvider) embeddingProvider = savedEmbeddingProvider;
 
-    const savedOpenaiEmbeddingModel = await invoke<string | null>("get_setting", {
-      key: "openai_embedding_model",
-    });
-    if (savedOpenaiEmbeddingModel) openaiEmbeddingModel = savedOpenaiEmbeddingModel;
+    const savedOpenaiEmbeddingModel = await invoke<string | null>(
+      "get_setting",
+      {
+        key: "openai_embedding_model",
+      },
+    );
+    if (savedOpenaiEmbeddingModel)
+      openaiEmbeddingModel = savedOpenaiEmbeddingModel;
 
     // Load cost data
     await loadMonthlyCost();
 
     // Load existing Ollama settings
     await loadOllamaStatus();
-    await loadHardwareProfiles();
+    await loadOllamaStatus();
 
     const savedNumCtx = await invoke<string | null>("get_setting", {
       key: "ollama_num_ctx",
@@ -194,7 +214,6 @@
     mainModelDropdownOpen = false;
     embeddingModelDropdownOpen = false;
     numCtxDropdownOpen = false;
-    profileDropdownOpen = false;
     openaiModelDropdownOpen = false;
   }
 
@@ -271,7 +290,6 @@
     mainModelDropdownOpen = false;
     embeddingModelDropdownOpen = false;
     numCtxDropdownOpen = false;
-    profileDropdownOpen = false;
   }
 
   async function saveCostLimit() {
@@ -321,25 +339,13 @@
 
   async function loadLoadedModels() {
     try {
-      const response =
-        await invoke<{ models: typeof loadedModels }>("get_loaded_models");
+      const response = await invoke<{ models: typeof loadedModels }>(
+        "get_loaded_models",
+      );
       loadedModels = response.models;
     } catch (e) {
       console.error("Failed to load loaded models:", e);
       loadedModels = [];
-    }
-  }
-
-  async function loadHardwareProfiles() {
-    try {
-      hardwareProfiles =
-        await invoke<HardwareProfile[]>("get_hardware_profiles");
-      const active = await invoke<string | null>("get_setting", {
-        key: "active_hardware_profile",
-      });
-      selectedProfileId = active || "default";
-    } catch (e) {
-      console.error("Failed to load hardware profiles:", e);
     }
   }
 
@@ -354,8 +360,7 @@
 
   function isRecommendedModel(model: string, recommended: string): boolean {
     return (
-      model === recommended ||
-      model.startsWith(recommended.split(":")[0] + ":")
+      model === recommended || model.startsWith(recommended.split(":")[0] + ":")
     );
   }
 
@@ -438,20 +443,11 @@
     mainModelDropdownOpen = !mainModelDropdownOpen;
     embeddingModelDropdownOpen = false;
     numCtxDropdownOpen = false;
-    profileDropdownOpen = false;
   }
 
   function toggleEmbeddingModelDropdown() {
     embeddingModelDropdownOpen = !embeddingModelDropdownOpen;
     mainModelDropdownOpen = false;
-    numCtxDropdownOpen = false;
-    profileDropdownOpen = false;
-  }
-
-  function toggleProfileDropdown() {
-    profileDropdownOpen = !profileDropdownOpen;
-    mainModelDropdownOpen = false;
-    embeddingModelDropdownOpen = false;
     numCtxDropdownOpen = false;
   }
 
@@ -495,18 +491,6 @@
       await invoke("set_setting", { key: "openai_embedding_model", value });
     } catch (e) {
       console.error("Failed to save OpenAI embedding model setting:", e);
-      toasts.error($_("settings.saveError"));
-    }
-  }
-
-  async function handleProfileSelect(profileId: string) {
-    selectedProfileId = profileId;
-    profileDropdownOpen = false;
-    try {
-      await invoke("apply_hardware_profile", { profileId });
-      toasts.success($_("settings.profileApplied"));
-    } catch (e) {
-      console.error("Failed to apply profile:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -577,13 +561,17 @@
     </p>
     {#if ollamaTestResult}
       <div
-        class="connection-result {ollamaTestResult.success ? 'success' : 'error'}"
+        class="connection-result {ollamaTestResult.success
+          ? 'success'
+          : 'error'}"
       >
         {#if ollamaTestResult.success}
           <i class="fa-solid fa-check"></i>
           {$_("settings.ollama.connected")}
           <span class="latency"
-            >{$_("settings.ollama.latency", { values: { ms: ollamaTestResult.latency_ms } })}</span
+            >{$_("settings.ollama.latency", {
+              values: { ms: ollamaTestResult.latency_ms },
+            })}</span
           >
         {:else}
           <i class="fa-solid fa-xmark"></i>
@@ -710,7 +698,9 @@
           <i class="warning-icon fa-solid fa-triangle-exclamation"></i>
           <div class="warning-content">
             <span class="warning-text"
-              >{$_("settings.ollama.modelMissing", { values: { model: selectedMainModel } })}</span
+              >{$_("settings.ollama.modelMissing", {
+                values: { model: selectedMainModel },
+              })}</span
             >
             <span class="warning-hint"
               >{$_("settings.ollama.modelMissingHint")}</span
@@ -732,55 +722,6 @@
       {/if}
     </div>
 
-    <!-- Hardware Profile Selection -->
-    <div class="setting-group">
-      <span class="label">{$_("settings.ollama.hardwareProfile")}</span>
-      <div class="custom-select">
-        <button
-          type="button"
-          class="select-trigger"
-          onclick={toggleProfileDropdown}
-        >
-          <span>
-            {hardwareProfiles.find((p) => p.id === selectedProfileId)?.name ||
-              "Default"}
-            <span class="profile-parallelism">
-              ({hardwareProfiles.find((p) => p.id === selectedProfileId)
-                ?.ai_parallelism || 1}x Parallel)
-            </span>
-          </span>
-          <i
-            class="arrow fa-solid {profileDropdownOpen
-              ? 'fa-caret-up'
-              : 'fa-caret-down'}"
-          ></i>
-        </button>
-        {#if profileDropdownOpen}
-          <div class="select-options">
-            {#each hardwareProfiles as profile (profile.id)}
-              <button
-                type="button"
-                class="select-option profile-option {selectedProfileId ===
-                profile.id
-                  ? 'selected'
-                  : ''}"
-                onclick={() => handleProfileSelect(profile.id)}
-              >
-                <div class="profile-info">
-                  <span class="profile-name">{profile.name}</span>
-                  <span class="profile-desc">{profile.description}</span>
-                </div>
-                <span class="profile-badge">{profile.ai_parallelism}x</span>
-              </button>
-            {/each}
-          </div>
-        {/if}
-      </div>
-      <p class="setting-description">
-        {$_("settings.ollama.profileDescription")}
-      </p>
-    </div>
-
     <!-- Context Length (num_ctx) -->
     <div class="setting-group">
       <span class="label"
@@ -793,7 +734,6 @@
           class="select-trigger"
           onclick={() => {
             numCtxDropdownOpen = !numCtxDropdownOpen;
-            profileDropdownOpen = false;
             mainModelDropdownOpen = false;
             embeddingModelDropdownOpen = false;
           }}
@@ -802,7 +742,8 @@
             {numCtxOptions.find((o) => o.value === ollamaNumCtx)?.label ||
               ollamaNumCtx}
             <span class="ctx-desc">
-              ({numCtxOptions.find((o) => o.value === ollamaNumCtx)?.desc || ""})
+              ({numCtxOptions.find((o) => o.value === ollamaNumCtx)?.desc ||
+                ""})
             </span>
           </span>
           <i
@@ -840,7 +781,9 @@
         type="button"
         class="btn-load-models"
         onclick={handleLoadModels}
-        disabled={loadingModels || !selectedMainModel || !selectedEmbeddingModel}
+        disabled={loadingModels ||
+          !selectedMainModel ||
+          !selectedEmbeddingModel}
       >
         {#if loadingModels}
           {$_("settings.ollama.loadingModels") || "Lade Modelle..."}
@@ -903,9 +846,7 @@
           onclick={() => (showApiKey = !showApiKey)}
           aria-label={showApiKey ? "Hide API key" : "Show API key"}
         >
-          <i
-            class="fa-solid {showApiKey ? 'fa-eye-slash' : 'fa-eye'}"
-          ></i>
+          <i class="fa-solid {showApiKey ? 'fa-eye-slash' : 'fa-eye'}"></i>
         </button>
       </div>
       <p class="setting-description">
@@ -926,9 +867,12 @@
             {#if openaiModelPreset === "custom"}
               {$_("settings.ollama.openaiModelCustom")}: {openaiModel}
             {:else}
-              {openaiModelPresets.find(p => p.value === openaiModelPreset)?.label || openaiModel}
+              {openaiModelPresets.find((p) => p.value === openaiModelPreset)
+                ?.label || openaiModel}
               {#if openaiModelPreset === "gpt-5-nano"}
-                <span class="recommended">{$_("settings.ollama.openaiModelRecommended")}</span>
+                <span class="recommended"
+                  >{$_("settings.ollama.openaiModelRecommended")}</span
+                >
               {/if}
             {/if}
           </span>
@@ -943,7 +887,8 @@
             {#each openaiModelPresets as preset (preset.value)}
               <button
                 type="button"
-                class="select-option openai-model-option {openaiModelPreset === preset.value
+                class="select-option openai-model-option {openaiModelPreset ===
+                preset.value
                   ? 'selected'
                   : ''}"
                 onclick={() => handleOpenaiModelPresetChange(preset.value)}
@@ -953,18 +898,23 @@
                   <span class="openai-model-price">{preset.price}</span>
                 </div>
                 {#if preset.value === "gpt-5-nano"}
-                  <span class="recommended">{$_("settings.ollama.recommended")}</span>
+                  <span class="recommended"
+                    >{$_("settings.ollama.recommended")}</span
+                  >
                 {/if}
               </button>
             {/each}
             <button
               type="button"
-              class="select-option openai-model-option {openaiModelPreset === 'custom'
+              class="select-option openai-model-option {openaiModelPreset ===
+              'custom'
                 ? 'selected'
                 : ''}"
               onclick={() => handleOpenaiModelPresetChange("custom")}
             >
-              <span class="openai-model-name">{$_("settings.ollama.openaiModelCustom")}...</span>
+              <span class="openai-model-name"
+                >{$_("settings.ollama.openaiModelCustom")}...</span
+              >
             </button>
           </div>
         {/if}
@@ -992,12 +942,18 @@
           bind:value={openaiTemperature}
           onchange={saveOpenaiSettings}
         >
-          <option value="auto">{$_("settings.ollama.openaiTemperatureAuto")}</option>
-          <option value="0">0 ({$_("settings.ollama.openaiTemperatureDeterministic")})</option>
+          <option value="auto"
+            >{$_("settings.ollama.openaiTemperatureAuto")}</option
+          >
+          <option value="0"
+            >0 ({$_("settings.ollama.openaiTemperatureDeterministic")})</option
+          >
           <option value="0.3">0.3</option>
           <option value="0.5">0.5</option>
           <option value="0.7">0.7</option>
-          <option value="1.0">1.0 ({$_("settings.ollama.openaiTemperatureDefault")})</option>
+          <option value="1.0"
+            >1.0 ({$_("settings.ollama.openaiTemperatureDefault")})</option
+          >
         </select>
       </div>
       <p class="setting-description">
@@ -1029,7 +985,9 @@
             <i class="fa-solid fa-check"></i>
             {$_("settings.ollama.connected")}
             <span class="latency"
-              >{$_("settings.ollama.latency", { values: { ms: openaiTestResult.latency_ms } })}</span
+              >{$_("settings.ollama.latency", {
+                values: { ms: openaiTestResult.latency_ms },
+              })}</span
             >
           {:else}
             <i class="fa-solid fa-xmark"></i>
@@ -1051,7 +1009,9 @@
       <div class="cost-display">
         <div class="cost-header">
           <span class="cost-spent"
-            >{$_("settings.ollama.costSpent")}: ${monthlyCost.spent.toFixed(2)}</span
+            >{$_("settings.ollama.costSpent")}: ${monthlyCost.spent.toFixed(
+              2,
+            )}</span
           >
           <span class="cost-limit">/ ${monthlyCost.limit.toFixed(2)}</span>
         </div>
@@ -1065,7 +1025,9 @@
         </div>
         <div class="cost-footer">
           <span class="cost-remaining"
-            >{$_("settings.ollama.costRemaining")}: ${monthlyCost.remaining.toFixed(2)}</span
+            >{$_("settings.ollama.costRemaining")}: ${monthlyCost.remaining.toFixed(
+              2,
+            )}</span
           >
           <span class="cost-percentage"
             >{monthlyCost.percentage.toFixed(0)}%</span
@@ -1113,7 +1075,9 @@
     </button>
     <button
       type="button"
-      class="toggle-btn {embeddingProvider === 'openai_compatible' ? 'active' : ''}"
+      class="toggle-btn {embeddingProvider === 'openai_compatible'
+        ? 'active'
+        : ''}"
       onclick={() => saveEmbeddingProvider("openai_compatible")}
     >
       <i class="fa-solid fa-cloud"></i>
@@ -1126,7 +1090,9 @@
     {#if aiTextProvider === "openai_compatible"}
       <!-- Show Ollama URL for embeddings when OpenAI is the text provider -->
       <div class="sub-field">
-        <span class="sub-label">{$_("settings.ollama.ollamaUrlForEmbeddings")}</span>
+        <span class="sub-label"
+          >{$_("settings.ollama.ollamaUrlForEmbeddings")}</span
+        >
         <div class="url-row">
           <input
             type="text"
@@ -1150,13 +1116,17 @@
         </div>
         {#if ollamaTestResult}
           <div
-            class="connection-result {ollamaTestResult.success ? 'success' : 'error'}"
+            class="connection-result {ollamaTestResult.success
+              ? 'success'
+              : 'error'}"
           >
             {#if ollamaTestResult.success}
               <i class="fa-solid fa-check"></i>
               {$_("settings.ollama.connected")}
               <span class="latency"
-                >{$_("settings.ollama.latency", { values: { ms: ollamaTestResult.latency_ms } })}</span
+                >{$_("settings.ollama.latency", {
+                  values: { ms: ollamaTestResult.latency_ms },
+                })}</span
               >
             {:else}
               <i class="fa-solid fa-xmark"></i>
@@ -1232,7 +1202,9 @@
           <i class="warning-icon fa-solid fa-triangle-exclamation"></i>
           <div class="warning-content">
             <span class="warning-text"
-              >{$_("settings.ollama.modelMissing", { values: { model: selectedEmbeddingModel } })}</span
+              >{$_("settings.ollama.modelMissing", {
+                values: { model: selectedEmbeddingModel },
+              })}</span
             >
             <span class="warning-hint"
               >{$_("settings.ollama.modelMissingHint")}</span
@@ -1256,12 +1228,15 @@
   {:else}
     <!-- OpenAI Embedding Configuration -->
     <div class="sub-field">
-      <span class="sub-label">{$_("settings.ollama.openaiEmbeddingModel")}</span>
+      <span class="sub-label">{$_("settings.ollama.openaiEmbeddingModel")}</span
+      >
       <div class="openai-embedding-presets">
         {#each openaiEmbeddingPresets as preset (preset.value)}
           <button
             type="button"
-            class="preset-btn {openaiEmbeddingModel === preset.value ? 'active' : ''}"
+            class="preset-btn {openaiEmbeddingModel === preset.value
+              ? 'active'
+              : ''}"
             onclick={() => saveOpenaiEmbeddingModel(preset.value)}
           >
             <span class="preset-name">{preset.label}</span>
@@ -1804,50 +1779,6 @@
   .btn-load-models:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-  }
-
-  /* Hardware Profiles */
-  .profile-parallelism {
-    color: var(--text-muted);
-    font-size: 0.85em;
-    margin-left: 0.5rem;
-  }
-
-  .profile-option {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem !important;
-  }
-
-  .profile-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-  }
-
-  .profile-name {
-    font-weight: 500;
-    color: var(--text-primary);
-  }
-
-  .profile-desc {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-
-  .profile-badge {
-    background-color: var(--bg-surface);
-    color: var(--accent-secondary);
-    padding: 0.125rem 0.375rem;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-
-  .profile-option.selected .profile-badge {
-    background-color: var(--bg-surface);
-    color: var(--accent-primary);
   }
 
   /* Context Length (num_ctx) */
