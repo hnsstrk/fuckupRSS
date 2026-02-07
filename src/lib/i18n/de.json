@@ -264,6 +264,8 @@
       "openaiTemperatureDeterministic": "Deterministisch",
       "openaiTemperatureDefault": "API-Standard",
       "openaiTemperatureDescription": "Steuert die Kreativität der KI-Antworten. 'Auto' lässt den API-Standard gelten und ist kompatibel mit allen Modellen.",
+      "openaiConcurrency": "Parallelität",
+      "openaiConcurrencyDescription": "Anzahl gleichzeitiger API-Anfragen. Höhere Werte beschleunigen die Batch-Verarbeitung, können aber Rate-Limits auslösen.",
       "embeddingSection": "Embedding-Provider",
       "embeddingNote": "Embeddings erzeugen semantische Vektoren für Ähnlichkeitssuche und Keyword-Erkennung.",
       "ollamaUrlForEmbeddings": "Ollama-Server für Embeddings",

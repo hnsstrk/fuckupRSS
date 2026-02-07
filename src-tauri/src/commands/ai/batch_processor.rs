@@ -792,17 +792,18 @@ pub async fn process_batch(
         
         let mut stmt = conn.conn().prepare(
             r#"
-            SELECT 
-                f.id, 
-                f.title, 
+            SELECT
+                f.id,
+                f.title,
                 COALESCE(f.content_full, '') as content,
-                f.published_at,
-                f.last_error,
+                DATE(COALESCE(f.published_at, f.fetched_at)) as article_date,
+                f.analysis_error,
                 COALESCE(f.analysis_attempts, 0) as attempts
             FROM fnords f
-            WHERE f.analysis_model IS NULL 
-               AND f.content_full IS NOT NULL 
-               AND LENGTH(f.content_full) > 100
+            WHERE f.processed_at IS NULL
+               AND f.content_full IS NOT NULL
+               AND LENGTH(f.content_full) >= 100
+               AND (f.analysis_hopeless IS NULL OR f.analysis_hopeless = FALSE)
             ORDER BY f.published_at DESC
             LIMIT ?1
             "#

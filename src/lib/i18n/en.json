@@ -264,6 +264,8 @@
       "openaiTemperatureDeterministic": "Deterministic",
       "openaiTemperatureDefault": "API default",
       "openaiTemperatureDescription": "Controls the creativity of AI responses. 'Auto' uses the API default and is compatible with all models.",
+      "openaiConcurrency": "Concurrency",
+      "openaiConcurrencyDescription": "Number of parallel API requests. Higher values speed up batch processing but may trigger rate limits.",
       "embeddingSection": "Embedding Provider",
       "embeddingNote": "Embeddings generate semantic vectors for similarity search and keyword detection.",
       "ollamaUrlForEmbeddings": "Ollama Server for Embeddings",

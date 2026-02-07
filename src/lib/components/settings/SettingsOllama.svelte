@@ -971,6 +971,25 @@
       </p>
     </div>
 
+    <!-- Concurrency Setting -->
+    <div class="sub-field">
+      <span class="sub-label">{$_("settings.ollama.openaiConcurrency")}</span>
+      <div class="range-container">
+        <input
+          type="range"
+          class="range-input"
+          min="1"
+          max="50"
+          bind:value={openaiConcurrency}
+          onchange={saveOpenaiSettings}
+        />
+        <span class="range-value">{openaiConcurrency}</span>
+      </div>
+      <p class="setting-description">
+        {$_("settings.ollama.openaiConcurrencyDescription")}
+      </p>
+    </div>
+
     <!-- Test Connection -->
     <div class="sub-field">
       <button
