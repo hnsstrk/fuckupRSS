@@ -141,7 +141,7 @@ impl AiTextProvider for OpenAiCompatibleProvider {
             } else {
                 None
             },
-            max_completion_tokens: Some(4096),
+            max_completion_tokens: Some(16384),
             temperature: self.temperature,
         };
 

@@ -743,7 +743,7 @@ pub async fn process_batch(
     };
     let concurrency = get_ai_concurrency(&state, &provider_config.provider_type);
 
-    info!("Starting batch processing: model={}, limit={:?}, concurrency={}", model, limit, concurrency);
+    info!("Starting batch processing: frontend_model={}, limit={:?}, concurrency={}", model, limit, concurrency);
 
     // Load shared context ONCE before batch processing starts
     let batch_context = {
@@ -861,10 +861,24 @@ pub async fn process_batch(
     state.batch_cancel.store(false, Ordering::SeqCst);
     state.batch_running.store(true, Ordering::SeqCst);
 
-    info!(
-        "[LLM] Batch starting: {} articles with {} parallel workers (model: {}, num_ctx: {})",
-        total, concurrency, model, num_ctx
-    );
+    // Provider-aware batch start logging
+    {
+        use crate::ai_provider::ProviderType;
+        match provider_config.provider_type {
+            ProviderType::Ollama => {
+                info!(
+                    "[LLM] Batch starting: {} articles with {} parallel workers (provider: Ollama, model: {}, num_ctx: {})",
+                    total, concurrency, effective_model, num_ctx
+                );
+            }
+            ProviderType::OpenAiCompatible => {
+                info!(
+                    "[LLM] Batch starting: {} articles with {} parallel workers (provider: OpenAI-compatible, model: {})",
+                    total, concurrency, effective_model
+                );
+            }
+        }
+    }
     let batch_start_time = Instant::now();
 
     let _ = window.emit(
@@ -1179,6 +1193,55 @@ pub async fn process_batch(
 pub fn cancel_batch(state: State<AppState>) -> Result<(), String> {
     state.batch_cancel.store(true, Ordering::SeqCst);
     Ok(())
+}
+
+/// Reset all failed (non-hopeless) articles so they can be retried from scratch.
+///
+/// This clears `analysis_attempts` and `analysis_error` for articles that previously
+/// failed (e.g. due to provider misconfiguration) but were not yet marked hopeless.
+#[tauri::command]
+pub fn reset_failed_articles(state: State<AppState>) -> Result<i64, String> {
+    let db = state.db_conn()?;
+
+    let affected = db
+        .conn()
+        .execute(
+            r#"UPDATE fnords SET
+                analysis_attempts = 0,
+                analysis_error = NULL
+            WHERE analysis_attempts > 0
+              AND processed_at IS NULL
+              AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)"#,
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+
+    info!("[LLM] Reset {} failed articles for retry", affected);
+    Ok(affected as i64)
+}
+
+/// Reset all hopeless articles so they can be retried from scratch.
+///
+/// This clears `analysis_hopeless`, `analysis_attempts`, and `analysis_error`
+/// for articles that were marked as hopeless after 3+ failures.
+#[tauri::command]
+pub fn reset_hopeless_articles(state: State<AppState>) -> Result<i64, String> {
+    let db = state.db_conn()?;
+
+    let affected = db
+        .conn()
+        .execute(
+            r#"UPDATE fnords SET
+                analysis_attempts = 0,
+                analysis_error = NULL,
+                analysis_hopeless = FALSE
+            WHERE analysis_hopeless = TRUE"#,
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+
+    info!("[LLM] Reset {} hopeless articles for retry", affected);
+    Ok(affected as i64)
 }
 
 /// Transfer keywords from representative to cluster members

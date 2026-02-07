@@ -173,6 +173,8 @@ pub fn run() {
             commands::ai::batch_processor::get_hopeless_articles,
             commands::ai::batch_processor::process_batch,
             commands::ai::batch_processor::cancel_batch,
+            commands::ai::batch_processor::reset_failed_articles,
+            commands::ai::batch_processor::reset_hopeless_articles,
             // Prompts
             commands::ai::prompts::get_default_prompts,
             commands::ai::prompts::get_prompts,
