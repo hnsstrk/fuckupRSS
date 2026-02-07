@@ -800,27 +800,24 @@ class AppState {
       return null;
     }
 
-    log.info(`Starting batch processing with model: ${model}`);
-
-    this.batchProcessing = true;
-    // Set initial progress immediately so UI shows something
-    this.batchProgress = {
-      current: 0,
-      total: this.unprocessedCount.with_content,
-      fnord_id: 0,
-      title: "Starting...",
-      success: true,
-      error: null
-    };
-    this.error = null;
-
     try {
+      this.batchProcessing = true;
+      this.error = null;
+      this.batchProgress = {
+        current: 0,
+        total: this.unprocessedCount.with_content,
+        fnord_id: 0,
+        title: "Starting batch processing...",
+        success: true,
+        error: null,
+      };
+
       const result = await invoke<BatchResult>("process_batch", {
         model,
-        limit: limit ?? null,  // null = process all
+        limit,
       });
 
-      // Refresh data after batch processing
+      // Reload data after batch
       await this.loadFnords();
       await this.loadPentacles();
       await this.loadUnprocessedCount();

@@ -113,6 +113,11 @@ pub trait AiTextProvider: Send + Sync {
 
     /// Human-readable provider name
     fn provider_name(&self) -> &str;
+
+    /// Suggested concurrency for batch processing
+    fn suggested_concurrency(&self) -> usize {
+        1
+    }
 }
 
 /// Trait for embedding generation providers

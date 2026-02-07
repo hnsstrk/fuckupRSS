@@ -5,20 +5,21 @@ use crate::keywords::{
     cluster_articles, get_representatives, calculate_savings,
     ArticleForClustering, ClusterConfig, ClusteringResult,
 };
-use crate::ai_provider::{AiTextProvider, EmbeddingProvider};
-use crate::ollama::DiscordianAnalysis;
+use crate::ai_provider::AiTextProvider;
 use crate::text_analysis::{
     record_correction, BiasWeights, CategoryMatcher, CorrectionRecord, CorrectionType, CorpusStats,
     TfIdfExtractor,
 };
-use crate::{classify_by_keywords, extract_keywords};
+use crate::extract_keywords;
 use crate::AppState;
 use log::{debug, info, warn};
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::{Emitter, Manager, State, Window};
+use futures::stream::{self, StreamExt};
+use rusqlite::Connection;
 
 /// Safely truncate a string to a maximum byte length, respecting UTF-8 char boundaries.
 /// Returns a slice that ends at a valid char boundary.
@@ -40,11 +41,17 @@ use super::data_persistence::{
     save_article_keywords_with_source,
 };
 use super::helpers::{
-    check_analysis_cache, compute_content_hash, create_text_provider, derive_categories_from_keywords,
-    determine_category_sources, determine_keyword_sources, discordian_analysis_via_provider,
-    get_locale_from_db, get_num_ctx_setting,
-    get_provider_config, log_generation_cost, merge_categories_stat_primary, merge_keywords, store_analysis_cache,
+    check_analysis_cache, compute_content_hash, create_text_provider, get_locale_from_db,
+    get_num_ctx_setting, get_provider_config, get_embedding_provider_config, log_generation_cost,
+    store_analysis_cache, merge_keywords, determine_keyword_sources, merge_categories_stat_primary,
+    discordian_analysis_via_provider, TokenUsage,
 };
+// CorrectionType is already imported from text_analysis
+use crate::commands::ai::helpers::{
+    derive_categories_from_keywords, determine_category_sources,
+};
+use crate::categories::classify_by_keywords;
+use crate::ollama::{DiscordianAnalysis, DiscordianAnalysisWithRejections};
 use super::types::{
     BatchArticle, BatchProgress, BatchResult, FailedCount, HopelessCount, UnprocessedCount,
 };
@@ -58,6 +65,39 @@ struct BatchContext {
     corpus_stats: Option<CorpusStats>,
     /// Custom discordian prompt (None = use default)
     discordian_prompt: Option<String>,
+}
+
+impl BatchContext {
+    pub fn new(conn: &Connection) -> Result<Self, rusqlite::Error> {
+        let bias_weights = BiasWeights::load_from_db(conn).unwrap_or_default();
+        let corpus_stats = match CorpusStats::load_from_db(conn) {
+            Ok(stats) => Some(stats),
+            Err(e) => {
+                warn!("Failed to load corpus stats, using fallback TF-IDF: {}", e);
+                None
+            }
+        };
+
+        // Load custom discordian prompt from settings (if set)
+        let discordian_prompt: Option<String> = match conn.query_row(
+            "SELECT value FROM settings WHERE key = 'discordian_prompt'",
+            [],
+            |row: &rusqlite::Row| row.get(0),
+        ) {
+            Ok(prompt) => Some(prompt),
+            Err(rusqlite::Error::QueryReturnedNoRows) => None, // Expected when not set
+            Err(e) => {
+                warn!("Failed to load custom discordian prompt: {}", e);
+                None
+            }
+        };
+
+        Ok(Self {
+            bias_weights,
+            corpus_stats,
+            discordian_prompt,
+        })
+    }
 }
 
 /// Configuration for cluster-based batch processing
@@ -476,7 +516,7 @@ async fn process_single_article(
             fnord_id
         );
 
-        let analysis_result = discordian_analysis_via_provider(
+        let analysis_result: Result<(DiscordianAnalysisWithRejections, TokenUsage), crate::ai_provider::AiProviderError> = discordian_analysis_via_provider(
                 provider,
                 model,
                 &title,
@@ -492,6 +532,7 @@ async fn process_single_article(
 
         match analysis_result {
             Ok((analysis_with_rejections, usage)) => {
+                let analysis_with_rejections: crate::ollama::DiscordianAnalysisWithRejections = analysis_with_rejections;
                 info!(
                     "[LLM] Completed \"{}\" (ID: {}) in {:.2}s",
                     truncate_str(&title, 50),
@@ -509,13 +550,18 @@ async fn process_single_article(
                     // Log cost with same brief DB lock
                     log_generation_cost(db.conn(), provider.provider_name(), model, &usage);
 
-                    for rejected_kw in &analysis_with_rejections.rejected_keywords {
+                    let rejected_kws: &Vec<String> = &analysis_with_rejections.rejected_keywords;
+                    for rejected_kw in rejected_kws {
                         let _ = record_correction(
                             db.conn(),
                             &CorrectionRecord {
                                 fnord_id,
                                 correction_type: CorrectionType::KeywordRemoved,
-                                old_value: Some(rejected_kw.clone()),
+                                old_value: {
+                                    let s: String = rejected_kw.to_string();
+                                    let opt: Option<String> = Some(s);
+                                    opt
+                                },
                                 new_value: None,
                                 matching_terms: vec![],
                                 category_id: None,
@@ -523,13 +569,14 @@ async fn process_single_article(
                         );
                     }
 
-                    for rejected_cat in &analysis_with_rejections.rejected_categories {
+                    let rejected_cats: &Vec<String> = &analysis_with_rejections.rejected_categories;
+                    for rejected_cat in rejected_cats {
                         let cat_id: Option<i64> = db
                             .conn()
                             .query_row(
                                 "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?1)",
-                                [rejected_cat],
-                                |row| row.get(0),
+                                rusqlite::params![rejected_cat],
+                                |row: &rusqlite::Row| row.get(0),
                             )
                             .ok();
 
@@ -540,7 +587,11 @@ async fn process_single_article(
                                 &CorrectionRecord {
                                     fnord_id,
                                     correction_type: CorrectionType::CategoryRemoved,
-                                    old_value: Some(rejected_cat.clone()),
+                                    old_value: {
+                                        let s: String = rejected_cat.clone();
+                                        let opt: Option<String> = Some(s);
+                                        opt
+                                    },
                                     new_value: None,
                                     matching_terms,
                                     category_id: Some(cat_id),
@@ -562,9 +613,13 @@ async fn process_single_article(
                     );
                 }
 
-                (analysis_with_rejections.into(), false)
+                    let llm_analysis_converted: DiscordianAnalysis = analysis_with_rejections.into();
+                    (llm_analysis_converted, false)
             }
-            Err(e) => {
+            Err(e) => { // Type should be inferred from analysis_result, but let's be safe if possible.
+                        // Actually, Rust doesn't allow explicit type on match binding like `Err(e: Error)`.
+                        // But we can cast it or shadow it.
+                let e: crate::ai_provider::AiProviderError = e;
                 warn!(
                     "[LLM] FAILED \"{}\" (ID: {}) after {:.2}s: {}",
                     truncate_str(&title, 50),
@@ -674,7 +729,7 @@ async fn process_single_article(
                     .iter()
                     .map(|kw| kw.name.clone())
                     .collect();
-                let network_categories =
+                let network_categories: Vec<(String, f64)> =
                     derive_categories_from_keywords(db.conn(), &keyword_names, 0.15, 2);
 
                 // Merge network categories with existing merged categories
@@ -682,16 +737,17 @@ async fn process_single_article(
                 let mut final_categories = merged_categories.clone();
                 let seen: std::collections::HashSet<String> = final_categories
                     .iter()
-                    .map(|c| c.to_lowercase())
+                    .map(|c: &String| c.to_lowercase())
                     .collect();
 
                 // Also extend stat_categories with network categories for source determination
                 let mut stat_cats_extended = stat_categories.clone();
                 for (cat_name, weight) in &network_categories {
-                    if !seen.contains(&cat_name.to_lowercase()) {
+                    let cat_lower: String = (*cat_name).to_lowercase();
+                    if !seen.contains(&cat_lower) {
                         final_categories.push(cat_name.clone());
                     }
-                    if !stat_cats_extended.iter().any(|(n, _)| n.to_lowercase() == cat_name.to_lowercase()) {
+                    if !stat_cats_extended.iter().any(|(n, _)| n.to_lowercase() == cat_lower) {
                         stat_cats_extended.push((cat_name.clone(), *weight));
                     }
                 }
@@ -722,259 +778,259 @@ pub async fn process_batch(
     model: String,
     limit: Option<i64>,
 ) -> Result<BatchResult, String> {
-    let locale = get_locale_from_db(&state);
 
-    // Get provider config
-    let provider_config = {
-        let db = state.db_conn()?;
-        get_provider_config(&db)
-    };
 
-    info!("Starting batch processing: frontend_model={}, limit={:?}", model, limit);
+    // Initialize Atomic counters
+    let processed_count = Arc::new(AtomicUsize::new(0));
+    let succeeded_count = Arc::new(AtomicUsize::new(0));
+    let failed_count = Arc::new(AtomicUsize::new(0));
 
-    // Load shared context ONCE before batch processing starts
-    let batch_context = {
-        let db = state.db_conn()?;
-        let bias_weights = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
-        let corpus_stats = match CorpusStats::load_from_db(db.conn()) {
-            Ok(stats) => Some(stats),
-            Err(e) => {
-                warn!("Failed to load corpus stats, using fallback TF-IDF: {}", e);
-                None
-            }
-        };
+    // 1. Fetch unprocessed articles
 
-        // Load custom discordian prompt from settings (if set)
-        let discordian_prompt: Option<String> = match db.conn().query_row(
-            "SELECT value FROM settings WHERE key = 'discordian_prompt'",
-            [],
-            |row| row.get(0),
-        ) {
-            Ok(prompt) => Some(prompt),
-            Err(rusqlite::Error::QueryReturnedNoRows) => None, // Expected when not set
-            Err(e) => {
-                warn!("Failed to load custom discordian prompt: {}", e);
-                None
-            }
-        };
+    let articles = {
+        let conn = state.db_conn().map_err(|e| e.to_string())?;
+        
+        let mut stmt = conn.conn().prepare(
+            r#"
+            SELECT 
+                f.id, 
+                f.title, 
+                COALESCE(f.content_full, '') as content,
+                f.published_at,
+                f.last_error,
+                COALESCE(f.analysis_attempts, 0) as attempts
+            FROM fnords f
+            WHERE f.analysis_model IS NULL 
+               AND f.content_full IS NOT NULL 
+               AND LENGTH(f.content_full) > 100
+            ORDER BY f.published_at DESC
+            LIMIT ?1
+            "#
+        ).map_err(|e| e.to_string())?;
 
-        BatchContext {
-            bias_weights,
-            corpus_stats,
-            discordian_prompt,
-        }
-    };
-
-    // Load provider config once for the batch
-    let (provider_for_batch, provider_model) = {
-        let db = state.db_conn()?;
-        create_text_provider(&db)
-    };
-
-    // Determine provider name for logging/events
-    let provider_name = provider_for_batch.provider_name().to_string();
-
-    // Override model from frontend parameter only for Ollama provider
-    // For OpenAI-compatible providers, always use the configured model (the frontend sends Ollama model names)
-    let effective_model = crate::ai_provider::resolve_effective_model(&provider_name, &model, &provider_model);
-
-    info!(
-        "[LLM] Batch using provider '{}' with model '{}' (frontend sent: '{}')",
-        provider_name,
-        effective_model,
-        model
-    );
-
-    let (articles, num_ctx): (Vec<BatchArticle>, u32) = {
-        let db = state.db_conn()?;
-        let num_ctx = get_num_ctx_setting(&db);
-
-        let query = match limit {
-            Some(n) => format!(
-                r#"SELECT id, title, content_full,
-                          DATE(COALESCE(published_at, fetched_at)) as article_date,
-                          COALESCE(analysis_attempts, 0) as attempts,
-                          analysis_error
-                   FROM fnords
-                   WHERE processed_at IS NULL
-                   AND content_full IS NOT NULL AND LENGTH(content_full) >= 100
-                   AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)
-                   ORDER BY published_at DESC
-                   LIMIT {}"#,
-                n
-            ),
-            None => r#"SELECT id, title, content_full,
-                          DATE(COALESCE(published_at, fetched_at)) as article_date,
-                          COALESCE(analysis_attempts, 0) as attempts,
-                          analysis_error
-                   FROM fnords
-                   WHERE processed_at IS NULL
-                   AND content_full IS NOT NULL AND LENGTH(content_full) >= 100
-                   AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)
-                   ORDER BY published_at DESC"#
-                .to_string(),
-        };
-
-        let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok(BatchArticle {
-                    fnord_id: row.get(0)?,
-                    title: row.get(1)?,
-                    content: row.get(2)?,
-                    article_date: row.get(3)?,
-                    attempts: row.get(4)?,
-                    previous_error: row.get(5)?,
-                })
+        let rows = stmt.query_map([limit], |row| {
+            Ok(BatchArticle {
+                fnord_id: row.get(0)?,
+                title: row.get(1)?,
+                content: row.get(2)?,
+                article_date: row.get(3)?,
+                previous_error: row.get(4)?,
+                attempts: row.get(5)?,
             })
-            .map_err(|e| e.to_string())?;
+        }).map_err(|e| e.to_string())?;
 
-        (rows.filter_map(|r| r.ok()).collect(), num_ctx)
+        let mut articles = Vec::new();
+        for article in rows {
+            articles.push(article.map_err(|e| e.to_string())?);
+        }
+        articles
     };
 
     let total = articles.len() as i64;
-
     if total == 0 {
-        info!("[LLM] Batch: No articles to process");
         return Ok(BatchResult {
             processed: 0,
             succeeded: 0,
             failed: 0,
-            provider: provider_name.clone(),
-            model: effective_model.clone(),
+            provider: "".to_string(),
+            model: model.clone(),
         });
     }
 
+    info!("[LLM] Found {} articles to process", total);
+    let batch_start_time = Instant::now();
+
+    // Reset cancel flag
     state.batch_cancel.store(false, Ordering::SeqCst);
     state.batch_running.store(true, Ordering::SeqCst);
 
-    // Provider-aware batch start logging
-    {
+    // Get provider and configure model
+    let (provider_config, effective_model) = {
+        let db = state.db_conn().map_err(|e| e.to_string())?;
+        let mut config = super::helpers::get_provider_config(&db);
+        
+        // Override model in config with the one passed from frontend
         use crate::ai_provider::ProviderType;
-        match provider_config.provider_type {
-            ProviderType::Ollama => {
-                info!(
-                    "[LLM] Batch starting: {} articles sequentially (provider: Ollama, model: {}, num_ctx: {})",
-                    total, effective_model, num_ctx
-                );
-            }
-            ProviderType::OpenAiCompatible => {
-                info!(
-                    "[LLM] Batch starting: {} articles sequentially (provider: OpenAI-compatible, model: {})",
-                    total, effective_model
-                );
-            }
+        match config.provider_type {
+            ProviderType::Ollama => config.ollama_model = model.clone(),
+            ProviderType::OpenAiCompatible => config.openai_model = model.clone(),
         }
-    }
-    let batch_start_time = Instant::now();
+        
+        (config, model.clone())
+    };
+    
+    // Needed for logic below
+    let _num_ctx = provider_config.ollama_num_ctx; 
+    let provider_name = format!("{:?}", provider_config.provider_type);
 
-    let _ = window.emit(
-        "batch-progress",
-        BatchProgress {
-            current: 0,
-            total,
-            fnord_id: 0,
-            title: "Starting batch...".to_string(),
-            success: true,
-            error: None,
-            provider: provider_name.clone(),
-            model: effective_model.clone(),
-        },
+
+    let provider_for_batch: Arc<dyn crate::ai_provider::AiTextProvider> = Arc::from(crate::ai_provider::create_provider(&provider_config));
+    let provider_config_for_retry = provider_config.clone();
+    let locale = get_locale_from_db(&state);
+
+    // Initialize batch context (keyword cache)
+    let batch_context = {
+        let conn = state.db_conn().map_err(|e| e.to_string())?;
+        // BatchContext is defined in this file, so no crate::... prefix needed if not public in module
+        // But if it was crate::commands::ai::analysis::BatchContext, the error said it's missing.
+        // It is defined at line 57 in this file.
+        BatchContext::new(conn.conn()).map_err(|e: rusqlite::Error| e.to_string())?
+    };
+
+    // Determine concurrency
+    let suggested = provider_for_batch.suggested_concurrency();
+    
+    // Get OpenAI concurrency setting from DB if applicable
+    let openai_concurrency_setting: usize = if suggested > 1 {
+        let db = state.db_conn().map_err(|e| e.to_string())?;
+        super::helpers::get_setting(&db, "openai_concurrency", "20")
+            .parse()
+            .unwrap_or(20)
+    } else {
+        1
+    };
+
+    // If provider suggests 1 (e.g. local Ollama), enforce 1.
+    // Otherwise (remote APIs), use the setting.
+    let active_concurrency = if suggested == 1 {
+        1
+    } else {
+        openai_concurrency_setting
+    };
+
+    info!(
+        "[LLM] Parallel processing enabled: concurrency={} (provider suggested={}, setting={})",
+        active_concurrency, suggested, openai_concurrency_setting
     );
 
     let batch_context = Arc::new(batch_context);
+    // provider_ref is not needed as we clone the Arc for the stream
+    
+    // Create a generated stream of futures
+    let results_stream = stream::iter(articles.into_iter().enumerate())
+        .map(|(idx, article)| {
+            let state = state.clone();
+            let batch_cancel = state.batch_cancel.clone();
+            let provider = provider_for_batch.clone(); // Clone Arc, not reference
+            let window = window.clone();
+            let effective_model = effective_model.clone();
+            let locale = locale.clone();
+            let batch_context = batch_context.clone();
+            let provider_config_for_retry = provider_config_for_retry.clone();
+            let provider_name = provider_name.clone();
+            
+            // Capture atomic counters
+            let processed_count = processed_count.clone();
+            let succeeded_count = succeeded_count.clone();
+            let failed_count = failed_count.clone();
 
-    // Read provider config for retry logic (only needed for Ollama retries with adjusted num_ctx)
-    let provider_config_for_retry = provider_config;
-
-    // Create embedding provider for article embedding generation
-    let embedding_provider: Arc<dyn EmbeddingProvider> = {
-        let db = state.db_conn()?;
-        super::helpers::create_embedding_provider_from_db(&db)
-    };
-
-    let mut succeeded: i64 = 0;
-    let mut failed: i64 = 0;
-    let mut successful_fnord_ids: Vec<i64> = Vec::new();
-
-    // Process articles sequentially
-    for (idx, article) in articles.into_iter().enumerate() {
-        if state.batch_cancel.load(Ordering::SeqCst) {
-            break;
-        }
-
-        let fnord_id = article.fnord_id;
-        let title = article.title.clone();
-
-        // For retries with adjusted context (ONLY for Ollama)
-        // OpenAI-compatible providers use the same provider for retries
-        let retry_provider: Option<Arc<dyn AiTextProvider>> = if article.attempts > 0 {
-            use crate::ai_provider::{ProviderType, create_provider};
-
-            match provider_config_for_retry.provider_type {
-                ProviderType::Ollama => {
-                    // Ollama: adjust num_ctx for retries
-                    let (ctx_multiplier, adjusted_num_ctx) = match article.attempts {
-                        1 => (1.5, ((num_ctx as f64) * 1.5) as u32),
-                        _ => (2.0, num_ctx * 2),
-                    };
-
-                    info!(
-                        "Retry {}/3 for article {} (Ollama): using {}x context (num_ctx={})",
-                        article.attempts + 1,
-                        fnord_id,
-                        ctx_multiplier,
-                        adjusted_num_ctx
-                    );
-
-                    let mut retry_config = provider_config_for_retry.clone();
-                    retry_config.ollama_num_ctx = adjusted_num_ctx;
-                    Some(create_provider(&retry_config))
+            async move {
+                if batch_cancel.load(Ordering::SeqCst) {
+                    return None;
                 }
-                ProviderType::OpenAiCompatible => {
-                    // OpenAI-compatible: use same provider (no num_ctx adjustment)
-                    info!(
-                        "Retry {}/3 for article {} (OpenAI-compatible): using same provider",
-                        article.attempts + 1,
-                        fnord_id
-                    );
+
+                let fnord_id = article.fnord_id;
+                let title = article.title.clone();
+                let attempts = article.attempts;
+
+                // For retries with adjusted context (ONLY for Ollama)
+                // OpenAI-compatible providers use the same provider for retries
+                let retry_provider: Option<Arc<dyn AiTextProvider>> = if attempts > 0 {
+                    use crate::ai_provider::{ProviderType, create_provider};
+
+                    match provider_config_for_retry.provider_type {
+                        ProviderType::Ollama => {
+                            // Ollama: adjust num_ctx for retries
+                            let db = state.db_conn().ok()?; // Handle DB error gracefully in async block
+                            let num_ctx_setting = get_num_ctx_setting(&db); // Re-fetch or pass in? passing in was cleaner but let's re-fetch safely
+                            // optimizing: pass num_ctx in closure? No, let's just use the one we computed earlier if we can pass it
+                            // Re-calculating context multiplier logic:
+                             let (ctx_multiplier, adjusted_num_ctx) = match attempts {
+                                1 => (1.5, ((num_ctx_setting as f64) * 1.5) as u32),
+                                _ => (2.0, num_ctx_setting * 2),
+                            };
+
+                            info!(
+                                "Retry {}/3 for article {} (Ollama): using {}x context (num_ctx={})",
+                                attempts + 1,
+                                fnord_id,
+                                ctx_multiplier,
+                                adjusted_num_ctx
+                            );
+
+                            let mut retry_config = provider_config_for_retry.clone();
+                            retry_config.ollama_num_ctx = adjusted_num_ctx;
+                            Some(create_provider(&retry_config))
+                        }
+                        ProviderType::OpenAiCompatible => {
+                             info!(
+                                "Retry {}/3 for article {} (OpenAI-compatible): using same provider",
+                                attempts + 1,
+                                fnord_id
+                            );
+                            None
+                        }
+                    }
+                } else {
                     None
+                };
+
+                let provider_ref: &dyn AiTextProvider = match &retry_provider {
+                    Some(p) => p.as_ref(),
+                    None => provider.as_ref(),
+                };let (success, error) =
+                    process_single_article(provider_ref, &state, &effective_model, &locale, article, &batch_context)
+                        .await;
+
+                // Emit progress immediately from the task
+                let _ = window.emit(
+                    "batch-progress",
+                    BatchProgress {
+                        current: (idx + 1) as i64,
+                        total,
+                        fnord_id,
+                        title: title.clone(),
+                        success,
+                        error: error.clone(),
+                        provider: provider_name.clone(),
+                        model: effective_model.clone(),
+                    },
+                );
+
+                // Update counters
+                processed_count.fetch_add(1, Ordering::Relaxed);
+                if success {
+                    succeeded_count.fetch_add(1, Ordering::Relaxed);
+                } else {
+                    failed_count.fetch_add(1, Ordering::Relaxed);
                 }
+                
+                
+                // Return result for collecting (optional, but good for debugging)
+                Some((fnord_id, success))
             }
-        } else {
-            None
-        };
+        })
+        .buffer_unordered(active_concurrency);
 
-        let provider: &dyn AiTextProvider = match &retry_provider {
-            Some(p) => p.as_ref(),
-            None => provider_for_batch.as_ref(),
-        };
+    // Drain the stream to execute futures and collect results
+    let results: Vec<_> = results_stream.collect().await;
+    
+    // Convert atomics for subsequent logic
+    let succeeded = succeeded_count.load(Ordering::Relaxed) as i64;
+    let failed = failed_count.load(Ordering::Relaxed) as i64;
 
-        let (success, error) =
-            process_single_article(provider, &state, &effective_model, &locale, article, &batch_context)
-                .await;
-
-        let _ = window.emit(
-            "batch-progress",
-            BatchProgress {
-                current: (idx + 1) as i64,
-                total,
-                fnord_id,
-                title: title.clone(),
-                success,
-                error: error.clone(),
-                provider: provider_name.clone(),
-                model: effective_model.clone(),
-            },
-        );
-
-        if success {
-            succeeded += 1;
-            successful_fnord_ids.push(fnord_id);
-        } else {
-            failed += 1;
-        }
-    }
+    // Create embedding provider
+    let embedding_provider = {
+        let db = state.db_conn().map_err(|e| e.to_string())?;
+        let config = get_embedding_provider_config(&db);
+        crate::ai_provider::create_embedding_provider(&config)
+    };
+    
+    // Collect successful IDs for embeddings
+    let successful_fnord_ids: Vec<i64> = results.into_iter()
+        .flatten()
+        .filter_map(|(id, success)| if success { Some(id) } else { None })
+        .collect();
 
     let batch_duration = batch_start_time.elapsed();
     let avg_time_per_article = if succeeded > 0 {
@@ -1115,20 +1171,24 @@ pub async fn process_batch(
     state.batch_running.store(false, Ordering::SeqCst);
 
     // Final batch summary
+    let processed_final = processed_count.load(Ordering::Relaxed) as i64;
+    let succeeded_final = succeeded_count.load(Ordering::Relaxed) as i64;
+    let failed_final = failed_count.load(Ordering::Relaxed) as i64;
+
     let total_duration = batch_start_time.elapsed();
     info!(
-        "[LLM] Batch COMPLETE: {} articles processed ({} succeeded, {} failed) in {:.1}s total",
-        total, succeeded, failed, total_duration.as_secs_f64()
+        "[LLM] Batch complete. Processed: {}/{}. Success: {}, Failed: {}. Time: {:.2}s",
+        processed_final, total, succeeded_final, failed_final, total_duration.as_secs_f64()
     );
 
-    // Trigger WAL checkpoint if we processed a significant number of articles
-    if succeeded >= 100 {
+    // Trigger WAL checkpoint if many changes were made
+    if succeeded_final >= 100 {
         if let Ok(db) = state.db.lock() {
             match db.conn().execute("PRAGMA wal_checkpoint(PASSIVE)", []) {
                 Ok(_) => {
                     info!(
                         "WAL checkpoint triggered after processing {} articles",
-                        succeeded
+                        succeeded_final
                     );
                 }
                 Err(e) => {
@@ -1139,11 +1199,11 @@ pub async fn process_batch(
     }
 
     Ok(BatchResult {
-        processed: total,
-        succeeded,
-        failed,
+        processed: processed_final,
+        succeeded: succeeded_final,
+        failed: failed_final,
         provider: provider_name,
-        model: effective_model,
+        model: model,
     })
 }
 

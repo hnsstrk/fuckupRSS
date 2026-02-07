@@ -1,6 +1,11 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
-  import { appState, toasts, type BatchProgress, type EmbeddingProgress } from "../stores/state.svelte";
+  import { _ } from "svelte-i18n";
+  import {
+    appState,
+    toasts,
+    type BatchProgress,
+    type EmbeddingProgress,
+  } from "../stores/state.svelte";
   import { onMount, onDestroy } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { invoke } from "@tauri-apps/api/core";
@@ -19,11 +24,22 @@
     erisianArchivesActive?: boolean;
   }
 
-  let { onsettings, onnetwork, onfnord, onmindfuck, onerisianArchives, settingsActive = false, networkActive = false, fnordActive = false, mindfuckActive = false, erisianArchivesActive = true }: Props = $props();
+  let {
+    onsettings,
+    onnetwork,
+    onfnord,
+    onmindfuck,
+    onerisianArchives,
+    settingsActive = false,
+    networkActive = false,
+    fnordActive = false,
+    mindfuckActive = false,
+    erisianArchivesActive = true,
+  }: Props = $props();
 
   let showAddForm = $state(false);
   let newFeedUrl = $state("");
-  let sidebarMode = $state<'pentacles' | 'sephiroth'>('pentacles');
+  let sidebarMode = $state<"pentacles" | "sephiroth">("pentacles");
   let searchInput = $state("");
   let expandedCategoryId = $state<number | null>(null);
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -31,6 +47,7 @@
   let unlistenArticlesReset: UnlistenFn | null = null;
   let unlistenEmbedding: UnlistenFn | null = null;
   let maintenanceInterval: ReturnType<typeof setInterval> | null = null;
+
 
   onMount(async () => {
     await appState.loadPentacles();
@@ -57,14 +74,20 @@
     });
 
     // Listen for embedding progress events
-    unlistenEmbedding = await listen<EmbeddingProgress>("embedding-progress", (event) => {
-      appState.updateEmbeddingProgress(event.payload);
-    });
+    unlistenEmbedding = await listen<EmbeddingProgress>(
+      "embedding-progress",
+      (event) => {
+        appState.updateEmbeddingProgress(event.payload);
+      },
+    );
 
     // Schedule periodic maintenance (every 60 minutes)
-    maintenanceInterval = setInterval(() => {
-      runBackgroundMaintenance();
-    }, 60 * 60 * 1000);
+    maintenanceInterval = setInterval(
+      () => {
+        runBackgroundMaintenance();
+      },
+      60 * 60 * 1000,
+    );
   });
 
   onDestroy(() => {
@@ -78,23 +101,30 @@
     const result = await appState.syncAllFeeds();
     if (result) {
       if (result.total_new > 0 || result.total_updated > 0) {
-        toasts.success($_('toast.syncSuccess', {
-          values: { newCount: result.total_new, updatedCount: result.total_updated }
-        }));
+        toasts.success(
+          $_("toast.syncSuccess", {
+            values: {
+              newCount: result.total_new,
+              updatedCount: result.total_updated,
+            },
+          }),
+        );
         runBackgroundMaintenance();
       } else {
-        toasts.info($_('toast.syncSuccessNoNew'));
+        toasts.info($_("toast.syncSuccessNoNew"));
       }
     } else if (appState.error) {
-      toasts.error($_('toast.syncError', { values: { error: appState.error }}));
+      toasts.error(
+        $_("toast.syncError", { values: { error: appState.error } }),
+      );
     }
   }
 
   async function runBackgroundMaintenance() {
     try {
-      await invoke('calculate_keyword_quality_scores', { limit: 500 });
+      await invoke("calculate_keyword_quality_scores", { limit: 500 });
     } catch (e) {
-      console.debug('Background maintenance skipped:', e);
+      console.debug("Background maintenance skipped:", e);
     }
   }
 
@@ -106,9 +136,11 @@
       showAddForm = false;
       await appState.addPentacle(url);
       if (appState.error) {
-        toasts.error($_('toast.feedError', { values: { error: appState.error }}));
+        toasts.error(
+          $_("toast.feedError", { values: { error: appState.error } }),
+        );
       } else {
-        toasts.success($_('toast.feedAdded'));
+        toasts.success($_("toast.feedAdded"));
       }
     }
   }
@@ -135,7 +167,7 @@
   async function handleDeletePentacle(id: number) {
     await appState.deletePentacle(id);
     if (!appState.error) {
-      toasts.success($_('toast.feedDeleted'));
+      toasts.success($_("toast.feedDeleted"));
     }
   }
 
@@ -143,11 +175,15 @@
     const result = await appState.startBatchProcessing();
 
     if (result) {
-      toasts.success($_('batch.complete', {
-        values: { succeeded: result.succeeded, failed: result.failed }
-      }));
+      toasts.success(
+        $_("batch.complete", {
+          values: { succeeded: result.succeeded, failed: result.failed },
+        }),
+      );
     } else if (appState.error) {
-      toasts.error($_('toast.analyzeError', { values: { error: appState.error }}));
+      toasts.error(
+        $_("toast.analyzeError", { values: { error: appState.error } }),
+      );
     }
   }
 
@@ -180,9 +216,9 @@
   }
 
   function handleSearchKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       handleClearSearch();
-    } else if (e.key === 'Enter') {
+    } else if (e.key === "Enter") {
       // Immediate search on Enter
       if (searchTimeout) {
         clearTimeout(searchTimeout);
@@ -200,14 +236,14 @@
     <div class="header-row">
       <h1 class="logo">
         <i class="logo-icon fa-solid fa-eye"></i>
-        {$_('app.title')}
+        {$_("app.title")}
       </h1>
       <!-- Sync -->
       <button
         onclick={handleSync}
         class="icon-btn {appState.syncing ? 'syncing' : ''}"
-        title={$_('actions.refresh')}
-        aria-label={$_('actions.refresh')}
+        title={$_("actions.refresh")}
+        aria-label={$_("actions.refresh")}
         disabled={appState.syncing}
       >
         <i class="icon fa-solid fa-rotate"></i>
@@ -216,19 +252,44 @@
     <p class="tagline">Immanentize the Eschaton</p>
     <!-- Navigation: Alle Feeds → Immanentize Network → Operation Mindfuck → Fnord-Statistiken → Einstellungen -->
     <div class="nav-bar">
-      <button onclick={handleSelectAll} class="nav-btn {erisianArchivesActive ? 'active' : ''}" title={$_('sidebar.allFeeds')} aria-label={$_('sidebar.allFeeds')}>
+      <button
+        onclick={handleSelectAll}
+        class="nav-btn {erisianArchivesActive ? 'active' : ''}"
+        title={$_("sidebar.allFeeds")}
+        aria-label={$_("sidebar.allFeeds")}
+      >
         <i class="icon fa-solid fa-newspaper"></i>
       </button>
-      <button onclick={onnetwork} class="nav-btn {networkActive ? 'active' : ''}" title={$_('network.title')} aria-label={$_('network.title')}>
+      <button
+        onclick={onnetwork}
+        class="nav-btn {networkActive ? 'active' : ''}"
+        title={$_("network.title")}
+        aria-label={$_("network.title")}
+      >
         <i class="icon fa-solid fa-circle-nodes"></i>
       </button>
-      <button onclick={onmindfuck} class="nav-btn {mindfuckActive ? 'active' : ''}" title={$_('mindfuck.title')} aria-label={$_('mindfuck.title')}>
+      <button
+        onclick={onmindfuck}
+        class="nav-btn {mindfuckActive ? 'active' : ''}"
+        title={$_("mindfuck.title")}
+        aria-label={$_("mindfuck.title")}
+      >
         <i class="icon fa-solid fa-brain"></i>
       </button>
-      <button onclick={onfnord} class="nav-btn {fnordActive ? 'active' : ''}" title={$_('fnordView.title')} aria-label={$_('fnordView.title')}>
+      <button
+        onclick={onfnord}
+        class="nav-btn {fnordActive ? 'active' : ''}"
+        title={$_("fnordView.title")}
+        aria-label={$_("fnordView.title")}
+      >
         <i class="icon fa-solid fa-clipboard-list"></i>
       </button>
-      <button onclick={onsettings} class="nav-btn {settingsActive ? 'active' : ''}" title={$_('settings.title')} aria-label={$_('settings.title')}>
+      <button
+        onclick={onsettings}
+        class="nav-btn {settingsActive ? 'active' : ''}"
+        title={$_("settings.title")}
+        aria-label={$_("settings.title")}
+      >
         <i class="icon fa-solid fa-gear"></i>
       </button>
     </div>
@@ -238,15 +299,15 @@
   <div class="mode-toggle">
     <button
       class="toggle-btn {sidebarMode === 'pentacles' ? 'active' : ''}"
-      onclick={() => sidebarMode = 'pentacles'}
+      onclick={() => (sidebarMode = "pentacles")}
     >
-      {$_('sidebar.title')}
+      {$_("sidebar.title")}
     </button>
     <button
       class="toggle-btn {sidebarMode === 'sephiroth' ? 'active' : ''}"
-      onclick={() => sidebarMode = 'sephiroth'}
+      onclick={() => (sidebarMode = "sephiroth")}
     >
-      {$_('sidebar.sephiroth')}
+      {$_("sidebar.sephiroth")}
     </button>
   </div>
 
@@ -259,43 +320,56 @@
         bind:value={searchInput}
         oninput={handleSearchInput}
         onkeydown={handleSearchKeydown}
-        placeholder={$_('search.placeholder')}
+        placeholder={$_("search.placeholder")}
         class="search-input"
         disabled={!appState.ollamaStatus.available}
       />
       {#if appState.searching}
         <i class="search-spinner fa-solid fa-rotate fa-spin"></i>
       {:else if searchInput}
-        <button class="search-clear" onclick={handleClearSearch} title={$_('search.clearSearch')}><i class="fa-solid fa-xmark"></i></button>
+        <button
+          class="search-clear"
+          onclick={handleClearSearch}
+          title={$_("search.clearSearch")}
+          ><i class="fa-solid fa-xmark"></i></button
+        >
       {/if}
     </div>
     {#if appState.searchResults.length > 0}
       <div class="search-result-count">
-        {$_('search.resultsCount', { values: { count: appState.searchResults.length } })}
+        {$_("search.resultsCount", {
+          values: { count: appState.searchResults.length },
+        })}
       </div>
     {/if}
   </div>
 
   <!-- Feed List -->
   <div class="feed-list">
-    {#if sidebarMode === 'pentacles'}
+    {#if sidebarMode === "pentacles"}
       <!-- All Articles -->
       <div
-        class="feed-item all-feeds {appState.selectedPentacleId === null && appState.selectedSephirothId === null ? 'active' : ''}"
+        class="feed-item all-feeds {appState.selectedPentacleId === null &&
+        appState.selectedSephirothId === null
+          ? 'active'
+          : ''}"
         onclick={handleSelectAll}
-        onkeydown={(e) => e.key === 'Enter' && handleSelectAll()}
+        onkeydown={(e) => e.key === "Enter" && handleSelectAll()}
         role="button"
         tabindex="0"
       >
-        <span class="feed-name">{$_('sidebar.allFeeds')}</span>
+        <span class="feed-name">{$_("sidebar.allFeeds")}</span>
       </div>
 
       <!-- Pentacles List -->
       {#each appState.pentacles as pentacle (pentacle.id)}
         <div
-          class="feed-item {appState.selectedPentacleId === pentacle.id ? 'active' : ''}"
+          class="feed-item {appState.selectedPentacleId === pentacle.id
+            ? 'active'
+            : ''}"
           onclick={() => handleSelectPentacle(pentacle.id)}
-          onkeydown={(e) => e.key === 'Enter' && handleSelectPentacle(pentacle.id)}
+          onkeydown={(e) =>
+            e.key === "Enter" && handleSelectPentacle(pentacle.id)}
           role="button"
           tabindex="0"
         >
@@ -303,39 +377,57 @@
           <div class="feed-actions">
             <button
               class="delete-btn"
-              onclick={(e) => { e.stopPropagation(); handleDeletePentacle(pentacle.id); }}
-              title={$_('actions.delete')}
-            ><i class="fa-solid fa-xmark"></i></button>
+              onclick={(e) => {
+                e.stopPropagation();
+                handleDeletePentacle(pentacle.id);
+              }}
+              title={$_("actions.delete")}
+              ><i class="fa-solid fa-xmark"></i></button
+            >
           </div>
         </div>
       {/each}
 
       {#if appState.pentacles.length === 0 && !appState.loading}
         <div class="empty-state">
-          {$_('articleList.noArticles')}<br />
-          {$_('sidebar.addFeed')}
+          {$_("articleList.noArticles")}<br />
+          {$_("sidebar.addFeed")}
         </div>
       {/if}
     {:else}
       <!-- Sephiroth (Categories) List - Main categories (level 0) with expandable subcategories -->
-      {#each appState.sephiroth.filter(c => c.level === 0) as category (category.id)}
-        {@const subcategories = appState.sephiroth.filter(c => c.parent_id === category.id)}
-        {@const subcategoryCount = subcategories.reduce((sum, c) => sum + c.article_count, 0)}
+      {#each appState.sephiroth.filter((c) => c.level === 0) as category (category.id)}
+        {@const subcategories = appState.sephiroth.filter(
+          (c) => c.parent_id === category.id,
+        )}
+        {@const subcategoryCount = subcategories.reduce(
+          (sum, c) => sum + c.article_count,
+          0,
+        )}
         {@const isExpanded = expandedCategoryId === category.id}
         <div class="sephiroth-group category-{category.id}">
           <div class="sephiroth-header">
             <button
               class="expand-btn"
-              onclick={() => expandedCategoryId = isExpanded ? null : category.id}
+              onclick={() =>
+                (expandedCategoryId = isExpanded ? null : category.id)}
               aria-expanded={isExpanded}
-              aria-label={isExpanded ? 'Collapse' : 'Expand'}
+              aria-label={isExpanded ? "Collapse" : "Expand"}
             >
-              <i class="fa-solid fa-chevron-right expand-chevron {isExpanded ? 'rotated' : ''}"></i>
+              <i
+                class="fa-solid fa-chevron-right expand-chevron {isExpanded
+                  ? 'rotated'
+                  : ''}"
+              ></i>
             </button>
             <div
-              class="feed-item sephiroth-item {appState.selectedSephirothId === category.id ? 'active' : ''}"
+              class="feed-item sephiroth-item {appState.selectedSephirothId ===
+              category.id
+                ? 'active'
+                : ''}"
               onclick={() => handleSelectSephiroth(category.id)}
-              onkeydown={(e) => e.key === 'Enter' && handleSelectSephiroth(category.id)}
+              onkeydown={(e) =>
+                e.key === "Enter" && handleSelectSephiroth(category.id)}
               role="button"
               tabindex="0"
             >
@@ -354,9 +446,13 @@
             <div class="subcategory-list">
               {#each subcategories as sub (sub.id)}
                 <div
-                  class="feed-item subcategory-item {appState.selectedSephirothId === sub.id ? 'active' : ''}"
+                  class="feed-item subcategory-item {appState.selectedSephirothId ===
+                  sub.id
+                    ? 'active'
+                    : ''}"
                   onclick={() => handleSelectSephiroth(sub.id)}
-                  onkeydown={(e) => e.key === 'Enter' && handleSelectSephiroth(sub.id)}
+                  onkeydown={(e) =>
+                    e.key === "Enter" && handleSelectSephiroth(sub.id)}
                   role="button"
                   tabindex="0"
                 >
@@ -367,7 +463,8 @@
                     {sub.name}
                   </span>
                   {#if sub.article_count > 0}
-                    <span class="category-count small">{sub.article_count}</span>
+                    <span class="category-count small">{sub.article_count}</span
+                    >
                   {/if}
                 </div>
               {/each}
@@ -385,69 +482,110 @@
         <input
           type="url"
           bind:value={newFeedUrl}
-          placeholder={$_('sidebar.addFeedPlaceholder')}
+          placeholder={$_("sidebar.addFeedPlaceholder")}
           class="add-input"
         />
         <div class="add-buttons">
-          <button type="submit" class="btn-primary">{$_('sidebar.addFeed')}</button>
-          <button type="button" class="btn-secondary" onclick={() => (showAddForm = false)}>
-            {$_('settings.cancel')}
+          <button type="submit" class="btn-primary"
+            >{$_("sidebar.addFeed")}</button
+          >
+          <button
+            type="button"
+            class="btn-secondary"
+            onclick={() => (showAddForm = false)}
+          >
+            {$_("settings.cancel")}
           </button>
         </div>
       </form>
     {:else}
       <button onclick={() => (showAddForm = true)} class="btn-add">
-        + {$_('sidebar.addFeed')}
+        + {$_("sidebar.addFeed")}
       </button>
     {/if}
   </div>
 
   <!-- Batch Processing -->
   <div class="batch-section">
-    {#if appState.batchProcessing}
-      <button onclick={handleCancelBatch} class="btn-batch processing" title={$_('batch.cancel')}>
-        {$_('batch.title')}
-        <i class="cancel-icon fa-solid fa-xmark"></i>
-      </button>
-    {:else if appState.hasAnyMissingModel}
-      <button
-        class="btn-batch model-missing"
-        disabled
-        title={$_('batch.modelMissing', { values: { model: appState.missingMainModel || appState.missingEmbeddingModel || '' } })}
-      >
-        <i class="fa-solid fa-triangle-exclamation"></i>
-        {$_('batch.title')}
-      </button>
-    {:else if appState.ollamaStatus.available}
-      <button
-        onclick={handleBatchProcessing}
-        class="btn-batch"
-        disabled={appState.batchProcessing || appState.unprocessedCount.with_content === 0}
-      >
-        {$_('batch.title')}
-        {#if appState.unprocessedCount.with_content > 0}
-          <span class="unprocessed-badge">{appState.unprocessedCount.with_content}</span>
-        {/if}
-      </button>
-    {:else}
-      <button class="btn-batch" disabled title={$_('batch.noOllama')}>
-        {$_('batch.title')}
-      </button>
-    {/if}
+    <!-- Concurrency Selector (only for OpenAI) -->
+    <!-- We don't strictly check for OpenAI here since appState doesn't expose provider type directly yet, 
+         but we show it generally and backend will enforce restrictions for Ollama -->
+    <div class="batch-controls">
+      {#if !appState.batchProcessing && appState.unprocessedCount.with_content > 0}
+        <label
+      {#if appState.batchProcessing}
+        <button
+          onclick={handleCancelBatch}
+          class="btn-batch processing"
+          title={$_("batch.cancel")}
+        >
+          {$_("batch.title")}
+          <i class="cancel-icon fa-solid fa-xmark"></i>
+        </button>
+      {:else if appState.hasAnyMissingModel}
+        <button
+          class="btn-batch model-missing"
+          disabled
+          title={$_("batch.modelMissing", {
+            values: {
+              model:
+                appState.missingMainModel ||
+                appState.missingEmbeddingModel ||
+                "",
+            },
+          })}
+        >
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          {$_("batch.title")}
+        </button>
+      {:else if appState.ollamaStatus.available}
+        <button
+          onclick={handleBatchProcessing}
+          class="btn-batch"
+          disabled={appState.batchProcessing ||
+            appState.unprocessedCount.with_content === 0}
+        >
+          {$_("batch.title")}
+          {#if appState.unprocessedCount.with_content > 0}
+            <span class="unprocessed-badge"
+              >{appState.unprocessedCount.with_content}</span
+            >
+          {/if}
+        </button>
+      {:else}
+        <button class="btn-batch" disabled title={$_("batch.noOllama")}>
+          {$_("batch.title")}
+        </button>
+      {/if}
+    </div>
   </div>
 
   <!-- Stats -->
   <div class="stats">
     <div class="stat-row">
-      <span><i class="stat-icon fa-solid fa-eye-slash concealed"></i> <Tooltip termKey="concealed">{$_('terminology.concealed.term')}</Tooltip></span>
+      <span
+        ><i class="stat-icon fa-solid fa-eye-slash concealed"></i>
+        <Tooltip termKey="concealed">{$_("terminology.concealed.term")}</Tooltip
+        ></span
+      >
       <span>{appState.totalUnread}</span>
     </div>
     <div class="stat-row">
-      <span><i class="stat-icon fa-solid fa-check illuminated"></i> <Tooltip termKey="illuminated">{$_('terminology.illuminated.term')}</Tooltip></span>
+      <span
+        ><i class="stat-icon fa-solid fa-check illuminated"></i>
+        <Tooltip termKey="illuminated"
+          >{$_("terminology.illuminated.term")}</Tooltip
+        ></span
+      >
       <span>{appState.totalIlluminated}</span>
     </div>
     <div class="stat-row">
-      <span><i class="stat-icon fa-solid fa-apple-whole golden"></i> <Tooltip termKey="golden_apple">{$_('terminology.golden_apple.term')}</Tooltip></span>
+      <span
+        ><i class="stat-icon fa-solid fa-apple-whole golden"></i>
+        <Tooltip termKey="golden_apple"
+          >{$_("terminology.golden_apple.term")}</Tooltip
+        ></span
+      >
       <span>{appState.totalGoldenApple}</span>
     </div>
   </div>
@@ -564,8 +702,12 @@
   }
 
   @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .tagline {
@@ -603,6 +745,35 @@
     white-space: nowrap;
   }
 
+  .batch-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .concurrency-label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    background-color: var(--bg-surface-2);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-default);
+  }
+
+  .concurrency-select {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+    padding: 0;
+  }
+
   .all-feeds {
     border-bottom: 1px solid var(--border-default);
     margin-bottom: 0.25rem;
@@ -626,7 +797,9 @@
     border: none;
     cursor: pointer;
     font-size: 1rem;
-    transition: opacity 0.2s, color 0.2s;
+    transition:
+      opacity 0.2s,
+      color 0.2s;
   }
 
   .feed-item:hover .delete-btn {
@@ -709,12 +882,24 @@
   }
 
   /* Category-specific colors from theme CSS variables */
-  .sephiroth-group.category-1 { --category-color: var(--category-1); }
-  .sephiroth-group.category-2 { --category-color: var(--category-2); }
-  .sephiroth-group.category-3 { --category-color: var(--category-3); }
-  .sephiroth-group.category-4 { --category-color: var(--category-4); }
-  .sephiroth-group.category-5 { --category-color: var(--category-5); }
-  .sephiroth-group.category-6 { --category-color: var(--category-6); }
+  .sephiroth-group.category-1 {
+    --category-color: var(--category-1);
+  }
+  .sephiroth-group.category-2 {
+    --category-color: var(--category-2);
+  }
+  .sephiroth-group.category-3 {
+    --category-color: var(--category-3);
+  }
+  .sephiroth-group.category-4 {
+    --category-color: var(--category-4);
+  }
+  .sephiroth-group.category-5 {
+    --category-color: var(--category-5);
+  }
+  .sephiroth-group.category-6 {
+    --category-color: var(--category-6);
+  }
 
   .sephiroth-header {
     display: flex;
@@ -762,7 +947,8 @@
   .subcategory-item {
     font-size: 0.75rem;
     padding: 0.375rem 0.5rem;
-    border-left: 2px solid color-mix(in srgb, var(--category-color) 40%, transparent);
+    border-left: 2px solid
+      color-mix(in srgb, var(--category-color) 40%, transparent);
     margin-left: 0.5rem;
   }
 
@@ -827,7 +1013,9 @@
     gap: 0.5rem;
   }
 
-  .btn-primary, .btn-secondary, .btn-add {
+  .btn-primary,
+  .btn-secondary,
+  .btn-add {
     flex: 1;
     padding: 0.375rem 0.75rem;
     border-radius: 0.375rem;
@@ -884,9 +1072,15 @@
     text-align: center;
   }
 
-  .stat-icon.concealed { color: var(--fnord-color); }
-  .stat-icon.illuminated { color: var(--illuminated-color); }
-  .stat-icon.golden { color: var(--golden-apple-color); }
+  .stat-icon.concealed {
+    color: var(--fnord-color);
+  }
+  .stat-icon.illuminated {
+    color: var(--illuminated-color);
+  }
+  .stat-icon.golden {
+    color: var(--golden-apple-color);
+  }
 
   /* Batch Processing */
   .batch-section {
@@ -946,8 +1140,13 @@
   }
 
   @keyframes pulse-border {
-    0%, 100% { opacity: 0.7; }
-    50% { opacity: 1; }
+    0%,
+    100% {
+      opacity: 0.7;
+    }
+    50% {
+      opacity: 1;
+    }
   }
 
   .unprocessed-badge {

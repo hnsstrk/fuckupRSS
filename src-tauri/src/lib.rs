@@ -37,7 +37,7 @@ use tauri_plugin_log::{Target, TargetKind};
 
 pub struct AppState {
     pub db: Arc<Mutex<Database>>,
-    pub batch_cancel: AtomicBool,
+    pub batch_cancel: Arc<AtomicBool>,
     pub batch_running: Arc<AtomicBool>,
     pub embedding_worker: Arc<EmbeddingWorker>,
 }
@@ -111,7 +111,7 @@ pub fn run() {
 
             app.manage(AppState {
                 db,
-                batch_cancel: AtomicBool::new(false),
+                batch_cancel: Arc::new(AtomicBool::new(false)),
                 batch_running,
                 embedding_worker,
             });

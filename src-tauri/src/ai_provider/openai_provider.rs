@@ -447,6 +447,13 @@ impl AiTextProvider for OpenAiCompatibleProvider {
     fn provider_name(&self) -> &str {
         "OpenAI-compatible"
     }
+
+    fn suggested_concurrency(&self) -> usize {
+        // Tier 2+ allows 500+ RPM for small models.
+        // 20 concurrent requests is a safe high-performance default.
+        // The provider handles 429s with backoff if this is too high for a specific key.
+        20
+    }
 }
 
 #[cfg(test)]

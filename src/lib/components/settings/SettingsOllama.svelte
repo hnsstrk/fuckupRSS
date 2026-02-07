@@ -39,6 +39,7 @@
   let openaiModelPreset = $state<string>("gpt-5-nano");
   let openaiModelDropdownOpen = $state(false);
   let openaiTemperature = $state("auto");
+  let openaiConcurrency = $state(20);
   let costLimit = $state(5.0);
   let monthlyCost = $state<{
     spent: number;
@@ -164,6 +165,11 @@
     });
     if (savedTemperature) openaiTemperature = savedTemperature;
 
+    const savedConcurrency = await invoke<string | null>("get_setting", {
+      key: "openai_concurrency",
+    });
+    if (savedConcurrency) openaiConcurrency = parseInt(savedConcurrency) || 20;
+
     const savedCostLimit = await invoke<string | null>("get_setting", {
       key: "cost_limit_monthly",
     });
@@ -273,6 +279,10 @@
     await invoke("set_setting", {
       key: "openai_temperature",
       value: openaiTemperature,
+    });
+    await invoke("set_setting", {
+      key: "openai_concurrency",
+      value: openaiConcurrency.toString(),
     });
   }
 
@@ -1410,6 +1420,16 @@
     color: var(--text-primary);
   }
 
+  .sub-field-group {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .sub-field-half {
+    flex: 1;
+  }
+
   .api-key-row {
     display: flex;
     gap: 0.375rem;
@@ -1433,6 +1453,25 @@
   .btn-toggle-key:hover {
     color: var(--text-primary);
     border-color: var(--accent-primary);
+  }
+
+  /* Concurrency Setting */
+  .range-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .range-input {
+    flex: 1;
+    accent-color: var(--accent-primary);
+  }
+
+  .range-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    min-width: 2ch;
+    text-align: right;
   }
 
   /* Cost tracking */

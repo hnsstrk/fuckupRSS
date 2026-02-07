@@ -48,7 +48,7 @@ pub fn get_ollama_url(db: &Database) -> String {
 }
 
 /// Get a string setting from database with a default
-fn get_setting(db: &Database, key: &str, default: &str) -> String {
+pub fn get_setting(db: &Database, key: &str, default: &str) -> String {
     db.conn()
         .query_row(
             "SELECT value FROM settings WHERE key = ?1",

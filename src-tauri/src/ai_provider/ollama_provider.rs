@@ -89,6 +89,10 @@ impl AiTextProvider for OllamaTextProvider {
     fn provider_name(&self) -> &str {
         "Ollama"
     }
+
+    fn suggested_concurrency(&self) -> usize {
+        1
+    }
 }
 
 /// Ollama-based embedding provider
