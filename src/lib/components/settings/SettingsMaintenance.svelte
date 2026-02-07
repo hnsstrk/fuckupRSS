@@ -371,7 +371,6 @@
       const batchResult = await invoke<BatchResult>("process_batch", {
         model,
         limit: null,
-        concurrency: null,
       });
 
       _reanalyzeResult = batchResult;

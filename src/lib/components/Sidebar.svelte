@@ -507,57 +507,50 @@
 
   <!-- Batch Processing -->
   <div class="batch-section">
-    <!-- Concurrency Selector (only for OpenAI) -->
-    <!-- We don't strictly check for OpenAI here since appState doesn't expose provider type directly yet, 
-         but we show it generally and backend will enforce restrictions for Ollama -->
-    <div class="batch-controls">
-      {#if !appState.batchProcessing && appState.unprocessedCount.with_content > 0}
-        <label
-      {#if appState.batchProcessing}
-        <button
-          onclick={handleCancelBatch}
-          class="btn-batch processing"
-          title={$_("batch.cancel")}
-        >
-          {$_("batch.title")}
-          <i class="cancel-icon fa-solid fa-xmark"></i>
-        </button>
-      {:else if appState.hasAnyMissingModel}
-        <button
-          class="btn-batch model-missing"
-          disabled
-          title={$_("batch.modelMissing", {
-            values: {
-              model:
-                appState.missingMainModel ||
-                appState.missingEmbeddingModel ||
-                "",
-            },
-          })}
-        >
-          <i class="fa-solid fa-triangle-exclamation"></i>
-          {$_("batch.title")}
-        </button>
-      {:else if appState.ollamaStatus.available}
-        <button
-          onclick={handleBatchProcessing}
-          class="btn-batch"
-          disabled={appState.batchProcessing ||
-            appState.unprocessedCount.with_content === 0}
-        >
-          {$_("batch.title")}
-          {#if appState.unprocessedCount.with_content > 0}
-            <span class="unprocessed-badge"
-              >{appState.unprocessedCount.with_content}</span
-            >
-          {/if}
-        </button>
-      {:else}
-        <button class="btn-batch" disabled title={$_("batch.noOllama")}>
-          {$_("batch.title")}
-        </button>
-      {/if}
-    </div>
+    {#if appState.batchProcessing}
+      <button
+        onclick={handleCancelBatch}
+        class="btn-batch processing"
+        title={$_("batch.cancel")}
+      >
+        {$_("batch.title")}
+        <i class="cancel-icon fa-solid fa-xmark"></i>
+      </button>
+    {:else if appState.hasAnyMissingModel}
+      <button
+        class="btn-batch model-missing"
+        disabled
+        title={$_("batch.modelMissing", {
+          values: {
+            model:
+              appState.missingMainModel ||
+              appState.missingEmbeddingModel ||
+              "",
+          },
+        })}
+      >
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        {$_("batch.title")}
+      </button>
+    {:else if appState.ollamaStatus.available}
+      <button
+        onclick={handleBatchProcessing}
+        class="btn-batch"
+        disabled={appState.batchProcessing ||
+          appState.unprocessedCount.with_content === 0}
+      >
+        {$_("batch.title")}
+        {#if appState.unprocessedCount.with_content > 0}
+          <span class="unprocessed-badge"
+            >{appState.unprocessedCount.with_content}</span
+          >
+        {/if}
+      </button>
+    {:else}
+      <button class="btn-batch" disabled title={$_("batch.noOllama")}>
+        {$_("batch.title")}
+      </button>
+    {/if}
   </div>
 
   <!-- Stats -->
@@ -743,35 +736,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .batch-controls {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-  }
-
-  .concurrency-label {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    background-color: var(--bg-surface-2);
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.375rem;
-    border: 1px solid var(--border-default);
-  }
-
-  .concurrency-select {
-    background: none;
-    border: none;
-    color: var(--text-primary);
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    outline: none;
-    padding: 0;
   }
 
   .all-feeds {
