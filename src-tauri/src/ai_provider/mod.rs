@@ -57,6 +57,8 @@ pub struct ProviderConfig {
     pub openai_api_key: String,
     /// Model name for OpenAI-compatible provider
     pub openai_model: String,
+    /// Temperature for OpenAI-compatible provider (None = use API default)
+    pub openai_temperature: Option<f32>,
 }
 
 /// Errors from AI providers
@@ -134,6 +136,7 @@ pub fn create_provider(config: &ProviderConfig) -> Arc<dyn AiTextProvider> {
         ProviderType::OpenAiCompatible => Arc::new(openai_provider::OpenAiCompatibleProvider::new(
             &config.openai_base_url,
             &config.openai_api_key,
+            config.openai_temperature,
         )),
     }
 }
@@ -225,6 +228,7 @@ mod tests {
             openai_base_url: "https://api.openai.com".to_string(),
             openai_api_key: "".to_string(),
             openai_model: "gpt-5-nano".to_string(),
+            openai_temperature: None,
         };
 
         assert_eq!(config.provider_type, ProviderType::Ollama);
@@ -242,12 +246,14 @@ mod tests {
             openai_base_url: "https://api.together.xyz".to_string(),
             openai_api_key: "sk-test-key".to_string(),
             openai_model: "meta-llama/Llama-3-70b".to_string(),
+            openai_temperature: Some(0.7),
         };
 
         let cloned = config.clone();
         assert_eq!(cloned.provider_type, ProviderType::OpenAiCompatible);
         assert_eq!(cloned.openai_api_key, "sk-test-key");
         assert_eq!(cloned.openai_base_url, "https://api.together.xyz");
+        assert_eq!(cloned.openai_temperature, Some(0.7));
     }
 
     // ============================================================
@@ -264,6 +270,7 @@ mod tests {
             openai_base_url: String::new(),
             openai_api_key: String::new(),
             openai_model: String::new(),
+            openai_temperature: None,
         };
 
         let provider = create_provider(&config);
@@ -280,6 +287,7 @@ mod tests {
             openai_base_url: "https://api.openai.com".to_string(),
             openai_api_key: "sk-test".to_string(),
             openai_model: "gpt-5-nano".to_string(),
+            openai_temperature: None,
         };
 
         let provider = create_provider(&config);

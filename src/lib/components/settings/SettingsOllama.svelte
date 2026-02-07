@@ -22,6 +22,7 @@
   ];
   let openaiModelPreset = $state<string>("gpt-5-nano");
   let openaiModelDropdownOpen = $state(false);
+  let openaiTemperature = $state("auto");
   let costLimit = $state(5.0);
   let monthlyCost = $state<{
     spent: number;
@@ -133,6 +134,11 @@
       openaiModelPreset = matchingPreset ? savedOpenaiModel : "custom";
     }
 
+    const savedTemperature = await invoke<string | null>("get_setting", {
+      key: "openai_temperature",
+    });
+    if (savedTemperature) openaiTemperature = savedTemperature;
+
     const savedCostLimit = await invoke<string | null>("get_setting", {
       key: "cost_limit_monthly",
     });
@@ -225,6 +231,10 @@
     });
     await invoke("set_setting", { key: "openai_api_key", value: openaiApiKey });
     await invoke("set_setting", { key: "openai_model", value: openaiModel });
+    await invoke("set_setting", {
+      key: "openai_temperature",
+      value: openaiTemperature,
+    });
   }
 
   async function handleOpenaiModelPresetChange(preset: string) {
@@ -930,6 +940,28 @@
       {/if}
       <p class="setting-description">
         {$_("settings.ollama.openaiModelDescription")}
+      </p>
+    </div>
+
+    <!-- Temperature Setting -->
+    <div class="sub-field">
+      <span class="sub-label">{$_("settings.ollama.openaiTemperature")}</span>
+      <div class="temperature-row">
+        <select
+          class="text-input temperature-select"
+          bind:value={openaiTemperature}
+          onchange={saveOpenaiSettings}
+        >
+          <option value="auto">{$_("settings.ollama.openaiTemperatureAuto")}</option>
+          <option value="0">0 ({$_("settings.ollama.openaiTemperatureDeterministic")})</option>
+          <option value="0.3">0.3</option>
+          <option value="0.5">0.5</option>
+          <option value="0.7">0.7</option>
+          <option value="1.0">1.0 ({$_("settings.ollama.openaiTemperatureDefault")})</option>
+        </select>
+      </div>
+      <p class="setting-description">
+        {$_("settings.ollama.openaiTemperatureDescription")}
       </p>
     </div>
 
@@ -1783,6 +1815,10 @@
 
   .custom-model-input {
     margin-top: 0.5rem;
+  }
+
+  .temperature-select {
+    max-width: 280px;
   }
 
   /* Embedding Note */

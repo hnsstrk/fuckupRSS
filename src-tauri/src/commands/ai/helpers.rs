@@ -54,6 +54,16 @@ fn get_setting(db: &Database, key: &str, default: &str) -> String {
         .unwrap_or_else(|_| default.to_string())
 }
 
+/// Parse the openai_temperature setting from DB.
+/// Returns None if the value is empty, "auto", or not a valid float.
+fn parse_openai_temperature(db: &Database) -> Option<f32> {
+    let val = get_setting(db, "openai_temperature", "");
+    if val.is_empty() || val.eq_ignore_ascii_case("auto") {
+        return None;
+    }
+    val.parse::<f32>().ok()
+}
+
 /// Get provider config from database settings
 pub fn get_provider_config(db: &Database) -> ProviderConfig {
     let provider_type_str = get_setting(db, "ai_text_provider", "ollama");
@@ -67,6 +77,7 @@ pub fn get_provider_config(db: &Database) -> ProviderConfig {
         openai_base_url: get_setting(db, "openai_base_url", "https://api.openai.com"),
         openai_api_key: get_setting(db, "openai_api_key", ""),
         openai_model: get_setting(db, "openai_model", DEFAULT_OPENAI_MODEL),
+        openai_temperature: parse_openai_temperature(db),
     }
 }
 
@@ -94,6 +105,7 @@ pub fn create_text_provider(db: &Database) -> (Arc<dyn AiTextProvider>, String) 
         openai_base_url: get_setting(db, "openai_base_url", "https://api.openai.com"),
         openai_api_key: get_setting(db, "openai_api_key", ""),
         openai_model: get_setting(db, "openai_model", DEFAULT_OPENAI_MODEL),
+        openai_temperature: parse_openai_temperature(db),
     };
 
     let model = match provider_type {

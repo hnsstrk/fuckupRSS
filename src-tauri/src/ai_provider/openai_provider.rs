@@ -15,6 +15,7 @@ pub struct OpenAiCompatibleProvider {
     base_url: String,
     api_key: String,
     client: reqwest_new::Client,
+    temperature: Option<f32>,
 }
 
 #[derive(Serialize)]
@@ -79,7 +80,7 @@ struct ApiError {
 }
 
 impl OpenAiCompatibleProvider {
-    pub fn new(base_url: &str, api_key: &str) -> Self {
+    pub fn new(base_url: &str, api_key: &str, temperature: Option<f32>) -> Self {
         // Normalize base URL: remove trailing slash
         let base_url = base_url.trim_end_matches('/').to_string();
         let client = reqwest_new::Client::builder()
@@ -90,6 +91,7 @@ impl OpenAiCompatibleProvider {
             base_url,
             api_key: api_key.to_string(),
             client,
+            temperature,
         }
     }
 
@@ -140,7 +142,7 @@ impl AiTextProvider for OpenAiCompatibleProvider {
                 None
             },
             max_completion_tokens: Some(4096),
-            temperature: Some(0.3),
+            temperature: self.temperature,
         };
 
         let prompt_len = prompt.len();

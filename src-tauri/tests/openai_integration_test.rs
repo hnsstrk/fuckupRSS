@@ -150,6 +150,7 @@ async fn test_openai_discordian_analysis_5_articles() {
         openai_base_url: base_url.clone(),
         openai_api_key: api_key.clone(),
         openai_model: model.clone(),
+        openai_temperature: None,
     };
     let provider = create_provider(&config);
 
