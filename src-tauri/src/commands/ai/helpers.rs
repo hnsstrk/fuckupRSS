@@ -1830,4 +1830,605 @@ mod tests {
         assert_ne!(detect_keyword_type("Dry Cleaning"), "person");
         assert_ne!(detect_keyword_type("Mental Health"), "person");
     }
+
+    // ========================================
+    // MERGE_KEYWORDS TESTS
+    // ========================================
+
+    #[test]
+    fn test_merge_keywords_deduplication_case_insensitive() {
+        let llm = vec!["Rust".to_string(), "Python".to_string()];
+        let local = vec!["rust".to_string(), "Java".to_string()];
+        let result = merge_keywords(&llm, local, 10);
+        // "rust" from local should be deduped against "Rust" from LLM
+        assert_eq!(result, vec!["Rust", "Python", "Java"]);
+    }
+
+    #[test]
+    fn test_merge_keywords_llm_first_then_local() {
+        let llm = vec!["Alpha".to_string(), "Beta".to_string()];
+        let local = vec!["Gamma".to_string(), "Delta".to_string()];
+        let result = merge_keywords(&llm, local, 10);
+        assert_eq!(result, vec!["Alpha", "Beta", "Gamma", "Delta"]);
+    }
+
+    #[test]
+    fn test_merge_keywords_max_count_truncation() {
+        let llm = vec!["A1".to_string(), "B2".to_string(), "C3".to_string()];
+        let local = vec!["D4".to_string(), "E5".to_string()];
+        let result = merge_keywords(&llm, local, 3);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result, vec!["A1", "B2", "C3"]);
+    }
+
+    #[test]
+    fn test_merge_keywords_empty_inputs() {
+        let empty: Vec<String> = vec![];
+        // Both empty
+        assert!(merge_keywords(&empty, vec![], 10).is_empty());
+        // Only LLM
+        let llm = vec!["Rust".to_string()];
+        assert_eq!(merge_keywords(&llm, vec![], 10), vec!["Rust"]);
+        // Only local
+        let local = vec!["Java".to_string()];
+        assert_eq!(merge_keywords(&empty, local, 10), vec!["Java"]);
+    }
+
+    #[test]
+    fn test_merge_keywords_excludes_single_char() {
+        let llm = vec!["A".to_string(), "Rust".to_string()];
+        let local = vec!["B".to_string(), "Go".to_string()];
+        let result = merge_keywords(&llm, local, 10);
+        // Single-char "A" and "B" should be excluded (min 2 chars)
+        assert_eq!(result, vec!["Rust", "Go"]);
+    }
+
+    #[test]
+    fn test_merge_keywords_excludes_empty_strings() {
+        let llm = vec!["".to_string(), "Rust".to_string()];
+        let local = vec!["Go".to_string()];
+        let result = merge_keywords(&llm, local, 10);
+        assert_eq!(result, vec!["Rust", "Go"]);
+    }
+
+    // ========================================
+    // VALIDATE_AND_MERGE_CATEGORIES TESTS
+    // ========================================
+
+    #[test]
+    fn test_validate_and_merge_categories_valid_llm() {
+        let llm = vec!["Politik".to_string(), "Wirtschaft".to_string()];
+        let local = vec!["Sport".to_string()];
+        let result = validate_and_merge_categories(&llm, local);
+        // LLM categories are valid SEPHIROTH, so they come first
+        assert_eq!(result[0], "Politik");
+        assert_eq!(result[1], "Wirtschaft");
+        // Local supplements
+        assert_eq!(result[2], "Sport");
+    }
+
+    #[test]
+    fn test_validate_and_merge_categories_invalid_llm_filtered() {
+        let llm = vec!["InvalidCategory".to_string(), "Politik".to_string()];
+        let local = vec!["Sport".to_string()];
+        let result = validate_and_merge_categories(&llm, local);
+        // "InvalidCategory" should be filtered out
+        assert!(result.contains(&"Politik".to_string()));
+        assert!(!result.contains(&"InvalidCategory".to_string()));
+    }
+
+    #[test]
+    fn test_validate_and_merge_categories_fallback_to_local() {
+        let llm = vec!["NotACategory".to_string(), "AlsoInvalid".to_string()];
+        let local = vec!["Technik".to_string(), "Kultur".to_string()];
+        let result = validate_and_merge_categories(&llm, local);
+        // All LLM invalid, falls back to local
+        assert_eq!(result, vec!["Technik", "Kultur"]);
+    }
+
+    #[test]
+    fn test_validate_and_merge_categories_max_5() {
+        let llm = vec![
+            "Politik".to_string(),
+            "Wirtschaft".to_string(),
+            "Technik".to_string(),
+        ];
+        let local = vec![
+            "Sport".to_string(),
+            "Kultur".to_string(),
+            "Umwelt".to_string(),
+            "Recht".to_string(),
+        ];
+        let result = validate_and_merge_categories(&llm, local);
+        assert!(result.len() <= 5);
+    }
+
+    #[test]
+    fn test_validate_and_merge_categories_dedup() {
+        let llm = vec!["Politik".to_string(), "Wirtschaft".to_string()];
+        let local = vec!["politik".to_string(), "Sport".to_string()];
+        let result = validate_and_merge_categories(&llm, local);
+        // "politik" should be deduped against "Politik" (case-insensitive)
+        let politik_count = result.iter().filter(|c| c.to_lowercase() == "politik").count();
+        assert_eq!(politik_count, 1);
+    }
+
+    #[test]
+    fn test_validate_and_merge_categories_case_insensitive_validation() {
+        // SEPHIROTH has "Politik" - test that "politik" (lowercase) is also accepted
+        let llm = vec!["politik".to_string()];
+        let local = vec![];
+        let result = validate_and_merge_categories(&llm, local);
+        assert_eq!(result, vec!["politik"]);
+    }
+
+    // ========================================
+    // MERGE_CATEGORIES_STAT_PRIMARY TESTS
+    // ========================================
+
+    #[test]
+    fn test_merge_categories_stat_primary_stat_first() {
+        let stat = vec![("Politik".to_string(), 0.8), ("Wirtschaft".to_string(), 0.7)];
+        let llm = vec!["Technik".to_string()];
+        let local = vec!["Sport".to_string()];
+        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        // Statistical categories should be first
+        assert_eq!(result[0], "Politik");
+        assert_eq!(result[1], "Wirtschaft");
+    }
+
+    #[test]
+    fn test_merge_categories_stat_primary_min_confidence_filtering() {
+        let stat = vec![
+            ("Politik".to_string(), 0.8),
+            ("Wirtschaft".to_string(), 0.3), // Below min_confidence
+        ];
+        let llm = vec!["Technik".to_string()];
+        let local = vec![];
+        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        assert!(result.contains(&"Politik".to_string()));
+        assert!(!result.contains(&"Wirtschaft".to_string())); // Filtered out
+        assert!(result.contains(&"Technik".to_string()));
+    }
+
+    #[test]
+    fn test_merge_categories_stat_primary_llm_supplements() {
+        let stat = vec![("Politik".to_string(), 0.9)];
+        let llm = vec!["Wirtschaft".to_string(), "Technik".to_string()];
+        let local = vec![];
+        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "Politik"); // Stat first
+        assert!(result.contains(&"Wirtschaft".to_string()));
+        assert!(result.contains(&"Technik".to_string()));
+    }
+
+    #[test]
+    fn test_merge_categories_stat_primary_local_fallback() {
+        let stat: Vec<(String, f64)> = vec![];
+        let llm: Vec<String> = vec![];
+        let local = vec!["Sport".to_string(), "Kultur".to_string()];
+        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        assert_eq!(result, vec!["Sport", "Kultur"]);
+    }
+
+    #[test]
+    fn test_merge_categories_stat_primary_max_5() {
+        let stat = vec![
+            ("Politik".to_string(), 0.9),
+            ("Wirtschaft".to_string(), 0.8),
+            ("Technik".to_string(), 0.7),
+        ];
+        let llm = vec!["Sport".to_string(), "Kultur".to_string()];
+        let local = vec!["Umwelt".to_string(), "Recht".to_string()];
+        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        assert!(result.len() <= 5);
+    }
+
+    #[test]
+    fn test_merge_categories_stat_primary_validates_against_sephiroth() {
+        let stat = vec![("InvalidCat".to_string(), 0.9)];
+        let llm = vec!["AlsoInvalid".to_string()];
+        let local = vec!["Sport".to_string()];
+        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        // Invalid stat and LLM categories should not appear
+        assert!(!result.contains(&"InvalidCat".to_string()));
+        assert!(!result.contains(&"AlsoInvalid".to_string()));
+        // Local is used as fallback (not validated against SEPHIROTH in this function)
+        assert!(result.contains(&"Sport".to_string()));
+    }
+
+    #[test]
+    fn test_merge_categories_stat_primary_dedup_across_sources() {
+        let stat = vec![("Politik".to_string(), 0.9)];
+        let llm = vec!["Politik".to_string(), "Wirtschaft".to_string()];
+        let local = vec!["politik".to_string()];
+        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        let politik_count = result.iter().filter(|c| c.to_lowercase() == "politik").count();
+        assert_eq!(politik_count, 1);
+    }
+
+    // ========================================
+    // DETERMINE_KEYWORD_SOURCES TESTS
+    // ========================================
+
+    #[test]
+    fn test_determine_keyword_sources_statistical() {
+        use crate::keywords::types::KeywordSource;
+        let final_kw = vec!["Rust".to_string(), "Python".to_string()];
+        let stat_kw = vec!["Rust".to_string()];
+        let result = determine_keyword_sources(&final_kw, &stat_kw);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].name, "Rust");
+        assert!(matches!(result[0].source, KeywordSource::Statistical));
+        assert_eq!(result[0].confidence, 0.8);
+    }
+
+    #[test]
+    fn test_determine_keyword_sources_ai() {
+        use crate::keywords::types::KeywordSource;
+        let final_kw = vec!["Rust".to_string(), "Python".to_string()];
+        let stat_kw = vec!["Rust".to_string()];
+        let result = determine_keyword_sources(&final_kw, &stat_kw);
+        assert_eq!(result[1].name, "Python");
+        assert!(matches!(result[1].source, KeywordSource::Ai));
+        assert_eq!(result[1].confidence, 1.0);
+    }
+
+    #[test]
+    fn test_determine_keyword_sources_case_insensitive() {
+        use crate::keywords::types::KeywordSource;
+        let final_kw = vec!["RUST".to_string()];
+        let stat_kw = vec!["rust".to_string()];
+        let result = determine_keyword_sources(&final_kw, &stat_kw);
+        assert_eq!(result[0].name, "RUST"); // Preserves original case
+        assert!(matches!(result[0].source, KeywordSource::Statistical));
+    }
+
+    #[test]
+    fn test_determine_keyword_sources_empty() {
+        let final_kw: Vec<String> = vec![];
+        let stat_kw: Vec<String> = vec![];
+        let result = determine_keyword_sources(&final_kw, &stat_kw);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_determine_keyword_sources_all_statistical() {
+        use crate::keywords::types::KeywordSource;
+        let final_kw = vec!["Alpha".to_string(), "Beta".to_string()];
+        let stat_kw = vec!["Alpha".to_string(), "Beta".to_string()];
+        let result = determine_keyword_sources(&final_kw, &stat_kw);
+        assert!(result.iter().all(|k| matches!(k.source, KeywordSource::Statistical)));
+    }
+
+    #[test]
+    fn test_determine_keyword_sources_none_statistical() {
+        use crate::keywords::types::KeywordSource;
+        let final_kw = vec!["Alpha".to_string(), "Beta".to_string()];
+        let stat_kw: Vec<String> = vec![];
+        let result = determine_keyword_sources(&final_kw, &stat_kw);
+        assert!(result.iter().all(|k| matches!(k.source, KeywordSource::Ai)));
+    }
+
+    // ========================================
+    // DETERMINE_CATEGORY_SOURCES TESTS
+    // ========================================
+
+    #[test]
+    fn test_determine_category_sources_statistical() {
+        let final_cats = vec!["Politik".to_string(), "Wirtschaft".to_string()];
+        let stat_cats = vec![("Politik".to_string(), 0.85)];
+        let result = determine_category_sources(&final_cats, &stat_cats);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].name, "Politik");
+        assert_eq!(result[0].source, "statistical");
+        assert_eq!(result[0].confidence, 0.85);
+    }
+
+    #[test]
+    fn test_determine_category_sources_ai() {
+        let final_cats = vec!["Wirtschaft".to_string()];
+        let stat_cats: Vec<(String, f64)> = vec![];
+        let result = determine_category_sources(&final_cats, &stat_cats);
+        assert_eq!(result[0].name, "Wirtschaft");
+        assert_eq!(result[0].source, "ai");
+        assert_eq!(result[0].confidence, 1.0);
+    }
+
+    #[test]
+    fn test_determine_category_sources_case_insensitive() {
+        let final_cats = vec!["POLITIK".to_string()];
+        let stat_cats = vec![("politik".to_string(), 0.9)];
+        let result = determine_category_sources(&final_cats, &stat_cats);
+        assert_eq!(result[0].name, "POLITIK"); // Preserves original case
+        assert_eq!(result[0].source, "statistical");
+        assert_eq!(result[0].confidence, 0.9);
+    }
+
+    #[test]
+    fn test_determine_category_sources_mixed() {
+        let final_cats = vec![
+            "Politik".to_string(),
+            "Wirtschaft".to_string(),
+            "Technik".to_string(),
+        ];
+        let stat_cats = vec![
+            ("Politik".to_string(), 0.8),
+            ("Technik".to_string(), 0.6),
+        ];
+        let result = determine_category_sources(&final_cats, &stat_cats);
+        assert_eq!(result[0].source, "statistical"); // Politik
+        assert_eq!(result[1].source, "ai"); // Wirtschaft
+        assert_eq!(result[2].source, "statistical"); // Technik
+    }
+
+    #[test]
+    fn test_determine_category_sources_empty() {
+        let final_cats: Vec<String> = vec![];
+        let stat_cats: Vec<(String, f64)> = vec![];
+        let result = determine_category_sources(&final_cats, &stat_cats);
+        assert!(result.is_empty());
+    }
+
+    // ========================================
+    // COMPUTE_CONTENT_HASH TESTS
+    // ========================================
+
+    #[test]
+    fn test_compute_content_hash_deterministic() {
+        let hash1 = compute_content_hash("Title", "Content body here");
+        let hash2 = compute_content_hash("Title", "Content body here");
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_content_hash_different_inputs_different_hashes() {
+        let hash1 = compute_content_hash("Title A", "Content A");
+        let hash2 = compute_content_hash("Title B", "Content B");
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_content_hash_different_title_different_hash() {
+        let hash1 = compute_content_hash("Title A", "Same content");
+        let hash2 = compute_content_hash("Title B", "Same content");
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_content_hash_different_content_different_hash() {
+        let hash1 = compute_content_hash("Same title", "Content A");
+        let hash2 = compute_content_hash("Same title", "Content B");
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_compute_content_hash_short_content_not_affected_by_truncation() {
+        let short = "Short content";
+        let hash1 = compute_content_hash("Title", short);
+        // Same content should produce same hash regardless of truncation
+        let hash2 = compute_content_hash("Title", short);
+        assert_eq!(hash1, hash2);
+        // Verify the hash is a valid hex string
+        assert!(hash1.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_compute_content_hash_long_content_truncated() {
+        // Create content longer than 6000 chars
+        let long_content: String = "A".repeat(10000);
+        let truncated_content: String = "A".repeat(6000);
+        let hash_long = compute_content_hash("Title", &long_content);
+        let hash_truncated = compute_content_hash("Title", &truncated_content);
+        // Both should produce the same hash since truncation happens at 6000 chars
+        assert_eq!(hash_long, hash_truncated);
+    }
+
+    #[test]
+    fn test_compute_content_hash_extra_chars_beyond_6000_ignored() {
+        let base: String = "X".repeat(6000);
+        let extended = format!("{}extra content here", base);
+        let hash_base = compute_content_hash("Title", &base);
+        let hash_extended = compute_content_hash("Title", &extended);
+        assert_eq!(hash_base, hash_extended);
+    }
+
+    #[test]
+    fn test_compute_content_hash_returns_hex_string() {
+        let hash = compute_content_hash("Test", "Content");
+        // SHA-256 hex string is 64 chars
+        assert_eq!(hash.len(), 64);
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    // ========================================
+    // GET_MODEL_PRICING TESTS
+    // ========================================
+
+    #[test]
+    fn test_get_model_pricing_known_models() {
+        assert_eq!(get_model_pricing("gpt-5-nano"), (0.05, 0.40));
+        assert_eq!(get_model_pricing("gpt-5-mini"), (0.25, 2.00));
+        assert_eq!(get_model_pricing("gpt-5"), (1.25, 10.00));
+        assert_eq!(get_model_pricing("gpt-4.1-nano"), (0.10, 0.40));
+        assert_eq!(get_model_pricing("gpt-4.1-mini"), (0.40, 1.60));
+        assert_eq!(get_model_pricing("gpt-4.1"), (2.00, 8.00));
+        assert_eq!(get_model_pricing("gpt-4o-mini"), (0.15, 0.60));
+        assert_eq!(get_model_pricing("gpt-4o"), (2.50, 10.00));
+    }
+
+    #[test]
+    fn test_get_model_pricing_with_suffix() {
+        // Model names with version suffixes should still match via starts_with
+        assert_eq!(get_model_pricing("gpt-5-nano-2025-01-01"), (0.05, 0.40));
+        assert_eq!(get_model_pricing("gpt-4o-mini-latest"), (0.15, 0.60));
+    }
+
+    #[test]
+    fn test_get_model_pricing_unknown_model_returns_default() {
+        let (input, output) = get_model_pricing("unknown-model");
+        assert_eq!(input, 0.50);
+        assert_eq!(output, 2.00);
+    }
+
+    #[test]
+    fn test_get_model_pricing_ollama_returns_default() {
+        // Ollama models should get conservative defaults
+        let (input, output) = get_model_pricing("ministral-3:latest");
+        assert_eq!(input, 0.50);
+        assert_eq!(output, 2.00);
+    }
+
+    // ========================================
+    // TRUNCATE_STR_HELPER TESTS
+    // ========================================
+
+    #[test]
+    fn test_truncate_str_helper_short_string() {
+        assert_eq!(truncate_str_helper("hello", 10), "hello");
+    }
+
+    #[test]
+    fn test_truncate_str_helper_exact_length() {
+        assert_eq!(truncate_str_helper("hello", 5), "hello");
+    }
+
+    #[test]
+    fn test_truncate_str_helper_truncates() {
+        assert_eq!(truncate_str_helper("hello world", 5), "hello");
+    }
+
+    #[test]
+    fn test_truncate_str_helper_respects_utf8_boundaries() {
+        // 'ä' is 2 bytes in UTF-8, so truncating at byte 1 should give empty
+        let s = "ä";
+        assert_eq!(s.len(), 2);
+        let result = truncate_str_helper(s, 1);
+        // Should not panic, should back up to char boundary
+        assert!(result.is_empty() || result.len() <= 1);
+    }
+
+    #[test]
+    fn test_truncate_str_helper_multibyte_chars() {
+        // "Müller" - 'ü' is 2 bytes
+        let s = "Müller";
+        let result = truncate_str_helper(s, 3);
+        // Should truncate at a valid char boundary
+        assert!(result.len() <= 3);
+        assert!(result.is_char_boundary(result.len()));
+    }
+
+    // ========================================
+    // LOG_GENERATION_COST TESTS
+    // ========================================
+
+    /// Helper: create an in-memory SQLite DB with the ai_cost_log table
+    fn create_test_db() -> rusqlite::Connection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            r#"
+            CREATE TABLE ai_cost_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                model TEXT NOT NULL,
+                input_tokens INTEGER NOT NULL DEFAULT 0,
+                output_tokens INTEGER NOT NULL DEFAULT 0,
+                estimated_cost_usd REAL NOT NULL DEFAULT 0.0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            "#,
+        )
+        .unwrap();
+        conn
+    }
+
+    #[test]
+    fn test_log_generation_cost_with_tokens() {
+        let conn = create_test_db();
+        let usage = TokenUsage {
+            input_tokens: Some(1000),
+            output_tokens: Some(500),
+        };
+        log_generation_cost(&conn, "openai_compatible", "gpt-5-nano", &usage);
+
+        // Verify a row was inserted
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM ai_cost_log", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+
+        // Verify the values
+        let (provider, model, input_tok, output_tok, cost): (String, String, i64, i64, f64) = conn
+            .query_row(
+                "SELECT provider, model, input_tokens, output_tokens, estimated_cost_usd FROM ai_cost_log",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .unwrap();
+        assert_eq!(provider, "openai_compatible");
+        assert_eq!(model, "gpt-5-nano");
+        assert_eq!(input_tok, 1000);
+        assert_eq!(output_tok, 500);
+        // gpt-5-nano: $0.05/1M input + $0.40/1M output
+        // cost = 1000 * 0.05 / 1_000_000 + 500 * 0.40 / 1_000_000
+        //      = 0.00005 + 0.0002 = 0.00025
+        assert!((cost - 0.00025).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_log_generation_cost_no_tokens_no_log() {
+        let conn = create_test_db();
+        // Ollama-style: no token counts
+        let usage = TokenUsage {
+            input_tokens: None,
+            output_tokens: None,
+        };
+        log_generation_cost(&conn, "ollama", "ministral-3:latest", &usage);
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM ai_cost_log", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0); // Nothing logged
+    }
+
+    #[test]
+    fn test_log_generation_cost_partial_tokens_no_log() {
+        let conn = create_test_db();
+        // Only input tokens available, output missing
+        let usage = TokenUsage {
+            input_tokens: Some(1000),
+            output_tokens: None,
+        };
+        log_generation_cost(&conn, "openai_compatible", "gpt-5-nano", &usage);
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM ai_cost_log", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0); // Nothing logged - both must be present
+    }
+
+    #[test]
+    fn test_log_generation_cost_zero_tokens() {
+        let conn = create_test_db();
+        let usage = TokenUsage {
+            input_tokens: Some(0),
+            output_tokens: Some(0),
+        };
+        log_generation_cost(&conn, "openai_compatible", "gpt-5-nano", &usage);
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM ai_cost_log", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1); // Should still log (both tokens present)
+
+        let cost: f64 = conn
+            .query_row(
+                "SELECT estimated_cost_usd FROM ai_cost_log",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(cost, 0.0);
+    }
 }
