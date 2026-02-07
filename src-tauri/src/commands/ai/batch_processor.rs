@@ -849,15 +849,23 @@ pub async fn process_batch(
     let (provider_config, effective_model) = {
         let db = state.db_conn().map_err(|e| e.to_string())?;
         let mut config = super::helpers::get_provider_config(&db);
-        
-        // Override model in config with the one passed from frontend
-        use crate::ai_provider::ProviderType;
-        match config.provider_type {
-            ProviderType::Ollama => config.ollama_model = model.clone(),
-            ProviderType::OpenAiCompatible => config.openai_model = model.clone(),
+
+        // Only override Ollama model from frontend; OpenAI uses its configured model
+        if matches!(config.provider_type, crate::ai_provider::ProviderType::Ollama) {
+            config.ollama_model = model.clone();
         }
-        
-        (config, model.clone())
+
+        let config_model = match config.provider_type {
+            crate::ai_provider::ProviderType::Ollama => config.ollama_model.clone(),
+            crate::ai_provider::ProviderType::OpenAiCompatible => config.openai_model.clone(),
+        };
+        let effective = crate::ai_provider::resolve_effective_model(
+            &format!("{:?}", config.provider_type),
+            &model,
+            &config_model,
+        );
+
+        (config, effective)
     };
     
     // Needed for logic below
