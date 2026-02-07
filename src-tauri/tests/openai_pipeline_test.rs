@@ -699,8 +699,7 @@ async fn test_openai_no_truncation() {
         });
         panic!(
             "Response was likely TRUNCATED (finish_reason: length). \
-             This means max_completion_tokens ({}) is too low for this article.",
-            16384
+             This means max_completion_tokens is too low for this article."
         );
     });
 
