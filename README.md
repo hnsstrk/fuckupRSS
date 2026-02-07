@@ -169,59 +169,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart ollama
 ```
 
-### 4. Optimale Hardware-Konfiguration (Parallelisierung)
-
-Um die Leistung von High-End Hardware (wie RTX 3080 Ti oder MacBook Pro M4) zu nutzen, unterstützt fuckupRSS parallele KI-Analysen. Damit dies funktioniert, muss Ollama entsprechend konfiguriert werden.
-
-**Wichtig:** Der Wert für `OLLAMA_NUM_PARALLEL` muss mindestens dem in der App gewählten Profil entsprechen (z.B. Profil "Desktop (4x)" -> `OLLAMA_NUM_PARALLEL=4`).
-
-#### Linux Desktop (z.B. NVIDIA RTX 3080 Ti)
-
-Hier wird Ollama als systemd-Service konfiguriert:
-
-```bash
-sudo systemctl edit ollama.service
-```
-
-Füge im `[Service]`-Block folgende Zeilen hinzu:
-
-```ini
-[Service]
-# Erlaubt das Laden von Main- und Embedding-Modell gleichzeitig
-Environment="OLLAMA_MAX_LOADED_MODELS=2"
-
-# Hält Modelle 24h im VRAM (vermeidet Neuladen)
-Environment="OLLAMA_KEEP_ALIVE=24h"
-
-# Erlaubt 4 gleichzeitige Anfragen (für RTX 3080 Ti / 12GB VRAM)
-Environment="OLLAMA_NUM_PARALLEL=4"
-```
-
-Einstellungen übernehmen:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart ollama
-```
-
-#### Apple Silicon (z.B. MacBook Pro M4)
-
-Für macOS (Ollama.app) müssen Umgebungsvariablen anders gesetzt werden:
-
-1. Beende Ollama (Icon in der Menüleiste -> Quit).
-2. Öffne ein Terminal und setze die Variablen permanent via `launchctl`:
-
-```bash
-launchctl setenv OLLAMA_MAX_LOADED_MODELS 2
-launchctl setenv OLLAMA_KEEP_ALIVE 24h
-# M4 Pro/Max Chips haben Unified Memory und können oft mehr parallel verarbeiten
-launchctl setenv OLLAMA_NUM_PARALLEL 8 
-```
-
-3. Starte Ollama neu.
-
-**Hinweis:** Die App steuert, wie viele Anfragen *gesendet* werden. Diese Konfiguration steuert, wie viele Ollama *gleichzeitig verarbeitet*. Wenn Ollama auf 1 steht, bringt das App-Profil "8x" nichts (Warteschlange).
-
-### 5. fuckupRSS installieren
+### 4. fuckupRSS installieren
 
 **Aus Releases (empfohlen):**
 ```bash

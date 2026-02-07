@@ -263,7 +263,7 @@ Always respond with valid JSON matching the exact schema specified in the user m
 
 ### Performance:
 - Erhoehtes `max_completion_tokens` (1024 → 4096): Kein Geschwindigkeitsverlust, aber zuverlaessigere Ergebnisse
-- Parallele Verarbeitung (bis zu 50 fuer OpenAI): Schnellere Batch-Verarbeitung
+- Sequentielle Verarbeitung mit exponentiellem Backoff bei Rate-Limiting
 
 ### Zuverlaessigkeit:
 - Korrektes Default-Modell: 57 Artikel (404-Fehler) sofort behebbar

@@ -178,17 +178,10 @@ struct HardwareProfile {
     id: String,
     name: String,
     description: String,
-    ai_parallelism: usize,  // Parallel articles in batch processing
 }
 ```
 
-### Predefined Profiles
-
-| Profile | ai_parallelism | Description |
-|---------|----------------|-------------|
-| Standard | 1 | Safe for all systems |
-| Moderate | 4 | Good compromise |
-| High Performance | 8 | For high-end hardware |
+**Note:** Articles are processed sequentially (one at a time). Hardware profiles are retained for future use but no longer control parallelism.
 
 ---
 

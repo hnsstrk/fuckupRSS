@@ -459,21 +459,15 @@ Key-value store for application settings. Einstellungen werden in der SQLite-Dat
 
 ### `hardware_profiles` - Performance Profiles
 
-Predefined hardware configurations for batch processing.
+Hardware configurations for batch processing.
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | TEXT | Profile ID (unique) |
 | `name` | TEXT | Profile name |
 | `description` | TEXT | Profile description |
-| `ai_parallelism` | INTEGER | Parallel processing count |
 
-**Predefined profiles:**
-| Profile | ai_parallelism | Use Case |
-|---------|----------------|----------|
-| Standard | 1 | Safe for all systems |
-| Moderat | 4 | Good compromise |
-| Hohe Leistung | 8 | High-end hardware |
+**Note:** The `ai_parallelism` column is deprecated and no longer used. Articles are processed sequentially.
 
 ---
 

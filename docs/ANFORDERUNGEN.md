@@ -178,7 +178,7 @@ Für eine vollständige Übersicht aller Dokumente: **[README.md](README.md)**
 
 | Priorität | Thema | Beschreibung |
 |-----------|-------|--------------|
-| Mittel | Hardware-Profile | Vordefinierte Presets für 8GB/16GB+ |
+| Mittel | Hardware-Dokumentation | Konfigurationsrichtlinien aktualisieren |
 | Niedrig | Test-Coverage | E2E-Tests für KI-Features erweitern |
 | Niedrig | Clustering | Batch-Optimierung evaluieren |
 

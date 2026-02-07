@@ -28,7 +28,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md) | KI-Pipeline, Greyface Alert, Prompt-Design, Keyword-Extraktion |
 | [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md) | Datenbank-Tabellen, Revisionsverwaltung, Settings |
 | [docs/guides/TESTING.md](docs/guides/TESTING.md) | Test-Befehle, Patterns, Anforderungen |
-| [docs/guides/HARDWARE_OPTIMIZATION.md](docs/guides/HARDWARE_OPTIMIZATION.md) | Hardware-Profile, VRAM-Optimierung, Ollama-Konfiguration |
+| [docs/guides/HARDWARE_OPTIMIZATION.md](docs/guides/HARDWARE_OPTIMIZATION.md) | VRAM-Optimierung, Ollama-Konfiguration |
 | [README.md](README.md) | Technology Stack, Illuminatus! Terminologie, Ollama Setup |
 
 ## Project Overview
