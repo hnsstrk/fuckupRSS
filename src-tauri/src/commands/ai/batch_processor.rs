@@ -809,7 +809,7 @@ pub async fn process_batch(
             "#
         ).map_err(|e| e.to_string())?;
 
-        let rows = stmt.query_map([limit], |row| {
+        let rows = stmt.query_map([limit.unwrap_or(-1)], |row| {
             Ok(BatchArticle {
                 fnord_id: row.get(0)?,
                 title: row.get(1)?,
