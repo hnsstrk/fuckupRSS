@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
   import type { ArticleCategoryDetailed, Sephiroth, CorrectionInput } from '$lib/types';
@@ -179,6 +180,30 @@
     }
     showDropdown = !showDropdown;
   }
+
+  // Refresh categories from backend when batch processing completes
+  async function handleBatchComplete() {
+    // Don't refresh while user is editing to avoid overwriting their changes
+    if (editing) return;
+
+    try {
+      const freshCategories = await invoke<ArticleCategoryDetailed[]>(
+        'get_article_categories_detailed',
+        { fnordId }
+      );
+      onUpdate(freshCategories);
+    } catch {
+      // Ignore errors during background refresh
+    }
+  }
+
+  onMount(() => {
+    window.addEventListener('batch-complete', handleBatchComplete);
+  });
+
+  onDestroy(() => {
+    window.removeEventListener('batch-complete', handleBatchComplete);
+  });
 </script>
 
 <svelte:window onclick={handleClickOutside} />

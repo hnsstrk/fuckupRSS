@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
   import { SvelteSet } from 'svelte/reactivity';
@@ -104,6 +105,21 @@
   // Verification state - map from "keywordA|keywordB" to verification result
   let verificationResults = $state<Map<string, SynonymVerificationResult>>(new Map());
   let verifyingPairs = new SvelteSet<string>();
+
+  // Invalidate cached data when keywords change (e.g. after batch processing or merges)
+  function handleKeywordsChanged() {
+    trueSynonymCandidates = [];
+    compoundPreview = null;
+    verificationResults = new Map();
+  }
+
+  onMount(() => {
+    window.addEventListener('keywords-changed', handleKeywordsChanged);
+  });
+
+  onDestroy(() => {
+    window.removeEventListener('keywords-changed', handleKeywordsChanged);
+  });
 
   // Get verification key for a pair
   function getVerificationKey(nameA: string, nameB: string): string {

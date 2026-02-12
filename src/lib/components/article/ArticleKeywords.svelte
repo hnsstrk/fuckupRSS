@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
   import type { ArticleKeyword, KeywordType, ExtractionMethod, CorrectionInput } from '$lib/types';
@@ -354,6 +355,25 @@
     if (suggestedKeywords.length > 0 && semanticScores.size === 0) {
       loadSemanticScores();
     }
+  });
+
+  // Refresh suggestions when keyword network changes (e.g. batch processing, manual edits)
+  function handleKeywordsChanged() {
+    if (!editing) return;
+    // Clear cached data so load functions will re-fetch
+    suggestedKeywords = [];
+    similarKeywords = [];
+    semanticScores = new Map();
+    loadSuggestions();
+    loadSimilarFromNetwork();
+  }
+
+  onMount(() => {
+    window.addEventListener('keywords-changed', handleKeywordsChanged);
+  });
+
+  onDestroy(() => {
+    window.removeEventListener('keywords-changed', handleKeywordsChanged);
   });
 
   // Add an existing keyword by ID (for similar keywords from network)

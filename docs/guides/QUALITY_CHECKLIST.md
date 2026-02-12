@@ -133,6 +133,9 @@ onDestroy(() => {
 | KeywordTable | Ja | Ja |
 | CompoundKeywordManager | Ja | Ja |
 | ArticleView | Ja | - |
+| ArticleCategories | Ja | - |
+| ArticleKeywords | - | Ja |
+| KeywordNetworkSynonyms | - | Ja |
 
 ### Memory Leak Indikatoren
 
