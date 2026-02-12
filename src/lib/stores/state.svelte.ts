@@ -824,6 +824,7 @@ class AppState {
 
       // Notify components that batch processing is complete (for refreshing similar articles etc.)
       window.dispatchEvent(new CustomEvent('batch-complete'));
+      window.dispatchEvent(new CustomEvent('keywords-changed'));
 
       return result;
     } catch (e) {

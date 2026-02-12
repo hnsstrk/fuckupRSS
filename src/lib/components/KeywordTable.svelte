@@ -1,6 +1,6 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import type { Keyword, KeywordType } from '../types';
   import KeywordContextTooltip from './KeywordContextTooltip.svelte';
@@ -216,9 +216,26 @@
     }
   }
 
+  async function handleBatchComplete() {
+    await loadKeywords(true);
+    await loadUntypedCount();
+  }
+
+  async function handleKeywordsChanged() {
+    await loadKeywords(true);
+    await loadUntypedCount();
+  }
+
   onMount(() => {
+    window.addEventListener('batch-complete', handleBatchComplete);
+    window.addEventListener('keywords-changed', handleKeywordsChanged);
     loadKeywords(true);
     loadUntypedCount();
+  });
+
+  onDestroy(() => {
+    window.removeEventListener('batch-complete', handleBatchComplete);
+    window.removeEventListener('keywords-changed', handleKeywordsChanged);
   });
 </script>
 

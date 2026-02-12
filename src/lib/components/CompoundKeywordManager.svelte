@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import KeywordContextTooltip from './KeywordContextTooltip.svelte';
 
@@ -465,9 +465,24 @@
     }
   });
 
+  async function handleBatchComplete() {
+    await loadCompounds();
+  }
+
+  async function handleKeywordsChanged() {
+    await loadCompounds();
+  }
+
   // Load on mount
   onMount(() => {
+    window.addEventListener('batch-complete', handleBatchComplete);
+    window.addEventListener('keywords-changed', handleKeywordsChanged);
     loadCompounds();
+  });
+
+  onDestroy(() => {
+    window.removeEventListener('batch-complete', handleBatchComplete);
+    window.removeEventListener('keywords-changed', handleKeywordsChanged);
   });
 </script>
 

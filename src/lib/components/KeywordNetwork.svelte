@@ -1,8 +1,7 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
-  import type { Keyword, KeywordNeighbor, KeywordCategory, TrendingKeyword, NetworkStats, NetworkGraph as NetworkGraphType } from '../stores/state.svelte.ts';
+  import { onMount, onDestroy } from 'svelte';
+  import type { NetworkGraph as NetworkGraphType } from '../types';
   import NetworkGraph from './NetworkGraph.svelte';
   import KeywordTable from './KeywordTable.svelte';
   import Tabs, { type Tab } from './Tabs.svelte';
@@ -10,44 +9,7 @@
   import KeywordNetworkDetail from './network/KeywordNetworkDetail.svelte';
   import KeywordNetworkSynonyms from './network/KeywordNetworkSynonyms.svelte';
   import CompoundKeywordManager from './CompoundKeywordManager.svelte';
-
-  // Type for keyword articles
-  interface KeywordArticle {
-    id: number;
-    title: string;
-    pentacle_title: string | null;
-    published_at: string | null;
-    status: string;
-  }
-
-  // Type for co-occurring keywords
-  interface CooccurringKeyword {
-    id: number;
-    name: string;
-    cooccurrence_count: number;
-  }
-
-  // Type for synonym candidate
-  interface SynonymCandidate {
-    keyword_a_id: number;
-    keyword_a_name: string;
-    keyword_b_id: number;
-    keyword_b_name: string;
-    similarity: number;
-  }
-
-  // Type for merge result
-  interface MergeSynonymsResult {
-    merged_pairs: number;
-    affected_articles: number;
-  }
-
-  // Type for create keyword result
-  interface CreateKeywordResult {
-    id: number;
-    name: string;
-    created: boolean;
-  }
+  import { networkStore } from '../stores/network.svelte';
 
   let activeTab = $state<string>('list');
 
@@ -62,526 +24,114 @@
   let searchInput = $state('');
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Local reactive state
-  let keywords = $state<Keyword[]>([]);
-  let trendingKeywords = $state<TrendingKeyword[]>([]);
-  let networkStats = $state<NetworkStats | null>(null);
-  let selectedKeyword = $state<Keyword | null>(null);
-  let neighbors = $state<KeywordNeighbor[]>([]);
-  let keywordCategories = $state<KeywordCategory[]>([]);
-  let keywordArticles = $state<KeywordArticle[]>([]);
-  let searchResults = $state<Keyword[]>([]);
-  let graphData = $state<NetworkGraphType | null>(null);
-  let cooccurringKeywords = $state<CooccurringKeyword[]>([]);
-  let trendDays = $state(30);
-  let loading = $state(false);
-  let graphLoading = $state(false);
-  let articlesLoading = $state(false);
-  let error = $state<string | null>(null);
-  let hasMore = $state(true);
-  let hasMoreArticles = $state(true);
-  let offset = $state(0);
-  let articlesOffset = $state(0);
-  const limit = 50;
-  const articlesLimit = 10;
-
-  // Synonyms tab state
-  let synonymCandidates = $state<SynonymCandidate[]>([]);
-  let synonymsLoading = $state(false);
-  let synonymsError = $state<string | null>(null);
-  let synonymSuccess = $state<string | null>(null);
-
-  // Manual merge - two search fields
-  let keepSearchInput = $state('');
-  let keepSearchResults = $state<Keyword[]>([]);
+  // Manual merge search timeouts (kept local since they are UI-only)
   let keepSearchTimeout: ReturnType<typeof setTimeout> | null = null;
-  let selectedKeepKeyword = $state<Keyword | null>(null);
-
-  let removeSearchInput = $state('');
-  let removeSearchResults = $state<Keyword[]>([]);
   let removeSearchTimeout: ReturnType<typeof setTimeout> | null = null;
-  let selectedRemoveKeyword = $state<Keyword | null>(null);
-
-  let newKeywordInput = $state('');
-  let createKeywordLoading = $state(false);
-  let createKeywordSuccess = $state<string | null>(null);
-  let createKeywordError = $state<string | null>(null);
-
-  // Rename keyword state
-  let isRenaming = $state(false);
-  let renameInput = $state('');
-  let renameLoading = $state(false);
-  let renameError = $state<string | null>(null);
-
-  // Similar keywords for detail panel
-  let similarKeywords = $state<{ id: number; name: string; similarity: number; cooccurrence: number }[]>([]);
-  let similarKeywordsLoading = $state(false);
 
   // Stable empty graph data to prevent re-renders
   const emptyGraphData: NetworkGraphType = { nodes: [], edges: [] };
 
-  async function loadKeywords(reset = false) {
-    if (loading) return;
-    loading = true;
-    error = null;
-
-    if (reset) {
-      offset = 0;
-      keywords = [];
-      hasMore = true;
-    }
-
-    try {
-      const newKeywords = await invoke<Keyword[]>('get_keywords', { limit, offset });
-      if (newKeywords.length < limit) {
-        hasMore = false;
-      }
-      keywords = reset ? newKeywords : [...keywords, ...newKeywords];
-      offset += newKeywords.length;
-    } catch (e) {
-      error = String(e);
-      console.error('Failed to load keywords:', e);
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function loadTrendingKeywords() {
-    try {
-      trendingKeywords = await invoke<TrendingKeyword[]>('get_trending_keywords', { days: 7, limit: 20 });
-    } catch (e) {
-      console.error('Failed to load trending keywords:', e);
-    }
-  }
-
-  async function loadNetworkStats() {
-    try {
-      networkStats = await invoke<NetworkStats>('get_network_stats');
-    } catch (e) {
-      console.error('Failed to load network stats:', e);
-    }
-  }
-
-  async function selectKeywordById(id: number) {
-    loading = true;
-    error = null;
-    // Reset articles, co-occurring keywords, and similar keywords when selecting new keyword
-    keywordArticles = [];
-    cooccurringKeywords = [];
-    similarKeywords = [];
-    articlesOffset = 0;
-    hasMoreArticles = true;
-
-    try {
-      const [kw, nbrs, cats, articles, cooccurring] = await Promise.all([
-        invoke<Keyword | null>('get_keyword', { id }),
-        invoke<KeywordNeighbor[]>('get_keyword_neighbors', { id, limit: 10 }),
-        invoke<KeywordCategory[]>('get_keyword_categories', { id }),
-        invoke<KeywordArticle[]>('get_keyword_articles', { id, limit: articlesLimit, offset: 0 }),
-        invoke<CooccurringKeyword[]>('get_cooccurring_keywords', { keywordId: id, days: trendDays, limit: 20 }),
-      ]);
-      selectedKeyword = kw;
-      neighbors = nbrs;
-      keywordCategories = cats;
-      keywordArticles = articles;
-      cooccurringKeywords = cooccurring;
-      articlesOffset = articles.length;
-      hasMoreArticles = articles.length >= articlesLimit;
-      // Load similar keywords after main data is loaded
-      loadSimilarKeywords(id);
-    } catch (e) {
-      error = String(e);
-      console.error('Failed to load keyword details:', e);
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function loadSimilarKeywords(keywordId: number) {
-    similarKeywordsLoading = true;
-    try {
-      const similar = await invoke<{ id: number; name: string; similarity: number; cooccurrence: number }[]>(
-        'get_similar_keywords',
-        { keywordId, limit: 8 }
-      );
-      similarKeywords = similar;
-    } catch (e) {
-      console.error('Failed to load similar keywords:', e);
-      similarKeywords = [];
-    } finally {
-      similarKeywordsLoading = false;
-    }
-  }
-
-  async function loadMoreArticles() {
-    if (!selectedKeyword || articlesLoading || !hasMoreArticles) return;
-    articlesLoading = true;
-    try {
-      const articles = await invoke<KeywordArticle[]>('get_keyword_articles', {
-        id: selectedKeyword.id,
-        limit: articlesLimit,
-        offset: articlesOffset,
-      });
-      keywordArticles = [...keywordArticles, ...articles];
-      articlesOffset += articles.length;
-      hasMoreArticles = articles.length >= articlesLimit;
-    } catch (e) {
-      console.error('Failed to load more articles:', e);
-    } finally {
-      articlesLoading = false;
-    }
-  }
-
-  function openArticle(articleId: number) {
-    // Dispatch event to navigate to article view
-    window.dispatchEvent(new CustomEvent('navigate-to-article', { detail: { articleId } }));
-  }
-
-  async function loadCooccurringKeywords(keywordId: number, days: number) {
-    try {
-      cooccurringKeywords = await invoke<CooccurringKeyword[]>('get_cooccurring_keywords', {
-        keywordId,
-        days,
-        limit: 20,
-      });
-    } catch (e) {
-      console.error('Failed to load co-occurring keywords:', e);
-      cooccurringKeywords = [];
-    }
-  }
-
-  function handleDaysChange(days: number) {
-    trendDays = days;
-    if (selectedKeyword) {
-      loadCooccurringKeywords(selectedKeyword.id, days);
-    }
-  }
-
-  // Graph filter settings
+  // Graph filter settings (local UI state)
   let graphMinArticleCount = $state(3);
   let graphMinWeight = $state(0.1);
 
-  async function loadGraphDataAsync(forceRefresh = false) {
-    if (graphData && !forceRefresh) return;
-    graphLoading = true;
-    try {
-      graphData = await invoke<NetworkGraphType>('get_network_graph', {
-        limit: 100,
-        minWeight: graphMinWeight,
-        minArticleCount: graphMinArticleCount,
-      });
-    } catch (e) {
-      console.error('Failed to load graph:', e);
-    } finally {
-      graphLoading = false;
-    }
+  function openArticle(articleId: number) {
+    window.dispatchEvent(new CustomEvent('navigate-to-article', { detail: { articleId } }));
   }
 
-  async function searchKeywordsLocal(query: string) {
-    if (!query.trim()) {
-      searchResults = [];
-      return;
-    }
-    try {
-      searchResults = await invoke<Keyword[]>('search_keywords', { query, limit: 20 });
-    } catch (e) {
-      console.error('Failed to search keywords:', e);
-    }
+  async function loadGraphDataAsync(forceRefresh = false) {
+    if (networkStore.graphData && !forceRefresh) return;
+    await networkStore.loadNetworkGraph(100, graphMinWeight, graphMinArticleCount);
   }
+
+  // React to navigation: when selectedKeyword changes externally (e.g. from App.svelte navigate-to-network),
+  // ensure we're on the list tab to show the detail panel
+  $effect(() => {
+    const kw = networkStore.selectedKeyword;
+    if (kw && activeTab !== 'list') {
+      activeTab = 'list';
+    }
+  });
 
   onMount(async () => {
-    await Promise.all([
-      loadKeywords(true),
-      loadTrendingKeywords(),
-      loadNetworkStats(),
-    ]);
+    networkStore.setupEventListeners();
+    await networkStore.refreshAll();
+  });
+
+  onDestroy(() => {
+    networkStore.teardownEventListeners();
   });
 
   function handleTabChange(tabId: string) {
     if (tabId === 'graph') {
-      // Always refresh graph when switching to tab
       loadGraphDataAsync(true);
     }
   }
 
   function handleGraphNodeClick(nodeId: number) {
-    selectKeywordById(nodeId);
+    networkStore.selectKeyword(nodeId);
   }
 
   function handleSearch() {
     if (searchTimeout) clearTimeout(searchTimeout);
 
-    // If input is empty, clear search immediately
     if (!searchInput.trim()) {
-      searchResults = [];
+      networkStore.searchResults = [];
       return;
     }
 
     searchTimeout = setTimeout(() => {
-      searchKeywordsLocal(searchInput);
+      networkStore.searchKeywords(searchInput);
     }, 300);
   }
 
   function clearSearch() {
     if (searchTimeout) clearTimeout(searchTimeout);
     searchInput = '';
-    searchResults = [];
+    networkStore.clearSearch();
   }
 
-  // === Synonyms Tab Functions ===
+  // === Synonyms Tab Functions (delegating to store) ===
 
-  async function findSynonymCandidates() {
-    synonymsLoading = true;
-    synonymsError = null;
-    synonymSuccess = null;
-
-    try {
-      synonymCandidates = await invoke<SynonymCandidate[]>('find_synonym_candidates', {
-        threshold: 0.85,
-        limit: 20,
-      });
-      if (synonymCandidates.length === 0) {
-        synonymSuccess = $_('network.noSynonymCandidates') || 'Keine Synonym-Kandidaten gefunden';
-      }
-    } catch (e) {
-      synonymsError = String(e);
-      console.error('Failed to find synonym candidates:', e);
-    } finally {
-      synonymsLoading = false;
-    }
-  }
-
-  async function mergeKeywords(keepId: number, removeId: number, keepName: string, removeName: string) {
-    synonymsLoading = true;
-    synonymsError = null;
-    synonymSuccess = null;
-
-    try {
-      const result = await invoke<MergeSynonymsResult>('merge_keyword_pair', {
-        keepId,
-        removeId,
-      });
-      synonymSuccess = `"${removeName}" -> "${keepName}" (${result.affected_articles} ${$_('network.articleCount') || 'Artikel'})`;
-      // Remove the merged candidate from the list
-      synonymCandidates = synonymCandidates.filter(
-        (c) =>
-          !(
-            (c.keyword_a_id === keepId && c.keyword_b_id === removeId) ||
-            (c.keyword_a_id === removeId && c.keyword_b_id === keepId)
-          )
-      );
-      // Refresh keywords list
-      await loadKeywords(true);
-      await loadNetworkStats();
-    } catch (e) {
-      synonymsError = String(e);
-      console.error('Failed to merge keywords:', e);
-    } finally {
-      synonymsLoading = false;
-    }
-  }
-
-  async function dismissSynonymPair(keywordAId: number, keywordBId: number) {
-    synonymsError = null;
-    synonymSuccess = null;
-
-    try {
-      await invoke('dismiss_synonym_pair', { keywordAId, keywordBId });
-      // Remove from list
-      synonymCandidates = synonymCandidates.filter(
-        (c) =>
-          !(
-            (c.keyword_a_id === keywordAId && c.keyword_b_id === keywordBId) ||
-            (c.keyword_a_id === keywordBId && c.keyword_b_id === keywordAId)
-          )
-      );
-      synonymSuccess = $_('network.synonymDismissed') || 'Synonym-Vorschlag ignoriert';
-    } catch (e) {
-      synonymsError = String(e);
-      console.error('Failed to dismiss synonym pair:', e);
-    }
-  }
-
-  // Search for "keep" keyword (the one that stays)
   function handleKeepSearch(value: string) {
-    keepSearchInput = value;
+    networkStore.keepSearchInput = value;
     if (keepSearchTimeout) clearTimeout(keepSearchTimeout);
 
-    if (!keepSearchInput.trim()) {
-      keepSearchResults = [];
+    if (!value.trim()) {
+      networkStore.keepSearchResults = [];
       return;
     }
 
-    keepSearchTimeout = setTimeout(async () => {
-      try {
-        keepSearchResults = await invoke<Keyword[]>('search_keywords', {
-          query: keepSearchInput,
-          limit: 10,
-        });
-      } catch (e) {
-        console.error('Failed to search keywords:', e);
-      }
+    keepSearchTimeout = setTimeout(() => {
+      networkStore.searchKeepKeywords(value);
     }, 300);
   }
 
-  function selectKeepKeyword(keyword: Keyword) {
-    selectedKeepKeyword = keyword;
-    keepSearchInput = keyword.name;
-    keepSearchResults = [];
-  }
-
-  function clearKeepSearch() {
-    if (keepSearchTimeout) clearTimeout(keepSearchTimeout);
-    keepSearchInput = '';
-    keepSearchResults = [];
-    selectedKeepKeyword = null;
-  }
-
-  // Search for "remove" keyword (the one that will be replaced)
   function handleRemoveSearch(value: string) {
-    removeSearchInput = value;
+    networkStore.removeSearchInput = value;
     if (removeSearchTimeout) clearTimeout(removeSearchTimeout);
 
-    if (!removeSearchInput.trim()) {
-      removeSearchResults = [];
+    if (!value.trim()) {
+      networkStore.removeSearchResults = [];
       return;
     }
 
-    removeSearchTimeout = setTimeout(async () => {
-      try {
-        removeSearchResults = await invoke<Keyword[]>('search_keywords', {
-          query: removeSearchInput,
-          limit: 10,
-        });
-      } catch (e) {
-        console.error('Failed to search keywords:', e);
-      }
+    removeSearchTimeout = setTimeout(() => {
+      networkStore.searchRemoveKeywords(value);
     }, 300);
-  }
-
-  function selectRemoveKeyword(keyword: Keyword) {
-    selectedRemoveKeyword = keyword;
-    removeSearchInput = keyword.name;
-    removeSearchResults = [];
-  }
-
-  function clearRemoveSearch() {
-    if (removeSearchTimeout) clearTimeout(removeSearchTimeout);
-    removeSearchInput = '';
-    removeSearchResults = [];
-    selectedRemoveKeyword = null;
-  }
-
-  async function executeManualMerge() {
-    if (!selectedKeepKeyword || !selectedRemoveKeyword) return;
-    if (selectedKeepKeyword.id === selectedRemoveKeyword.id) return;
-
-    await mergeKeywords(
-      selectedKeepKeyword.id,
-      selectedRemoveKeyword.id,
-      selectedKeepKeyword.name,
-      selectedRemoveKeyword.name
-    );
-
-    // Clear both search fields after successful merge
-    clearKeepSearch();
-    clearRemoveSearch();
   }
 
   function handleNewKeywordInput(value: string) {
-    newKeywordInput = value;
-  }
-
-  async function handleShowKeywordArticles(keywordId: number, _keywordName: string) {
-    // Select the keyword and switch to list view to show its articles
-    await selectKeywordById(keywordId);
-    activeTab = 'list';
-  }
-
-  async function createNewKeyword() {
-    if (!newKeywordInput.trim()) return;
-
-    createKeywordLoading = true;
-    createKeywordError = null;
-    createKeywordSuccess = null;
-
-    try {
-      const result = await invoke<CreateKeywordResult>('create_keyword', {
-        name: newKeywordInput.trim(),
-      });
-
-      if (result.created) {
-        createKeywordSuccess = `"${result.name}" ${$_('network.keywordCreated') || 'erstellt'}`;
-      } else {
-        createKeywordSuccess = `"${result.name}" ${$_('network.keywordExists') || 'existiert bereits'}`;
-      }
-      newKeywordInput = '';
-      // Refresh keywords list
-      await loadKeywords(true);
-      await loadNetworkStats();
-    } catch (e) {
-      createKeywordError = String(e);
-      console.error('Failed to create keyword:', e);
-    } finally {
-      createKeywordLoading = false;
-    }
-  }
-
-  function startRename() {
-    if (selectedKeyword) {
-      renameInput = selectedKeyword.name;
-      isRenaming = true;
-      renameError = null;
-    }
-  }
-
-  function cancelRename() {
-    isRenaming = false;
-    renameInput = '';
-    renameError = null;
+    networkStore.newKeywordInput = value;
   }
 
   function handleRenameInputChange(value: string) {
-    renameInput = value;
+    networkStore.renameInput = value;
   }
 
-  async function handleRename() {
-    if (!selectedKeyword || !renameInput.trim()) return;
-    if (renameInput.trim() === selectedKeyword.name) {
-      cancelRename();
-      return;
-    }
-
-    renameLoading = true;
-    renameError = null;
-
-    try {
-      const newName = await invoke<string>('rename_keyword', {
-        id: selectedKeyword.id,
-        newName: renameInput.trim(),
-      });
-
-      // Update local state
-      selectedKeyword = { ...selectedKeyword, name: newName };
-
-      // Update in keywords list
-      keywords = keywords.map(k =>
-        k.id === selectedKeyword!.id ? { ...k, name: newName } : k
-      );
-
-      // Update in trending if present
-      trendingKeywords = trendingKeywords.map(k =>
-        k.id === selectedKeyword!.id ? { ...k, name: newName } : k
-      );
-
-      isRenaming = false;
-      renameInput = '';
-    } catch (e) {
-      renameError = String(e);
-      console.error('Failed to rename keyword:', e);
-    } finally {
-      renameLoading = false;
-    }
+  async function handleShowKeywordArticles(keywordId: number, _keywordName: string) {
+    await networkStore.selectKeyword(keywordId);
+    activeTab = 'list';
   }
 </script>
 
@@ -596,18 +146,18 @@
           <i class="fa-solid fa-circle-info info-icon"></i>
         </Tooltip>
       </h2>
-      {#if networkStats}
+      {#if networkStore.networkStats}
         <div class="network-stats">
           <span class="stat-item">
-            <span class="stat-value">{networkStats.total_keywords}</span>
+            <span class="stat-value">{networkStore.networkStats.total_keywords}</span>
             <span class="stat-label">{$_('network.keywords')}</span>
           </span>
           <span class="stat-item">
-            <span class="stat-value">{networkStats.total_connections}</span>
+            <span class="stat-value">{networkStore.networkStats.total_connections}</span>
             <span class="stat-label">{$_('network.connections')}</span>
           </span>
           <span class="stat-item">
-            <span class="stat-value">{networkStats.avg_neighbors_per_keyword.toFixed(1)}</span>
+            <span class="stat-value">{networkStore.networkStats.avg_neighbors_per_keyword.toFixed(1)}</span>
             <span class="stat-label">{$_('network.avgNeighbors')}</span>
           </span>
         </div>
@@ -639,30 +189,30 @@
 
       <!-- Search Results or Keywords List -->
       <div class="keywords-list">
-        {#if searchInput && searchResults.length > 0}
+        {#if searchInput && networkStore.searchResults.length > 0}
           <div class="list-section">
             <div class="section-label">{$_('network.searchResults')}</div>
-            {#each searchResults as keyword (keyword.id)}
+            {#each networkStore.searchResults as keyword (keyword.id)}
               <button
-                class="keyword-item {selectedKeyword?.id === keyword.id ? 'active' : ''}"
-                onclick={() => selectKeywordById(keyword.id)}
+                class="keyword-item {networkStore.selectedKeyword?.id === keyword.id ? 'active' : ''}"
+                onclick={() => networkStore.selectKeyword(keyword.id)}
               >
                 <span class="keyword-name">{keyword.name}</span>
                 <span class="keyword-count">{keyword.article_count}</span>
               </button>
             {/each}
           </div>
-        {:else if searchInput && searchResults.length === 0 && !loading}
+        {:else if searchInput && networkStore.searchResults.length === 0 && !networkStore.loading}
           <div class="empty-search">{$_('network.noResults')}</div>
         {:else}
           <!-- Trending Keywords -->
-          {#if trendingKeywords.length > 0}
+          {#if networkStore.trendingKeywords.length > 0}
             <div class="list-section">
               <div class="section-label">{$_('network.trending')}</div>
-              {#each trendingKeywords.slice(0, 5) as keyword (keyword.id)}
+              {#each networkStore.trendingKeywords.slice(0, 5) as keyword (keyword.id)}
                 <button
-                  class="keyword-item trending {selectedKeyword?.id === keyword.id ? 'active' : ''}"
-                  onclick={() => selectKeywordById(keyword.id)}
+                  class="keyword-item trending {networkStore.selectedKeyword?.id === keyword.id ? 'active' : ''}"
+                  onclick={() => networkStore.selectKeyword(keyword.id)}
                 >
                   <span class="keyword-name">
                     <i class="trend-icon fa-solid fa-caret-up"></i>
@@ -677,66 +227,66 @@
           <!-- All Keywords -->
           <div class="list-section">
             <div class="section-label">{$_('network.allKeywords')}</div>
-            {#each keywords as keyword (keyword.id)}
+            {#each networkStore.keywords as keyword (keyword.id)}
               <button
-                class="keyword-item {selectedKeyword?.id === keyword.id ? 'active' : ''}"
-                onclick={() => selectKeywordById(keyword.id)}
+                class="keyword-item {networkStore.selectedKeyword?.id === keyword.id ? 'active' : ''}"
+                onclick={() => networkStore.selectKeyword(keyword.id)}
               >
                 <span class="keyword-name">{keyword.name}</span>
                 <span class="keyword-count">{keyword.article_count}</span>
               </button>
             {/each}
 
-            {#if hasMore && !loading}
-              <button onclick={() => loadKeywords(false)} class="load-more">
+            {#if networkStore.hasMore && !networkStore.loading}
+              <button onclick={() => networkStore.loadKeywords(false)} class="load-more">
                 {$_('network.loadMore')}
               </button>
             {/if}
           </div>
         {/if}
 
-        {#if loading}
+        {#if networkStore.loading}
           <div class="loading-indicator">{$_('network.loading')}</div>
         {/if}
 
-        {#if error}
-          <div class="error-message">{error}</div>
+        {#if networkStore.error}
+          <div class="error-message">{networkStore.error}</div>
         {/if}
       </div>
     </div>
 
     <!-- Right Panel: Keyword Details -->
     <KeywordNetworkDetail
-      {selectedKeyword}
-      {neighbors}
-      {keywordCategories}
-      {keywordArticles}
-      {cooccurringKeywords}
-      {similarKeywords}
-      {similarKeywordsLoading}
-      {hasMoreArticles}
-      {articlesLoading}
-      {loading}
-      {trendDays}
-      {isRenaming}
-      {renameInput}
-      {renameLoading}
-      {renameError}
-      onKeywordSelect={selectKeywordById}
+      selectedKeyword={networkStore.selectedKeyword}
+      neighbors={networkStore.neighbors}
+      keywordCategories={networkStore.keywordCategories}
+      keywordArticles={networkStore.keywordArticles}
+      cooccurringKeywords={networkStore.cooccurringKeywords}
+      similarKeywords={networkStore.similarKeywords}
+      similarKeywordsLoading={networkStore.similarKeywordsLoading}
+      hasMoreArticles={networkStore.hasMoreArticles}
+      articlesLoading={networkStore.articlesLoading}
+      loading={networkStore.loading}
+      trendDays={networkStore.trendDays}
+      isRenaming={networkStore.isRenaming}
+      renameInput={networkStore.renameInput}
+      renameLoading={networkStore.renameLoading}
+      renameError={networkStore.renameError}
+      onKeywordSelect={(id) => networkStore.selectKeyword(id)}
       onOpenArticle={openArticle}
-      onLoadMoreArticles={loadMoreArticles}
-      onDaysChange={handleDaysChange}
-      onStartRename={startRename}
-      onCancelRename={cancelRename}
-      onHandleRename={handleRename}
+      onLoadMoreArticles={() => networkStore.loadMoreArticles()}
+      onDaysChange={(days) => networkStore.handleDaysChange(days)}
+      onStartRename={() => networkStore.startRename()}
+      onCancelRename={() => networkStore.cancelRename()}
+      onHandleRename={() => networkStore.handleRename()}
       onRenameInputChange={handleRenameInputChange}
-      onSynonymAssigned={() => { loadKeywords(true); loadNetworkStats(); if (selectedKeyword) loadSimilarKeywords(selectedKeyword.id); }}
+      onSynonymAssigned={() => { networkStore.loadKeywords(true); networkStore.loadNetworkStats(); if (networkStore.selectedKeyword) networkStore.loadSimilarKeywords(networkStore.selectedKeyword.id); }}
     />
   </div>
   {:else if activeTab === 'table'}
   <!-- Table View -->
   <div class="table-view">
-    <KeywordTable onKeywordSelect={selectKeywordById} onShowKeywordArticles={handleShowKeywordArticles} />
+    <KeywordTable onKeywordSelect={(id) => networkStore.selectKeyword(id)} onShowKeywordArticles={handleShowKeywordArticles} />
   </div>
   {:else if activeTab === 'graph'}
   <!-- Graph View -->
@@ -765,51 +315,51 @@
         />
         <span class="filter-value">{graphMinWeight.toFixed(2)}</span>
       </label>
-      {#if graphData}
+      {#if networkStore.graphData}
         <span class="graph-info">
-          {graphData.nodes.length} {$_('network.nodes') || 'Knoten'}, {graphData.edges.length} {$_('network.edges') || 'Kanten'}
+          {networkStore.graphData.nodes.length} {$_('network.nodes') || 'Knoten'}, {networkStore.graphData.edges.length} {$_('network.edges') || 'Kanten'}
         </span>
       {/if}
     </div>
     <NetworkGraph
-      graphData={graphData || emptyGraphData}
+      graphData={networkStore.graphData || emptyGraphData}
       onNodeClick={handleGraphNodeClick}
-      loading={graphLoading}
+      loading={networkStore.graphLoading}
     />
   </div>
   {:else if activeTab === 'synonyms'}
   <!-- Synonyms View -->
   <KeywordNetworkSynonyms
-    {synonymCandidates}
-    {synonymsLoading}
-    {synonymsError}
-    {synonymSuccess}
-    {keepSearchInput}
-    {keepSearchResults}
-    {selectedKeepKeyword}
-    {removeSearchInput}
-    {removeSearchResults}
-    {selectedRemoveKeyword}
-    {newKeywordInput}
-    {createKeywordLoading}
-    {createKeywordSuccess}
-    {createKeywordError}
-    onFindSynonyms={findSynonymCandidates}
-    onMergeKeywords={mergeKeywords}
-    onDismissSynonymPair={dismissSynonymPair}
+    synonymCandidates={networkStore.synonymCandidates}
+    synonymsLoading={networkStore.synonymsLoading}
+    synonymsError={networkStore.synonymsError}
+    synonymSuccess={networkStore.synonymSuccess}
+    keepSearchInput={networkStore.keepSearchInput}
+    keepSearchResults={networkStore.keepSearchResults}
+    selectedKeepKeyword={networkStore.selectedKeepKeyword}
+    removeSearchInput={networkStore.removeSearchInput}
+    removeSearchResults={networkStore.removeSearchResults}
+    selectedRemoveKeyword={networkStore.selectedRemoveKeyword}
+    newKeywordInput={networkStore.newKeywordInput}
+    createKeywordLoading={networkStore.createKeywordLoading}
+    createKeywordSuccess={networkStore.createKeywordSuccess}
+    createKeywordError={networkStore.createKeywordError}
+    onFindSynonyms={() => networkStore.findSynonymCandidates()}
+    onMergeKeywords={(keepId, removeId, keepName, removeName) => networkStore.mergeKeywords(keepId, removeId, keepName, removeName)}
+    onDismissSynonymPair={(a, b) => networkStore.dismissSynonymPair(a, b)}
     onKeepSearchInput={handleKeepSearch}
-    onSelectKeepKeyword={selectKeepKeyword}
-    onClearKeepSearch={clearKeepSearch}
+    onSelectKeepKeyword={(kw) => networkStore.selectKeepKeyword(kw)}
+    onClearKeepSearch={() => networkStore.clearKeepSearch()}
     onRemoveSearchInput={handleRemoveSearch}
-    onSelectRemoveKeyword={selectRemoveKeyword}
-    onClearRemoveSearch={clearRemoveSearch}
-    onExecuteManualMerge={executeManualMerge}
+    onSelectRemoveKeyword={(kw) => networkStore.selectRemoveKeyword(kw)}
+    onClearRemoveSearch={() => networkStore.clearRemoveSearch()}
+    onExecuteManualMerge={() => networkStore.executeManualMerge()}
     onNewKeywordInput={handleNewKeywordInput}
-    onCreateNewKeyword={createNewKeyword}
+    onCreateNewKeyword={() => networkStore.createNewKeyword()}
   />
   {:else if activeTab === 'compounds'}
   <!-- Compound Keywords View -->
-  <CompoundKeywordManager loadKeywords={() => loadKeywords(true)} />
+  <CompoundKeywordManager loadKeywords={() => networkStore.loadKeywords(true)} />
   {/if}
 </div>
 

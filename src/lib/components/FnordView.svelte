@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
   import { appState, type Fnord, type FnordStats, type CategoryRevisionStats } from '../stores/state.svelte';
@@ -54,8 +54,23 @@
     { id: 'articles', label: $_('fnordView.articlesTab') || 'Geänderte Artikel', badge: changedFnords.length || undefined }
   ]);
 
-  onMount(async () => {
+  async function handleBatchComplete() {
     await loadData();
+  }
+
+  async function handleKeywordsChanged() {
+    await loadExtendedStats();
+  }
+
+  onMount(async () => {
+    window.addEventListener('batch-complete', handleBatchComplete);
+    window.addEventListener('keywords-changed', handleKeywordsChanged);
+    await loadData();
+  });
+
+  onDestroy(() => {
+    window.removeEventListener('batch-complete', handleBatchComplete);
+    window.removeEventListener('keywords-changed', handleKeywordsChanged);
   });
 
   async function loadData() {

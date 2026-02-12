@@ -186,7 +186,8 @@ fuckupRSS/
 │   │   │   ├── ArticleList.svelte # Artikel-Liste (Fnords)
 │   │   │   └── ArticleView.svelte # Artikel-Ansicht
 │   │   └── stores/
-│   │       └── state.svelte.ts   # Runes-basiertes State Management
+│   │       ├── state.svelte.ts   # Runes-basiertes State Management
+│   │       └── network.svelte.ts # Immanentize Network Store (Keywords, Trending, Graph)
 │   ├── App.svelte                # Haupt-Layout
 │   └── app.css                   # TailwindCSS + Custom Styles
 ├── src-tauri/                    # Rust Backend
@@ -445,6 +446,36 @@ Folgende kritische Bugs wurden in den Datenbank-Operationen behoben:
 | `src-tauri/src/sync/mod.rs` | Feed-Sync | store_feed Transaction |
 | `src-tauri/src/commands/batch_processor.rs` | Batch-Verarbeitung | Per-Item Locks |
 | `src-tauri/src/commands/article_analysis.rs` | Artikel-Analyse | Statistical Batch |
+
+## Frontend Event-System (Daten-Refresh)
+
+Komponenten die Backend-Daten anzeigen muessen auf CustomEvents lauschen, um nach Aenderungen aktualisiert zu werden.
+
+### CustomEvents
+
+| Event | Quelle | Wann | Listener |
+|-------|--------|------|----------|
+| `batch-complete` | `state.svelte.ts` | Nach Batch-Processing Abschluss | KeywordNetwork (via networkStore), FnordView, KeywordTable, CompoundKeywordManager, ArticleView |
+| `keywords-changed` | `state.svelte.ts`, `networkStore` | Nach Keyword-Mutationen (create, merge, rename, delete, batch) | KeywordNetwork (via networkStore), FnordView, KeywordTable, CompoundKeywordManager |
+
+### Pattern fuer neue Komponenten
+
+Jede Komponente die Keyword-/Artikel-Daten anzeigt MUSS:
+1. In `onMount`: `window.addEventListener('batch-complete', refreshHandler)` registrieren
+2. In `onDestroy`: `window.removeEventListener('batch-complete', refreshHandler)` aufrufen
+3. Bei Keyword-Daten zusaetzlich auf `keywords-changed` lauschen
+
+Siehe [docs/guides/QUALITY_CHECKLIST.md](docs/guides/QUALITY_CHECKLIST.md) fuer die vollstaendige Checkliste.
+
+### networkStore (Immanentize Network)
+
+Der `networkStore` (`src/lib/stores/network.svelte.ts`) verwaltet den gesamten State des Immanentize Networks:
+- Keywords, Trending, Stats, Graph-Daten
+- Event-Listener Management via `setupEventListeners()` / `teardownEventListeners()`
+- `refreshAll()` fuer vollstaendigen Daten-Refresh
+- Navigation-Support (selectKeyword bei navigate-to-network)
+
+**WICHTIG:** KeywordNetwork.svelte nutzt den networkStore - KEIN lokaler State fuer Keyword-Daten!
 
 ## AI Processing Pipeline
 

@@ -81,7 +81,7 @@ async function handleUserAction() {
 - [ ] **Unlisten-Funktion gespeichert?**
 - [ ] **Keine doppelten Listener?**
 
-### Korrektes Pattern
+### Korrektes Pattern (Tauri Events)
 
 ```typescript
 onMount(() => {
@@ -94,6 +94,45 @@ onMount(() => {
   };
 });
 ```
+
+### Korrektes Pattern (CustomEvents fuer Daten-Refresh)
+
+Komponenten die Backend-Daten anzeigen MUESSEN auf Aenderungs-Events lauschen:
+
+```typescript
+// Refresh-Handler
+async function handleRefresh() {
+  await loadData();
+}
+
+onMount(() => {
+  window.addEventListener('batch-complete', handleRefresh);
+  window.addEventListener('keywords-changed', handleRefresh);
+  // ... bestehender onMount Code ...
+});
+
+onDestroy(() => {
+  window.removeEventListener('batch-complete', handleRefresh);
+  window.removeEventListener('keywords-changed', handleRefresh);
+});
+```
+
+### Verfuegbare CustomEvents
+
+| Event | Ausgelöst von | Wann |
+|-------|---------------|------|
+| `batch-complete` | `state.svelte.ts` | Nach Batch-Processing Abschluss |
+| `keywords-changed` | `state.svelte.ts`, `networkStore` | Nach Keyword-Mutationen (create, merge, rename, delete, batch) |
+
+### Welche Komponenten muessen auf welche Events lauschen?
+
+| Komponente | `batch-complete` | `keywords-changed` |
+|------------|:-:|:-:|
+| KeywordNetwork (via networkStore) | Ja | Ja |
+| FnordView | Ja | Ja |
+| KeywordTable | Ja | Ja |
+| CompoundKeywordManager | Ja | Ja |
+| ArticleView | Ja | - |
 
 ### Memory Leak Indikatoren
 
@@ -194,8 +233,10 @@ grep -rn "appState\." src/lib --include="*.svelte" | grep -v "appState\.\w\+\s*[
 
 ### KeywordNetwork.svelte
 
-- [ ] Isolierter State (by design) - keine globale State-Mutation
+- [ ] Nutzt `networkStore` fuer State-Management (nicht lokalen State!)
+- [ ] Event-Listener via `networkStore.setupEventListeners()` / `teardownEventListeners()`
 - [ ] Error-Handling für alle Keyword-Operationen
+- [ ] Nach Keyword-Mutationen wird `keywords-changed` Event dispatched
 
 ---
 
@@ -239,8 +280,9 @@ rules: {
 
 | Komponente | State | Grund |
 |------------|-------|-------|
-| `KeywordNetwork` | `keywords`, `neighbors` | Feature-spezifisch, keine globale Relevanz |
 | `KeywordTrendChart` | Chart-Daten | Visualisierungs-spezifisch |
+
+**Hinweis:** KeywordNetwork nutzt seit 2026-02 den zentralen `networkStore` statt lokalen State.
 
 ---
 
@@ -249,4 +291,5 @@ rules: {
 | Datum | Änderung |
 |-------|----------|
 | 2026-01-14 | Initiale Version basierend auf Code-Review |
+| 2026-02-12 | Event-Refresh Pattern dokumentiert (batch-complete, keywords-changed), KeywordNetwork Store-Konsolidierung |
 
