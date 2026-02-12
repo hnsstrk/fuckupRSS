@@ -1,6 +1,6 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import type { NetworkGraph as NetworkGraphType } from '../types';
   import NetworkGraph from './NetworkGraph.svelte';
   import KeywordTable from './KeywordTable.svelte';
@@ -44,13 +44,24 @@
     await networkStore.loadNetworkGraph(100, graphMinWeight, graphMinArticleCount);
   }
 
+  // Track previous keyword to detect actual navigation changes
+  let prevSelectedKeywordId = $state<number | null>(null);
+
   // React to navigation: when selectedKeyword changes externally (e.g. from App.svelte navigate-to-network),
-  // ensure we're on the list tab to show the detail panel
+  // ensure we're on the list tab to show the detail panel.
+  // Uses untrack for activeTab so tab switches don't re-trigger this effect.
   $effect(() => {
     const kw = networkStore.selectedKeyword;
-    if (kw && activeTab !== 'list') {
-      activeTab = 'list';
+    const kwId = kw?.id ?? null;
+    // Only switch tab when the keyword actually changes to a new value
+    if (kwId !== null && kwId !== untrack(() => prevSelectedKeywordId)) {
+      untrack(() => {
+        if (activeTab !== 'list') {
+          activeTab = 'list';
+        }
+      });
     }
+    prevSelectedKeywordId = kwId;
   });
 
   onMount(async () => {
