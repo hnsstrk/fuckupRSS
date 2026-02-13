@@ -42,6 +42,10 @@ cargo tarpaulin --manifest-path src-tauri/Cargo.toml
 | `npm run test:watch` | Frontend tests in watch mode |
 | `npm run test:coverage` | Frontend coverage report |
 | `npm run test:e2e` | Run Playwright E2E tests |
+| `npm run pw:open` | Playwright CLI: Browser oeffnen |
+| `npm run pw:snapshot` | Playwright CLI: Accessibility Snapshot |
+| `npm run pw:screenshot` | Playwright CLI: Screenshot |
+| `npm run pw:close` | Playwright CLI: Browser schliessen |
 | `cargo test --manifest-path src-tauri/Cargo.toml` | Run all Rust backend tests |
 | `cargo tarpaulin --manifest-path src-tauri/Cargo.toml` | Rust coverage report |
 
@@ -53,8 +57,163 @@ cargo tarpaulin --manifest-path src-tauri/Cargo.toml
 |------|------------|------|
 | Rust Backend | 160 Tests | `cargo test` |
 | Frontend (Vitest) | 95 Tests | `npm run test` |
-| E2E (Playwright) | 14 Tests | `npm run test:e2e` |
-| **Total** | **269 Tests** | |
+| E2E (Playwright) | 32 Tests (9 skipped) | `npm run test:e2e` |
+| **Total** | **287 Tests** | |
+
+---
+
+## Playwright CLI (Interaktives Browser-Testing)
+
+### Was ist Playwright CLI?
+
+Playwright CLI (`@playwright/cli`) ist ein interaktives Browser-Automatisierungstool, das sich von `@playwright/test` unterscheidet:
+
+| Aspekt | `@playwright/test` | `@playwright/cli` (Playwright CLI) |
+|--------|--------------------|------------------------------------|
+| **Zweck** | Automatisierte Test-Suites | Interaktive Browser-Steuerung |
+| **Ausfuehrung** | Headless, CI/CD-tauglich | Headed, explorativ |
+| **Ergebnisse** | Pass/Fail, Reports | Snapshots, Screenshots, generierten Test-Code |
+| **Anwendung** | Regressions-Tests | Debugging, Exploration, Test-Generierung |
+| **Claude Code** | `npm run test:e2e` | Skills via `playwright-cli` Commands |
+
+### Installation und Setup
+
+Playwright CLI ist bereits installiert und konfiguriert:
+
+```bash
+# Bereits in devDependencies
+npm install  # installiert @playwright/cli
+
+# Skills fuer Claude Code
+# Skills liegen in .claude/skills/playwright-cli/
+```
+
+### Konfiguration
+
+Die CLI-Konfiguration liegt in `playwright-cli.json`:
+
+```json
+{
+  "browser": "chrome",
+  "baseURL": "http://localhost:1420",
+  "timeout": 30000
+}
+```
+
+**Voraussetzung:** Der Vite Dev-Server muss laufen (`npm run dev` oder `npm run tauri dev`).
+
+### npm Scripts
+
+| Script | Beschreibung |
+|--------|-------------|
+| `npm run pw:open` | Browser oeffnen mit Projekt-Konfiguration |
+| `npm run pw:snapshot` | Accessibility Snapshot der aktuellen Seite |
+| `npm run pw:screenshot` | Screenshot der aktuellen Seite |
+| `npm run pw:close` | Browser schliessen |
+
+### Skills fuer Claude Code
+
+Playwright CLI stellt Skills bereit, die Claude Code direkt nutzen kann:
+
+| Skill-Kategorie | Beispiel-Commands | Zweck |
+|-----------------|-------------------|-------|
+| **Navigation** | `playwright-cli open`, `goto`, `go-back` | Seiten aufrufen |
+| **Interaktion** | `click`, `fill`, `type`, `select` | UI-Elemente bedienen |
+| **Inspektion** | `snapshot`, `screenshot`, `console`, `network` | Seite analysieren |
+| **Test-Generierung** | Jede Aktion generiert Playwright-Code | Tests aus Interaktionen erstellen |
+| **DevTools** | `tracing-start`, `tracing-stop`, `video-start` | Debugging und Aufzeichnung |
+| **Storage** | `cookie-list`, `localstorage-get`, `state-save` | Browser-State verwalten |
+| **Network** | `route`, `unroute` | Request-Mocking |
+
+### Typische Workflows
+
+**1. App interaktiv testen:**
+```bash
+npm run tauri dev              # App starten
+npm run pw:open                # Browser oeffnen
+npm run pw:snapshot            # Accessibility-Tree anzeigen
+playwright-cli click e5        # Element interagieren
+npm run pw:screenshot          # Ergebnis festhalten
+npm run pw:close               # Browser schliessen
+```
+
+**2. Test-Code generieren:**
+```bash
+playwright-cli open http://localhost:1420
+playwright-cli snapshot                        # Elemente identifizieren
+playwright-cli fill e1 "https://feed.url"      # Generiert: await page.getByRole('textbox'...).fill(...)
+playwright-cli click e3                        # Generiert: await page.getByRole('button'...).click()
+# Generierten Code in E2E-Test-Datei uebernehmen
+```
+
+**3. Debugging mit Tracing:**
+```bash
+playwright-cli open http://localhost:1420
+playwright-cli tracing-start
+# Aktionen ausfuehren...
+playwright-cli tracing-stop    # Trace-Datei zum Analysieren
+```
+
+### Wann CLI vs. klassische E2E Tests verwenden?
+
+| Situation | Empfohlenes Tool |
+|-----------|-----------------|
+| Neues Feature explorativ testen | **Playwright CLI** |
+| Automatisierte Regressions-Tests | **@playwright/test** (`npm run test:e2e`) |
+| Bug reproduzieren und untersuchen | **Playwright CLI** |
+| CI/CD Pipeline | **@playwright/test** |
+| Test-Code fuer neue E2E Tests generieren | **Playwright CLI** (dann in Test-Datei uebernehmen) |
+| Accessibility-Struktur pruefen | **Playwright CLI** (`snapshot`) |
+| Screenshots fuer Dokumentation | **Playwright CLI** (`screenshot`) |
+
+### Referenz-Dokumentation
+
+Detaillierte Anleitungen finden sich in `.claude/skills/playwright-cli/references/`:
+
+| Datei | Thema |
+|-------|-------|
+| `test-generation.md` | Test-Code aus Interaktionen generieren |
+| `running-code.md` | Playwright-Code direkt ausfuehren |
+| `request-mocking.md` | Netzwerk-Requests mocken |
+| `session-management.md` | Browser-Sessions verwalten |
+| `storage-state.md` | Cookies, LocalStorage |
+| `tracing.md` | Tracing fuer Debugging |
+| `video-recording.md` | Video-Aufzeichnung |
+
+---
+
+## Bewertung der skipped E2E Tests
+
+### Ueberblick
+
+Aktuell sind **5 von 14 E2E Tests skipped** in `app.spec.ts` und **4 von 18 Tests skipped** in `erisian-archives.spec.ts`. Alle aus dem gleichen Grund: **Svelte-Reaktivitaet funktioniert nicht zuverlaessig mit gemockten Tauri APIs.**
+
+### Ursache
+
+Die E2E Tests verwenden `e2e/fixtures.ts`, das `window.__TAURI_INTERNALS__` mockt. Das Mock-System funktioniert fuer:
+- Initiales Laden von Daten (GET-artige Aufrufe)
+- Verifizierung von API-Aufrufen (Invoke-Tracking)
+
+Es funktioniert **nicht** fuer:
+- Svelte-State-Updates nach Aktionen (z.B. Button-Click -> Dialog oeffnen)
+- UI-Reaktionen auf State-Aenderungen (z.B. Badge-Update nach Sync)
+- Tab-Wechsel mit CSS-Klassen-Updates
+
+### Kann Playwright CLI helfen?
+
+| Problem | CLI-Loesung? | Begruendung |
+|---------|-------------|-------------|
+| Dialog oeffnet nicht nach Click | **Teilweise** | CLI kann den tatsaechlichen App-State (mit `npm run tauri dev`) testen, aber nicht die automatisierten Mock-Tests ersetzen |
+| Badge-Update nach Sync | **Nein** | Braucht echtes Tauri-Backend fuer Sync |
+| Tab-Wechsel CSS-Updates | **Ja** | CLI kann gegen die laufende App testen und Tab-Wechsel verifizieren |
+| State-Updates nach Invoke | **Nein** | Grundlegendes Mock-Limitierungsproblem |
+
+### Empfehlungen
+
+1. **Playwright CLI als Explorationstools nutzen:** Fuer manuelle Verifikation der skipped Szenarien gegen die laufende App (`npm run tauri dev`)
+2. **Skipped Tests beibehalten:** Die Tests dokumentieren erwartetes Verhalten - sie koennen aktiviert werden, wenn das Mock-System verbessert wird
+3. **Aktive Tests priorisieren:** Die 9+14 aktiven Tests decken API-Integration und Basis-Layout zuverlaessig ab
+4. **Langfristig:** Evaluieren ob `@tauri-apps/api/mocks` oder ein eigenes Mock-Framework die Svelte-Reaktivitaet besser unterstuetzen koennte
 
 ---
 
@@ -74,7 +233,8 @@ fuckupRSS/
 │               └── Toast.test.ts      # Toast Component Tests (19 Tests)
 ├── e2e/                         # E2E Tests (Playwright)
 │   ├── fixtures.ts              # Tauri API Mocks
-│   └── app.spec.ts              # App-Tests
+│   ├── app.spec.ts              # App-Layout, Sidebar, Settings, Theme, Accessibility
+│   └── erisian-archives.spec.ts # ErisianArchives: Tabs, Stats, Artikel-Liste
 ├── src-tauri/
 │   └── src/
 │       ├── db/
@@ -250,9 +410,11 @@ cargo tarpaulin --manifest-path src-tauri/Cargo.toml
 | File | Purpose |
 |------|---------|
 | `vitest.config.ts` | Vitest configuration |
-| `playwright.config.ts` | Playwright E2E configuration |
+| `playwright.config.ts` | Playwright E2E configuration (`@playwright/test`) |
+| `playwright-cli.json` | Playwright CLI Konfiguration (Browser, baseURL, Timeout) |
 | `src/lib/__tests__/setup.ts` | Vitest global setup and mocks |
 | `e2e/fixtures.ts` | Playwright fixtures and Tauri API mocks |
+| `.claude/skills/playwright-cli/` | Claude Code Skills fuer Playwright CLI |
 
 ---
 

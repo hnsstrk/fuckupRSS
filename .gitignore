@@ -42,3 +42,8 @@ playwright-report/
 test-results/
 coverage/
 
+# Playwright CLI
+.playwright-cli/
+traces/
+*.auth-state.json
+

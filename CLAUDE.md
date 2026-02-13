@@ -66,6 +66,16 @@ npm run test:e2e                                  # E2E Tests (Playwright)
 cargo test --manifest-path src-tauri/Cargo.toml  # Backend (Rust)
 ```
 
+**Playwright CLI (interaktives Browser-Testing):**
+```bash
+npm run pw:open                                   # Browser oeffnen (Chrome, localhost:1420)
+npm run pw:snapshot                               # Accessibility Snapshot
+npm run pw:screenshot                             # Screenshot
+npm run pw:close                                  # Browser schliessen
+```
+
+Konfiguration: `playwright-cli.json` (Browser, baseURL, Timeout). Skills: `.claude/skills/playwright-cli/`.
+
 **WICHTIG:** Alle neuen Features und Bugfixes MUESSEN mit Tests abgedeckt werden.
 
 ## Icons
@@ -215,7 +225,13 @@ fuckupRSS/
 │   └── guides/
 │       ├── TESTING.md
 │       └── QUALITY_CHECKLIST.md
+├── .claude/                      # Claude Code Konfiguration
+│   └── skills/
+│       └── playwright-cli/       # Playwright CLI Skills
+│           ├── SKILL.md          # Skill-Definition und Commands
+│           └── references/       # Detaillierte Anleitungen
 ├── fuckupRSS-Anforderungen.md    # Technische Spezifikation
+├── playwright-cli.json           # Playwright CLI Konfiguration
 ├── README.md                     # Projekt-Dokumentation
 ├── CLAUDE.md                     # Diese Datei
 └── TODO.md                       # Zentrale Aufgabenliste

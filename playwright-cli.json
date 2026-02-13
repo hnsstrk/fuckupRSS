@@ -1,0 +1,5 @@
+{
+  "browser": "chrome",
+  "baseURL": "http://localhost:1420",
+  "timeout": 30000
+}
