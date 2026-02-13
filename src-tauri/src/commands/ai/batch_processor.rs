@@ -907,7 +907,7 @@ pub async fn process_batch(
     let provider_name = format!("{:?}", provider_config.provider_type);
 
     let provider_for_batch: Arc<dyn crate::ai_provider::AiTextProvider> =
-        Arc::from(crate::ai_provider::create_provider(&provider_config));
+        crate::ai_provider::create_provider(&provider_config);
     let provider_config_for_retry = provider_config.clone();
     let locale = get_locale_from_db(&state);
 
@@ -1254,7 +1254,7 @@ pub async fn process_batch(
         succeeded: succeeded_final,
         failed: failed_final,
         provider: provider_name,
-        model: model,
+        model,
     })
 }
 

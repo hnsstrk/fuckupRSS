@@ -5,7 +5,9 @@
 //!
 //! Run with: cargo test --manifest-path src-tauri/Cargo.toml --test openai_pipeline_test -- --ignored --nocapture
 
-use fuckuprss_lib::ai_provider::{create_provider, resolve_effective_model, ProviderConfig, ProviderType};
+use fuckuprss_lib::ai_provider::{
+    create_provider, resolve_effective_model, ProviderConfig, ProviderType,
+};
 use rusqlite::Connection;
 use serde::Deserialize;
 
@@ -51,11 +53,9 @@ fn open_db() -> Connection {
 
 fn load_settings(conn: &Connection) -> (String, String, String, Option<f32>) {
     let get = |key: &str, default: &str| -> String {
-        conn.query_row(
-            "SELECT value FROM settings WHERE key = ?1",
-            [key],
-            |row| row.get::<_, String>(0),
-        )
+        conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| {
+            row.get::<_, String>(0)
+        })
         .unwrap_or_else(|_| default.to_string())
     };
 
@@ -331,8 +331,7 @@ async fn test_openai_discordian_analysis_pipeline() {
                             !analysis.summary.is_empty() && analysis.summary.len() > 20;
                         let bias_ok =
                             analysis.political_bias >= -2.0 && analysis.political_bias <= 2.0;
-                        let sach_ok =
-                            analysis.sachlichkeit >= 0.0 && analysis.sachlichkeit <= 4.0;
+                        let sach_ok = analysis.sachlichkeit >= 0.0 && analysis.sachlichkeit <= 4.0;
                         let keywords_ok = !analysis.keywords.is_empty();
 
                         // Check for truncation indicators: if the response ends abruptly
@@ -450,10 +449,7 @@ async fn test_openai_discordian_analysis_pipeline() {
                 println!("  WARNING: Summary looks like JSON despite non-JSON mode");
             }
 
-            println!(
-                "  Summary: {}",
-                &result.text[..result.text.len().min(300)]
-            );
+            println!("  Summary: {}", &result.text[..result.text.len().min(300)]);
             println!("  [PASS]\n");
         }
         Err(e) => {
@@ -472,10 +468,7 @@ async fn test_openai_discordian_analysis_pipeline() {
         articles.len()
     );
     println!("  Summary Mode:        PASS");
-    println!(
-        "  Total time:          {:.2}s",
-        total_time_secs
-    );
+    println!("  Total time:          {:.2}s", total_time_secs);
     println!(
         "  Total tokens:        {} input, {} output",
         total_input_tokens, total_output_tokens
@@ -590,7 +583,10 @@ async fn test_openai_provider_config_isolation() {
     // Verify by creating provider and checking it works (the actual serialization
     // skip_serializing_if = "Option::is_none" is tested via the API call)
     let available = provider.is_available().await;
-    assert!(available, "Provider should be available regardless of temperature setting");
+    assert!(
+        available,
+        "Provider should be available regardless of temperature setting"
+    );
     println!("  [PASS]\n");
 
     // ---- Test 6: OpenAI provider does not use Ollama model ----
@@ -691,12 +687,18 @@ async fn test_openai_no_truncation() {
     // would be truncated (finish_reason=length) and the JSON would be invalid.
     let analysis: DiscordianResponse = serde_json::from_str(&result.text).unwrap_or_else(|e| {
         println!("  [FAIL] JSON parse error: {}", e);
-        println!("  Response (first 500 chars): {}", &result.text[..result.text.len().min(500)]);
-        println!("  Response (last 300 chars):  {}", if result.text.len() > 300 {
-            &result.text[result.text.len() - 300..]
-        } else {
-            &result.text
-        });
+        println!(
+            "  Response (first 500 chars): {}",
+            &result.text[..result.text.len().min(500)]
+        );
+        println!(
+            "  Response (last 300 chars):  {}",
+            if result.text.len() > 300 {
+                &result.text[result.text.len() - 300..]
+            } else {
+                &result.text
+            }
+        );
         panic!(
             "Response was likely TRUNCATED (finish_reason: length). \
              This means max_completion_tokens is too low for this article."
@@ -704,10 +706,7 @@ async fn test_openai_no_truncation() {
     });
 
     // Validate the parsed response is complete
-    assert!(
-        !analysis.summary.is_empty(),
-        "Summary should not be empty"
-    );
+    assert!(!analysis.summary.is_empty(), "Summary should not be empty");
     assert!(
         analysis.summary.len() > 30,
         "Summary too short ({} chars) - may be incomplete",
@@ -873,8 +872,19 @@ async fn test_openai_provider_stability() {
     println!("============================================================");
     println!("RESULTS - Provider Stability");
     println!("============================================================");
-    println!("  Requests:     {}/{} succeeded", articles.len(), articles.len());
-    println!("  Token counts: {}", if all_had_tokens { "ALL PRESENT" } else { "SOME MISSING" });
+    println!(
+        "  Requests:     {}/{} succeeded",
+        articles.len(),
+        articles.len()
+    );
+    println!(
+        "  Token counts: {}",
+        if all_had_tokens {
+            "ALL PRESENT"
+        } else {
+            "SOME MISSING"
+        }
+    );
     println!(
         "  Avg response: {:.2}s",
         response_times.iter().sum::<f64>() / response_times.len() as f64

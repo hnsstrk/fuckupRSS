@@ -231,7 +231,7 @@ pub fn calculate_string_similarity(a: &str, b: &str) -> f64 {
         levenshtein * 0.5 + jaro * 0.5
     };
 
-    combined.min(1.0).max(0.0)
+    combined.clamp(0.0, 1.0)
 }
 
 #[cfg(test)]

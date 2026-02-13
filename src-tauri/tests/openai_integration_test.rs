@@ -47,11 +47,9 @@ struct DiscordianResponse {
 
 fn load_settings(conn: &Connection) -> (String, String, String) {
     let get = |key: &str, default: &str| -> String {
-        conn.query_row(
-            "SELECT value FROM settings WHERE key = ?1",
-            [key],
-            |row| row.get::<_, String>(0),
-        )
+        conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| {
+            row.get::<_, String>(0)
+        })
         .unwrap_or_else(|_| default.to_string())
     };
 
@@ -157,7 +155,10 @@ async fn test_openai_discordian_analysis_5_articles() {
     // Test 1: Provider availability
     println!("[TEST] Checking provider availability...");
     let available = provider.is_available().await;
-    assert!(available, "OpenAI provider is not available. Check API key and URL.");
+    assert!(
+        available,
+        "OpenAI provider is not available. Check API key and URL."
+    );
     println!("[PASS] Provider is available\n");
 
     // Test 2: Load 5 articles
@@ -189,7 +190,11 @@ async fn test_openai_discordian_analysis_5_articles() {
         match provider.generate_text(&model, &prompt, true).await {
             Ok(result) => {
                 let elapsed = start.elapsed();
-                println!("  Response in {:.2}s ({} chars)", elapsed.as_secs_f64(), result.text.len());
+                println!(
+                    "  Response in {:.2}s ({} chars)",
+                    elapsed.as_secs_f64(),
+                    result.text.len()
+                );
 
                 // Check token counts
                 match (result.input_tokens, result.output_tokens) {
@@ -207,15 +212,33 @@ async fn test_openai_discordian_analysis_5_articles() {
                 match serde_json::from_str::<DiscordianResponse>(&result.text) {
                     Ok(analysis) => {
                         // Validate fields
-                        let summary_ok = !analysis.summary.is_empty() && analysis.summary.len() > 20;
-                        let bias_ok = analysis.political_bias >= -2.0 && analysis.political_bias <= 2.0;
+                        let summary_ok =
+                            !analysis.summary.is_empty() && analysis.summary.len() > 20;
+                        let bias_ok =
+                            analysis.political_bias >= -2.0 && analysis.political_bias <= 2.0;
                         let sach_ok = analysis.sachlichkeit >= 0.0 && analysis.sachlichkeit <= 4.0;
                         let keywords_ok = !analysis.keywords.is_empty();
 
-                        println!("  Summary:  {} chars {}", analysis.summary.len(), if summary_ok { "OK" } else { "FAIL" });
-                        println!("  Bias:     {} {}", analysis.political_bias, if bias_ok { "OK" } else { "FAIL" });
-                        println!("  Sachlich: {} {}", analysis.sachlichkeit, if sach_ok { "OK" } else { "FAIL" });
-                        println!("  Keywords: {} {}", analysis.keywords.len(), if keywords_ok { "OK" } else { "FAIL" });
+                        println!(
+                            "  Summary:  {} chars {}",
+                            analysis.summary.len(),
+                            if summary_ok { "OK" } else { "FAIL" }
+                        );
+                        println!(
+                            "  Bias:     {} {}",
+                            analysis.political_bias,
+                            if bias_ok { "OK" } else { "FAIL" }
+                        );
+                        println!(
+                            "  Sachlich: {} {}",
+                            analysis.sachlichkeit,
+                            if sach_ok { "OK" } else { "FAIL" }
+                        );
+                        println!(
+                            "  Keywords: {} {}",
+                            analysis.keywords.len(),
+                            if keywords_ok { "OK" } else { "FAIL" }
+                        );
                         println!("  Categories: {}", analysis.categories.len());
 
                         if summary_ok && bias_ok && sach_ok && keywords_ok {
@@ -227,7 +250,10 @@ async fn test_openai_discordian_analysis_5_articles() {
                     }
                     Err(e) => {
                         println!("  [FAIL] JSON parse error: {}", e);
-                        println!("  Raw response: {}", &result.text[..result.text.len().min(300)]);
+                        println!(
+                            "  Raw response: {}",
+                            &result.text[..result.text.len().min(300)]
+                        );
                     }
                 }
             }
@@ -246,8 +272,16 @@ async fn test_openai_discordian_analysis_5_articles() {
     match provider.generate_text(&model, &summary_prompt, false).await {
         Ok(result) => {
             let elapsed = start.elapsed();
-            println!("  Response in {:.2}s ({} chars)", elapsed.as_secs_f64(), result.text.len());
-            assert!(result.text.len() > 20, "Summary too short: {}", result.text.len());
+            println!(
+                "  Response in {:.2}s ({} chars)",
+                elapsed.as_secs_f64(),
+                result.text.len()
+            );
+            assert!(
+                result.text.len() > 20,
+                "Summary too short: {}",
+                result.text.len()
+            );
 
             if let (Some(input), Some(output)) = (result.input_tokens, result.output_tokens) {
                 println!("  Tokens: {} input, {} output", input, output);
@@ -273,7 +307,10 @@ async fn test_openai_discordian_analysis_5_articles() {
         articles.len()
     );
     println!("  Summary Mode:        PASS");
-    println!("  Total tokens:        {} input, {} output", total_input_tokens, total_output_tokens);
+    println!(
+        "  Total tokens:        {} input, {} output",
+        total_input_tokens, total_output_tokens
+    );
 
     if total_input_tokens > 0 {
         // gpt-5-nano pricing: $0.05/1M input, $0.40/1M output
@@ -287,7 +324,14 @@ async fn test_openai_discordian_analysis_5_articles() {
         );
     }
 
-    println!("  Token tracking:      {}", if total_input_tokens > 0 { "WORKING" } else { "NOT WORKING" });
+    println!(
+        "  Token tracking:      {}",
+        if total_input_tokens > 0 {
+            "WORKING"
+        } else {
+            "NOT WORKING"
+        }
+    );
     println!();
 
     assert!(

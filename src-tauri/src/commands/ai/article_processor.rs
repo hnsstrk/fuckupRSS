@@ -353,6 +353,7 @@ pub async fn process_article_discordian(
     let custom_discordian_prompt = get_discordian_prompt(&state);
 
     // Step 1: Load article content, bias weights, and corpus stats
+    #[allow(clippy::type_complexity)]
     let (
         provider,
         effective_model,

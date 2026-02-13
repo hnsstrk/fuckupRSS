@@ -35,7 +35,7 @@
   }
 
   let {
-    id: _id, // eslint-disable-line @typescript-eslint/no-unused-vars -- required prop for keyed each blocks
+    id: _id,
     title,
     status,
     pentacle_title = null,

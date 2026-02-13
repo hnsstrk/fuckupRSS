@@ -174,7 +174,7 @@ pub fn get_fnords(state: State<AppState>, filter: Option<FnordFilter>) -> CmdRes
     });
 
     // Input validation for limit/offset
-    let limit = filter.limit.map(|l| l.max(1).min(1000));
+    let limit = filter.limit.map(|l| l.clamp(1, 1000));
     let offset = filter.offset.map(|o| o.max(0));
 
     let mut sql = format!(
@@ -679,7 +679,7 @@ pub struct KeywordCloudEntry {
 #[tauri::command]
 pub fn get_article_timeline(state: State<AppState>, days: i64) -> CmdResult<ArticleTimeline> {
     // Input validation: clamp days to reasonable range
-    let days = days.max(1).min(365);
+    let days = days.clamp(1, 365);
 
     let db = state.db_conn()?;
 
@@ -818,8 +818,8 @@ pub fn get_top_keywords_stats(
     limit: i64,
 ) -> CmdResult<Vec<KeywordStats>> {
     // Input validation
-    let days = days.max(1).min(365);
-    let limit = limit.max(1).min(1000);
+    let days = days.clamp(1, 365);
+    let limit = limit.clamp(1, 1000);
 
     let db = state.db_conn()?;
 
@@ -882,8 +882,8 @@ pub fn get_feed_activity(
     limit: i64,
 ) -> CmdResult<Vec<FeedActivity>> {
     // Input validation
-    let days = days.max(1).min(365);
-    let limit = limit.max(1).min(1000);
+    let days = days.clamp(1, 365);
+    let limit = limit.clamp(1, 1000);
 
     let db = state.db_conn()?;
 
@@ -979,8 +979,8 @@ pub fn get_keyword_cloud(
     limit: i64,
 ) -> CmdResult<Vec<KeywordCloudEntry>> {
     // Input validation
-    let days = days.max(1).min(365);
-    let limit = limit.max(1).min(1000);
+    let days = days.clamp(1, 365);
+    let limit = limit.clamp(1, 1000);
 
     let db = state.db_conn()?;
 
