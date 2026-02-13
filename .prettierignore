@@ -1,0 +1,10 @@
+node_modules/
+dist/
+src-tauri/
+static/fontawesome/
+coverage/
+playwright-report/
+test-results/
+sbom/
+*.md
+package-lock.json
