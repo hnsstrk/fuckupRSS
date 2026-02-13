@@ -201,7 +201,7 @@ git push --tags
 
 | Voraussetzung | Beschreibung |
 |---------------|-------------|
-| `GITEA_TOKEN` Secret | Muss in Gitea unter Repository > Settings > Actions > Secrets konfiguriert werden |
+| `GITEATOKEN` Secret | Muss in Gitea unter Repository > Settings > Actions > Secrets konfiguriert werden |
 | Tag-Format | Muss mit `v` beginnen (z.B. `v1.0.0`, `v2.1.3`) |
 | CI-Pipeline | Sollte vorher auf `main` erfolgreich durchgelaufen sein |
 

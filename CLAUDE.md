@@ -217,7 +217,7 @@ Pipeline in `.gitea/workflows/ci.yaml`. Release-Workflow in `.gitea/workflows/re
 **Release-Workflow (Tag-basiert):**
 - Ausgeloest durch `v*`-Tags (`git tag v1.x.x && git push --tags`)
 - Baut Linux + macOS parallel, erstellt Gitea Release mit Changelog + Artefakten
-- Benoetigt `GITEA_TOKEN` Secret in Gitea Repository-Settings
+- Benoetigt `GITEATOKEN` Secret in Gitea Repository-Settings
 
 **Runner:** act_runner im Host-Modus (linux-x64 + macos-arm64)
 
