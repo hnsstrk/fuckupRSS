@@ -1,0 +1,9 @@
+node_modules/
+dist/
+static/fontawesome/
+src-tauri/target/
+src-tauri/gen/
+coverage/
+playwright-report/
+test-results/
+sbom/

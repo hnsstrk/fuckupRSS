@@ -35,7 +35,7 @@ src-tauri/data/*.db-shm
 src-tauri/data/*.db-wal
 
 # npm
-package-lock.json
+# package-lock.json is tracked for reproducible builds and SBOM generation
 
 # Test output
 playwright-report/
