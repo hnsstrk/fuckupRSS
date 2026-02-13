@@ -130,17 +130,89 @@ SERVICE
 sudo systemctl enable --now act-runner
 ```
 
-## Pipeline-Stages
+## Pipeline-Stages (CI)
 
-Die Pipeline ist in `.gitea/workflows/ci.yaml` definiert:
+Die CI-Pipeline ist in `.gitea/workflows/ci.yaml` definiert. Durch Parallelisierung betraegt die geschaetzte Gesamtlaufzeit **~35-40 Minuten**.
 
-| Stage | Runner | Jobs |
-|-------|--------|------|
-| **1. Lint** | linux-x64 | ESLint, Prettier, svelte-check, tsc --noEmit, cargo fmt, Clippy |
-| **2. Tests** | Beide | Vitest (Linux), cargo test (beide), E2E (Linux) |
-| **3. Security** | linux-x64 | Semgrep, npm audit |
-| **4. Build** | Beide | Linux (.deb, .AppImage), macOS (.dmg) |
-| **5. SBOM** | linux-x64 | Frontend + Backend SBOMs |
+```
+Stage 1 (parallel):    lint ──────────┐     rust-lint ────────┐
+                                      │                       │
+Stage 2 (parallel):    test-frontend ─┤     test-rust-linux ──┤     test-rust-macos ──┐
+                       test-e2e ──────┤                       │                       │
+                                      │                       │                       │
+Stage 3 (parallel):    security ──────┘─────┘                 │                       │
+                                                              │                       │
+Stage 4 (parallel):    build-linux ───────────────────────────┘                       │
+                       build-macos ───────────────────────────────────────────────────┘
+                       sbom ──────────────────────────────────┘
+```
+
+| Stage | Runner | Jobs | Details |
+|-------|--------|------|---------|
+| **1. Lint** (parallel) | linux-x64 | `lint`: ESLint, Prettier, svelte-check, tsc --noEmit | Frontend Lint + Typecheck |
+| | linux-x64 | `rust-lint`: cargo fmt, Clippy | Rust Lint (parallel zu Frontend) |
+| **2. Tests** (parallel) | linux-x64 | `test-frontend`: Vitest mit Coverage | Coverage-Artefakt wird hochgeladen |
+| | linux-x64 | `test-rust-linux`: cargo test | Abhaengig von rust-lint |
+| | macos-arm64 | `test-rust-macos`: cargo test | Abhaengig von rust-lint |
+| | linux-x64 | `test-e2e`: Playwright E2E | Abhaengig von lint |
+| **3. Security** | linux-x64 | Semgrep (auto + OWASP Top 10), npm audit, cargo audit --deny warnings | Abhaengig von lint + rust-lint |
+| **4. Build** (parallel) | linux-x64 | Linux (.deb, .AppImage) | Abhaengig von test-frontend + test-rust-linux |
+| | macos-arm64 | macOS (.dmg) | Abhaengig von test-frontend + test-rust-macos |
+| **5. SBOM** | linux-x64 | CycloneDX Frontend + Backend | Parallel zu Build |
+
+### Security-Checks
+
+Die Security-Stage umfasst vier Pruefungen:
+
+| Check | Command | Beschreibung |
+|-------|---------|-------------|
+| Semgrep auto | `semgrep scan --config auto --error` | Automatische Regeln, Fehler bei Fund |
+| Semgrep OWASP | `semgrep scan --config p/owasp-top-ten --error` | OWASP Top 10 Pruefung |
+| npm audit | `npm audit --audit-level=high` | Frontend-Dependencies (high+) |
+| cargo audit | `cargo audit --file src-tauri/Cargo.lock --deny warnings` | Rust-Dependencies (strikt, alle Warnings) |
+
+### Coverage-Reporting
+
+Frontend-Tests laufen mit `npm run test:coverage` (Vitest). Das Coverage-Ergebnis wird als Artefakt (`coverage-frontend`) hochgeladen und 30 Tage aufbewahrt.
+
+## Release-Workflow
+
+Der Release-Workflow ist in `.gitea/workflows/release.yaml` definiert und wird **Tag-basiert** ausgeloest.
+
+### Ablauf
+
+1. Ein Git-Tag mit `v`-Prefix erstellen und pushen
+2. Der Workflow baut automatisch fuer Linux und macOS (parallel)
+3. Ein Gitea Release wird erstellt mit Changelog und Build-Artefakten
+
+### Release erstellen
+
+```bash
+# Version taggen und pushen
+git tag v1.0.0
+git push --tags
+
+# Oder mit annotiertem Tag
+git tag -a v1.0.0 -m "Release v1.0.0: Beschreibung"
+git push --tags
+```
+
+### Voraussetzungen
+
+| Voraussetzung | Beschreibung |
+|---------------|-------------|
+| `GITEA_TOKEN` Secret | Muss in Gitea unter Repository > Settings > Actions > Secrets konfiguriert werden |
+| Tag-Format | Muss mit `v` beginnen (z.B. `v1.0.0`, `v2.1.3`) |
+| CI-Pipeline | Sollte vorher auf `main` erfolgreich durchgelaufen sein |
+
+### Release-Artefakte
+
+| Plattform | Format |
+|-----------|--------|
+| Linux | `.deb`, `.AppImage` |
+| macOS | `.dmg` |
+
+Der Changelog wird automatisch aus den Commits seit dem letzten Tag generiert.
 
 ## Troubleshooting
 

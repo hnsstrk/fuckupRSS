@@ -75,6 +75,9 @@ npm run security:audit    # npm audit + cargo audit
 # SBOM
 npm run sbom:generate     # Frontend + Backend SBOMs
 npm run sbom:validate     # SBOMs validieren
+
+# Release (Tag-basiert, loest Release-Workflow aus)
+git tag v1.x.x && git push --tags
 ```
 
 ## Testing
@@ -200,14 +203,21 @@ Automatische Qualitaetssicherung via Git Hooks (Husky 9 + lint-staged).
 
 ## CI/CD (Gitea Actions)
 
-Pipeline in `.gitea/workflows/ci.yaml`. Ausfuehrliches Setup-Guide: [docs/guides/CI_CD_SETUP.md](docs/guides/CI_CD_SETUP.md)
+Pipeline in `.gitea/workflows/ci.yaml`. Release-Workflow in `.gitea/workflows/release.yaml`. Ausfuehrliches Setup-Guide: [docs/guides/CI_CD_SETUP.md](docs/guides/CI_CD_SETUP.md)
 
-**Pipeline-Stages:**
-1. **Lint** - ESLint, Prettier, svelte-check, tsc --noEmit, cargo fmt, Clippy
-2. **Tests** - Vitest, cargo test (Linux + macOS), E2E
-3. **Security** - Semgrep, npm audit
-4. **Build** - Linux (.deb, .AppImage), macOS (.dmg)
+**Pipeline-Stages (parallelisiert, ~35-40 Min Gesamtlaufzeit):**
+1. **Lint** (parallel) - `lint`: ESLint, Prettier, svelte-check, tsc --noEmit | `rust-lint`: cargo fmt, Clippy
+2. **Tests** (parallel) - Vitest mit Coverage, cargo test (Linux + macOS), E2E (Playwright)
+3. **Security** - Semgrep (auto + OWASP Top 10), npm audit, cargo audit --deny warnings
+4. **Build** (parallel) - Linux (.deb, .AppImage), macOS (.dmg)
 5. **SBOM** - CycloneDX Frontend + Backend
+
+**Coverage:** Frontend-Tests erzeugen Coverage-Artefakte (30 Tage Aufbewahrung).
+
+**Release-Workflow (Tag-basiert):**
+- Ausgeloest durch `v*`-Tags (`git tag v1.x.x && git push --tags`)
+- Baut Linux + macOS parallel, erstellt Gitea Release mit Changelog + Artefakten
+- Benoetigt `GITEA_TOKEN` Secret in Gitea Repository-Settings
 
 **Runner:** act_runner im Host-Modus (linux-x64 + macos-arm64)
 

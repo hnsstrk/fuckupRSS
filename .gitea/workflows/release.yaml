@@ -1,0 +1,180 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-linux:
+    name: Build (Linux)
+    runs-on: linux-x64
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.cache-node.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+
+      - name: Build
+        run: npm run tauri build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+
+  build-macos:
+    name: Build (macOS)
+    runs-on: macos-arm64
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.cache-node.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+
+      - name: Build
+        run: npm run tauri build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+
+  release:
+    name: Create Release
+    runs-on: linux-x64
+    timeout-minutes: 10
+    needs: [build-linux, build-macos]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-build
+          path: artifacts/linux
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-build
+          path: artifacts/macos
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(git log ${PREV_TAG}..HEAD --oneline --no-merges)
+          else
+            CHANGELOG=$(git log --oneline --no-merges -20)
+          fi
+          # Write to file for multiline support
+          echo "$CHANGELOG" > changelog.txt
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Collect release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts/ -type f \( -name "*.deb" -o -name "*.AppImage" -o -name "*.dmg" \) -exec cp {} release-assets/ \;
+          ls -la release-assets/
+
+      - name: Create Gitea Release
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          TAG_NAME: ${{ steps.changelog.outputs.tag_name }}
+        run: |
+          CHANGELOG=$(cat changelog.txt)
+          REPO="hnsstrk/fuckupRSS"
+          API_URL="http://192.168.177.11:3000/api/v1"
+
+          # Create release
+          RELEASE_RESPONSE=$(curl -s -X POST \
+            "${API_URL}/repos/${REPO}/releases" \
+            -H "Authorization: token ${GITEA_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"tag_name\": \"${TAG_NAME}\",
+              \"name\": \"fuckupRSS ${TAG_NAME}\",
+              \"body\": \"## Changes\\n\\n${CHANGELOG}\",
+              \"draft\": false,
+              \"prerelease\": false
+            }")
+
+          RELEASE_ID=$(echo "$RELEASE_RESPONSE" | jq -r '.id')
+          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
+            echo "Failed to create release:"
+            echo "$RELEASE_RESPONSE"
+            exit 1
+          fi
+          echo "Created release ID: $RELEASE_ID"
+
+          # Upload assets
+          for FILE in release-assets/*; do
+            FILENAME=$(basename "$FILE")
+            echo "Uploading: $FILENAME"
+            curl -s -X POST \
+              "${API_URL}/repos/${REPO}/releases/${RELEASE_ID}/assets?name=${FILENAME}" \
+              -H "Authorization: token ${GITEA_TOKEN}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary "@${FILE}"
+          done
+
+          echo "Release ${TAG_NAME} created successfully with all assets."
