@@ -62,6 +62,7 @@ class ImmanentizeNetworkStore {
   keywordCategories = $state<KeywordCategory[]>([]);
   trendingKeywords = $state<TrendingKeyword[]>([]);
   trendingPeriod = $state(7);
+  trendingSortBy = $state<'score' | 'growth' | 'count' | 'new'>('score');
   networkStats = $state<NetworkStats | null>(null);
   searchResults = $state<Keyword[]>([]);
   searchQuery = $state('');
@@ -283,6 +284,7 @@ class ImmanentizeNetworkStore {
       this.trendingKeywords = await invoke<TrendingKeyword[]>("get_trending_keywords", {
         days: d,
         limit: 20,
+        sortBy: this.trendingSortBy,
       });
     } catch (e) {
       console.error("Failed to load trending keywords:", e);
@@ -292,6 +294,11 @@ class ImmanentizeNetworkStore {
   async setTrendingPeriod(days: number): Promise<void> {
     this.trendingPeriod = days;
     await this.loadTrendingKeywords(days);
+  }
+
+  async setTrendingSort(sort: 'score' | 'growth' | 'count' | 'new'): Promise<void> {
+    this.trendingSortBy = sort;
+    await this.loadTrendingKeywords();
   }
 
   async loadNetworkStats(): Promise<void> {

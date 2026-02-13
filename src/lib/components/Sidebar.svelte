@@ -164,11 +164,49 @@
     onerisianArchives?.();
   }
 
-  async function handleDeletePentacle(id: number) {
-    await appState.deletePentacle(id);
-    if (!appState.error) {
-      toasts.success($_("toast.feedDeleted"));
+  let deleteConfirm = $state<{pentacle: {id: number, title: string | null, url: string}, stats: {total: number, favorites: number}} | null>(null);
+  let cancelBtnRef = $state<HTMLButtonElement | null>(null);
+
+  $effect(() => {
+    if (deleteConfirm && cancelBtnRef) {
+      cancelBtnRef.focus();
     }
+  });
+
+  async function handleDeletePentacle(id: number) {
+    const pentacle = appState.pentacles.find(p => p.id === id);
+    if (!pentacle) return;
+
+    try {
+      const stats: {total: number, favorites: number} = await invoke('count_pentacle_articles', { pentacleId: id });
+      deleteConfirm = { pentacle: { id: pentacle.id, title: pentacle.title, url: pentacle.url }, stats };
+    } catch (e) {
+      console.error('Failed to count articles:', e);
+      // Fallback: direkt loeschen ohne Modal
+      await appState.deletePentacle(id);
+      if (!appState.error) {
+        toasts.success($_('toast.feedDeleted'));
+      }
+    }
+  }
+
+  async function confirmDeletePentacle() {
+    if (!deleteConfirm) return;
+    const { pentacle, stats } = deleteConfirm;
+    deleteConfirm = null;
+
+    await appState.deletePentacle(pentacle.id);
+    if (!appState.error) {
+      if (stats.total > 0) {
+        toasts.success($_('deletePentacle.success', { values: { count: stats.total } }));
+      } else {
+        toasts.success($_('deletePentacle.successNoArticles'));
+      }
+    }
+  }
+
+  function cancelDeletePentacle() {
+    deleteConfirm = null;
   }
 
   async function handleBatchProcessing() {
@@ -582,6 +620,43 @@
       <span>{appState.totalGoldenApple}</span>
     </div>
   </div>
+
+  {#if deleteConfirm}
+    <div class="delete-overlay" onkeydown={(e) => e.key === 'Escape' && cancelDeletePentacle()} role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title" tabindex="-1">
+      <button class="delete-backdrop" onclick={cancelDeletePentacle} tabindex="-1" aria-label="Close dialog"></button>
+      <div class="delete-dialog" role="document">
+        <h3 class="delete-title" id="delete-dialog-title">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          {$_('deletePentacle.title')}
+        </h3>
+        <p class="delete-confirm-text">
+          {$_('deletePentacle.confirm', { values: { title: deleteConfirm.pentacle.title || deleteConfirm.pentacle.url } })}
+        </p>
+        {#if deleteConfirm.stats.total > 0}
+          <p class="delete-article-count">
+            {$_('deletePentacle.articleCount', { values: { count: deleteConfirm.stats.total } })}
+          </p>
+          {#if deleteConfirm.stats.favorites > 0}
+            <p class="delete-favorites-warning">
+              <i class="fa-solid fa-apple-whole"></i>
+              {$_('deletePentacle.favoritesWarning', { values: { count: deleteConfirm.stats.favorites } })}
+            </p>
+          {/if}
+        {:else}
+          <p class="delete-no-articles">{$_('deletePentacle.noArticles')}</p>
+        {/if}
+        <div class="delete-actions">
+          <button class="btn-secondary" bind:this={cancelBtnRef} onclick={cancelDeletePentacle}>
+            {$_('deletePentacle.cancel')}
+          </button>
+          <button class="btn-danger" onclick={confirmDeletePentacle}>
+            <i class="fa-solid fa-trash"></i>
+            {$_('deletePentacle.deleteAll')}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </aside>
 
 <style>
@@ -601,8 +676,7 @@
     -webkit-app-region: drag;
   }
 
-  .sidebar-header button,
-  .sidebar-header input {
+  .sidebar-header button {
     -webkit-app-region: no-drag;
   }
 
@@ -1208,5 +1282,104 @@
     font-size: 0.6875rem;
     color: var(--accent-primary);
     text-align: center;
+  }
+
+  /* Delete Confirmation Modal */
+  .delete-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+  }
+
+  .delete-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    border: none;
+    cursor: default;
+  }
+
+  .delete-dialog {
+    position: relative;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    max-width: 24rem;
+    width: 90%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+  .delete-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--accent-error);
+    margin: 0 0 1rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .delete-confirm-text {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    margin: 0 0 0.75rem 0;
+  }
+
+  .delete-article-count {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin: 0 0 0.5rem 0;
+  }
+
+  .delete-favorites-warning {
+    font-size: 0.8125rem;
+    color: var(--golden-apple-color);
+    background-color: color-mix(in srgb, var(--golden-apple-color) 10%, transparent);
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    margin: 0 0 0.75rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .delete-no-articles {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin: 0 0 0.75rem 0;
+  }
+
+  .delete-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+
+  .btn-danger {
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    border: none;
+    background-color: var(--accent-error);
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    transition: filter 0.2s;
+  }
+
+  .btn-danger:hover {
+    filter: brightness(1.1);
   }
 </style>

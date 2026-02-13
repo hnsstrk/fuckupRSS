@@ -231,6 +231,44 @@
                     </button>
                   {/each}
                 </div>
+                <div class="trending-sort-buttons">
+                  <Tooltip content={$_('network.sortScore')}>
+                    <button
+                      class="sort-btn {networkStore.trendingSortBy === 'score' ? 'active' : ''}"
+                      onclick={() => networkStore.setTrendingSort('score')}
+                      aria-label={$_('network.sortScore')}
+                    >
+                      <i class="fa-solid fa-fire"></i>
+                    </button>
+                  </Tooltip>
+                  <Tooltip content={$_('network.sortGrowth')}>
+                    <button
+                      class="sort-btn {networkStore.trendingSortBy === 'growth' ? 'active' : ''}"
+                      onclick={() => networkStore.setTrendingSort('growth')}
+                      aria-label={$_('network.sortGrowth')}
+                    >
+                      <i class="fa-solid fa-arrow-trend-up"></i>
+                    </button>
+                  </Tooltip>
+                  <Tooltip content={$_('network.sortCount')}>
+                    <button
+                      class="sort-btn {networkStore.trendingSortBy === 'count' ? 'active' : ''}"
+                      onclick={() => networkStore.setTrendingSort('count')}
+                      aria-label={$_('network.sortCount')}
+                    >
+                      <i class="fa-solid fa-hashtag"></i>
+                    </button>
+                  </Tooltip>
+                  <Tooltip content={$_('network.sortNew')}>
+                    <button
+                      class="sort-btn {networkStore.trendingSortBy === 'new' ? 'active' : ''}"
+                      onclick={() => networkStore.setTrendingSort('new')}
+                      aria-label={$_('network.sortNew')}
+                    >
+                      <i class="fa-solid fa-sparkles"></i>
+                    </button>
+                  </Tooltip>
+                </div>
                 <Tooltip content={$_('network.trendingTooltip', { values: { days: networkStore.trendingPeriod } })}>
                   <i class="fa-solid fa-circle-info trending-info"></i>
                 </Tooltip>
@@ -251,6 +289,9 @@
                       <i class="trend-icon negative fa-solid fa-caret-down"></i>
                     {/if}
                     {keyword.name}
+                    {#if keyword.is_new}
+                      <span class="new-badge">NEU</span>
+                    {/if}
                   </span>
                   <span class="keyword-count">
                     {#if keyword.growth_rate > 0}
@@ -634,7 +675,6 @@
   .trending-period-buttons {
     display: flex;
     gap: 0.125rem;
-    margin-left: auto;
   }
 
   .period-btn {
@@ -661,6 +701,46 @@
     background-color: var(--accent-primary);
     border-color: var(--accent-primary);
     color: var(--bg-base);
+  }
+
+  .trending-sort-buttons {
+    display: flex;
+    gap: 2px;
+    margin-left: auto;
+  }
+
+  .sort-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    transition: all 0.15s ease;
+  }
+
+  .sort-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+  }
+
+  .sort-btn.active {
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  }
+
+  .new-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: var(--accent-warning, #f59e0b);
+    background: color-mix(in srgb, var(--accent-warning, #f59e0b) 15%, transparent);
+    padding: 1px 4px;
+    border-radius: 3px;
+    margin-left: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   .trending-info {

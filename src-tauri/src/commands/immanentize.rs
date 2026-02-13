@@ -71,7 +71,8 @@ pub struct TrendingKeyword {
     pub total_count: i64,
     pub recent_count: i64,    // Last N days
     pub growth_rate: f64,     // (recent - previous) / previous
-    pub trending_score: f64,  // recent_count * (1.0 + growth_rate)
+    pub trending_score: f64,  // ln(recent_count + 1) * (1.0 + growth_rate)
+    pub is_new: bool,         // true when previous_count == 0 and recent_count > 0
 }
 
 /// Network statistics
@@ -279,16 +280,24 @@ pub fn get_category_keywords(
 /// Uses immanentize_daily for efficient period comparison:
 /// - Recent period: last N days
 /// - Previous period: N to 2N days ago
-/// - trending_score = recent_count * (1.0 + growth_rate)
+/// - trending_score = ln(recent_count + 1) * (1.0 + growth_rate)
+///
+/// sort_by options:
+/// - "score" (default): trending_score DESC
+/// - "growth": growth_rate DESC, then recent_count DESC
+/// - "count": recent_count DESC, then growth_rate DESC
+/// - "new": is_new DESC, then trending_score DESC
 #[tauri::command]
 pub fn get_trending_keywords(
     state: State<AppState>,
     days: Option<i64>,
     limit: Option<i64>,
+    sort_by: Option<String>,
 ) -> Result<Vec<TrendingKeyword>, String> {
     let db = state.db_conn()?;
     let days = days.unwrap_or(7);
     let limit = limit.unwrap_or(20);
+    let sort_by = sort_by.unwrap_or_else(|| "score".to_string());
 
     let mut stmt = db
         .conn()
@@ -317,18 +326,12 @@ pub fn get_trending_keywords(
             WHERE (i.is_canonical = TRUE OR i.is_canonical IS NULL)
               AND i.article_count >= 3
               AND COALESCE(recent.cnt, 0) > 0
-            ORDER BY (COALESCE(recent.cnt, 0) * (1.0 + CASE
-                WHEN COALESCE(prev.cnt, 0) > 0
-                    THEN (CAST(COALESCE(recent.cnt, 0) - COALESCE(prev.cnt, 0) AS REAL) / COALESCE(prev.cnt, 0))
-                ELSE 1.0
-            END)) DESC
-            LIMIT ?2
             "#,
         )
         .map_err(|e| e.to_string())?;
 
-    let keywords = stmt
-        .query_map(rusqlite::params![days, limit], |row| {
+    let mut keywords = stmt
+        .query_map(rusqlite::params![days], |row| {
             let total: i64 = row.get::<_, Option<i64>>(2)?.unwrap_or(0);
             let recent: i64 = row.get::<_, Option<i64>>(3)?.unwrap_or(0);
             let previous: i64 = row.get::<_, Option<i64>>(4)?.unwrap_or(0);
@@ -341,7 +344,8 @@ pub fn get_trending_keywords(
                 0.0
             };
 
-            let trending_score = recent as f64 * (1.0 + growth_rate);
+            let trending_score = (recent as f64 + 1.0).ln() * (1.0 + growth_rate);
+            let is_new = previous == 0 && recent > 0;
 
             Ok(TrendingKeyword {
                 id: row.get(0)?,
@@ -350,11 +354,47 @@ pub fn get_trending_keywords(
                 recent_count: recent,
                 growth_rate,
                 trending_score,
+                is_new,
             })
         })
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
+
+    // Sort in Rust (ln() not available in SQLite)
+    match sort_by.as_str() {
+        "growth" => keywords.sort_by(|a, b| {
+            b.growth_rate
+                .partial_cmp(&a.growth_rate)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| b.recent_count.cmp(&a.recent_count))
+        }),
+        "count" => keywords.sort_by(|a, b| {
+            b.recent_count
+                .cmp(&a.recent_count)
+                .then_with(|| {
+                    b.growth_rate
+                        .partial_cmp(&a.growth_rate)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+        }),
+        "new" => keywords.sort_by(|a, b| {
+            b.is_new
+                .cmp(&a.is_new)
+                .then_with(|| {
+                    b.trending_score
+                        .partial_cmp(&a.trending_score)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+        }),
+        _ => keywords.sort_by(|a, b| {
+            b.trending_score
+                .partial_cmp(&a.trending_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }),
+    }
+
+    keywords.truncate(limit as usize);
 
     Ok(keywords)
 }

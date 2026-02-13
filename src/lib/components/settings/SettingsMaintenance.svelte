@@ -19,7 +19,12 @@
   let maintenanceResult = $state<string | null>(null);
 
   // Confirmation dialog state
-  let confirmAction = $state<"prune" | "reset" | null>(null);
+  let confirmAction = $state<"prune" | "reset" | "deleteOrphansAll" | "deleteOrphansKeepFavorites" | null>(null);
+
+  // Orphaned articles state
+  let orphanScanning = $state(false);
+  let orphanStats = $state<{total: number, favorites: number} | null>(null);
+  let orphanDeleteResult = $state<number | null>(null);
 
   // Keyword statistics state
   let keywordStats = $state<{
@@ -408,6 +413,33 @@
     }
   }
 
+  async function scanOrphans() {
+    orphanScanning = true;
+    orphanStats = null;
+    orphanDeleteResult = null;
+    try {
+      orphanStats = await invoke('find_orphaned_articles');
+    } catch (e) {
+      console.error('Failed to scan orphans:', e);
+    } finally {
+      orphanScanning = false;
+    }
+  }
+
+  async function handleDeleteOrphans(includeFavorites: boolean) {
+    confirmAction = null;
+    try {
+      const count: number = await invoke('delete_orphaned_articles', { includeFavorites });
+      orphanDeleteResult = count;
+      orphanStats = null;
+      // Refresh article counts
+      await appState.loadFnords();
+      await appState.loadPentacles();
+    } catch (e) {
+      console.error('Failed to delete orphans:', e);
+    }
+  }
+
   async function handleGeneratePrototypes() {
     generatingPrototypes = true;
     maintenanceResult = null;
@@ -677,6 +709,14 @@
           {$_("settings.maintenance.confirmPrune")}
         {:else if confirmAction === "reset"}
           {$_("settings.maintenance.confirmReset")}
+        {:else if confirmAction === "deleteOrphansAll"}
+          {$_("settings.maintenance.orphanedArticles.confirmDeleteAll", {
+            values: { count: orphanStats?.total ?? 0, favorites: orphanStats?.favorites ?? 0 }
+          })}
+        {:else if confirmAction === "deleteOrphansKeepFavorites"}
+          {$_("settings.maintenance.orphanedArticles.confirmDelete", {
+            values: { count: (orphanStats?.total ?? 0) - (orphanStats?.favorites ?? 0) }
+          })}
         {/if}
       </p>
       <div class="confirm-actions">
@@ -692,7 +732,11 @@
           class="btn-danger-solid"
           onclick={confirmAction === "prune"
             ? handlePruneLowQuality
-            : handleResetForReprocessing}
+            : confirmAction === "reset"
+              ? handleResetForReprocessing
+              : confirmAction === "deleteOrphansAll"
+                ? () => handleDeleteOrphans(true)
+                : () => handleDeleteOrphans(false)}
         >
           {$_("confirm.yes")}
         </button>
@@ -1037,6 +1081,96 @@
       showCancel={true}
       onCancel={handleCancelReanalyze}
     />
+  {/if}
+</div>
+
+<!-- Orphaned Articles Section -->
+<h3 style="margin-top: 1.5rem;">
+  {$_("settings.maintenance.orphanedArticles.title")}
+</h3>
+
+<div class="maintenance-actions">
+  <div class="maintenance-action">
+    <div class="action-info">
+      <span class="action-title">{$_("settings.maintenance.orphanedArticles.title")}</span>
+      <p class="action-desc">{$_("settings.maintenance.orphanedArticles.description")}</p>
+    </div>
+    <button
+      type="button"
+      class="btn-action"
+      onclick={scanOrphans}
+      disabled={orphanScanning || maintenanceRunning !== null}
+    >
+      {#if orphanScanning}
+        <i class="fa-solid fa-spinner fa-spin"></i>
+        {$_("settings.maintenance.orphanedArticles.scanning")}
+      {:else}
+        <i class="fa-solid fa-magnifying-glass"></i>
+        {$_("settings.maintenance.orphanedArticles.scan")}
+      {/if}
+    </button>
+  </div>
+
+  {#if orphanStats}
+    {#if orphanStats.total === 0}
+      <div class="orphan-result success">
+        <i class="fa-solid fa-check-circle"></i>
+        {$_("settings.maintenance.orphanedArticles.noOrphans")}
+      </div>
+    {:else}
+      <div class="orphan-result warning">
+        {#if orphanStats.favorites > 0}
+          <p class="orphan-message">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            {$_("settings.maintenance.orphanedArticles.foundWithFavorites", {
+              values: { count: orphanStats.total, favorites: orphanStats.favorites }
+            })}
+          </p>
+          <div class="action-buttons">
+            <button
+              type="button"
+              class="btn-action btn-danger btn-small"
+              onclick={() => confirmAction = "deleteOrphansAll"}
+            >
+              <i class="fa-solid fa-trash"></i>
+              {$_("settings.maintenance.orphanedArticles.deleteAll")}
+            </button>
+            <button
+              type="button"
+              class="btn-action btn-small"
+              onclick={() => confirmAction = "deleteOrphansKeepFavorites"}
+            >
+              <i class="fa-solid fa-trash-can"></i>
+              {$_("settings.maintenance.orphanedArticles.deleteExceptFavorites")}
+            </button>
+          </div>
+        {:else}
+          <p class="orphan-message">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            {$_("settings.maintenance.orphanedArticles.found", {
+              values: { count: orphanStats.total }
+            })}
+          </p>
+          <div class="action-buttons">
+            <button
+              type="button"
+              class="btn-action btn-danger btn-small"
+              onclick={() => confirmAction = "deleteOrphansAll"}
+            >
+              <i class="fa-solid fa-trash"></i>
+              {$_("settings.maintenance.orphanedArticles.deleteAll")}
+            </button>
+          </div>
+        {/if}
+      </div>
+    {/if}
+  {/if}
+
+  {#if orphanDeleteResult !== null}
+    <div class="orphan-result success">
+      <i class="fa-solid fa-check-circle"></i>
+      {$_("settings.maintenance.orphanedArticles.deleted", { values: { count: orphanDeleteResult } })}
+    </div>
   {/if}
 </div>
 
@@ -1871,5 +2005,33 @@
 
   .no-short-articles i {
     font-size: 1rem;
+  }
+
+  /* Orphaned Articles */
+  .orphan-result {
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+  }
+
+  .orphan-result.success {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: rgba(166, 227, 161, 0.15);
+    color: var(--status-success);
+  }
+
+  .orphan-result.warning {
+    background-color: rgba(250, 179, 135, 0.15);
+    border: 1px solid rgba(250, 179, 135, 0.3);
+  }
+
+  .orphan-message {
+    margin: 0 0 0.75rem 0;
+    color: var(--status-warning);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 </style>

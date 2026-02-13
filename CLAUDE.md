@@ -78,6 +78,64 @@ Konfiguration: `playwright-cli.json` (Browser, baseURL, Timeout). Skills: `.clau
 
 **WICHTIG:** Alle neuen Features und Bugfixes MUESSEN mit Tests abgedeckt werden.
 
+## Security & Quality Tools
+
+Folgende Tools sind lokal installiert und muessen bei Code-Reviews und vor Releases verwendet werden:
+
+### Semgrep (Static Analysis)
+
+| Eigenschaft | Wert |
+|-------------|------|
+| Command | `semgrep` |
+| Pfad | `/opt/homebrew/bin/semgrep` |
+| Version | 1.151.0 |
+| Installation | `brew install semgrep` |
+
+**Verwendung:** Statische Code-Analyse fuer Security-Schwachstellen (OWASP Top 10, XSS, SQL-Injection, Command-Injection, Secrets).
+
+**WICHTIG:** Semgrep-Scans sind verpflichtend bei Code-Reviews.
+
+**Quick Commands:**
+```bash
+# Rust Backend scannen
+semgrep scan --config auto src-tauri/src/
+
+# Frontend scannen
+semgrep scan --config auto src/
+
+# OWASP Top 10 Pruefung
+semgrep scan --config p/owasp-top-ten src-tauri/src/ src/
+
+# Nur geaenderte Dateien scannen
+semgrep scan --config auto <datei1> <datei2> ...
+```
+
+### CycloneDX (SBOM)
+
+| Eigenschaft | Wert |
+|-------------|------|
+| Command | `cyclonedx` |
+| Pfad | `/opt/homebrew/bin/cyclonedx` |
+| Version | 0.30.0 |
+| Installation | `brew install cyclonedx-cli` |
+
+**Verwendung:** Software Bill of Materials (SBOM) - Erzeugen, Validieren und Analysieren von Abhaengigkeitslisten im CycloneDX-Format fuer Supply-Chain-Security.
+
+**Quick Commands:**
+```bash
+# BOM validieren
+cyclonedx validate --input-file bom.json
+
+# BOM analysieren
+cyclonedx analyze --input-file bom.json
+
+# BOM-Format konvertieren (JSON <-> XML)
+cyclonedx convert --input-file bom.xml --output-file bom.json
+
+# Zwei BOMs vergleichen
+cyclonedx diff bom-old.json bom-new.json
+```
+
 ## Icons
 
 Font Awesome 6.4 Pro liegt lokal unter `static/fontawesome/`. Eingebunden via `app.html`:

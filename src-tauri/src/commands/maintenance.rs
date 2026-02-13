@@ -1,5 +1,6 @@
 //! Database maintenance commands
 
+use crate::error::CmdResult;
 use crate::AppState;
 use log::info;
 use serde::Serialize;
@@ -87,6 +88,63 @@ pub async fn vacuum_database(state: State<'_, AppState>) -> Result<VacuumResult,
         freed_mb,
         success: true,
     })
+}
+
+#[derive(Debug, Serialize)]
+pub struct OrphanedArticleStats {
+    pub total: i64,
+    pub favorites: i64,
+}
+
+#[tauri::command]
+pub fn find_orphaned_articles(state: State<AppState>) -> CmdResult<OrphanedArticleStats> {
+    let db = state.db_conn()?;
+
+    let stats = db.conn().query_row(
+        "SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'golden_apple' THEN 1 END) as favorites FROM fnords WHERE pentacle_id NOT IN (SELECT id FROM pentacles)",
+        [],
+        |row| {
+            Ok(OrphanedArticleStats {
+                total: row.get(0)?,
+                favorites: row.get(1)?,
+            })
+        },
+    )?;
+
+    Ok(stats)
+}
+
+#[tauri::command]
+pub fn delete_orphaned_articles(state: State<AppState>, include_favorites: bool) -> CmdResult<i64> {
+    let db = state.db_conn()?;
+    let conn = db.conn();
+
+    conn.execute("BEGIN", [])?;
+
+    let result = if include_favorites {
+        conn.execute(
+            "DELETE FROM fnords WHERE pentacle_id NOT IN (SELECT id FROM pentacles)",
+            [],
+        )
+    } else {
+        conn.execute(
+            "DELETE FROM fnords WHERE pentacle_id NOT IN (SELECT id FROM pentacles) AND status != 'golden_apple'",
+            [],
+        )
+    };
+
+    match result {
+        Ok(_) => {
+            let deleted = conn.changes() as i64;
+            conn.execute("COMMIT", [])?;
+            info!("Deleted {} orphaned articles (include_favorites={})", deleted, include_favorites);
+            Ok(deleted)
+        }
+        Err(e) => {
+            let _ = conn.execute("ROLLBACK", []);
+            Err(e.into())
+        }
+    }
 }
 
 #[cfg(test)]

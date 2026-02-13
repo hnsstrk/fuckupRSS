@@ -132,6 +132,30 @@ pub fn delete_pentacle(state: State<AppState>, id: i64) -> CmdResult<()> {
     Ok(())
 }
 
+#[derive(Debug, Serialize)]
+pub struct PentacleArticleStats {
+    pub total: i64,
+    pub favorites: i64,
+}
+
+#[tauri::command]
+pub fn count_pentacle_articles(state: State<AppState>, pentacle_id: i64) -> CmdResult<PentacleArticleStats> {
+    let db = state.db_conn()?;
+
+    let stats = db.conn().query_row(
+        "SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'golden_apple' THEN 1 END) as favorites FROM fnords WHERE pentacle_id = ?1",
+        [pentacle_id],
+        |row| {
+            Ok(PentacleArticleStats {
+                total: row.get(0)?,
+                favorites: row.get(1)?,
+            })
+        },
+    )?;
+
+    Ok(stats)
+}
+
 // ============================================================
 // Unit Tests
 // ============================================================
