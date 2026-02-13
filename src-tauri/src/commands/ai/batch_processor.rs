@@ -1,25 +1,25 @@
 //! Batch processing commands for article analysis
 
-use crate::embedding_worker;
-use crate::keywords::{
-    cluster_articles, get_representatives, calculate_savings,
-    ArticleForClustering, ClusterConfig, ClusteringResult,
-};
 use crate::ai_provider::AiTextProvider;
+use crate::embedding_worker;
+use crate::extract_keywords;
+use crate::keywords::{
+    calculate_savings, cluster_articles, get_representatives, ArticleForClustering, ClusterConfig,
+    ClusteringResult,
+};
 use crate::text_analysis::{
-    record_correction, BiasWeights, CategoryMatcher, CorrectionRecord, CorrectionType, CorpusStats,
+    record_correction, BiasWeights, CategoryMatcher, CorpusStats, CorrectionRecord, CorrectionType,
     TfIdfExtractor,
 };
-use crate::extract_keywords;
 use crate::AppState;
+use futures::stream::{self, StreamExt};
 use log::{debug, info, warn};
+use rusqlite::Connection;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::{Emitter, Manager, State, Window};
-use futures::stream::{self, StreamExt};
-use rusqlite::Connection;
 
 /// Safely truncate a string to a maximum byte length, respecting UTF-8 char boundaries.
 /// Returns a slice that ends at a valid char boundary.
@@ -37,24 +37,21 @@ fn truncate_str(s: &str, max_bytes: usize) -> &str {
 
 use super::data_persistence::{
     generate_and_save_article_embedding, recalculate_keyword_weights,
-    save_article_categories_with_source,
-    save_article_keywords_with_source,
+    save_article_categories_with_source, save_article_keywords_with_source,
 };
 use super::helpers::{
-    check_analysis_cache, compute_content_hash, create_text_provider, get_locale_from_db,
-    get_num_ctx_setting, get_provider_config, get_embedding_provider_config, log_generation_cost,
-    store_analysis_cache, merge_keywords, determine_keyword_sources, merge_categories_stat_primary,
-    discordian_analysis_via_provider, TokenUsage,
+    check_analysis_cache, compute_content_hash, create_text_provider, determine_keyword_sources,
+    discordian_analysis_via_provider, get_embedding_provider_config, get_locale_from_db,
+    get_num_ctx_setting, get_provider_config, log_generation_cost, merge_categories_stat_primary,
+    merge_keywords, store_analysis_cache, TokenUsage,
 };
 // CorrectionType is already imported from text_analysis
-use crate::commands::ai::helpers::{
-    derive_categories_from_keywords, determine_category_sources,
-};
-use crate::categories::classify_by_keywords;
-use crate::ollama::{DiscordianAnalysis, DiscordianAnalysisWithRejections};
 use super::types::{
     BatchArticle, BatchProgress, BatchResult, FailedCount, HopelessCount, UnprocessedCount,
 };
+use crate::categories::classify_by_keywords;
+use crate::commands::ai::helpers::{derive_categories_from_keywords, determine_category_sources};
+use crate::ollama::{DiscordianAnalysis, DiscordianAnalysisWithRejections};
 
 /// Type alias for articles with optional embeddings (for clustering)
 type ArticleWithEmbedding = (BatchArticle, Option<Vec<f32>>);
@@ -268,7 +265,9 @@ fn apply_clustering(
     let mut clustering_result = cluster_articles(clusterable, &config.cluster_config);
 
     // Add non-clusterable articles to unclustered list
-    clustering_result.unclustered_ids.extend(non_clusterable_ids);
+    clustering_result
+        .unclustered_ids
+        .extend(non_clusterable_ids);
     clustering_result.representatives_count =
         clustering_result.clusters.len() + clustering_result.unclustered_ids.len();
 
@@ -340,7 +339,10 @@ pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount,
         )
         .map_err(|e| e.to_string())?;
 
-    Ok(UnprocessedCount { total, with_content })
+    Ok(UnprocessedCount {
+        total,
+        with_content,
+    })
 }
 
 /// Get failed articles (attempted but not processed successfully, not hopeless)
@@ -462,14 +464,19 @@ async fn process_single_article(
         .extract_smart(&text_for_analysis, batch_context.corpus_stats.as_ref())
         .into_iter()
         .map(|kc| {
-            let adjusted_score = batch_context.bias_weights.apply_to_keyword(&kc.term, kc.score);
+            let adjusted_score = batch_context
+                .bias_weights
+                .apply_to_keyword(&kc.term, kc.score);
             (kc.term, adjusted_score)
         })
         .collect();
 
     keyword_candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     keyword_candidates.truncate(15);
-    let stat_keywords: Vec<String> = keyword_candidates.into_iter().map(|(term, _)| term).collect();
+    let stat_keywords: Vec<String> = keyword_candidates
+        .into_iter()
+        .map(|(term, _)| term)
+        .collect();
 
     let document_tokens = extractor.get_tokens(&text_for_analysis);
 
@@ -495,7 +502,11 @@ async fn process_single_article(
 
     // Use cached result if available, otherwise call LLM
     let (analysis, _from_cache): (DiscordianAnalysis, bool) = if let Some(cached) = cached_result {
-        debug!("[LLM] Cache hit for article {}: \"{}\"", fnord_id, truncate_str(&title, 50));
+        debug!(
+            "[LLM] Cache hit for article {}: \"{}\"",
+            fnord_id,
+            truncate_str(&title, 50)
+        );
         (
             DiscordianAnalysis {
                 summary: cached.summary,
@@ -516,23 +527,27 @@ async fn process_single_article(
             fnord_id
         );
 
-        let analysis_result: Result<(DiscordianAnalysisWithRejections, TokenUsage), crate::ai_provider::AiProviderError> = discordian_analysis_via_provider(
-                provider,
-                model,
-                &title,
-                &content,
-                locale,
-                &stat_keywords,
-                &stat_categories,
-                batch_context.discordian_prompt.as_deref(),
-            )
-            .await;
+        let analysis_result: Result<
+            (DiscordianAnalysisWithRejections, TokenUsage),
+            crate::ai_provider::AiProviderError,
+        > = discordian_analysis_via_provider(
+            provider,
+            model,
+            &title,
+            &content,
+            locale,
+            &stat_keywords,
+            &stat_categories,
+            batch_context.discordian_prompt.as_deref(),
+        )
+        .await;
 
         let duration = llm_start.elapsed();
 
         match analysis_result {
             Ok((analysis_with_rejections, usage)) => {
-                let analysis_with_rejections: crate::ollama::DiscordianAnalysisWithRejections = analysis_with_rejections;
+                let analysis_with_rejections: crate::ollama::DiscordianAnalysisWithRejections =
+                    analysis_with_rejections;
                 info!(
                     "[LLM] Completed \"{}\" (ID: {}) in {:.2}s",
                     truncate_str(&title, 50),
@@ -581,7 +596,8 @@ async fn process_single_article(
                             .ok();
 
                         if let Some(cat_id) = cat_id {
-                            let matching_terms: Vec<String> = stat_keywords.iter().take(5).cloned().collect();
+                            let matching_terms: Vec<String> =
+                                stat_keywords.iter().take(5).cloned().collect();
                             let _ = record_correction(
                                 db.conn(),
                                 &CorrectionRecord {
@@ -613,12 +629,13 @@ async fn process_single_article(
                     );
                 }
 
-                    let llm_analysis_converted: DiscordianAnalysis = analysis_with_rejections.into();
-                    (llm_analysis_converted, false)
+                let llm_analysis_converted: DiscordianAnalysis = analysis_with_rejections.into();
+                (llm_analysis_converted, false)
             }
-            Err(e) => { // Type should be inferred from analysis_result, but let's be safe if possible.
-                        // Actually, Rust doesn't allow explicit type on match binding like `Err(e: Error)`.
-                        // But we can cast it or shadow it.
+            Err(e) => {
+                // Type should be inferred from analysis_result, but let's be safe if possible.
+                // Actually, Rust doesn't allow explicit type on match binding like `Err(e: Error)`.
+                // But we can cast it or shadow it.
                 let e: crate::ai_provider::AiProviderError = e;
                 warn!(
                     "[LLM] FAILED \"{}\" (ID: {}) after {:.2}s: {}",
@@ -630,7 +647,10 @@ async fn process_single_article(
 
                 // Handle LLM error (same as before)
                 let error_msg = e.to_string();
-                let is_json_error = matches!(e, crate::ai_provider::AiProviderError::JsonParseError { .. });
+                let is_json_error = matches!(
+                    e,
+                    crate::ai_provider::AiProviderError::JsonParseError { .. }
+                );
 
                 {
                     let db = match state.db.lock() {
@@ -685,78 +705,86 @@ async fn process_single_article(
                 analysis_attempts = 0,
                 analysis_error = NULL
             WHERE id = ?4"#,
-            (&analysis.summary, analysis.political_bias, analysis.sachlichkeit, fnord_id),
+            (
+                &analysis.summary,
+                analysis.political_bias,
+                analysis.sachlichkeit,
+                fnord_id,
+            ),
         );
 
-                if let Err(e) = update_result {
-                    return (false, Some(format!("DB update failed: {}", e)));
-                }
+        if let Err(e) = update_result {
+            return (false, Some(format!("DB update failed: {}", e)));
+        }
 
-                // Use statistical categories as PRIMARY source (more reliable than LLM)
-                let merged_categories = merge_categories_stat_primary(
-                    &stat_categories,
-                    &analysis.categories,
-                    local_categories.clone(),
-                    0.2, // min confidence threshold for statistical categories
-                );
+        // Use statistical categories as PRIMARY source (more reliable than LLM)
+        let merged_categories = merge_categories_stat_primary(
+            &stat_categories,
+            &analysis.categories,
+            local_categories.clone(),
+            0.2, // min confidence threshold for statistical categories
+        );
 
-                // Save keywords FIRST (so immanentize_sephiroth links are established)
-                let merged_keywords = merge_keywords(&analysis.keywords, local_keywords.clone(), 15);
-                let keywords_with_source = determine_keyword_sources(&merged_keywords, &stat_keywords);
+        // Save keywords FIRST (so immanentize_sephiroth links are established)
+        let merged_keywords = merge_keywords(&analysis.keywords, local_keywords.clone(), 15);
+        let keywords_with_source = determine_keyword_sources(&merged_keywords, &stat_keywords);
 
-                // Use initial merged categories for keyword-category associations
-                let initial_categories_with_source =
-                    determine_category_sources(&merged_categories, &stat_categories);
-                let initial_categories_saved = initial_categories_with_source
-                    .iter()
-                    .map(|c| c.name.clone())
-                    .collect::<Vec<_>>();
+        // Use initial merged categories for keyword-category associations
+        let initial_categories_with_source =
+            determine_category_sources(&merged_categories, &stat_categories);
+        let initial_categories_saved = initial_categories_with_source
+            .iter()
+            .map(|c| c.name.clone())
+            .collect::<Vec<_>>();
 
-                let (_tags_saved, tag_ids) = save_article_keywords_with_source(
-                    db.conn(),
-                    fnord_id,
-                    &keywords_with_source,
-                    &initial_categories_saved,
-                    article.article_date.as_deref(),
-                );
+        let (_tags_saved, tag_ids) = save_article_keywords_with_source(
+            db.conn(),
+            fnord_id,
+            &keywords_with_source,
+            &initial_categories_saved,
+            article.article_date.as_deref(),
+        );
 
-                recalculate_keyword_weights(db.conn(), &tag_ids);
+        recalculate_keyword_weights(db.conn(), &tag_ids);
 
-                // Derive additional categories from keyword network
-                // This uses the immanentize_sephiroth associations to find categories
-                // that are commonly associated with this article's keywords
-                let keyword_names: Vec<String> = keywords_with_source
-                    .iter()
-                    .map(|kw| kw.name.clone())
-                    .collect();
-                let network_categories: Vec<(String, f64)> =
-                    derive_categories_from_keywords(db.conn(), &keyword_names, 0.15, 2);
+        // Derive additional categories from keyword network
+        // This uses the immanentize_sephiroth associations to find categories
+        // that are commonly associated with this article's keywords
+        let keyword_names: Vec<String> = keywords_with_source
+            .iter()
+            .map(|kw| kw.name.clone())
+            .collect();
+        let network_categories: Vec<(String, f64)> =
+            derive_categories_from_keywords(db.conn(), &keyword_names, 0.15, 2);
 
-                // Merge network categories with existing merged categories
-                // Network categories are treated as 'statistical' source
-                let mut final_categories = merged_categories.clone();
-                let seen: std::collections::HashSet<String> = final_categories
-                    .iter()
-                    .map(|c: &String| c.to_lowercase())
-                    .collect();
+        // Merge network categories with existing merged categories
+        // Network categories are treated as 'statistical' source
+        let mut final_categories = merged_categories.clone();
+        let seen: std::collections::HashSet<String> = final_categories
+            .iter()
+            .map(|c: &String| c.to_lowercase())
+            .collect();
 
-                // Also extend stat_categories with network categories for source determination
-                let mut stat_cats_extended = stat_categories.clone();
-                for (cat_name, weight) in &network_categories {
-                    let cat_lower: String = (*cat_name).to_lowercase();
-                    if !seen.contains(&cat_lower) {
-                        final_categories.push(cat_name.clone());
-                    }
-                    if !stat_cats_extended.iter().any(|(n, _)| n.to_lowercase() == cat_lower) {
-                        stat_cats_extended.push((cat_name.clone(), *weight));
-                    }
-                }
-                final_categories.truncate(5); // Keep max 5 categories
+        // Also extend stat_categories with network categories for source determination
+        let mut stat_cats_extended = stat_categories.clone();
+        for (cat_name, weight) in &network_categories {
+            let cat_lower: String = (*cat_name).to_lowercase();
+            if !seen.contains(&cat_lower) {
+                final_categories.push(cat_name.clone());
+            }
+            if !stat_cats_extended
+                .iter()
+                .any(|(n, _)| n.to_lowercase() == cat_lower)
+            {
+                stat_cats_extended.push((cat_name.clone(), *weight));
+            }
+        }
+        final_categories.truncate(5); // Keep max 5 categories
 
-                let categories_with_source =
-                    determine_category_sources(&final_categories, &stat_cats_extended);
-                let _categories_saved =
-                    save_article_categories_with_source(db.conn(), fnord_id, &categories_with_source);
+        let categories_with_source =
+            determine_category_sources(&final_categories, &stat_cats_extended);
+        let _categories_saved =
+            save_article_categories_with_source(db.conn(), fnord_id, &categories_with_source);
 
         if let Err(e) = CorpusStats::update_db_with_document(db.conn(), &document_tokens) {
             debug!("Failed to update corpus stats: {}", e);
@@ -778,8 +806,6 @@ pub async fn process_batch(
     model: String,
     limit: Option<i64>,
 ) -> Result<BatchResult, String> {
-
-
     // Initialize Atomic counters
     let processed_count = Arc::new(AtomicUsize::new(0));
     let succeeded_count = Arc::new(AtomicUsize::new(0));
@@ -789,9 +815,11 @@ pub async fn process_batch(
 
     let articles = {
         let conn = state.db_conn().map_err(|e| e.to_string())?;
-        
-        let mut stmt = conn.conn().prepare(
-            r#"
+
+        let mut stmt = conn
+            .conn()
+            .prepare(
+                r#"
             SELECT
                 f.id,
                 f.title,
@@ -806,19 +834,22 @@ pub async fn process_batch(
                AND (f.analysis_hopeless IS NULL OR f.analysis_hopeless = FALSE)
             ORDER BY f.published_at DESC
             LIMIT ?1
-            "#
-        ).map_err(|e| e.to_string())?;
+            "#,
+            )
+            .map_err(|e| e.to_string())?;
 
-        let rows = stmt.query_map([limit.unwrap_or(-1)], |row| {
-            Ok(BatchArticle {
-                fnord_id: row.get(0)?,
-                title: row.get(1)?,
-                content: row.get(2)?,
-                article_date: row.get(3)?,
-                previous_error: row.get(4)?,
-                attempts: row.get(5)?,
+        let rows = stmt
+            .query_map([limit.unwrap_or(-1)], |row| {
+                Ok(BatchArticle {
+                    fnord_id: row.get(0)?,
+                    title: row.get(1)?,
+                    content: row.get(2)?,
+                    article_date: row.get(3)?,
+                    previous_error: row.get(4)?,
+                    attempts: row.get(5)?,
+                })
             })
-        }).map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string())?;
 
         let mut articles = Vec::new();
         for article in rows {
@@ -851,7 +882,10 @@ pub async fn process_batch(
         let mut config = super::helpers::get_provider_config(&db);
 
         // Only override Ollama model from frontend; OpenAI uses its configured model
-        if matches!(config.provider_type, crate::ai_provider::ProviderType::Ollama) {
+        if matches!(
+            config.provider_type,
+            crate::ai_provider::ProviderType::Ollama
+        ) {
             config.ollama_model = model.clone();
         }
 
@@ -867,13 +901,13 @@ pub async fn process_batch(
 
         (config, effective)
     };
-    
+
     // Needed for logic below
-    let _num_ctx = provider_config.ollama_num_ctx; 
+    let _num_ctx = provider_config.ollama_num_ctx;
     let provider_name = format!("{:?}", provider_config.provider_type);
 
-
-    let provider_for_batch: Arc<dyn crate::ai_provider::AiTextProvider> = Arc::from(crate::ai_provider::create_provider(&provider_config));
+    let provider_for_batch: Arc<dyn crate::ai_provider::AiTextProvider> =
+        Arc::from(crate::ai_provider::create_provider(&provider_config));
     let provider_config_for_retry = provider_config.clone();
     let locale = get_locale_from_db(&state);
 
@@ -888,7 +922,7 @@ pub async fn process_batch(
 
     // Determine concurrency
     let suggested = provider_for_batch.suggested_concurrency();
-    
+
     // Get OpenAI concurrency setting from DB if applicable
     let openai_concurrency_setting: usize = if suggested > 1 {
         let db = state.db_conn().map_err(|e| e.to_string())?;
@@ -914,7 +948,7 @@ pub async fn process_batch(
 
     let batch_context = Arc::new(batch_context);
     // provider_ref is not needed as we clone the Arc for the stream
-    
+
     // Create a generated stream of futures
     let results_stream = stream::iter(articles.into_iter().enumerate())
         .map(|(idx, article)| {
@@ -927,7 +961,7 @@ pub async fn process_batch(
             let batch_context = batch_context.clone();
             let provider_config_for_retry = provider_config_for_retry.clone();
             let provider_name = provider_name.clone();
-            
+
             // Capture atomic counters
             let processed_count = processed_count.clone();
             let succeeded_count = succeeded_count.clone();
@@ -1013,8 +1047,8 @@ pub async fn process_batch(
                 } else {
                     failed_count.fetch_add(1, Ordering::Relaxed);
                 }
-                
-                
+
+
                 // Return result for collecting (optional, but good for debugging)
                 Some((fnord_id, success))
             }
@@ -1023,7 +1057,7 @@ pub async fn process_batch(
 
     // Drain the stream to execute futures and collect results
     let results: Vec<_> = results_stream.collect().await;
-    
+
     // Convert atomics for subsequent logic
     let succeeded = succeeded_count.load(Ordering::Relaxed) as i64;
     let failed = failed_count.load(Ordering::Relaxed) as i64;
@@ -1034,9 +1068,10 @@ pub async fn process_batch(
         let config = get_embedding_provider_config(&db);
         crate::ai_provider::create_embedding_provider(&config)
     };
-    
+
     // Collect successful IDs for embeddings
-    let successful_fnord_ids: Vec<i64> = results.into_iter()
+    let successful_fnord_ids: Vec<i64> = results
+        .into_iter()
         .flatten()
         .filter_map(|(id, success)| if success { Some(id) } else { None })
         .collect();
@@ -1111,7 +1146,10 @@ pub async fn process_batch(
                     current: total,
                     total,
                     fnord_id: 0,
-                    title: format!("Generating {} article embeddings...", successful_fnord_ids.len()),
+                    title: format!(
+                        "Generating {} article embeddings...",
+                        successful_fnord_ids.len()
+                    ),
                     success: true,
                     error: None,
                     provider: provider_name.clone(),
@@ -1187,7 +1225,11 @@ pub async fn process_batch(
     let total_duration = batch_start_time.elapsed();
     info!(
         "[LLM] Batch complete. Processed: {}/{}. Success: {}, Failed: {}. Time: {:.2}s",
-        processed_final, total, succeeded_final, failed_final, total_duration.as_secs_f64()
+        processed_final,
+        total,
+        succeeded_final,
+        failed_final,
+        total_duration.as_secs_f64()
     );
 
     // Trigger WAL checkpoint if many changes were made
@@ -1422,7 +1464,10 @@ pub async fn process_batch_clustered(
             Ok(prompt) => Some(prompt),
             Err(rusqlite::Error::QueryReturnedNoRows) => None,
             Err(e) => {
-                warn!("Failed to load custom discordian prompt for clustered batch: {}", e);
+                warn!(
+                    "Failed to load custom discordian prompt for clustered batch: {}",
+                    e
+                );
                 None
             }
         };
@@ -1463,7 +1508,10 @@ pub async fn process_batch_clustered(
             .collect();
         let result = ClusteringResult {
             clusters: vec![],
-            unclustered_ids: articles_with_embeddings.iter().map(|(a, _)| a.fnord_id).collect(),
+            unclustered_ids: articles_with_embeddings
+                .iter()
+                .map(|(a, _)| a.fnord_id)
+                .collect(),
             total_articles,
             representatives_count: total_articles,
         };
@@ -1489,7 +1537,8 @@ pub async fn process_batch_clustered(
     let provider_name = provider_for_batch.provider_name().to_string();
 
     // Override model from frontend parameter only for Ollama provider
-    let effective_model = crate::ai_provider::resolve_effective_model(&provider_name, &model, &provider_model);
+    let effective_model =
+        crate::ai_provider::resolve_effective_model(&provider_name, &model, &provider_model);
 
     // Provider config for retry logic
     let provider_config_for_retry = provider_config;
@@ -1553,7 +1602,7 @@ pub async fn process_batch_clustered(
         // For retries with adjusted context (ONLY for Ollama)
         // OpenAI-compatible providers use the same provider for retries
         let retry_provider: Option<Arc<dyn AiTextProvider>> = if article.attempts > 0 {
-            use crate::ai_provider::{ProviderType, create_provider};
+            use crate::ai_provider::{create_provider, ProviderType};
 
             match provider_config_for_retry.provider_type {
                 ProviderType::Ollama => {
@@ -1594,9 +1643,15 @@ pub async fn process_batch_clustered(
             None => provider_for_batch.as_ref(),
         };
 
-        let (success, error) =
-            process_single_article(provider, &state, &effective_model, &locale, article, &batch_context)
-                .await;
+        let (success, error) = process_single_article(
+            provider,
+            &state,
+            &effective_model,
+            &locale,
+            article,
+            &batch_context,
+        )
+        .await;
 
         // If this is a cluster representative, transfer keywords to members
         let mut transferred = 0;
@@ -1609,7 +1664,11 @@ pub async fn process_batch_clustered(
                             Ok(db) => db,
                             Err(e) => {
                                 warn!("Failed to acquire DB lock for cluster transfer: {}", e);
-                                if success { succeeded += 1; } else { failed += 1; }
+                                if success {
+                                    succeeded += 1;
+                                } else {
+                                    failed += 1;
+                                }
                                 continue;
                             }
                         };
@@ -1617,38 +1676,46 @@ pub async fn process_batch_clustered(
                         let keywords: Vec<String> = match db.conn().prepare(
                             r#"SELECT i.name FROM immanentize i
                                JOIN fnord_immanentize fi ON fi.immanentize_id = i.id
-                               WHERE fi.fnord_id = ?1"#
+                               WHERE fi.fnord_id = ?1"#,
                         ) {
-                            Ok(mut stmt) => {
-                                match stmt.query_map([fnord_id], |row| row.get(0)) {
-                                    Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
-                                    Err(e) => {
-                                        warn!("Failed to query keywords for article {}: {}", fnord_id, e);
-                                        vec![]
-                                    }
+                            Ok(mut stmt) => match stmt.query_map([fnord_id], |row| row.get(0)) {
+                                Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+                                Err(e) => {
+                                    warn!(
+                                        "Failed to query keywords for article {}: {}",
+                                        fnord_id, e
+                                    );
+                                    vec![]
                                 }
-                            }
+                            },
                             Err(e) => {
-                                warn!("Failed to prepare keyword query for article {}: {}", fnord_id, e);
+                                warn!(
+                                    "Failed to prepare keyword query for article {}: {}",
+                                    fnord_id, e
+                                );
                                 vec![]
                             }
                         };
 
                         let categories: Vec<i64> = match db.conn().prepare(
                             r#"SELECT sephiroth_id FROM fnord_sephiroth
-                               WHERE fnord_id = ?1"#
+                               WHERE fnord_id = ?1"#,
                         ) {
-                            Ok(mut stmt) => {
-                                match stmt.query_map([fnord_id], |row| row.get(0)) {
-                                    Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
-                                    Err(e) => {
-                                        warn!("Failed to query categories for article {}: {}", fnord_id, e);
-                                        vec![]
-                                    }
+                            Ok(mut stmt) => match stmt.query_map([fnord_id], |row| row.get(0)) {
+                                Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+                                Err(e) => {
+                                    warn!(
+                                        "Failed to query categories for article {}: {}",
+                                        fnord_id, e
+                                    );
+                                    vec![]
                                 }
-                            }
+                            },
                             Err(e) => {
-                                warn!("Failed to prepare category query for article {}: {}", fnord_id, e);
+                                warn!(
+                                    "Failed to prepare category query for article {}: {}",
+                                    fnord_id, e
+                                );
                                 vec![]
                             }
                         };
@@ -1657,7 +1724,14 @@ pub async fn process_batch_clustered(
                     };
 
                     if !keywords.is_empty() || !categories.is_empty() {
-                        match transfer_keywords_to_cluster_members(&state, cluster, &keywords, &categories).await {
+                        match transfer_keywords_to_cluster_members(
+                            &state,
+                            cluster,
+                            &keywords,
+                            &categories,
+                        )
+                        .await
+                        {
                             Ok(n) => {
                                 transferred = n;
                                 info!(

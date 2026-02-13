@@ -188,13 +188,14 @@ impl HeadlessFetcher {
         // Validate URL
         url::Url::parse(url).map_err(|e| HeadlessError::InvalidUrl(e.to_string()))?;
 
-        let nav_params = NavigateParams::builder()
-            .url(url)
-            .build()
-            .map_err(|e| HeadlessError::Navigation {
-                url: url.to_string(),
-                message: format!("Failed to build navigation params: {}", e),
-            })?;
+        let nav_params =
+            NavigateParams::builder()
+                .url(url)
+                .build()
+                .map_err(|e| HeadlessError::Navigation {
+                    url: url.to_string(),
+                    message: format!("Failed to build navigation params: {}", e),
+                })?;
 
         // Navigate with timeout
         let nav_result = timeout(self.page_timeout, page.execute(nav_params))
@@ -320,9 +321,13 @@ impl HeadlessFetcher {
                 "#,
             )
             .await
-            .map_err(|e| HeadlessError::ContentExtraction(format!("JavaScript evaluation failed: {}", e)))?
+            .map_err(|e| {
+                HeadlessError::ContentExtraction(format!("JavaScript evaluation failed: {}", e))
+            })?
             .into_value()
-            .map_err(|e| HeadlessError::ContentExtraction(format!("Failed to convert result: {}", e)))?;
+            .map_err(|e| {
+                HeadlessError::ContentExtraction(format!("Failed to convert result: {}", e))
+            })?;
 
         // Close the page to free resources
         if let Err(e) = page.close().await {

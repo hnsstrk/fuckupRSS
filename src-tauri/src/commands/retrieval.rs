@@ -35,7 +35,10 @@ fn categorize_error(error: &RetrievalError) -> String {
                 }
                 return "connection_error".to_string();
             }
-            if error_string.contains("ssl") || error_string.contains("tls") || error_string.contains("certificate") {
+            if error_string.contains("ssl")
+                || error_string.contains("tls")
+                || error_string.contains("certificate")
+            {
                 return "ssl_error".to_string();
             }
 
@@ -43,7 +46,10 @@ fn categorize_error(error: &RetrievalError) -> String {
         }
         RetrievalError::UrlParse(_) => "invalid_url".to_string(),
         RetrievalError::Extraction(_) => {
-            if error_string.contains("blocked") || error_string.contains("captcha") || error_string.contains("access denied") {
+            if error_string.contains("blocked")
+                || error_string.contains("captcha")
+                || error_string.contains("access denied")
+            {
                 return "blocked".to_string();
             }
             "parse_error".to_string()
@@ -174,15 +180,19 @@ pub async fn fetch_truncated_articles(
 
         let base_sql = "SELECT id, url, content_raw FROM fnords WHERE full_text_fetched = FALSE";
         let sql = match pentacle_id {
-            Some(_) => format!("{} AND pentacle_id = ?1 ORDER BY published_at DESC LIMIT 50", base_sql),
+            Some(_) => format!(
+                "{} AND pentacle_id = ?1 ORDER BY published_at DESC LIMIT 50",
+                base_sql
+            ),
             None => format!("{} ORDER BY published_at DESC LIMIT 50", base_sql),
         };
 
         let mut stmt = db.conn().prepare(&sql).map_err(|e| e.to_string())?;
 
-        let row_mapper = |row: &rusqlite::Row| -> Result<(i64, String, Option<String>), rusqlite::Error> {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-        };
+        let row_mapper =
+            |row: &rusqlite::Row| -> Result<(i64, String, Option<String>), rusqlite::Error> {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            };
 
         let rows: Vec<(i64, String, Option<String>)> = match pentacle_id {
             Some(pid) => stmt.query_map([pid], row_mapper),
@@ -190,7 +200,12 @@ pub async fn fetch_truncated_articles(
         }
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
-        .filter(|(_, _, content)| content.as_ref().map(|c| HagbardRetrieval::is_truncated(c)).unwrap_or(true))
+        .filter(|(_, _, content)| {
+            content
+                .as_ref()
+                .map(|c| HagbardRetrieval::is_truncated(c))
+                .unwrap_or(true)
+        })
         .collect();
 
         let headless = is_headless_enabled(&db);
@@ -367,14 +382,17 @@ pub async fn refetch_short_articles(
         processed += 1;
 
         // Emit progress event
-        let _ = app.emit("refetch-progress", RefetchProgress {
-            current: processed,
-            total: total_found,
-            fnord_id: id,
-            title: title.clone(),
-            success: true,
-            error: None,
-        });
+        let _ = app.emit(
+            "refetch-progress",
+            RefetchProgress {
+                current: processed,
+                total: total_found,
+                fnord_id: id,
+                title: title.clone(),
+                success: true,
+                error: None,
+            },
+        );
 
         match retrieval
             .retrieve_with_fallback(&url, use_headless, headless_fetcher)
@@ -436,14 +454,17 @@ pub async fn refetch_short_articles(
                 }
 
                 // Emit error progress
-                let _ = app.emit("refetch-progress", RefetchProgress {
-                    current: processed,
-                    total: total_found,
-                    fnord_id: id,
-                    title: title.clone(),
-                    success: false,
-                    error: Some(e.to_string()),
-                });
+                let _ = app.emit(
+                    "refetch-progress",
+                    RefetchProgress {
+                        current: processed,
+                        total: total_found,
+                        fnord_id: id,
+                        title: title.clone(),
+                        success: false,
+                        error: Some(e.to_string()),
+                    },
+                );
 
                 results.push(RefetchResult {
                     fnord_id: id,
@@ -665,7 +686,10 @@ pub async fn delete_null_content_articles(
             [],
         )?;
 
-        info!("Deleted {} articles with NULL or empty content", deleted_count);
+        info!(
+            "Deleted {} articles with NULL or empty content",
+            deleted_count
+        );
 
         Ok(DeleteResponse {
             deleted_count: deleted_count as i64,
@@ -790,14 +814,17 @@ pub async fn refetch_feed_short_articles(
         processed += 1;
 
         // Emit progress event
-        let _ = app.emit("refetch-progress", RefetchProgress {
-            current: processed,
-            total: total_found,
-            fnord_id: id,
-            title: title.clone(),
-            success: true,
-            error: None,
-        });
+        let _ = app.emit(
+            "refetch-progress",
+            RefetchProgress {
+                current: processed,
+                total: total_found,
+                fnord_id: id,
+                title: title.clone(),
+                success: true,
+                error: None,
+            },
+        );
 
         match retrieval
             .retrieve_with_fallback(&url, use_headless, headless_fetcher)
@@ -851,14 +878,17 @@ pub async fn refetch_feed_short_articles(
                 }
 
                 // Emit error progress
-                let _ = app.emit("refetch-progress", RefetchProgress {
-                    current: processed,
-                    total: total_found,
-                    fnord_id: id,
-                    title: title.clone(),
-                    success: false,
-                    error: Some(e.to_string()),
-                });
+                let _ = app.emit(
+                    "refetch-progress",
+                    RefetchProgress {
+                        current: processed,
+                        total: total_found,
+                        fnord_id: id,
+                        title: title.clone(),
+                        success: false,
+                        error: Some(e.to_string()),
+                    },
+                );
 
                 results.push(RefetchResult {
                     fnord_id: id,

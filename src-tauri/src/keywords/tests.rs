@@ -189,7 +189,10 @@ fn test_find_canonical_keyword_countries() {
     assert_eq!(find_canonical_keyword("kyiv"), Some("Ukraine"));
     assert_eq!(find_canonical_keyword("kiev"), Some("Ukraine"));
 
-    assert_eq!(find_canonical_keyword("european"), Some("Europäische Union"));
+    assert_eq!(
+        find_canonical_keyword("european"),
+        Some("Europäische Union")
+    );
     assert_eq!(find_canonical_keyword("eu"), Some("Europäische Union"));
     assert_eq!(find_canonical_keyword("brüssel"), Some("Europäische Union"));
 
@@ -203,9 +206,15 @@ fn test_find_canonical_keyword_countries() {
     assert_eq!(find_canonical_keyword("iranian"), Some("Iran"));
     assert_eq!(find_canonical_keyword("teheran"), Some("Iran"));
 
-    assert_eq!(find_canonical_keyword("american"), Some("Vereinigte Staaten"));
+    assert_eq!(
+        find_canonical_keyword("american"),
+        Some("Vereinigte Staaten")
+    );
     assert_eq!(find_canonical_keyword("usa"), Some("Vereinigte Staaten"));
-    assert_eq!(find_canonical_keyword("washington"), Some("Vereinigte Staaten"));
+    assert_eq!(
+        find_canonical_keyword("washington"),
+        Some("Vereinigte Staaten")
+    );
 }
 
 #[test]
@@ -222,25 +231,40 @@ fn test_find_canonical_keyword_topics() {
     assert_eq!(find_canonical_keyword("refugees"), Some("Migration"));
     assert_eq!(find_canonical_keyword("asylum"), Some("Migration"));
 
-    assert_eq!(find_canonical_keyword("climate change"), Some("Klimawandel"));
-    assert_eq!(find_canonical_keyword("global warming"), Some("Klimawandel"));
+    assert_eq!(
+        find_canonical_keyword("climate change"),
+        Some("Klimawandel")
+    );
+    assert_eq!(
+        find_canonical_keyword("global warming"),
+        Some("Klimawandel")
+    );
 }
 
 #[test]
 fn test_find_canonical_keyword_persons() {
     // Test prominent persons normalization (full names as canonical)
     assert_eq!(find_canonical_keyword("trump"), Some("Donald Trump"));
-    assert_eq!(find_canonical_keyword("präsident trump"), Some("Donald Trump"));
+    assert_eq!(
+        find_canonical_keyword("präsident trump"),
+        Some("Donald Trump")
+    );
     assert_eq!(find_canonical_keyword("biden"), Some("Joe Biden"));
     assert_eq!(find_canonical_keyword("putin"), Some("Wladimir Putin"));
     assert_eq!(find_canonical_keyword("scholz"), Some("Olaf Scholz"));
-    assert_eq!(find_canonical_keyword("bundeskanzler scholz"), Some("Olaf Scholz"));
+    assert_eq!(
+        find_canonical_keyword("bundeskanzler scholz"),
+        Some("Olaf Scholz")
+    );
 }
 
 #[test]
 fn test_find_canonical_keyword_declensions() {
     // Test German declension forms
-    assert_eq!(find_canonical_keyword("vereinigten staaten"), Some("Vereinigte Staaten"));
+    assert_eq!(
+        find_canonical_keyword("vereinigten staaten"),
+        Some("Vereinigte Staaten")
+    );
     assert_eq!(find_canonical_keyword("irans"), Some("Iran"));
     assert_eq!(find_canonical_keyword("der iran"), Some("Iran"));
 }
@@ -270,10 +294,7 @@ fn test_extract_keywords_with_metadata() {
     // At least one keyword should have multiple sources (combined from different methods)
     let has_combined = keywords.iter().any(|k| k.source.contains(','));
     // This is not guaranteed but likely for typical news text
-    assert!(
-        keywords.len() >= 1,
-        "Should extract at least one keyword"
-    );
+    assert!(keywords.len() >= 1, "Should extract at least one keyword");
 }
 
 #[test]
@@ -339,10 +360,9 @@ fn test_advanced_ngram_integration() {
     let keywords = extract_keywords_with_metadata(title, content, 10);
 
     // Should find "Europäische Union" as a frequent bigram
-    let has_eu = keywords.iter().any(|k|
-        k.text.to_lowercase().contains("europäische union") ||
-        k.text.to_lowercase().contains("eu")
-    );
+    let has_eu = keywords.iter().any(|k| {
+        k.text.to_lowercase().contains("europäische union") || k.text.to_lowercase().contains("eu")
+    });
     assert!(
         has_eu || keywords.iter().any(|k| k.text.contains("Union")),
         "Should extract repeated phrases, got: {:?}",
@@ -361,7 +381,10 @@ fn test_advanced_textrank_integration() {
     let keywords = extract_keywords_with_metadata(title, content, 5);
 
     // "Technologie" and "Innovation" should score high due to TextRank centrality
-    let scores: Vec<(&str, f64)> = keywords.iter().map(|k| (k.text.as_str(), k.score)).collect();
+    let scores: Vec<(&str, f64)> = keywords
+        .iter()
+        .map(|k| (k.text.as_str(), k.score))
+        .collect();
 
     assert!(
         !keywords.is_empty(),
@@ -378,10 +401,9 @@ fn test_advanced_enhanced_ner_integration() {
     let keywords = extract_keywords_with_metadata(title, content, 10);
 
     // Should find organization (Deutsche Bank AG) and potentially person names
-    let has_org = keywords.iter().any(|k|
-        k.keyword_type == KeywordType::Organization ||
-        k.text.to_lowercase().contains("bank")
-    );
+    let has_org = keywords.iter().any(|k| {
+        k.keyword_type == KeywordType::Organization || k.text.to_lowercase().contains("bank")
+    });
 
     assert!(
         has_org || !keywords.is_empty(),
@@ -399,10 +421,8 @@ fn test_multi_method_confirmation_boosts_score() {
     let keywords = extract_keywords_with_metadata(title, content, 10);
 
     // Find keywords with multiple sources (indicating confirmation)
-    let multi_source_keywords: Vec<_> = keywords
-        .iter()
-        .filter(|k| k.source.contains(','))
-        .collect();
+    let multi_source_keywords: Vec<_> =
+        keywords.iter().filter(|k| k.source.contains(',')).collect();
 
     // Keywords confirmed by multiple methods exist
     // (may not always have multi-source keywords depending on text)
@@ -429,7 +449,10 @@ fn test_normalize_and_dedupe_with_levenshtein() {
     let deduped = normalize_and_dedupe_keywords_with_levenshtein(&keywords, 2);
 
     // Should remove near-duplicates
-    assert!(deduped.len() <= 4, "Should have removed some near-duplicates");
+    assert!(
+        deduped.len() <= 4,
+        "Should have removed some near-duplicates"
+    );
     // Should keep at least one Trump and one Biden
     assert!(
         deduped.iter().any(|k| k.to_lowercase().contains("trump")),
@@ -467,9 +490,15 @@ fn test_normalize_and_dedupe_with_scores_keeps_higher() {
     let deduped = normalize_and_dedupe_keywords_with_scores(&keywords, 2);
 
     // Should keep Trump variant with higher score (0.9)
-    let trump = deduped.iter().find(|(k, _)| k.to_lowercase().contains("trump"));
+    let trump = deduped
+        .iter()
+        .find(|(k, _)| k.to_lowercase().contains("trump"));
     assert!(trump.is_some());
-    assert_eq!(trump.unwrap().1, 0.9, "Should keep the higher-scored variant");
+    assert_eq!(
+        trump.unwrap().1,
+        0.9,
+        "Should keep the higher-scored variant"
+    );
 }
 
 #[test]
@@ -515,12 +544,12 @@ fn test_is_garbage_keyword_empty() {
 #[test]
 fn test_is_garbage_keyword_mostly_digits() {
     // All digits = garbage
-    assert!(is_garbage_keyword("12345"));     // All digits
-    // Mixed with hex letters only = garbage (looks like hex ID)
+    assert!(is_garbage_keyword("12345")); // All digits
+                                          // Mixed with hex letters only = garbage (looks like hex ID)
     assert!(is_garbage_keyword("abc123def456")); // Hex-like pattern
-    // But words with some digits should pass if they look like real terms
+                                                 // But words with some digits should pass if they look like real terms
     assert!(!is_garbage_keyword("Artikel123")); // Real word prefix
-    assert!(!is_garbage_keyword("COVID19"));    // Real term
+    assert!(!is_garbage_keyword("COVID19")); // Real term
 }
 
 #[test]
@@ -538,7 +567,7 @@ fn test_is_garbage_keyword_hex_ids() {
     assert!(is_garbage_keyword("11516c14826")); // Pure hex ID
     assert!(is_garbage_keyword("abc123def456")); // 12 chars, hex-like
     assert!(is_garbage_keyword("deadbeef12")); // Pure hex
-    // But real words should pass (contain non-hex letters like g-z)
+                                               // But real words should pass (contain non-hex letters like g-z)
     assert!(!is_garbage_keyword("Klimawandel")); // Contains 'k', 'l', 'i', 'm', 'w', 'n'
     assert!(!is_garbage_keyword("NATO")); // Short acronym
     assert!(!is_garbage_keyword("Technology")); // Contains non-hex letters
@@ -605,7 +634,10 @@ fn test_strip_edge_stopwords_german_articles() {
     assert_eq!(strip_edge_stopwords("Kopenhagen die"), "Kopenhagen");
     assert_eq!(strip_edge_stopwords("der Bundestag"), "Bundestag");
     assert_eq!(strip_edge_stopwords("die Regierung das"), "Regierung");
-    assert_eq!(strip_edge_stopwords("Die Bundesregierung"), "Bundesregierung");
+    assert_eq!(
+        strip_edge_stopwords("Die Bundesregierung"),
+        "Bundesregierung"
+    );
 }
 
 #[test]
@@ -626,15 +658,24 @@ fn test_strip_edge_stopwords_english() {
 
 #[test]
 fn test_strip_edge_stopwords_multiple() {
-    assert_eq!(strip_edge_stopwords("In der Bundesregierung von"), "Bundesregierung");
+    assert_eq!(
+        strip_edge_stopwords("In der Bundesregierung von"),
+        "Bundesregierung"
+    );
     assert_eq!(strip_edge_stopwords("die und der"), "die und der"); // All stopwords, keep original
 }
 
 #[test]
 fn test_strip_edge_stopwords_preserves_middle() {
     // Stopwords in the middle should be preserved
-    assert_eq!(strip_edge_stopwords("Angela von der Leyen"), "Angela von der Leyen");
-    assert_eq!(strip_edge_stopwords("Ursula von der Leyen"), "Ursula von der Leyen");
+    assert_eq!(
+        strip_edge_stopwords("Angela von der Leyen"),
+        "Angela von der Leyen"
+    );
+    assert_eq!(
+        strip_edge_stopwords("Ursula von der Leyen"),
+        "Ursula von der Leyen"
+    );
 }
 
 #[test]

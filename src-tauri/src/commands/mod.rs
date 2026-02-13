@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod article_analysis;
 pub mod categories;
 pub mod embedding;
@@ -6,7 +7,6 @@ pub mod immanentize;
 pub mod keyword_type_detection;
 pub mod maintenance;
 pub mod mindfuck;
-pub mod ai;
 pub mod opml;
 pub mod pentacles;
 pub mod recommendations;

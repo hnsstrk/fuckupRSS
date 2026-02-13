@@ -137,7 +137,10 @@ pub fn delete_orphaned_articles(state: State<AppState>, include_favorites: bool)
         Ok(_) => {
             let deleted = conn.changes() as i64;
             conn.execute("COMMIT", [])?;
-            info!("Deleted {} orphaned articles (include_favorites={})", deleted, include_favorites);
+            info!(
+                "Deleted {} orphaned articles (include_favorites={})",
+                deleted, include_favorites
+            );
             Ok(deleted)
         }
         Err(e) => {

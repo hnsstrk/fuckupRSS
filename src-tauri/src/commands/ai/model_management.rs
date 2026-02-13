@@ -164,10 +164,7 @@ pub async fn unload_model(state: State<'_, AppState>, model: String) -> Result<b
     };
     let client = reqwest_new::Client::new();
 
-    let body = format!(
-        r#"{{"model":"{}","prompt":"","keep_alive":0}}"#,
-        model
-    );
+    let body = format!(r#"{{"model":"{}","prompt":"","keep_alive":0}}"#, model);
 
     let response: reqwest_new::Response = client
         .post(format!("{}/api/generate", ollama_url))
@@ -212,7 +209,11 @@ pub async fn ensure_models_loaded(
 
 /// Pull (download) a model from Ollama
 #[tauri::command]
-pub async fn pull_model(state: State<'_, AppState>, window: Window, model: String) -> Result<ModelPullResult, String> {
+pub async fn pull_model(
+    state: State<'_, AppState>,
+    window: Window,
+    model: String,
+) -> Result<ModelPullResult, String> {
     let url = {
         let db = state.db_conn()?;
         get_ollama_url(&db)
@@ -313,7 +314,12 @@ pub async fn test_ai_provider(
                         }
 
                         let models = match resp.json::<ModelsResponse>().await {
-                            Ok(r) => r.data.unwrap_or_default().into_iter().map(|m| m.id).collect(),
+                            Ok(r) => r
+                                .data
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|m| m.id)
+                                .collect(),
                             Err(_) => vec![],
                         };
 
@@ -484,7 +490,9 @@ pub fn log_ai_cost(
 /// Currently not called but will be used for pre-batch cost limit enforcement
 /// when OpenAI-compatible provider is active.
 #[allow(dead_code)]
-pub fn check_cost_limit(conn: &rusqlite::Connection) -> Result<(), crate::ai_provider::AiProviderError> {
+pub fn check_cost_limit(
+    conn: &rusqlite::Connection,
+) -> Result<(), crate::ai_provider::AiProviderError> {
     let spent: f64 = conn
         .query_row(
             r#"SELECT COALESCE(SUM(estimated_cost_usd), 0.0)
@@ -506,10 +514,7 @@ pub fn check_cost_limit(conn: &rusqlite::Connection) -> Result<(), crate::ai_pro
         .unwrap_or(5.0);
 
     if spent >= limit {
-        Err(crate::ai_provider::AiProviderError::CostLimitReached {
-            spent,
-            limit,
-        })
+        Err(crate::ai_provider::AiProviderError::CostLimitReached { spent, limit })
     } else {
         Ok(())
     }

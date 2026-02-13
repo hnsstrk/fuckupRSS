@@ -1,8 +1,8 @@
 mod schema;
 
-pub mod transaction;
 #[cfg(test)]
 mod tests;
+pub mod transaction;
 
 // Re-export stopword functions for use in commands
 pub use schema::{reset_stopwords_to_default, restore_default_stopwords};
@@ -96,7 +96,9 @@ impl Database {
         {
             let fk_enabled: i32 = conn.query_row("PRAGMA foreign_keys", [], |row| row.get(0))?;
             if fk_enabled != 1 {
-                log::error!("Foreign keys are not enabled! This is a critical configuration error.");
+                log::error!(
+                    "Foreign keys are not enabled! This is a critical configuration error."
+                );
                 return Err(DbError::Sqlite(rusqlite::Error::InvalidQuery));
             }
         }
@@ -167,15 +169,69 @@ impl Database {
 
         // Insert feeds from FEEDS.md
         let feeds = [
-            ("https://augengeradeaus.net/feed/", "Augen geradeaus!", "Sicherheitspolitik und Bundeswehr", "https://augengeradeaus.net", 4),
-            ("https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml", "tagesschau.de", "Alle Meldungen der ARD", "https://www.tagesschau.de", 5),
-            ("https://rss.dw.com/xml/rss-de-all", "Deutsche Welle", "Nachrichten aus aller Welt", "https://www.dw.com", 4),
-            ("http://feeds.bbci.co.uk/news/rss.xml", "BBC News", "Breaking news from the BBC", "https://www.bbc.co.uk/news", 5),
-            ("https://www.bundeswehr.de/service/rss/de/517054/feed", "Bundeswehr", "Offizielle Nachrichten der Bundeswehr", "https://www.bundeswehr.de", 4),
-            ("https://www.deutschlandfunk.de/nachrichten-100.rss", "Deutschlandfunk Nachrichten", "Aktuelle Nachrichten", "https://www.deutschlandfunk.de", 5),
-            ("https://www.deutschlandfunk.de/politikportal-100.rss", "Deutschlandfunk Politik", "Politik-Nachrichten", "https://www.deutschlandfunk.de", 4),
-            ("https://netzpolitik.org/feed/", "netzpolitik.org", "Plattform fuer digitale Freiheitsrechte", "https://netzpolitik.org", 4),
-            ("https://linuxnews.de/feed/", "LinuxNews.de", "Linux und Open Source Nachrichten", "https://linuxnews.de", 3),
+            (
+                "https://augengeradeaus.net/feed/",
+                "Augen geradeaus!",
+                "Sicherheitspolitik und Bundeswehr",
+                "https://augengeradeaus.net",
+                4,
+            ),
+            (
+                "https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml",
+                "tagesschau.de",
+                "Alle Meldungen der ARD",
+                "https://www.tagesschau.de",
+                5,
+            ),
+            (
+                "https://rss.dw.com/xml/rss-de-all",
+                "Deutsche Welle",
+                "Nachrichten aus aller Welt",
+                "https://www.dw.com",
+                4,
+            ),
+            (
+                "http://feeds.bbci.co.uk/news/rss.xml",
+                "BBC News",
+                "Breaking news from the BBC",
+                "https://www.bbc.co.uk/news",
+                5,
+            ),
+            (
+                "https://www.bundeswehr.de/service/rss/de/517054/feed",
+                "Bundeswehr",
+                "Offizielle Nachrichten der Bundeswehr",
+                "https://www.bundeswehr.de",
+                4,
+            ),
+            (
+                "https://www.deutschlandfunk.de/nachrichten-100.rss",
+                "Deutschlandfunk Nachrichten",
+                "Aktuelle Nachrichten",
+                "https://www.deutschlandfunk.de",
+                5,
+            ),
+            (
+                "https://www.deutschlandfunk.de/politikportal-100.rss",
+                "Deutschlandfunk Politik",
+                "Politik-Nachrichten",
+                "https://www.deutschlandfunk.de",
+                4,
+            ),
+            (
+                "https://netzpolitik.org/feed/",
+                "netzpolitik.org",
+                "Plattform fuer digitale Freiheitsrechte",
+                "https://netzpolitik.org",
+                4,
+            ),
+            (
+                "https://linuxnews.de/feed/",
+                "LinuxNews.de",
+                "Linux und Open Source Nachrichten",
+                "https://linuxnews.de",
+                3,
+            ),
         ];
 
         for (url, title, description, site_url, quality) in feeds {

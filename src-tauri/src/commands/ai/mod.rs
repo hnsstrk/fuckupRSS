@@ -22,39 +22,39 @@ pub mod types;
 // Re-export types for backward compatibility with existing tests and code
 #[allow(unused_imports)]
 pub use types::{
-    // Status & Model Types
-    OllamaStatus,
-    LoadedModel,
-    LoadedModelsResponse,
-    ModelPullResult,
-    // Prompt Types
-    PromptTemplates,
-    DefaultPrompts,
-    // Article Processing Types
-    SummaryResponse,
     AnalysisResponse,
-    DiscordianResponse,
-    // Source Tracking Types
-    KeywordWithSource,
-    CategoryWithSource,
+    ArticleEmbeddingBatchResult,
+    ArticleEmbeddingCount,
+    ArticleEmbeddingProgress,
+    BatchArticle,
     // Batch Processing Types
     BatchProgress,
     BatchResult,
-    UnprocessedCount,
-    HopelessCount,
+    CategoryWithSource,
+    DefaultPrompts,
+    DiscordianResponse,
     FailedCount,
-    BatchArticle,
+    HopelessCount,
+    // Source Tracking Types
+    KeywordWithSource,
+    LoadedModel,
+    LoadedModelsResponse,
+    ModelPullResult,
+    // Status & Model Types
+    OllamaStatus,
+    // Prompt Types
+    PromptTemplates,
     ResetForReprocessingResult,
-    // Similarity & Search Types
-    SimilarArticleTag,
-    SimilarArticleCategory,
-    SimilarArticle,
-    SimilarArticlesResponse,
     SearchResult,
     SemanticSearchResponse,
-    ArticleEmbeddingCount,
-    ArticleEmbeddingProgress,
-    ArticleEmbeddingBatchResult,
+    SimilarArticle,
+    SimilarArticleCategory,
+    // Similarity & Search Types
+    SimilarArticleTag,
+    SimilarArticlesResponse,
+    // Article Processing Types
+    SummaryResponse,
+    UnprocessedCount,
 };
 
 // Re-export cluster batch types

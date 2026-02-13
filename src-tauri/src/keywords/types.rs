@@ -19,7 +19,6 @@ pub enum KeywordSource {
     Manual,
 }
 
-
 impl std::fmt::Display for KeywordSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -165,7 +164,12 @@ impl KeywordWithMetadata {
     }
 
     /// Create a new keyword with metadata and type
-    pub fn new_with_type(name: String, source: KeywordSource, confidence: f64, keyword_type: String) -> Self {
+    pub fn new_with_type(
+        name: String,
+        source: KeywordSource,
+        confidence: f64,
+        keyword_type: String,
+    ) -> Self {
         Self {
             name,
             source,
@@ -243,7 +247,10 @@ mod tests {
     #[test]
     fn test_keyword_source_from_str() {
         assert_eq!(KeywordSource::from("ai"), KeywordSource::Ai);
-        assert_eq!(KeywordSource::from("statistical"), KeywordSource::Statistical);
+        assert_eq!(
+            KeywordSource::from("statistical"),
+            KeywordSource::Statistical
+        );
         assert_eq!(KeywordSource::from("stat"), KeywordSource::Statistical);
         assert_eq!(KeywordSource::from("manual"), KeywordSource::Manual);
         assert_eq!(KeywordSource::from("user"), KeywordSource::Manual);

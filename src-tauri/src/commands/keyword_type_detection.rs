@@ -67,28 +67,72 @@ pub struct MethodCounts {
 
 /// Type prototypes for semantic matching
 const TYPE_PROTOTYPES: &[(&str, &[&str])] = &[
-    ("person", &[
-        "Angela Merkel", "Friedrich Merz", "Olaf Scholz", "Markus Söder",
-        "Donald Trump", "Emmanuel Macron", "Joe Biden", "Elon Musk",
-        "Tim Cook", "Albert Einstein", "Marie Curie"
-    ]),
-    ("organization", &[
-        "Deutsche Bank", "Siemens AG", "Volkswagen", "Microsoft Corporation",
-        "Apple Inc", "Bundesregierung", "European Commission", "United Nations",
-        "Bayern München", "Manchester United"
-    ]),
-    ("location", &[
-        "Berlin", "München", "Hamburg", "Frankfurt", "Paris", "London",
-        "New York", "Deutschland", "Frankreich", "Japan"
-    ]),
-    ("acronym", &[
-        "NATO", "EU", "USA", "UN", "AI", "API", "HTTP", "CDU", "SPD", "BND"
-    ]),
-    ("concept", &[
-        "Klimawandel", "Digitalisierung", "Inflation", "Demokratie",
-        "Künstliche Intelligenz", "Machine Learning", "Blockchain",
-        "Nachhaltigkeit", "Globalisierung"
-    ]),
+    (
+        "person",
+        &[
+            "Angela Merkel",
+            "Friedrich Merz",
+            "Olaf Scholz",
+            "Markus Söder",
+            "Donald Trump",
+            "Emmanuel Macron",
+            "Joe Biden",
+            "Elon Musk",
+            "Tim Cook",
+            "Albert Einstein",
+            "Marie Curie",
+        ],
+    ),
+    (
+        "organization",
+        &[
+            "Deutsche Bank",
+            "Siemens AG",
+            "Volkswagen",
+            "Microsoft Corporation",
+            "Apple Inc",
+            "Bundesregierung",
+            "European Commission",
+            "United Nations",
+            "Bayern München",
+            "Manchester United",
+        ],
+    ),
+    (
+        "location",
+        &[
+            "Berlin",
+            "München",
+            "Hamburg",
+            "Frankfurt",
+            "Paris",
+            "London",
+            "New York",
+            "Deutschland",
+            "Frankreich",
+            "Japan",
+        ],
+    ),
+    (
+        "acronym",
+        &[
+            "NATO", "EU", "USA", "UN", "AI", "API", "HTTP", "CDU", "SPD", "BND",
+        ],
+    ),
+    (
+        "concept",
+        &[
+            "Klimawandel",
+            "Digitalisierung",
+            "Inflation",
+            "Demokratie",
+            "Künstliche Intelligenz",
+            "Machine Learning",
+            "Blockchain",
+            "Nachhaltigkeit",
+            "Globalisierung",
+        ],
+    ),
 ];
 
 /// Initialize prototype embeddings table in database
@@ -227,15 +271,15 @@ pub async fn generate_keyword_type_prototypes(
 
     // Count what we have
     let db = state.db_conn()?;
-    let total: i64 = db.conn()
-        .query_row(
-            "SELECT COUNT(*) FROM keyword_type_prototypes",
-            [],
-            |row| row.get(0),
-        )
+    let total: i64 = db
+        .conn()
+        .query_row("SELECT COUNT(*) FROM keyword_type_prototypes", [], |row| {
+            row.get(0)
+        })
         .unwrap_or(0);
 
-    let with_embeddings: i64 = db.conn()
+    let with_embeddings: i64 = db
+        .conn()
         .query_row(
             "SELECT COUNT(*) FROM keyword_type_prototypes WHERE embedding IS NOT NULL",
             [],
@@ -243,7 +287,10 @@ pub async fn generate_keyword_type_prototypes(
         )
         .unwrap_or(0);
 
-    info!("Prototype table ready: {} total, {} with embeddings", total, with_embeddings);
+    info!(
+        "Prototype table ready: {} total, {} with embeddings",
+        total, with_embeddings
+    );
 
     Ok(PrototypeGenerationResult {
         total,
@@ -269,7 +316,8 @@ pub async fn update_keyword_types_hybrid(
     // Get all keywords
     let keywords: Vec<(i64, String)> = {
         let db = state.db_conn()?;
-        let mut stmt = db.conn()
+        let mut stmt = db
+            .conn()
             .prepare("SELECT id, name FROM immanentize")
             .map_err(|e| e.to_string())?;
 
@@ -332,8 +380,7 @@ pub async fn update_keyword_types_hybrid(
     );
     info!(
         "By type: {} person, {} org, {} location, {} acronym, {} concept",
-        by_type.person, by_type.organization, by_type.location,
-        by_type.acronym, by_type.concept
+        by_type.person, by_type.organization, by_type.location, by_type.acronym, by_type.concept
     );
 
     Ok(KeywordTypeBatchResult {
@@ -433,11 +480,7 @@ pub async fn update_untyped_keywords(
     );
     info!(
         "By type: {} person, {} org, {} location, {} acronym, {} concept",
-        by_type.person,
-        by_type.organization,
-        by_type.location,
-        by_type.acronym,
-        by_type.concept
+        by_type.person, by_type.organization, by_type.location, by_type.acronym, by_type.concept
     );
 
     Ok(KeywordTypeBatchResult {
@@ -503,14 +546,21 @@ mod tests {
             ("Deutsche Bank", "organization"),
             ("Bundesregierung", "organization"),
             // Sports clubs (organization, not person)
-            ("Bayern SC", "organization"),  // ends with " sc" -> org pattern
-            ("FC Bayern", "organization"),  // starts with "fc " -> org pattern
+            ("Bayern SC", "organization"), // ends with " sc" -> org pattern
+            ("FC Bayern", "organization"), // starts with "fc " -> org pattern
         ];
 
         for (keyword, expected_type) in test_cases {
             let result = detect_keyword_type_with_confidence(keyword);
-            println!("{:30} -> {} (expected: {})", keyword, result.keyword_type, expected_type);
-            assert_eq!(result.keyword_type, expected_type, "Failed for: {}", keyword);
+            println!(
+                "{:30} -> {} (expected: {})",
+                keyword, result.keyword_type, expected_type
+            );
+            assert_eq!(
+                result.keyword_type, expected_type,
+                "Failed for: {}",
+                keyword
+            );
         }
     }
 }

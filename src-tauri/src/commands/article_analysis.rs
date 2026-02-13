@@ -4,11 +4,11 @@
 //! statistical analysis, and bias learning.
 
 use crate::db::transaction::{with_transaction_result, TransactionError};
-use crate::similarity::{find_similar_hybrid, SimilarityOptions, SimilarityMethod};
+use crate::similarity::{find_similar_hybrid, SimilarityMethod, SimilarityOptions};
 use crate::text_analysis::{
-    BiasWeights, BiasStats, CategoryMatcher, CorrectionRecord, CorrectionType,
-    TfIdfExtractor, record_correction as bias_record_correction, get_bias_stats as bias_get_stats,
-    load_user_stopwords, load_all_db_stopwords,
+    get_bias_stats as bias_get_stats, load_all_db_stopwords, load_user_stopwords,
+    record_correction as bias_record_correction, BiasStats, BiasWeights, CategoryMatcher,
+    CorrectionRecord, CorrectionType, TfIdfExtractor,
 };
 use crate::{find_canonical_keyword_with_db, AppState};
 use rusqlite::params;
@@ -28,7 +28,10 @@ fn capitalize_keyword(keyword: &str) -> String {
     }
 
     // If it's all uppercase (acronym), keep it
-    if trimmed.chars().all(|c| c.is_uppercase() || !c.is_alphabetic()) {
+    if trimmed
+        .chars()
+        .all(|c| c.is_uppercase() || !c.is_alphabetic())
+    {
         return trimmed.to_string();
     }
 
@@ -66,7 +69,6 @@ pub enum KeywordTypeInfo {
     Acronym,
 }
 
-
 /// Article keyword with source tracking and advanced metadata
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ArticleKeyword {
@@ -88,17 +90,39 @@ fn infer_keyword_type(name: &str) -> KeywordTypeInfo {
     // Check for acronyms (all uppercase, 2-6 chars)
     if words.len() == 1 {
         let word = words[0];
-        if word.len() >= 2 && word.len() <= 6 && word.chars().all(|c| c.is_uppercase() || !c.is_alphabetic()) {
+        if word.len() >= 2
+            && word.len() <= 6
+            && word.chars().all(|c| c.is_uppercase() || !c.is_alphabetic())
+        {
             return KeywordTypeInfo::Acronym;
         }
     }
 
     // Check for organization patterns
     let org_indicators = [
-        "gmbh", "ag", "inc", "ltd", "corp", "kg", "e.v.", "se",
-        "ministerium", "ministry", "bundesamt", "behörde", "agency",
-        "bank", "verband", "stiftung", "foundation", "institute", "institut",
-        "universität", "university", "partei", "party",
+        "gmbh",
+        "ag",
+        "inc",
+        "ltd",
+        "corp",
+        "kg",
+        "e.v.",
+        "se",
+        "ministerium",
+        "ministry",
+        "bundesamt",
+        "behörde",
+        "agency",
+        "bank",
+        "verband",
+        "stiftung",
+        "foundation",
+        "institute",
+        "institut",
+        "universität",
+        "university",
+        "partei",
+        "party",
     ];
     let lower = name.to_lowercase();
     for indicator in org_indicators {
@@ -113,7 +137,9 @@ fn infer_keyword_type(name: &str) -> KeywordTypeInfo {
             w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
                 && w.len() >= 2
                 && w.len() <= 15
-                && !org_indicators.iter().any(|ind| w.to_lowercase().contains(ind))
+                && !org_indicators
+                    .iter()
+                    .any(|ind| w.to_lowercase().contains(ind))
         })
     {
         // Additional check: not a known location or organization prefix
@@ -125,8 +151,17 @@ fn infer_keyword_type(name: &str) -> KeywordTypeInfo {
 
     // Check for location patterns
     let location_indicators = [
-        "stadt", "city", "land", "country", "region", "province", "state",
-        "republic", "republik", "kingdom", "königreich",
+        "stadt",
+        "city",
+        "land",
+        "country",
+        "region",
+        "province",
+        "state",
+        "republic",
+        "republik",
+        "kingdom",
+        "königreich",
     ];
     for indicator in location_indicators {
         if lower.contains(indicator) {
@@ -374,7 +409,11 @@ pub fn add_article_keyword(
 
         // Get quality score from DB if available
         let quality_score: Option<f64> = conn
-            .query_row("SELECT quality_score FROM immanentize WHERE id = ?", [keyword_id], |row| row.get(0))
+            .query_row(
+                "SELECT quality_score FROM immanentize WHERE id = ?",
+                [keyword_id],
+                |row| row.get(0),
+            )
             .ok();
 
         Ok(ArticleKeyword {
@@ -403,7 +442,11 @@ pub fn remove_article_keyword(
     with_transaction_result(db.conn(), |conn| {
         // Get keyword name before deleting for bias learning
         let keyword_name: Option<String> = conn
-            .query_row("SELECT name FROM immanentize WHERE id = ?", [keyword_id], |row| row.get(0))
+            .query_row(
+                "SELECT name FROM immanentize WHERE id = ?",
+                [keyword_id],
+                |row| row.get(0),
+            )
             .ok();
 
         conn.execute(
@@ -541,7 +584,11 @@ pub fn add_article_category(
     // Get category name for bias learning
     let category_name: String = db
         .conn()
-        .query_row("SELECT name FROM sephiroth WHERE id = ?", [sephiroth_id], |row| row.get(0))
+        .query_row(
+            "SELECT name FROM sephiroth WHERE id = ?",
+            [sephiroth_id],
+            |row| row.get(0),
+        )
         .unwrap_or_else(|_| sephiroth_id.to_string());
 
     db.conn()
@@ -580,7 +627,11 @@ pub fn remove_article_category(
     // Get category name for bias learning
     let category_name: String = db
         .conn()
-        .query_row("SELECT name FROM sephiroth WHERE id = ?", [sephiroth_id], |row| row.get(0))
+        .query_row(
+            "SELECT name FROM sephiroth WHERE id = ?",
+            [sephiroth_id],
+            |row| row.get(0),
+        )
         .unwrap_or_else(|_| sephiroth_id.to_string());
 
     db.conn()
@@ -649,8 +700,7 @@ pub fn analyze_article_statistical(
         .map(|kc| {
             let adjusted_score = bias.apply_to_keyword(&kc.term, kc.score);
             // Normalize to canonical form if available (static + dynamic synonyms)
-            let term = find_canonical_keyword_with_db(&kc.term)
-                .unwrap_or(kc.term);
+            let term = find_canonical_keyword_with_db(&kc.term).unwrap_or(kc.term);
             KeywordCandidateResult {
                 term,
                 score: adjusted_score,
@@ -772,7 +822,9 @@ pub async fn process_statistical_batch(
             .map_err(|e| e.to_string())?;
 
         let articles: Vec<(i64, String, String)> = stmt
-            .query_map([limit_val], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .query_map([limit_val], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
@@ -785,14 +837,17 @@ pub async fn process_statistical_batch(
     let mut errors = Vec::new();
 
     // Emit initial progress (no lock needed)
-    let _ = window.emit("statistical-progress", StatisticalProgress {
-        current: 0,
-        total,
-        fnord_id: 0,
-        title: "Starting...".to_string(),
-        success: true,
-        error: None,
-    });
+    let _ = window.emit(
+        "statistical-progress",
+        StatisticalProgress {
+            current: 0,
+            total,
+            fnord_id: 0,
+            title: "Starting...".to_string(),
+            success: true,
+            error: None,
+        },
+    );
 
     // Create extractors (no DB needed)
     let extractor = TfIdfExtractor::new().with_max_keywords(10);
@@ -815,8 +870,8 @@ pub async fn process_statistical_batch(
             if adjusted_score < 0.05 {
                 continue;
             }
-            let keyword_name = find_canonical_keyword_with_db(&kc.term)
-                .unwrap_or_else(|| kc.term.clone());
+            let keyword_name =
+                find_canonical_keyword_with_db(&kc.term).unwrap_or_else(|| kc.term.clone());
 
             // Filter against DB stopwords (case-insensitive)
             let keyword_lower = keyword_name.to_lowercase();
@@ -846,7 +901,8 @@ pub async fn process_statistical_batch(
             let conn = db.conn();
 
             // Use transaction for atomicity
-            conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
+            conn.execute("BEGIN TRANSACTION", [])
+                .map_err(|e| e.to_string())?;
 
             let mut success = true;
             let mut error_msg: Option<String> = None;
@@ -940,28 +996,34 @@ pub async fn process_statistical_batch(
         }
 
         // Emit progress (no lock held)
-        let _ = window.emit("statistical-progress", StatisticalProgress {
-            current: (idx + 1) as i64,
-            total,
-            fnord_id,
-            title: title.clone(),
-            success,
-            error: error_msg.clone(),
-        });
+        let _ = window.emit(
+            "statistical-progress",
+            StatisticalProgress {
+                current: (idx + 1) as i64,
+                total,
+                fnord_id,
+                title: title.clone(),
+                success,
+                error: error_msg.clone(),
+            },
+        );
 
         // Yield to allow other tasks (embedding worker, UI) to run
         tokio::task::yield_now().await;
     }
 
     // Emit completion (no lock needed)
-    let _ = window.emit("statistical-progress", StatisticalProgress {
-        current: total,
-        total,
-        fnord_id: 0,
-        title: "Complete".to_string(),
-        success: true,
-        error: None,
-    });
+    let _ = window.emit(
+        "statistical-progress",
+        StatisticalProgress {
+            current: total,
+            total,
+            fnord_id: 0,
+            title: "Complete".to_string(),
+            success: true,
+            error: None,
+        },
+    );
 
     Ok(BatchStatisticalResult {
         processed,
@@ -976,7 +1038,10 @@ pub async fn process_statistical_batch(
 
 /// Record a user correction for bias learning
 #[tauri::command]
-pub fn record_correction(state: State<AppState>, correction: CorrectionInput) -> Result<(), String> {
+pub fn record_correction(
+    state: State<AppState>,
+    correction: CorrectionInput,
+) -> Result<(), String> {
     let db = state.db_conn()?;
 
     let correction_type = match correction.correction_type.as_str() {
@@ -984,7 +1049,12 @@ pub fn record_correction(state: State<AppState>, correction: CorrectionInput) ->
         "keyword_removed" => CorrectionType::KeywordRemoved,
         "category_added" => CorrectionType::CategoryAdded,
         "category_removed" => CorrectionType::CategoryRemoved,
-        _ => return Err(format!("Unknown correction type: {}", correction.correction_type)),
+        _ => {
+            return Err(format!(
+                "Unknown correction type: {}",
+                correction.correction_type
+            ))
+        }
     };
 
     let record = CorrectionRecord {
@@ -996,8 +1066,7 @@ pub fn record_correction(state: State<AppState>, correction: CorrectionInput) ->
         category_id: correction.category_id,
     };
 
-    bias_record_correction(db.conn(), &record)
-        .map_err(|e| e.to_string())?;
+    bias_record_correction(db.conn(), &record).map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -1202,7 +1271,11 @@ pub async fn score_keywords_semantically(
     }
 
     // Sort by combined score descending
-    results.sort_by(|a, b| b.combined_score.partial_cmp(&a.combined_score).unwrap_or(std::cmp::Ordering::Equal));
+    results.sort_by(|a, b| {
+        b.combined_score
+            .partial_cmp(&a.combined_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     Ok(results)
 }
@@ -1221,8 +1294,10 @@ fn cosine_similarity_blob(a: &[u8], b: &[u8]) -> f64 {
 
     for i in 0..dim {
         let offset = i * 4;
-        let val_a = f32::from_le_bytes([a[offset], a[offset + 1], a[offset + 2], a[offset + 3]]) as f64;
-        let val_b = f32::from_le_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]) as f64;
+        let val_a =
+            f32::from_le_bytes([a[offset], a[offset + 1], a[offset + 2], a[offset + 3]]) as f64;
+        let val_b =
+            f32::from_le_bytes([b[offset], b[offset + 1], b[offset + 2], b[offset + 3]]) as f64;
 
         dot += val_a * val_b;
         norm_a += val_a * val_a;
@@ -1263,9 +1338,7 @@ pub struct CategoryFixResult {
 /// 5. Sum weighted scores per category
 /// 6. Add categories that exceed a threshold and aren't already assigned
 #[tauri::command]
-pub fn fix_category_assignments(
-    state: State<AppState>,
-) -> Result<CategoryFixResult, String> {
+pub fn fix_category_assignments(state: State<AppState>) -> Result<CategoryFixResult, String> {
     let db = state.db_conn()?;
     let conn = db.conn();
 
@@ -1283,7 +1356,8 @@ pub fn fix_category_assignments(
         )
         .unwrap_or(0);
 
-    let mut categories_added: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    let mut categories_added: std::collections::HashMap<String, i64> =
+        std::collections::HashMap::new();
     let mut fixed_count = 0i64;
 
     // Get all subcategories (level = 1)

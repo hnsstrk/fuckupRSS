@@ -117,7 +117,9 @@ pub fn find_similar_hybrid(
                WHERE canonical_id = ? AND is_canonical = FALSE"#,
         )
         .map_err(|e| e.to_string())?
-        .query_map([keyword_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .query_map([keyword_id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         .collect();

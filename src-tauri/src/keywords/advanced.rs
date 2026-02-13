@@ -33,8 +33,9 @@ static MINISTRY_PATTERN: Lazy<Regex> = Lazy::new(|| {
 
 static LOCATION_PATTERN: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r"(?i)\b(?:in|aus|nach|from|to|at)\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\b"
-    ).unwrap()
+        r"(?i)\b(?:in|aus|nach|from|to|at)\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\b",
+    )
+    .unwrap()
 });
 
 static EVENT_PATTERN: Lazy<Regex> = Lazy::new(|| {
@@ -44,9 +45,7 @@ static EVENT_PATTERN: Lazy<Regex> = Lazy::new(|| {
 });
 
 static YEAR_CONTEXT_PATTERN: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"\b([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\s+(20\d{2}|19\d{2})\b"
-    ).unwrap()
+    Regex::new(r"\b([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\s+(20\d{2}|19\d{2})\b").unwrap()
 });
 
 // ============================================================
@@ -104,7 +103,11 @@ pub fn extract_ngrams(text: &str, lang: Language, max_ngrams: usize) -> Vec<Extr
         })
         .collect();
 
-    ngrams.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    ngrams.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     ngrams.truncate(max_ngrams);
     ngrams
 }
@@ -149,9 +152,9 @@ fn is_valid_ngram_sequence(words: &[String], lang: Language) -> bool {
     }
 
     // Check for proper noun patterns (capitalized words)
-    let has_proper_noun = words.iter().any(|w| {
-        w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) && w.len() >= 3
-    });
+    let has_proper_noun = words
+        .iter()
+        .any(|w| w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) && w.len() >= 3);
 
     // Apply language-specific patterns
     match lang {
@@ -171,9 +174,9 @@ fn is_significant_phrase(phrase: &str) -> bool {
     let words: Vec<&str> = phrase.split_whitespace().collect();
 
     // Named entity pattern: Multiple capitalized words
-    let all_capitalized = words.iter().all(|w| {
-        w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
-    });
+    let all_capitalized = words
+        .iter()
+        .all(|w| w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false));
 
     if all_capitalized && words.len() >= 2 {
         return true;
@@ -188,13 +191,30 @@ fn is_significant_phrase(phrase: &str) -> bool {
 static SIGNIFICANT_PHRASES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
         // German political/news phrases
-        "künstliche intelligenz", "climate change", "klimawandel",
-        "bundesregierung", "bundestag", "europäische union", "vereinigte staaten",
-        "social media", "soziale medien", "machine learning", "deep learning",
-        "fake news", "cyber security", "data protection", "datenschutz",
+        "künstliche intelligenz",
+        "climate change",
+        "klimawandel",
+        "bundesregierung",
+        "bundestag",
+        "europäische union",
+        "vereinigte staaten",
+        "social media",
+        "soziale medien",
+        "machine learning",
+        "deep learning",
+        "fake news",
+        "cyber security",
+        "data protection",
+        "datenschutz",
         // Common news compound concepts
-        "supply chain", "lieferkette", "interest rate", "zinssatz",
-        "central bank", "zentralbank", "foreign policy", "außenpolitik",
+        "supply chain",
+        "lieferkette",
+        "interest rate",
+        "zinssatz",
+        "central bank",
+        "zentralbank",
+        "foreign policy",
+        "außenpolitik",
     ]
     .iter()
     .copied()
@@ -233,7 +253,11 @@ fn is_likely_noun_phrase(text: &str) -> bool {
         // - Capitalized (proper noun or German noun)
         // - Contains numbers (model numbers, dates)
         // - Is in our known noun patterns
-        return word.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+        return word
+            .chars()
+            .next()
+            .map(|c| c.is_uppercase())
+            .unwrap_or(false)
             || word.chars().any(|c| c.is_numeric())
             || is_known_noun_pattern(word);
     }
@@ -241,8 +265,7 @@ fn is_likely_noun_phrase(text: &str) -> bool {
     // Multi-word checks
     // At least one word should look like a noun
     words.iter().any(|w| {
-        w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
-            || is_known_noun_pattern(w)
+        w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) || is_known_noun_pattern(w)
     })
 }
 
@@ -252,18 +275,17 @@ fn is_known_noun_pattern(word: &str) -> bool {
 
     // German noun suffixes
     let de_suffixes = [
-        "ung", "heit", "keit", "schaft", "tum", "nis", "sal", "ion",
-        "ität", "ie", "ik", "ur", "eur", "ist", "ent", "ant",
+        "ung", "heit", "keit", "schaft", "tum", "nis", "sal", "ion", "ität", "ie", "ik", "ur",
+        "eur", "ist", "ent", "ant",
     ];
 
     // English noun suffixes
     let en_suffixes = [
-        "tion", "sion", "ment", "ness", "ity", "ance", "ence",
-        "ship", "dom", "hood", "ist", "ism", "er", "or",
+        "tion", "sion", "ment", "ness", "ity", "ance", "ence", "ship", "dom", "hood", "ist", "ism",
+        "er", "or",
     ];
 
-    de_suffixes.iter().any(|s| lower.ends_with(s))
-        || en_suffixes.iter().any(|s| lower.ends_with(s))
+    de_suffixes.iter().any(|s| lower.ends_with(s)) || en_suffixes.iter().any(|s| lower.ends_with(s))
 }
 
 /// Check if text is likely a proper noun
@@ -284,7 +306,11 @@ fn is_likely_proper_noun(text: &str) -> bool {
 // ============================================================
 
 /// Extract keywords using TextRank algorithm
-pub fn extract_textrank(text: &str, window_size: usize, max_keywords: usize) -> Vec<ExtractedKeyword> {
+pub fn extract_textrank(
+    text: &str,
+    window_size: usize,
+    max_keywords: usize,
+) -> Vec<ExtractedKeyword> {
     let words = tokenize_for_textrank(text);
     if words.len() < 3 {
         return vec![];
@@ -329,7 +355,11 @@ pub fn extract_textrank(text: &str, window_size: usize, max_keywords: usize) -> 
         })
         .collect();
 
-    keywords.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    keywords.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     keywords.truncate(max_keywords);
     keywords
 }
@@ -365,7 +395,8 @@ fn pagerank(
 
     // Initialize scores
     let initial_score = 1.0 / n as f64;
-    let mut scores: HashMap<String, f64> = nodes.iter().map(|n| (n.clone(), initial_score)).collect();
+    let mut scores: HashMap<String, f64> =
+        nodes.iter().map(|n| (n.clone(), initial_score)).collect();
 
     // Calculate out-degree for each node
     let out_degree: HashMap<String, f64> = graph
@@ -420,11 +451,28 @@ fn pagerank(
 static LOCATION_INDICATORS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
         // German
-        "stadt", "land", "region", "bezirk", "kreis", "bundesland",
-        "provinz", "staat", "republik", "königreich", "gebiet",
+        "stadt",
+        "land",
+        "region",
+        "bezirk",
+        "kreis",
+        "bundesland",
+        "provinz",
+        "staat",
+        "republik",
+        "königreich",
+        "gebiet",
         // English
-        "city", "country", "region", "state", "province", "republic",
-        "kingdom", "district", "area", "territory",
+        "city",
+        "country",
+        "region",
+        "state",
+        "province",
+        "republic",
+        "kingdom",
+        "district",
+        "area",
+        "territory",
     ]
     .iter()
     .copied()
@@ -436,13 +484,36 @@ static LOCATION_INDICATORS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 static PERSON_TITLES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
         // German titles
-        "herr", "frau", "dr", "prof", "minister", "ministerin",
-        "präsident", "präsidentin", "kanzler", "kanzlerin",
-        "bundeskanzler", "bundeskanzlerin", "bürgermeister", "bürgermeisterin",
+        "herr",
+        "frau",
+        "dr",
+        "prof",
+        "minister",
+        "ministerin",
+        "präsident",
+        "präsidentin",
+        "kanzler",
+        "kanzlerin",
+        "bundeskanzler",
+        "bundeskanzlerin",
+        "bürgermeister",
+        "bürgermeisterin",
         // English titles
-        "mr", "mrs", "ms", "dr", "prof", "president", "chancellor",
-        "minister", "secretary", "senator", "governor", "mayor",
-        "ceo", "cfo", "cto",
+        "mr",
+        "mrs",
+        "ms",
+        "dr",
+        "prof",
+        "president",
+        "chancellor",
+        "minister",
+        "secretary",
+        "senator",
+        "governor",
+        "mayor",
+        "ceo",
+        "cfo",
+        "cto",
     ]
     .iter()
     .copied()
@@ -454,13 +525,37 @@ static PERSON_TITLES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 static EVENT_PATTERNS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
         // German
-        "gipfel", "konferenz", "treffen", "verhandlungen", "wahl", "wahlen",
-        "abstimmung", "referendum", "protest", "demonstration", "streik",
-        "kongress", "festival", "messe", "ausstellung",
+        "gipfel",
+        "konferenz",
+        "treffen",
+        "verhandlungen",
+        "wahl",
+        "wahlen",
+        "abstimmung",
+        "referendum",
+        "protest",
+        "demonstration",
+        "streik",
+        "kongress",
+        "festival",
+        "messe",
+        "ausstellung",
         // English
-        "summit", "conference", "meeting", "negotiations", "election", "elections",
-        "vote", "referendum", "protest", "demonstration", "strike",
-        "congress", "festival", "fair", "exhibition",
+        "summit",
+        "conference",
+        "meeting",
+        "negotiations",
+        "election",
+        "elections",
+        "vote",
+        "referendum",
+        "protest",
+        "demonstration",
+        "strike",
+        "congress",
+        "festival",
+        "fair",
+        "exhibition",
     ]
     .iter()
     .copied()
@@ -573,9 +668,8 @@ fn extract_locations(text: &str) -> Vec<ExtractedKeyword> {
 /// Check if a word is commonly mistaken for a location
 fn is_common_non_location(word: &str) -> bool {
     let non_locations = [
-        "der", "die", "das", "dem", "den", "the", "a", "an",
-        "diesem", "dieser", "dieses", "this", "that",
-        "einem", "einer", "eines", "one", "some",
+        "der", "die", "das", "dem", "den", "the", "a", "an", "diesem", "dieser", "dieses", "this",
+        "that", "einem", "einer", "eines", "one", "some",
     ];
     non_locations.contains(&word.to_lowercase().as_str())
 }
@@ -663,8 +757,8 @@ pub fn apply_semantic_scores(
         .into_iter()
         .map(|c| {
             let semantic_score = similarity_scores.get(&c.text).copied().unwrap_or(0.5);
-            let combined_score = (c.base_score * (1.0 - semantic_weight))
-                + (semantic_score * semantic_weight);
+            let combined_score =
+                (c.base_score * (1.0 - semantic_weight)) + (semantic_score * semantic_weight);
 
             ExtractedKeyword {
                 text: c.text,
@@ -819,8 +913,8 @@ pub fn apply_mmr_diversification(
                 .fold(0.0_f64, f64::max);
 
             // MMR score: balance relevance and diversity
-            let mmr = (1.0 - config.lambda) * candidate.mmr_score
-                - config.lambda * max_sim_to_selected;
+            let mmr =
+                (1.0 - config.lambda) * candidate.mmr_score - config.lambda * max_sim_to_selected;
 
             if mmr > best_mmr {
                 best_mmr = mmr;
@@ -1157,8 +1251,7 @@ pub fn extract_textrank_trisum(
             let ev = eigenvector_scores.get(word).copied().unwrap_or(0.0);
             let bc = betweenness_scores.get(word).copied().unwrap_or(0.0);
 
-            let trisum_score =
-                config.pagerank_weight * pr
+            let trisum_score = config.pagerank_weight * pr
                 + config.eigenvector_weight * ev
                 + config.betweenness_weight * bc;
 
@@ -1182,10 +1275,7 @@ pub fn extract_textrank_trisum(
 
 /// Get detailed centrality scores for analysis
 #[allow(dead_code)] // Public API for TRISUM centrality analysis
-pub fn get_centrality_scores(
-    text: &str,
-    window_size: usize,
-) -> HashMap<String, CentralityScores> {
+pub fn get_centrality_scores(text: &str, window_size: usize) -> HashMap<String, CentralityScores> {
     let words = tokenize_for_textrank(text);
     let config = TrisumConfig::default();
 
@@ -1254,7 +1344,9 @@ mod tests {
         let ngrams = extract_ngrams(text, Language::German, 10);
         assert!(!ngrams.is_empty());
         // Should find "künstliche Intelligenz" as repeated bigram
-        assert!(ngrams.iter().any(|n| n.text.to_lowercase().contains("künstliche intelligenz")));
+        assert!(ngrams
+            .iter()
+            .any(|n| n.text.to_lowercase().contains("künstliche intelligenz")));
     }
 
     #[test]
@@ -1265,8 +1357,10 @@ mod tests {
         let keywords = extract_textrank(text, 4, 5);
         assert!(!keywords.is_empty());
         // Common terms should have higher scores
-        assert!(keywords.iter().any(|k| k.text.to_lowercase().contains("learning")
-            || k.text.to_lowercase().contains("intelligence")));
+        assert!(keywords
+            .iter()
+            .any(|k| k.text.to_lowercase().contains("learning")
+                || k.text.to_lowercase().contains("intelligence")));
     }
 
     #[test]
@@ -1284,8 +1378,12 @@ mod tests {
         let entities = extract_enhanced_entities(text);
         assert!(!entities.is_empty());
         // Should find person names and organizations
-        let has_person = entities.iter().any(|e| e.keyword_type == KeywordType::Person);
-        let has_org = entities.iter().any(|e| e.keyword_type == KeywordType::Organization);
+        let has_person = entities
+            .iter()
+            .any(|e| e.keyword_type == KeywordType::Person);
+        let has_org = entities
+            .iter()
+            .any(|e| e.keyword_type == KeywordType::Organization);
         assert!(has_person || has_org);
     }
 
@@ -1482,9 +1580,20 @@ mod tests {
     fn test_betweenness_centrality_bridge() {
         // In a simple A-B-C chain, B should have highest betweenness
         let mut graph: HashMap<String, HashMap<String, f64>> = HashMap::new();
-        graph.insert("A".to_string(), [("B".to_string(), 1.0)].into_iter().collect());
-        graph.insert("B".to_string(), [("A".to_string(), 1.0), ("C".to_string(), 1.0)].into_iter().collect());
-        graph.insert("C".to_string(), [("B".to_string(), 1.0)].into_iter().collect());
+        graph.insert(
+            "A".to_string(),
+            [("B".to_string(), 1.0)].into_iter().collect(),
+        );
+        graph.insert(
+            "B".to_string(),
+            [("A".to_string(), 1.0), ("C".to_string(), 1.0)]
+                .into_iter()
+                .collect(),
+        );
+        graph.insert(
+            "C".to_string(),
+            [("B".to_string(), 1.0)].into_iter().collect(),
+        );
 
         let bc = betweenness_centrality(&graph);
 
@@ -1493,8 +1602,14 @@ mod tests {
         let a_score = bc.get("A").copied().unwrap_or(0.0);
         let c_score = bc.get("C").copied().unwrap_or(0.0);
 
-        assert!(b_score >= a_score, "Bridge node B should have higher betweenness");
-        assert!(b_score >= c_score, "Bridge node B should have higher betweenness");
+        assert!(
+            b_score >= a_score,
+            "Bridge node B should have higher betweenness"
+        );
+        assert!(
+            b_score >= c_score,
+            "Bridge node B should have higher betweenness"
+        );
     }
 
     #[test]

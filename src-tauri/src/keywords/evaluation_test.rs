@@ -6,9 +6,9 @@
 //!
 //! Run with: cargo test --package fuckup-rss --lib -- keywords::evaluation_test --nocapture
 
-use super::*;
+use super::advanced::{is_near_duplicate, levenshtein_distance};
 use super::config::KeywordConfig;
-use super::advanced::{levenshtein_distance, is_near_duplicate};
+use super::*;
 use std::collections::{HashMap, HashSet};
 
 /// Sample article for testing
@@ -86,7 +86,8 @@ fn calculate_diversity_score(keywords: &[String]) -> f64 {
 
     for i in 0..keywords.len() {
         for j in (i + 1)..keywords.len() {
-            let dist = levenshtein_distance(&keywords[i].to_lowercase(), &keywords[j].to_lowercase());
+            let dist =
+                levenshtein_distance(&keywords[i].to_lowercase(), &keywords[j].to_lowercase());
             total_distance += dist;
             pairs += 1;
         }
@@ -97,7 +98,8 @@ fn calculate_diversity_score(keywords: &[String]) -> f64 {
     }
 
     // Average distance, normalized by average keyword length
-    let avg_len: f64 = keywords.iter().map(|k| k.len()).sum::<usize>() as f64 / keywords.len() as f64;
+    let avg_len: f64 =
+        keywords.iter().map(|k| k.len()).sum::<usize>() as f64 / keywords.len() as f64;
     let avg_distance = total_distance as f64 / pairs as f64;
 
     // Normalize: max distance = 2 * avg_len (very different), min = 0 (identical)
@@ -107,7 +109,8 @@ fn calculate_diversity_score(keywords: &[String]) -> f64 {
 /// Extract keywords using a specific configuration
 fn extract_with_config(title: &str, content: &str, config: KeywordConfig) -> Vec<String> {
     let extractor = KeywordExtractor::with_config(config);
-    extractor.extract(title, content)
+    extractor
+        .extract(title, content)
         .into_iter()
         .map(|kw| kw.text)
         .collect()
@@ -236,8 +239,10 @@ fn run_evaluation(articles: &[TestArticle]) -> EvaluationStats {
     let mut keyword_frequency: HashMap<String, usize> = HashMap::new();
 
     for article in articles {
-        let old_keywords = extract_with_config(&article.title, &article.content, old_config.clone());
-        let new_keywords = extract_with_config(&article.title, &article.content, new_config.clone());
+        let old_keywords =
+            extract_with_config(&article.title, &article.content, old_config.clone());
+        let new_keywords =
+            extract_with_config(&article.title, &article.content, new_config.clone());
 
         // Count near-duplicates in each result (using distance 2)
         let old_near_dups = count_near_duplicates(&old_keywords, 2);
@@ -260,17 +265,23 @@ fn run_evaluation(articles: &[TestArticle]) -> EvaluationStats {
 
     // Calculate statistics
     let total = results.len();
-    let old_avg_kw: f64 = results.iter().map(|r| r.old_keywords.len()).sum::<usize>() as f64 / total as f64;
-    let new_avg_kw: f64 = results.iter().map(|r| r.new_keywords.len()).sum::<usize>() as f64 / total as f64;
+    let old_avg_kw: f64 =
+        results.iter().map(|r| r.old_keywords.len()).sum::<usize>() as f64 / total as f64;
+    let new_avg_kw: f64 =
+        results.iter().map(|r| r.new_keywords.len()).sum::<usize>() as f64 / total as f64;
     let old_total_dups: usize = results.iter().map(|r| r.old_near_duplicates).sum();
     let new_total_dups: usize = results.iter().map(|r| r.new_near_duplicates).sum();
 
-    let old_diversity: f64 = results.iter()
+    let old_diversity: f64 = results
+        .iter()
         .map(|r| calculate_diversity_score(&r.old_keywords))
-        .sum::<f64>() / total as f64;
-    let new_diversity: f64 = results.iter()
+        .sum::<f64>()
+        / total as f64;
+    let new_diversity: f64 = results
+        .iter()
         .map(|r| calculate_diversity_score(&r.new_keywords))
-        .sum::<f64>() / total as f64;
+        .sum::<f64>()
+        / total as f64;
 
     EvaluationStats {
         total_articles: total,
@@ -300,10 +311,14 @@ mod tests {
 
         println!("Configuration Comparison:");
         println!("----------------------------");
-        println!("OLD Method: MMR={}, TRISUM={}, Levenshtein={}",
-            old_config.use_mmr, old_config.use_trisum, old_config.levenshtein_max_distance);
-        println!("NEW Method: MMR={}, TRISUM={}, Levenshtein={}",
-            new_config.use_mmr, new_config.use_trisum, new_config.levenshtein_max_distance);
+        println!(
+            "OLD Method: MMR={}, TRISUM={}, Levenshtein={}",
+            old_config.use_mmr, old_config.use_trisum, old_config.levenshtein_max_distance
+        );
+        println!(
+            "NEW Method: MMR={}, TRISUM={}, Levenshtein={}",
+            new_config.use_mmr, new_config.use_trisum, new_config.levenshtein_max_distance
+        );
         println!();
 
         // Detailed analysis for each article
@@ -312,8 +327,10 @@ mod tests {
             println!("Article #{}: {}", article.id, article.title);
             println!("------------------------------------------------------");
 
-            let old_keywords = extract_with_config(&article.title, &article.content, old_config.clone());
-            let new_keywords = extract_with_config(&article.title, &article.content, new_config.clone());
+            let old_keywords =
+                extract_with_config(&article.title, &article.content, old_config.clone());
+            let new_keywords =
+                extract_with_config(&article.title, &article.content, new_config.clone());
 
             let old_near_dups = count_near_duplicates(&old_keywords, 2);
             let new_near_dups = count_near_duplicates(&new_keywords, 2);
@@ -321,8 +338,12 @@ mod tests {
             let old_diversity = calculate_diversity_score(&old_keywords);
             let new_diversity = calculate_diversity_score(&new_keywords);
 
-            println!("\nOLD Method ({} keywords, {} near-duplicates, diversity: {:.2}):",
-                old_keywords.len(), old_near_dups, old_diversity);
+            println!(
+                "\nOLD Method ({} keywords, {} near-duplicates, diversity: {:.2}):",
+                old_keywords.len(),
+                old_near_dups,
+                old_diversity
+            );
             for (i, kw) in old_keywords.iter().enumerate() {
                 print!("  {}. {}", i + 1, kw);
                 // Check if it's a near-duplicate of another keyword
@@ -335,8 +356,12 @@ mod tests {
                 println!();
             }
 
-            println!("\nNEW Method ({} keywords, {} near-duplicates, diversity: {:.2}):",
-                new_keywords.len(), new_near_dups, new_diversity);
+            println!(
+                "\nNEW Method ({} keywords, {} near-duplicates, diversity: {:.2}):",
+                new_keywords.len(),
+                new_near_dups,
+                new_diversity
+            );
             for (i, kw) in new_keywords.iter().enumerate() {
                 print!("  {}. {}", i + 1, kw);
                 // Check if it's a near-duplicate
@@ -351,7 +376,10 @@ mod tests {
 
             // Quality assessment
             let improvement = if new_near_dups < old_near_dups {
-                format!("IMPROVED (removed {} near-duplicates)", old_near_dups - new_near_dups)
+                format!(
+                    "IMPROVED (removed {} near-duplicates)",
+                    old_near_dups - new_near_dups
+                )
             } else if new_near_dups == old_near_dups && new_near_dups == 0 {
                 "EQUAL (no near-duplicates)".to_string()
             } else {
@@ -379,7 +407,10 @@ mod tests {
         println!("  OLD: {}", stats.old_total_near_duplicates);
         println!("  NEW: {}", stats.new_total_near_duplicates);
         let dup_reduction = if stats.old_total_near_duplicates > 0 {
-            100.0 * (1.0 - stats.new_total_near_duplicates as f64 / stats.old_total_near_duplicates as f64)
+            100.0
+                * (1.0
+                    - stats.new_total_near_duplicates as f64
+                        / stats.old_total_near_duplicates as f64)
         } else {
             0.0
         };
@@ -388,7 +419,9 @@ mod tests {
         println!("Average diversity score (0-1, higher = more diverse):");
         println!("  OLD: {:.3}", stats.old_diversity_score);
         println!("  NEW: {:.3}", stats.new_diversity_score);
-        let diversity_improvement = (stats.new_diversity_score - stats.old_diversity_score) / stats.old_diversity_score * 100.0;
+        let diversity_improvement = (stats.new_diversity_score - stats.old_diversity_score)
+            / stats.old_diversity_score
+            * 100.0;
         println!("  Improvement: {:+.1}%", diversity_improvement);
         println!();
 
@@ -406,25 +439,52 @@ mod tests {
 
         // Criteria assessment
         let relevance_score = 7; // Would need manual assessment
-        let diversity_score = if stats.new_diversity_score > 0.6 { 9 } else if stats.new_diversity_score > 0.4 { 7 } else { 5 };
-        let quality_score = if stats.new_total_near_duplicates == 0 { 9 } else if stats.new_total_near_duplicates < 5 { 7 } else { 5 };
+        let diversity_score = if stats.new_diversity_score > 0.6 {
+            9
+        } else if stats.new_diversity_score > 0.4 {
+            7
+        } else {
+            5
+        };
+        let quality_score = if stats.new_total_near_duplicates == 0 {
+            9
+        } else if stats.new_total_near_duplicates < 5 {
+            7
+        } else {
+            5
+        };
         let coverage_score = 8; // Would need manual assessment
 
         println!("Criteria (1-10 scale):");
-        println!("  - Relevance: {} (estimated - requires manual review)", relevance_score);
-        println!("  - Diversity: {} (based on diversity score)", diversity_score);
-        println!("  - Quality (no garbage/stopwords): {} (based on near-duplicates)", quality_score);
+        println!(
+            "  - Relevance: {} (estimated - requires manual review)",
+            relevance_score
+        );
+        println!(
+            "  - Diversity: {} (based on diversity score)",
+            diversity_score
+        );
+        println!(
+            "  - Quality (no garbage/stopwords): {} (based on near-duplicates)",
+            quality_score
+        );
         println!("  - Topic coverage: {} (estimated)", coverage_score);
         println!();
 
-        let overall = (relevance_score + diversity_score + quality_score + coverage_score) as f64 / 4.0;
+        let overall =
+            (relevance_score + diversity_score + quality_score + coverage_score) as f64 / 4.0;
         println!("Overall Quality Score: {:.1}/10", overall);
         println!();
 
         // Assertions for the test
-        assert!(stats.total_articles >= 10, "Should have at least 10 sample articles");
-        assert!(stats.new_diversity_score >= stats.old_diversity_score * 0.9,
-            "NEW method diversity should be at least 90% of OLD method");
+        assert!(
+            stats.total_articles >= 10,
+            "Should have at least 10 sample articles"
+        );
+        assert!(
+            stats.new_diversity_score >= stats.old_diversity_score * 0.9,
+            "NEW method diversity should be at least 90% of OLD method"
+        );
     }
 
     #[test]
@@ -432,14 +492,17 @@ mod tests {
         // Test that our near-duplicate detection works correctly
         let keywords_with_dups = vec![
             "Trump".to_string(),
-            "Trumps".to_string(),  // Near-duplicate
+            "Trumps".to_string(), // Near-duplicate
             "Biden".to_string(),
             "Ukraine".to_string(),
             "Ukrainer".to_string(), // Near-duplicate (distance 2)
         ];
 
         let near_dups = count_near_duplicates(&keywords_with_dups, 2);
-        assert!(near_dups >= 1, "Should detect at least 1 near-duplicate pair");
+        assert!(
+            near_dups >= 1,
+            "Should detect at least 1 near-duplicate pair"
+        );
         println!("Near-duplicates in test set: {}", near_dups);
     }
 
@@ -464,6 +527,9 @@ mod tests {
         println!("Diverse set score: {:.3}", diverse_score);
         println!("Similar set score: {:.3}", similar_score);
 
-        assert!(diverse_score > similar_score, "Diverse keywords should have higher diversity score");
+        assert!(
+            diverse_score > similar_score,
+            "Diverse keywords should have higher diversity score"
+        );
     }
 }

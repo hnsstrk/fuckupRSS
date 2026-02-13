@@ -374,7 +374,7 @@ pub struct BlindSpot {
     pub severity: String, // "low", "medium", "high"
     pub available_count: i64,
     pub read_count: i64,
-    pub main_category: Option<String>,      // For subcategory blind spots
+    pub main_category: Option<String>, // For subcategory blind spots
     pub main_category_color: Option<String>, // Color from main category
 }
 

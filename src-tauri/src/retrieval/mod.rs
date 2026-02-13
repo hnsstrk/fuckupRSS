@@ -1,18 +1,14 @@
+use readability::extractor;
 use regex::Regex;
 use std::collections::HashMap;
-use uuid::Uuid;
-use readability::extractor;
 use std::time::Duration;
 use thiserror::Error;
 use url::Url;
-
+use uuid::Uuid;
 
 pub mod headless;
 
 use crate::retrieval::headless::{HeadlessError, HeadlessFetcher};
-
-
-
 
 #[derive(Error, Debug)]
 pub enum RetrievalError {
@@ -160,9 +156,12 @@ impl HagbardRetrieval {
 
         // Re-extract content from the rendered HTML
         let extracted_from_rendered = extractor::extract(&mut masked_rendered.as_bytes(), &url)
-            .map_err(|e| RetrievalError::Extraction(format!("Headless extraction failed: {}", e)))?;
+            .map_err(|e| {
+                RetrievalError::Extraction(format!("Headless extraction failed: {}", e))
+            })?;
 
-        let rendered_content = postprocess_media_tags(&extracted_from_rendered.content, &rendered_replacements);
+        let rendered_content =
+            postprocess_media_tags(&extracted_from_rendered.content, &rendered_replacements);
 
         let headless_result = ExtractedArticle {
             title: Some(extracted_from_rendered.title),
@@ -242,10 +241,22 @@ fn preprocess_media_tags(html: &str) -> (String, HashMap<String, String>) {
     // Note: Regex for HTML is brittle, but sufficient for this specific masking task
     // We use non-greedy matching for content and ignore case
     let patterns = [
-        ("iframe", Regex::new(r#"(?is)<iframe[^>]*>.*?</iframe>"#).unwrap()),
-        ("video", Regex::new(r#"(?is)<video[^>]*>.*?</video>"#).unwrap()),
-        ("object", Regex::new(r#"(?is)<object[^>]*>.*?</object>"#).unwrap()),
-        ("embed", Regex::new(r#"(?is)<embed[^>]*>.*?</embed>"#).unwrap()),
+        (
+            "iframe",
+            Regex::new(r#"(?is)<iframe[^>]*>.*?</iframe>"#).unwrap(),
+        ),
+        (
+            "video",
+            Regex::new(r#"(?is)<video[^>]*>.*?</video>"#).unwrap(),
+        ),
+        (
+            "object",
+            Regex::new(r#"(?is)<object[^>]*>.*?</object>"#).unwrap(),
+        ),
+        (
+            "embed",
+            Regex::new(r#"(?is)<embed[^>]*>.*?</embed>"#).unwrap(),
+        ),
     ];
 
     for (tag_type, regex) in patterns.iter() {
@@ -253,13 +264,13 @@ fn preprocess_media_tags(html: &str) -> (String, HashMap<String, String>) {
             let original = caps[0].to_string();
             let uuid = Uuid::new_v4().to_string();
             let key = format!("MEDIA_MASK_{}_{}", tag_type, uuid);
-            
+
             // Use a p tag with sufficient text length to avoid being classified as "short content" or "empty"
             let replacement = format!(
-                r#"<p id="{}" class="fuckuprss-media-placeholder">MEDIA_MASK_{} - This is a placeholder for embedded media content that must be preserved by the extraction algorithm.</p>"#, 
+                r#"<p id="{}" class="fuckuprss-media-placeholder">MEDIA_MASK_{} - This is a placeholder for embedded media content that must be preserved by the extraction algorithm.</p>"#,
                 key, uuid
             );
-            
+
             replacements.insert(key, original);
             replacement
         }).to_string();
@@ -271,7 +282,7 @@ fn preprocess_media_tags(html: &str) -> (String, HashMap<String, String>) {
 /// Postprocess extracted content to restore masked media
 fn postprocess_media_tags(content: &str, replacements: &HashMap<String, String>) -> String {
     let mut processed = content.to_string();
-    
+
     for (key, original) in replacements {
         // Reconstruct the placeholder text used in preprocess
         // It matches the format: "MEDIA_MASK_... - This is a placeholder..."
@@ -279,7 +290,7 @@ fn postprocess_media_tags(content: &str, replacements: &HashMap<String, String>)
         // key format: MEDIA_MASK_{tag}_{uuid}
         // placeholder format: {key} - This is a placeholder for embedded media content that must be preserved by the extraction algorithm.
         let placeholder_text = format!("{} - This is a placeholder for embedded media content that must be preserved by the extraction algorithm.", key);
-        
+
         // Strategy 1: Find the element with the ID and replace the WHOLE element
         // This is cleanest as it removes the wrapper <p>
         let id_pattern = format!(r#"<[^>]+id="{}"[^>]*>.*?</[^>]+>"#, key);
@@ -289,16 +300,16 @@ fn postprocess_media_tags(content: &str, replacements: &HashMap<String, String>)
                 continue;
             }
         }
-        
+
         // Strategy 2: Find the placeholder text and replace it
         // This handles cases where the ID was stripped but text preserved
         if processed.contains(&placeholder_text) {
             processed = processed.replace(&placeholder_text, original);
         } else if processed.contains(key) {
-             // Strategy 3: Just the key (fallback if readability truncated our long text)
-             processed = processed.replace(key, original);
+            // Strategy 3: Just the key (fallback if readability truncated our long text)
+            processed = processed.replace(key, original);
         }
     }
-    
+
     processed
 }

@@ -21,10 +21,10 @@ fn test_get_unprocessed_articles_query() {
     // Add articles with different states
     let articles = vec![
         // (content_full, content_raw, processed_at)
-        (Some("Full content 1"), None, None),             // Unprocessed with content
-        (None, Some("Raw content 2"), None),              // Unprocessed with raw
+        (Some("Full content 1"), None, None), // Unprocessed with content
+        (None, Some("Raw content 2"), None),  // Unprocessed with raw
         (Some("Full content 3"), None, Some("2024-01-01")), // Processed
-        (None, None, None),                               // Unprocessed no content
+        (None, None, None),                   // Unprocessed no content
     ];
 
     for (i, (content_full, content_raw, processed_at)) in articles.iter().enumerate() {
@@ -260,7 +260,11 @@ fn test_category_assignment_during_batch() {
 
     let fnord_id: i64 = db
         .conn()
-        .query_row("SELECT id FROM fnords WHERE guid = 'test-guid'", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM fnords WHERE guid = 'test-guid'",
+            [],
+            |row| row.get(0),
+        )
         .expect("Query failed");
 
     // Get a category ID (Politik should exist from schema)
@@ -319,7 +323,11 @@ fn test_keyword_assignment_during_batch() {
 
     let fnord_id: i64 = db
         .conn()
-        .query_row("SELECT id FROM fnords WHERE guid = 'test-guid'", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM fnords WHERE guid = 'test-guid'",
+            [],
+            |row| row.get(0),
+        )
         .expect("Query failed");
 
     // Add keywords like batch processing would
@@ -389,7 +397,9 @@ fn test_cooccurrence_network_update() {
         .iter()
         .map(|kw| {
             db.conn()
-                .query_row("SELECT id FROM immanentize WHERE name = ?", [kw], |row| row.get(0))
+                .query_row("SELECT id FROM immanentize WHERE name = ?", [kw], |row| {
+                    row.get(0)
+                })
                 .expect("Query failed")
         })
         .collect();
@@ -420,11 +430,9 @@ fn test_cooccurrence_network_update() {
     // Verify: 3 keywords should create 3 pairs (A-B, A-C, B-C)
     let pair_count: i64 = db
         .conn()
-        .query_row(
-            "SELECT COUNT(*) FROM immanentize_neighbors",
-            [],
-            |row| row.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM immanentize_neighbors", [], |row| {
+            row.get(0)
+        })
         .expect("Query failed");
 
     assert_eq!(pair_count, 3);
@@ -538,11 +546,21 @@ fn test_article_embedding_stats_query() {
     // Add articles with different embedding/processing states
     let articles = vec![
         // (guid, content_full, processed_at, embedding)
-        ("guid-1", Some("x".repeat(200)), Some("2024-01-01"), Some(vec![0u8; 4096])), // Has embedding
-        ("guid-2", Some("x".repeat(200)), Some("2024-01-01"), None),                   // Processable
-        ("guid-3", Some("x".repeat(200)), None, None),                                  // Not processed yet
-        ("guid-4", None, Some("2024-01-01"), None),                                     // No content
-        ("guid-5", Some("short".to_string()), Some("2024-01-01"), None),               // Content too short
+        (
+            "guid-1",
+            Some("x".repeat(200)),
+            Some("2024-01-01"),
+            Some(vec![0u8; 4096]),
+        ), // Has embedding
+        ("guid-2", Some("x".repeat(200)), Some("2024-01-01"), None), // Processable
+        ("guid-3", Some("x".repeat(200)), None, None),               // Not processed yet
+        ("guid-4", None, Some("2024-01-01"), None),                  // No content
+        (
+            "guid-5",
+            Some("short".to_string()),
+            Some("2024-01-01"),
+            None,
+        ), // Content too short
     ];
 
     for (guid, content_full, processed_at, embedding) in &articles {
@@ -671,7 +689,11 @@ fn test_save_article_embedding() {
 
     let fnord_id: i64 = db
         .conn()
-        .query_row("SELECT id FROM fnords WHERE guid = 'test-guid'", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM fnords WHERE guid = 'test-guid'",
+            [],
+            |row| row.get(0),
+        )
         .expect("Query failed");
 
     // Create and save a mock embedding
@@ -742,12 +764,24 @@ fn test_embedding_stats_without_embedding_calculation() {
     // Add 10 articles
     for i in 0..10 {
         let has_embedding = i < 3; // First 3 have embeddings
-        let is_processed = i < 7;  // First 7 are processed
-        let has_content = i != 8;  // All except 8th have content
+        let is_processed = i < 7; // First 7 are processed
+        let has_content = i != 8; // All except 8th have content
 
-        let embedding: Option<Vec<u8>> = if has_embedding { Some(vec![0u8; 4096]) } else { None };
-        let processed_at: Option<&str> = if is_processed { Some("2024-01-01") } else { None };
-        let content_full: Option<String> = if has_content { Some("x".repeat(200)) } else { None };
+        let embedding: Option<Vec<u8>> = if has_embedding {
+            Some(vec![0u8; 4096])
+        } else {
+            None
+        };
+        let processed_at: Option<&str> = if is_processed {
+            Some("2024-01-01")
+        } else {
+            None
+        };
+        let content_full: Option<String> = if has_content {
+            Some("x".repeat(200))
+        } else {
+            None
+        };
 
         db.conn()
             .execute(

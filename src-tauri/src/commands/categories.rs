@@ -414,7 +414,13 @@ mod tests {
         conn.execute(
             r#"INSERT INTO fnords (pentacle_id, guid, url, title, status)
                VALUES (?1, ?2, ?3, ?4, ?5)"#,
-            rusqlite::params![pentacle_id, "guid-test", "https://example.com/article", "Test Article", "concealed"],
+            rusqlite::params![
+                pentacle_id,
+                "guid-test",
+                "https://example.com/article",
+                "Test Article",
+                "concealed"
+            ],
         )
         .expect("Failed to insert test fnord");
         conn.last_insert_rowid()
@@ -434,7 +440,10 @@ mod tests {
             .expect("Failed to count categories");
 
         // Database is seeded with 6 main categories + 13 subcategories = 19 total
-        assert_eq!(count, 19, "Should have 19 seeded categories (6 main + 13 sub)");
+        assert_eq!(
+            count, 19,
+            "Should have 19 seeded categories (6 main + 13 sub)"
+        );
     }
 
     #[test]
@@ -573,10 +582,10 @@ mod tests {
 
         // These subcategories should exist in the seeded data
         let expected_subcats = [
-            "Technik",       // under Technik main
-            "Politik",       // under Politik main
-            "Wirtschaft",    // under Wirtschaft main
-            "Wissenschaft",  // under Wissenschaft main
+            "Technik",      // under Technik main
+            "Politik",      // under Politik main
+            "Wirtschaft",   // under Wirtschaft main
+            "Wissenschaft", // under Wissenschaft main
             "Kultur",
             "Sport",
             "Gesellschaft",
@@ -733,7 +742,10 @@ mod tests {
             .collect();
 
         assert_eq!(results.len(), 2, "Should have 2 categories");
-        assert_eq!(results[0].0, "Politik", "First should be Politik (higher confidence)");
+        assert_eq!(
+            results[0].0, "Politik",
+            "First should be Politik (higher confidence)"
+        );
         assert_eq!(results[0].1, 0.95, "Politik confidence should be 0.95");
         assert_eq!(results[1].0, "Technik", "Second should be Technik");
     }
@@ -793,7 +805,10 @@ mod tests {
 
         // Simulate set_article_categories: delete existing, add new
         db.conn()
-            .execute("DELETE FROM fnord_sephiroth WHERE fnord_id = ?1", [fnord_id])
+            .execute(
+                "DELETE FROM fnord_sephiroth WHERE fnord_id = ?1",
+                [fnord_id],
+            )
             .expect("Failed to delete");
 
         db.conn()
@@ -861,7 +876,10 @@ mod tests {
             )
             .expect("Failed to get source");
 
-        assert_eq!(source, "manual", "Source should be 'manual' for user assignments");
+        assert_eq!(
+            source, "manual",
+            "Source should be 'manual' for user assignments"
+        );
     }
 
     #[test]
@@ -1015,17 +1033,15 @@ mod tests {
             article_count: 100,
             read_count: 75,
             percentage: 75.0,
-            subcategories: vec![
-                SubCategory {
-                    id: 10,
-                    name: "Innenpolitik".to_string(),
-                    icon: Some("fa-home".to_string()),
-                    parent_id: 1,
-                    article_count: 50,
-                    read_count: 40,
-                    percentage: 80.0,
-                },
-            ],
+            subcategories: vec![SubCategory {
+                id: 10,
+                name: "Innenpolitik".to_string(),
+                icon: Some("fa-home".to_string()),
+                parent_id: 1,
+                article_count: 50,
+                read_count: 40,
+                percentage: 80.0,
+            }],
         };
 
         assert_eq!(main_cat.article_count, 100);

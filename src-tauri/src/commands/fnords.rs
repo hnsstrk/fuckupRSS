@@ -56,7 +56,7 @@ pub struct FnordRevision {
 pub struct FnordFilter {
     pub pentacle_id: Option<i64>,
     pub sephiroth_id: Option<i64>,
-    pub main_sephiroth_id: Option<i64>,  // Filter by main category (includes all subcategories)
+    pub main_sephiroth_id: Option<i64>, // Filter by main category (includes all subcategories)
     pub status: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
@@ -161,10 +161,7 @@ const FNORD_SELECT_COLUMNS: &str = r#"
 "#;
 
 #[tauri::command]
-pub fn get_fnords(
-    state: State<AppState>,
-    filter: Option<FnordFilter>,
-) -> CmdResult<Vec<Fnord>> {
+pub fn get_fnords(state: State<AppState>, filter: Option<FnordFilter>) -> CmdResult<Vec<Fnord>> {
     let db = state.db_conn()?;
 
     let filter = filter.unwrap_or(FnordFilter {
@@ -250,9 +247,7 @@ pub fn get_fnord(state: State<AppState>, id: i64) -> CmdResult<Fnord> {
         FNORD_SELECT_COLUMNS
     );
 
-    let mut fnord = db
-        .conn()
-        .query_row(&sql, [id], fnord_from_row)?;
+    let mut fnord = db.conn().query_row(&sql, [id], fnord_from_row)?;
 
     let categories_map = load_categories_for_fnords(db.conn(), &[id]);
     if let Some(cats) = categories_map.get(&id) {
@@ -266,7 +261,10 @@ pub fn get_fnord(state: State<AppState>, id: i64) -> CmdResult<Fnord> {
 pub fn update_fnord_status(state: State<AppState>, id: i64, status: String) -> CmdResult<()> {
     // Validate status
     if !["concealed", "illuminated", "golden_apple"].contains(&status.as_str()) {
-        return Err(FuckupError::Validation(format!("Invalid status: {}", status)));
+        return Err(FuckupError::Validation(format!(
+            "Invalid status: {}",
+            status
+        )));
     }
 
     let db = state.db_conn()?;
@@ -275,11 +273,10 @@ pub fn update_fnord_status(state: State<AppState>, id: i64, status: String) -> C
     // and preserve existing read_at value
     if status == "illuminated" || status == "golden_apple" {
         // Set read_at only if it's NULL (first time reading)
-        db.conn()
-            .execute(
-                "UPDATE fnords SET status = ?1, read_at = COALESCE(read_at, ?2) WHERE id = ?3",
-                (&status, chrono::Utc::now().to_rfc3339(), id),
-            )?;
+        db.conn().execute(
+            "UPDATE fnords SET status = ?1, read_at = COALESCE(read_at, ?2) WHERE id = ?3",
+            (&status, chrono::Utc::now().to_rfc3339(), id),
+        )?;
     } else {
         // Just update status, don't touch read_at (preserve reading history)
         db.conn()
@@ -329,10 +326,7 @@ pub fn acknowledge_changes(state: State<AppState>, id: i64) -> CmdResult<()> {
 
 /// Get revision history for an article
 #[tauri::command]
-pub fn get_fnord_revisions(
-    state: State<AppState>,
-    fnord_id: i64,
-) -> CmdResult<Vec<FnordRevision>> {
+pub fn get_fnord_revisions(state: State<AppState>, fnord_id: i64) -> CmdResult<Vec<FnordRevision>> {
     let db = state.db_conn()?;
 
     let mut stmt = db
@@ -367,10 +361,7 @@ pub fn get_fnord_revisions(
 
 /// Get total count of fnords matching a filter (for lazy loading)
 #[tauri::command]
-pub fn get_fnords_count(
-    state: State<AppState>,
-    filter: Option<FnordFilter>,
-) -> CmdResult<i64> {
+pub fn get_fnords_count(state: State<AppState>, filter: Option<FnordFilter>) -> CmdResult<i64> {
     let db = state.db_conn()?;
 
     let mut sql = String::from("SELECT COUNT(*) FROM fnords f WHERE 1=1");
@@ -383,7 +374,9 @@ pub fn get_fnords_count(
         }
 
         if let Some(sephiroth_id) = f.sephiroth_id {
-            sql.push_str(" AND f.id IN (SELECT fnord_id FROM fnord_sephiroth WHERE sephiroth_id = ?)");
+            sql.push_str(
+                " AND f.id IN (SELECT fnord_id FROM fnord_sephiroth WHERE sephiroth_id = ?)",
+            );
             params.push(Box::new(sephiroth_id));
         }
 
@@ -413,13 +406,11 @@ pub fn get_fnords_count(
 pub fn get_changed_count(state: State<AppState>) -> CmdResult<i64> {
     let db = state.db_conn()?;
 
-    let count: i64 = db
-        .conn()
-        .query_row(
-            "SELECT COUNT(*) FROM fnords WHERE has_changes = TRUE",
-            [],
-            |row| row.get(0),
-        )?;
+    let count: i64 = db.conn().query_row(
+        "SELECT COUNT(*) FROM fnords WHERE has_changes = TRUE",
+        [],
+        |row| row.get(0),
+    )?;
 
     Ok(count)
 }
@@ -431,14 +422,12 @@ pub fn reset_all_changes(state: State<AppState>) -> CmdResult<i64> {
 
     // Only reset changes for articles that have no actual revisions
     // (these are false positives from the migration bug)
-    let affected = db
-        .conn()
-        .execute(
-            r#"UPDATE fnords SET has_changes = FALSE
+    let affected = db.conn().execute(
+        r#"UPDATE fnords SET has_changes = FALSE
                WHERE has_changes = TRUE
                AND id NOT IN (SELECT DISTINCT fnord_id FROM fnord_revisions)"#,
-            [],
-        )?;
+        [],
+    )?;
 
     Ok(affected as i64)
 }
@@ -497,10 +486,8 @@ pub fn get_fnord_stats(state: State<AppState>) -> CmdResult<FnordStats> {
     // By category - aggregate revisions by main category (level = 0)
     // Articles are assigned to subcategories (level 1), so we join through
     // subcategories to their parent main categories
-    let mut stmt_cat = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt_cat = db.conn().prepare(
+        r#"
             SELECT m.id, m.name, m.icon, m.color,
                    COUNT(DISTINCT r.id) as revision_count,
                    COUNT(DISTINCT r.fnord_id) as article_count
@@ -512,7 +499,7 @@ pub fn get_fnord_stats(state: State<AppState>) -> CmdResult<FnordStats> {
             GROUP BY m.id
             ORDER BY revision_count DESC
             "#,
-        )?;
+    )?;
 
     let by_category = stmt_cat
         .query_map([], |row| {
@@ -528,10 +515,8 @@ pub fn get_fnord_stats(state: State<AppState>) -> CmdResult<FnordStats> {
         .collect::<Result<Vec<_>, _>>()?;
 
     // By source - count revisions for articles from each pentacle
-    let mut stmt_src = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt_src = db.conn().prepare(
+        r#"
             SELECT p.id, p.title,
                    COUNT(DISTINCT r.id) as revision_count,
                    COUNT(DISTINCT r.fnord_id) as article_count
@@ -541,7 +526,7 @@ pub fn get_fnord_stats(state: State<AppState>) -> CmdResult<FnordStats> {
             GROUP BY p.id
             ORDER BY revision_count DESC
             "#,
-        )?;
+    )?;
 
     let by_source = stmt_src
         .query_map([], |row| {
@@ -570,10 +555,8 @@ pub fn get_subcategory_stats(
 ) -> CmdResult<Vec<CategoryRevisionStats>> {
     let db = state.db_conn()?;
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt = db.conn().prepare(
+        r#"
             SELECT s.id, s.name, s.icon, m.color,
                    COUNT(DISTINCT r.id) as revision_count,
                    COUNT(DISTINCT r.fnord_id) as article_count
@@ -585,7 +568,7 @@ pub fn get_subcategory_stats(
             GROUP BY s.id
             ORDER BY revision_count DESC
             "#,
-        )?;
+    )?;
 
     let subcategories = stmt
         .query_map([main_category_id], |row| {
@@ -641,11 +624,11 @@ pub struct GreyfaceIndex {
 
 #[derive(Debug, Serialize)]
 pub struct BiasDistribution {
-    pub left_extreme: i64,    // -2
-    pub left_leaning: i64,    // -1
-    pub neutral: i64,         // 0
-    pub right_leaning: i64,   // +1
-    pub right_extreme: i64,   // +2
+    pub left_extreme: i64,  // -2
+    pub left_leaning: i64,  // -1
+    pub neutral: i64,       // 0
+    pub right_leaning: i64, // +1
+    pub right_extreme: i64, // +2
 }
 
 /// Keyword statistics with trend
@@ -654,7 +637,7 @@ pub struct KeywordStats {
     pub id: i64,
     pub name: String,
     pub count: i64,
-    pub trend: f64,  // Percentage change from previous period
+    pub trend: f64, // Percentage change from previous period
     pub keyword_type: Option<String>,
 }
 
@@ -688,16 +671,13 @@ pub struct KeywordCloudEntry {
     pub id: i64,
     pub name: String,
     pub count: i64,
-    pub weight: f64,  // Normalized weight for display (0.0-1.0)
+    pub weight: f64, // Normalized weight for display (0.0-1.0)
     pub keyword_type: Option<String>,
 }
 
 /// Get article timeline for a period
 #[tauri::command]
-pub fn get_article_timeline(
-    state: State<AppState>,
-    days: i64,
-) -> CmdResult<ArticleTimeline> {
+pub fn get_article_timeline(state: State<AppState>, days: i64) -> CmdResult<ArticleTimeline> {
     // Input validation: clamp days to reasonable range
     let days = days.max(1).min(365);
 
@@ -707,16 +687,14 @@ pub fn get_article_timeline(
     let mut data = Vec::new();
 
     // Get articles by date
-    let mut stmt_articles = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt_articles = db.conn().prepare(
+        r#"
             SELECT date(published_at) as pub_date, COUNT(*) as count
             FROM fnords
             WHERE published_at >= date('now', '-' || ?1 || ' days')
             GROUP BY date(published_at)
             "#,
-        )?;
+    )?;
 
     let articles_by_date: std::collections::HashMap<String, i64> = stmt_articles
         .query_map([days], |row| Ok((row.get::<_, String>(0)?, row.get(1)?)))?
@@ -724,16 +702,14 @@ pub fn get_article_timeline(
         .collect();
 
     // Get revisions by date
-    let mut stmt_revisions = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt_revisions = db.conn().prepare(
+        r#"
             SELECT date(revision_at) as rev_date, COUNT(*) as count
             FROM fnord_revisions
             WHERE revision_at >= date('now', '-' || ?1 || ' days')
             GROUP BY date(revision_at)
             "#,
-        )?;
+    )?;
 
     let revisions_by_date: std::collections::HashMap<String, i64> = stmt_revisions
         .query_map([days], |row| Ok((row.get::<_, String>(0)?, row.get(1)?)))?
@@ -742,13 +718,11 @@ pub fn get_article_timeline(
 
     // Generate date range
     for i in 0..days {
-        let date: String = db
-            .conn()
-            .query_row(
-                "SELECT date('now', '-' || ?1 || ' days')",
-                [days - 1 - i],
-                |row| row.get(0),
-            )?;
+        let date: String = db.conn().query_row(
+            "SELECT date('now', '-' || ?1 || ' days')",
+            [days - 1 - i],
+            |row| row.get(0),
+        )?;
 
         data.push(TimelineDataPoint {
             date: date.clone(),
@@ -769,10 +743,8 @@ pub fn get_greyface_index(state: State<AppState>) -> CmdResult<GreyfaceIndex> {
     let db = state.db_conn()?;
 
     // Get bias distribution
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt = db.conn().prepare(
+        r#"
             SELECT
                 political_bias,
                 COUNT(*) as count
@@ -780,7 +752,7 @@ pub fn get_greyface_index(state: State<AppState>) -> CmdResult<GreyfaceIndex> {
             WHERE political_bias IS NOT NULL
             GROUP BY political_bias
             "#,
-        )?;
+    )?;
 
     let bias_counts: std::collections::HashMap<i32, i64> = stmt
         .query_map([], |row| Ok((row.get::<_, i32>(0)?, row.get(1)?)))?
@@ -796,9 +768,8 @@ pub fn get_greyface_index(state: State<AppState>) -> CmdResult<GreyfaceIndex> {
     };
 
     // Get averages
-    let (avg_political_bias, avg_sachlichkeit, articles_with_bias): (f64, f64, i64) = db
-        .conn()
-        .query_row(
+    let (avg_political_bias, avg_sachlichkeit, articles_with_bias): (f64, f64, i64) =
+        db.conn().query_row(
             r#"
             SELECT
                 COALESCE(AVG(CAST(political_bias AS REAL)), 0.0),
@@ -823,7 +794,8 @@ pub fn get_greyface_index(state: State<AppState>) -> CmdResult<GreyfaceIndex> {
     let total = articles_with_bias.max(1) as f64;
 
     let imbalance = ((left_total - right_total).abs() / total) * 25.0; // 0-50 range
-    let extremism = ((distribution.left_extreme + distribution.right_extreme) as f64 / total) * 25.0; // 0-25 range
+    let extremism =
+        ((distribution.left_extreme + distribution.right_extreme) as f64 / total) * 25.0; // 0-25 range
     let unsachlichkeit = ((4.0 - avg_sachlichkeit) / 4.0) * 25.0; // 0-25 range
 
     let index = (imbalance + extremism + unsachlichkeit).min(100.0);
@@ -852,10 +824,8 @@ pub fn get_top_keywords_stats(
     let db = state.db_conn()?;
 
     // Current period counts
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt = db.conn().prepare(
+        r#"
             SELECT
                 i.id,
                 i.name,
@@ -877,7 +847,7 @@ pub fn get_top_keywords_stats(
             ORDER BY count DESC
             LIMIT ?2
             "#,
-        )?;
+    )?;
 
     let keywords = stmt
         .query_map([days, limit], |row| {
@@ -917,10 +887,8 @@ pub fn get_feed_activity(
 
     let db = state.db_conn()?;
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt = db.conn().prepare(
+        r#"
             SELECT
                 p.id,
                 p.title,
@@ -943,7 +911,7 @@ pub fn get_feed_activity(
             ORDER BY articles_period DESC
             LIMIT ?2
             "#,
-        )?;
+    )?;
 
     let feeds = stmt
         .query_map([days, limit], |row| {
@@ -966,10 +934,8 @@ pub fn get_feed_activity(
 pub fn get_bias_heatmap(state: State<AppState>) -> CmdResult<Vec<BiasHeatmapEntry>> {
     let db = state.db_conn()?;
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt = db.conn().prepare(
+        r#"
             SELECT
                 p.id,
                 p.title,
@@ -985,7 +951,7 @@ pub fn get_bias_heatmap(state: State<AppState>) -> CmdResult<Vec<BiasHeatmapEntr
             HAVING (bias_m2 + bias_m1 + bias_0 + bias_p1 + bias_p2) > 0
             ORDER BY avg_bias ASC
             "#,
-        )?;
+    )?;
 
     let heatmap = stmt
         .query_map([], |row| {
@@ -1018,10 +984,8 @@ pub fn get_keyword_cloud(
 
     let db = state.db_conn()?;
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt = db.conn().prepare(
+        r#"
             SELECT
                 i.id,
                 i.name,
@@ -1035,7 +999,7 @@ pub fn get_keyword_cloud(
             ORDER BY count DESC
             LIMIT ?2
             "#,
-        )?;
+    )?;
 
     let keywords: Vec<(i64, String, Option<String>, i64)> = stmt
         .query_map([days, limit], |row| {
@@ -1096,7 +1060,13 @@ mod tests {
         conn.execute(
             r#"INSERT INTO fnords (pentacle_id, guid, url, title, status)
                VALUES (?1, ?2, ?3, ?4, ?5)"#,
-            rusqlite::params![pentacle_id, guid, format!("https://example.com/{}", guid), title, status],
+            rusqlite::params![
+                pentacle_id,
+                guid,
+                format!("https://example.com/{}", guid),
+                title,
+                status
+            ],
         )
         .expect("Failed to insert test fnord");
         conn.last_insert_rowid()
@@ -1129,7 +1099,13 @@ mod tests {
         // Insert multiple fnords
         insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Article 1", "concealed");
         insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Article 2", "illuminated");
-        insert_test_fnord(db.conn(), pentacle_id, "guid-3", "Article 3", "golden_apple");
+        insert_test_fnord(
+            db.conn(),
+            pentacle_id,
+            "guid-3",
+            "Article 3",
+            "golden_apple",
+        );
 
         let count: i64 = db
             .conn()
@@ -1178,18 +1154,44 @@ mod tests {
 
         let pentacle1_id: i64 = db
             .conn()
-            .query_row("SELECT id FROM pentacles WHERE title = 'Test Feed'", [], |row| row.get(0))
+            .query_row(
+                "SELECT id FROM pentacles WHERE title = 'Test Feed'",
+                [],
+                |row| row.get(0),
+            )
             .expect("Failed to get pentacle 1 id");
 
         let pentacle2_id: i64 = db
             .conn()
-            .query_row("SELECT id FROM pentacles WHERE title = 'Other Feed'", [], |row| row.get(0))
+            .query_row(
+                "SELECT id FROM pentacles WHERE title = 'Other Feed'",
+                [],
+                |row| row.get(0),
+            )
             .expect("Failed to get pentacle 2 id");
 
         // Insert fnords in different pentacles
-        insert_test_fnord(db.conn(), pentacle1_id, "guid-1", "Feed1 Article 1", "concealed");
-        insert_test_fnord(db.conn(), pentacle1_id, "guid-2", "Feed1 Article 2", "concealed");
-        insert_test_fnord(db.conn(), pentacle2_id, "guid-3", "Feed2 Article", "concealed");
+        insert_test_fnord(
+            db.conn(),
+            pentacle1_id,
+            "guid-1",
+            "Feed1 Article 1",
+            "concealed",
+        );
+        insert_test_fnord(
+            db.conn(),
+            pentacle1_id,
+            "guid-2",
+            "Feed1 Article 2",
+            "concealed",
+        );
+        insert_test_fnord(
+            db.conn(),
+            pentacle2_id,
+            "guid-3",
+            "Feed2 Article",
+            "concealed",
+        );
 
         let feed1_count: i64 = db
             .conn()
@@ -1249,7 +1251,13 @@ mod tests {
             .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
             .expect("Failed to get pentacle id");
 
-        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+        let fnord_id = insert_test_fnord(
+            db.conn(),
+            pentacle_id,
+            "guid-1",
+            "Test Article",
+            "concealed",
+        );
 
         // Update status
         db.conn()
@@ -1268,7 +1276,10 @@ mod tests {
             )
             .expect("Failed to get status");
 
-        assert_eq!(status, "illuminated", "Status should be updated to illuminated");
+        assert_eq!(
+            status, "illuminated",
+            "Status should be updated to illuminated"
+        );
     }
 
     #[test]
@@ -1279,7 +1290,13 @@ mod tests {
             .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
             .expect("Failed to get pentacle id");
 
-        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+        let fnord_id = insert_test_fnord(
+            db.conn(),
+            pentacle_id,
+            "guid-1",
+            "Test Article",
+            "concealed",
+        );
 
         // Update status to golden_apple
         db.conn()
@@ -1298,7 +1315,10 @@ mod tests {
             )
             .expect("Failed to get status");
 
-        assert_eq!(status, "golden_apple", "Status should be updated to golden_apple");
+        assert_eq!(
+            status, "golden_apple",
+            "Status should be updated to golden_apple"
+        );
     }
 
     #[test]
@@ -1309,7 +1329,13 @@ mod tests {
             .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
             .expect("Failed to get pentacle id");
 
-        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+        let fnord_id = insert_test_fnord(
+            db.conn(),
+            pentacle_id,
+            "guid-1",
+            "Test Article",
+            "concealed",
+        );
 
         // Verify read_at is NULL initially
         let read_at_before: Option<String> = db
@@ -1321,7 +1347,10 @@ mod tests {
             )
             .expect("Failed to get read_at");
 
-        assert!(read_at_before.is_none(), "read_at should be NULL before first read");
+        assert!(
+            read_at_before.is_none(),
+            "read_at should be NULL before first read"
+        );
 
         // Update to illuminated with read_at (simulating the command logic)
         db.conn()
@@ -1340,7 +1369,10 @@ mod tests {
             )
             .expect("Failed to get read_at");
 
-        assert!(read_at_after.is_some(), "read_at should be set after first read");
+        assert!(
+            read_at_after.is_some(),
+            "read_at should be set after first read"
+        );
     }
 
     #[test]
@@ -1351,7 +1383,13 @@ mod tests {
             .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
             .expect("Failed to get pentacle id");
 
-        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+        let fnord_id = insert_test_fnord(
+            db.conn(),
+            pentacle_id,
+            "guid-1",
+            "Test Article",
+            "concealed",
+        );
 
         // Set initial read_at
         let first_read_time = "2024-01-01T10:00:00Z";
@@ -1379,7 +1417,10 @@ mod tests {
             )
             .expect("Failed to get read_at");
 
-        assert_eq!(read_at, first_read_time, "read_at should be preserved from first read");
+        assert_eq!(
+            read_at, first_read_time,
+            "read_at should be preserved from first read"
+        );
     }
 
     #[test]
@@ -1417,7 +1458,13 @@ mod tests {
             .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
             .expect("Failed to get pentacle id");
 
-        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+        let fnord_id = insert_test_fnord(
+            db.conn(),
+            pentacle_id,
+            "guid-1",
+            "Test Article",
+            "concealed",
+        );
 
         // Set has_changes to TRUE
         db.conn()
@@ -1437,7 +1484,10 @@ mod tests {
             )
             .expect("Failed to get has_changes");
 
-        assert!(has_changes_before, "has_changes should be TRUE before acknowledge");
+        assert!(
+            has_changes_before,
+            "has_changes should be TRUE before acknowledge"
+        );
 
         // Acknowledge changes
         db.conn()
@@ -1456,7 +1506,10 @@ mod tests {
             )
             .expect("Failed to get has_changes");
 
-        assert!(!has_changes_after, "has_changes should be FALSE after acknowledge");
+        assert!(
+            !has_changes_after,
+            "has_changes should be FALSE after acknowledge"
+        );
     }
 
     // ============================================================
@@ -1495,8 +1548,20 @@ mod tests {
             .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
             .expect("Failed to get pentacle id");
 
-        let fnord1_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Changed Article", "concealed");
-        insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Unchanged Article", "concealed");
+        let fnord1_id = insert_test_fnord(
+            db.conn(),
+            pentacle_id,
+            "guid-1",
+            "Changed Article",
+            "concealed",
+        );
+        insert_test_fnord(
+            db.conn(),
+            pentacle_id,
+            "guid-2",
+            "Unchanged Article",
+            "concealed",
+        );
 
         // Mark first fnord as changed
         db.conn()
@@ -1530,7 +1595,13 @@ mod tests {
             .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
             .expect("Failed to get pentacle id");
 
-        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+        let fnord_id = insert_test_fnord(
+            db.conn(),
+            pentacle_id,
+            "guid-1",
+            "Test Article",
+            "concealed",
+        );
 
         let revision_count: i64 = db
             .conn()
@@ -1552,7 +1623,13 @@ mod tests {
             .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
             .expect("Failed to get pentacle id");
 
-        let fnord_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Test Article", "concealed");
+        let fnord_id = insert_test_fnord(
+            db.conn(),
+            pentacle_id,
+            "guid-1",
+            "Test Article",
+            "concealed",
+        );
 
         // Insert revisions
         for i in 0..3 {
@@ -1560,7 +1637,12 @@ mod tests {
                 .execute(
                     r#"INSERT INTO fnord_revisions (fnord_id, title, content_raw, content_hash)
                        VALUES (?1, ?2, ?3, ?4)"#,
-                    rusqlite::params![fnord_id, format!("Title v{}", i), format!("Content v{}", i), format!("hash{}", i)],
+                    rusqlite::params![
+                        fnord_id,
+                        format!("Title v{}", i),
+                        format!("Content v{}", i),
+                        format!("hash{}", i)
+                    ],
                 )
                 .expect("Failed to insert revision");
         }
@@ -1636,8 +1718,10 @@ mod tests {
             .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
             .expect("Failed to get pentacle id");
 
-        let fnord1_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Article 1", "concealed");
-        let fnord2_id = insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Article 2", "concealed");
+        let fnord1_id =
+            insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Article 1", "concealed");
+        let fnord2_id =
+            insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Article 2", "concealed");
         insert_test_fnord(db.conn(), pentacle_id, "guid-3", "Article 3", "concealed");
 
         // Mark some as changed
@@ -1672,15 +1756,14 @@ mod tests {
             .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
             .expect("Failed to get pentacle id");
 
-        let fnord1_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Article 1", "concealed");
-        let fnord2_id = insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Article 2", "concealed");
+        let fnord1_id =
+            insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Article 1", "concealed");
+        let fnord2_id =
+            insert_test_fnord(db.conn(), pentacle_id, "guid-2", "Article 2", "concealed");
 
         // Mark both as changed (false positives - no actual revisions)
         db.conn()
-            .execute(
-                "UPDATE fnords SET has_changes = TRUE",
-                [],
-            )
+            .execute("UPDATE fnords SET has_changes = TRUE", [])
             .expect("Failed to set has_changes");
 
         // Reset changes for articles without revisions
@@ -1716,8 +1799,15 @@ mod tests {
             .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
             .expect("Failed to get pentacle id");
 
-        let fnord1_id = insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Real Change", "concealed");
-        let fnord2_id = insert_test_fnord(db.conn(), pentacle_id, "guid-2", "False Positive", "concealed");
+        let fnord1_id =
+            insert_test_fnord(db.conn(), pentacle_id, "guid-1", "Real Change", "concealed");
+        let fnord2_id = insert_test_fnord(
+            db.conn(),
+            pentacle_id,
+            "guid-2",
+            "False Positive",
+            "concealed",
+        );
 
         // Add a revision to fnord1 (real change)
         db.conn()

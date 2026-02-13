@@ -44,9 +44,8 @@ mod flexible_deser {
         D: Deserializer<'de>,
     {
         let v = Value::deserialize(deserializer)?;
-        extract_string_from_value(&v).ok_or_else(|| {
-            serde::de::Error::custom(format!("cannot extract string from {:?}", v))
-        })
+        extract_string_from_value(&v)
+            .ok_or_else(|| serde::de::Error::custom(format!("cannot extract string from {:?}", v)))
     }
 
     /// Deserialize an optional string that might be an object with a text field
@@ -355,8 +354,8 @@ impl OllamaClient {
             .await
             .map_err(|e: reqwest_new::Error| OllamaError::NotAvailable(e.to_string()))?;
 
-        let models: ModelsResponse = serde_json::from_slice(&bytes)
-            .map_err(|e| OllamaError::NotAvailable(e.to_string()))?;
+        let models: ModelsResponse =
+            serde_json::from_slice(&bytes).map_err(|e| OllamaError::NotAvailable(e.to_string()))?;
 
         Ok(models.models)
     }
@@ -390,7 +389,10 @@ impl OllamaClient {
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
-            return Err(OllamaError::PullFailed(format!("Status {}: {}", status, body)));
+            return Err(OllamaError::PullFailed(format!(
+                "Status {}: {}",
+                status, body
+            )));
         }
 
         let result: PullResponse = resp
@@ -405,16 +407,20 @@ impl OllamaClient {
     #[allow(dead_code)]
     pub async fn has_model(&self, model_name: &str) -> bool {
         match self.list_models().await {
-            Ok(models) => models.iter().any(|m| {
-                m.name == model_name || m.name.starts_with(&format!("{}:", model_name))
-            }),
+            Ok(models) => models
+                .iter()
+                .any(|m| m.name == model_name || m.name.starts_with(&format!("{}:", model_name))),
             Err(_) => false,
         }
     }
 
     /// Generate embedding vector for text using nomic-embed-text or similar
     #[allow(dead_code)]
-    pub async fn generate_embedding(&self, model: &str, text: &str) -> Result<Vec<f32>, OllamaError> {
+    pub async fn generate_embedding(
+        &self,
+        model: &str,
+        text: &str,
+    ) -> Result<Vec<f32>, OllamaError> {
         let url = format!("{}/api/embeddings", self.base_url);
         let client = self.client()?;
 
@@ -423,12 +429,9 @@ impl OllamaClient {
             prompt: text.to_string(),
         };
 
-        let resp = client
-            .post(&url)
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| OllamaError::GenerationFailed(format!("Embedding request failed: {}", e)))?;
+        let resp = client.post(&url).json(&request).send().await.map_err(|e| {
+            OllamaError::GenerationFailed(format!("Embedding request failed: {}", e))
+        })?;
 
         let status = resp.status();
         if !status.is_success() {
@@ -439,10 +442,9 @@ impl OllamaClient {
             )));
         }
 
-        let result: EmbeddingResponse = resp
-            .json()
-            .await
-            .map_err(|e| OllamaError::GenerationFailed(format!("Failed to parse embedding: {}", e)))?;
+        let result: EmbeddingResponse = resp.json().await.map_err(|e| {
+            OllamaError::GenerationFailed(format!("Failed to parse embedding: {}", e))
+        })?;
 
         Ok(result.embedding)
     }
@@ -454,14 +456,17 @@ impl OllamaClient {
         model: &str,
         texts: &[String],
     ) -> Vec<Result<Vec<f32>, OllamaError>> {
-        let futures = texts.iter().map(|text| self.generate_embedding(model, text));
+        let futures = texts
+            .iter()
+            .map(|text| self.generate_embedding(model, text));
         futures::future::join_all(futures).await
     }
 
     /// Generate a summary for article content
     #[allow(dead_code)]
     pub async fn summarize(&self, model: &str, content: &str) -> Result<String, OllamaError> {
-        self.summarize_with_prompt(model, content, DEFAULT_SUMMARY_PROMPT).await
+        self.summarize_with_prompt(model, content, DEFAULT_SUMMARY_PROMPT)
+            .await
     }
 
     /// Generate a summary with custom prompt template
@@ -484,7 +489,8 @@ impl OllamaClient {
         title: &str,
         content: &str,
     ) -> Result<BiasAnalysis, OllamaError> {
-        self.analyze_bias_with_prompt(model, title, content, DEFAULT_ANALYSIS_PROMPT).await
+        self.analyze_bias_with_prompt(model, title, content, DEFAULT_ANALYSIS_PROMPT)
+            .await
     }
 
     /// Analyze article with custom prompt template
@@ -501,11 +507,17 @@ impl OllamaClient {
             .replace("{content}", &truncated_content);
 
         // Use JSON mode
-        let response = self.generate(model, &prompt, Some("json".to_string())).await?;
+        let response = self
+            .generate(model, &prompt, Some("json".to_string()))
+            .await?;
 
         // Parse directly
         let raw: RawBiasAnalysis = serde_json::from_str(&response).map_err(|e| {
-            warn!("JSON parse error: {}. Response: {}", e, truncate_str(&response, 300));
+            warn!(
+                "JSON parse error: {}. Response: {}",
+                e,
+                truncate_str(&response, 300)
+            );
             OllamaError::JsonParseError {
                 message: e.to_string(),
                 raw_response: response.chars().take(500).collect(),
@@ -525,7 +537,8 @@ impl OllamaClient {
         content: &str,
         locale: &str,
     ) -> Result<DiscordianAnalysis, OllamaError> {
-        self.discordian_analysis_with_retry(model, title, content, locale, None).await
+        self.discordian_analysis_with_retry(model, title, content, locale, None)
+            .await
     }
 
     /// Discordian Analysis with optional retry feedback
@@ -538,7 +551,10 @@ impl OllamaClient {
         locale: &str,
         previous_error: Option<&str>,
     ) -> Result<DiscordianAnalysis, OllamaError> {
-        debug!("Starting Discordian analysis for: {}", truncate_str(title, 60));
+        debug!(
+            "Starting Discordian analysis for: {}",
+            truncate_str(title, 60)
+        );
         let language = get_language_for_locale(locale);
         let truncated_content = content.chars().take(6000).collect::<String>();
 
@@ -568,10 +584,16 @@ Content: {}"#,
         };
 
         // Use JSON mode
-        let response = self.generate(model, &prompt, Some("json".to_string())).await?;
+        let response = self
+            .generate(model, &prompt, Some("json".to_string()))
+            .await?;
 
         let raw: RawDiscordianAnalysis = serde_json::from_str(&response).map_err(|e| {
-            warn!("JSON parse error: {}. Response: {}", e, truncate_str(&response, 300));
+            warn!(
+                "JSON parse error: {}. Response: {}",
+                e,
+                truncate_str(&response, 300)
+            );
             OllamaError::JsonParseError {
                 message: e.to_string(),
                 raw_response: response.chars().take(500).collect(),
@@ -630,7 +652,10 @@ Content: {}"#,
         stat_categories: &[(String, f64)], // (category_name, confidence)
         custom_prompt: Option<&str>,
     ) -> Result<DiscordianAnalysisWithRejections, OllamaError> {
-        debug!("Starting Discordian analysis with stats for: {}", truncate_str(title, 60));
+        debug!(
+            "Starting Discordian analysis with stats for: {}",
+            truncate_str(title, 60)
+        );
         let language = get_language_for_locale(locale);
         let truncated_content = content.chars().take(6000).collect::<String>();
 
@@ -661,15 +686,22 @@ Content: {}"#,
             .replace("{stat_categories}", &stat_categories_str);
 
         // Use JSON mode
-        let response = self.generate(model, &prompt, Some("json".to_string())).await?;
+        let response = self
+            .generate(model, &prompt, Some("json".to_string()))
+            .await?;
 
-        let raw: RawDiscordianAnalysisWithRejections = serde_json::from_str(&response).map_err(|e| {
-            warn!("JSON parse error: {}. Response: {}", e, truncate_str(&response, 300));
-            OllamaError::JsonParseError {
-                message: e.to_string(),
-                raw_response: response.chars().take(500).collect(),
-            }
-        })?;
+        let raw: RawDiscordianAnalysisWithRejections =
+            serde_json::from_str(&response).map_err(|e| {
+                warn!(
+                    "JSON parse error: {}. Response: {}",
+                    e,
+                    truncate_str(&response, 300)
+                );
+                OllamaError::JsonParseError {
+                    message: e.to_string(),
+                    raw_response: response.chars().take(500).collect(),
+                }
+            })?;
 
         debug!(
             "Analysis with stats complete: {} categories, {} keywords, {} rejected_kw, {} rejected_cat",
@@ -688,7 +720,12 @@ Content: {}"#,
     }
 
     /// Generate text with Ollama
-    async fn generate(&self, model: &str, prompt: &str, format: Option<String>) -> Result<String, OllamaError> {
+    async fn generate(
+        &self,
+        model: &str,
+        prompt: &str,
+        format: Option<String>,
+    ) -> Result<String, OllamaError> {
         let url = format!("{}/api/generate", self.base_url);
         let client = self.client()?;
 
@@ -713,15 +750,20 @@ Content: {}"#,
             },
         };
 
-        let resp: reqwest_new::Response = client
-            .post(&url)
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e: reqwest_new::Error| {
-                warn!("[Ollama] Request failed after {:.2}s: {}", request_start.elapsed().as_secs_f64(), e);
-                OllamaError::NotAvailable(e.to_string())
-            })?;
+        let resp: reqwest_new::Response =
+            client
+                .post(&url)
+                .json(&request)
+                .send()
+                .await
+                .map_err(|e: reqwest_new::Error| {
+                    warn!(
+                        "[Ollama] Request failed after {:.2}s: {}",
+                        request_start.elapsed().as_secs_f64(),
+                        e
+                    );
+                    OllamaError::NotAvailable(e.to_string())
+                })?;
 
         let status = resp.status();
         if !status.is_success() {
@@ -731,7 +773,9 @@ Content: {}"#,
                 .unwrap_or_else(|_: reqwest_new::Error| "Unknown error".to_string());
             warn!(
                 "[Ollama] Request failed after {:.2}s with status {}: {}",
-                request_start.elapsed().as_secs_f64(), status, truncate_str(&body, 200)
+                request_start.elapsed().as_secs_f64(),
+                status,
+                truncate_str(&body, 200)
             );
             return Err(OllamaError::GenerationFailed(format!(
                 "Status {}: {}",
@@ -756,7 +800,8 @@ Content: {}"#,
         } else {
             debug!(
                 "[Ollama] Request completed in {:.2}s (response: {} chars)",
-                duration.as_secs_f64(), response_len
+                duration.as_secs_f64(),
+                response_len
             );
         }
 

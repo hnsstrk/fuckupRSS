@@ -3,7 +3,7 @@
 use crate::embedding_worker::{self, EmbeddingProgress};
 use crate::AppState;
 use serde::Serialize;
-use tauri::{State, AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, State};
 
 #[derive(Serialize)]
 pub struct EmbeddingQueueStatus {
@@ -54,13 +54,16 @@ pub async fn process_embedding_queue_now(
     };
 
     // Emit start event
-    let _ = app_handle.emit("embedding-progress", EmbeddingProgress {
-        queue_size: initial_total,
-        total: initial_total,
-        processed: 0,
-        failed: 0,
-        is_processing: true,
-    });
+    let _ = app_handle.emit(
+        "embedding-progress",
+        EmbeddingProgress {
+            queue_size: initial_total,
+            total: initial_total,
+            processed: 0,
+            failed: 0,
+            is_processing: true,
+        },
+    );
 
     // Process the queue
     let (processed, failed) = embedding_worker::process_embedding_queue(
@@ -68,7 +71,8 @@ pub async fn process_embedding_queue_now(
         Some(&app_handle),
         limit,
         Some(initial_total),
-    ).await?;
+    )
+    .await?;
 
     // Calculate quality scores for processed keywords
     if processed > 0 {
@@ -84,13 +88,16 @@ pub async fn process_embedding_queue_now(
     };
 
     // Emit completion event
-    let _ = app_handle.emit("embedding-progress", EmbeddingProgress {
-        queue_size: remaining,
-        total: initial_total,
-        processed,
-        failed,
-        is_processing: false,
-    });
+    let _ = app_handle.emit(
+        "embedding-progress",
+        EmbeddingProgress {
+            queue_size: remaining,
+            total: initial_total,
+            processed,
+            failed,
+            is_processing: false,
+        },
+    );
 
     Ok(ProcessQueueResult {
         processed,

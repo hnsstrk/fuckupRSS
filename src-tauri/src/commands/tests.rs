@@ -412,7 +412,8 @@ fn test_prompt_templates_serialize() {
     let templates = PromptTemplates {
         summary_prompt: "Summarize: {content}".to_string(),
         analysis_prompt: "Analyze: {title} {content}".to_string(),
-        discordian_prompt: "Discordian: {language} {title} {content} {stat_keywords} {stat_categories}".to_string(),
+        discordian_prompt:
+            "Discordian: {language} {title} {content} {stat_keywords} {stat_categories}".to_string(),
     };
 
     let json = serde_json::to_string(&templates).expect("Serialization failed");
@@ -506,7 +507,11 @@ fn test_batch_processing_flow() {
             fnord_id: *id,
             title: title.to_string(),
             success: *success,
-            error: if *success { None } else { Some("Failed".to_string()) },
+            error: if *success {
+                None
+            } else {
+                Some("Failed".to_string())
+            },
             provider: "Ollama".to_string(),
             model: "ministral-3:latest".to_string(),
         };
@@ -637,10 +642,7 @@ fn test_unprocessed_articles_query_logic() {
 fn test_content_coalesce_logic() {
     // Test the COALESCE(content_full, content_raw, '') logic
     fn coalesce_content(content_full: Option<&str>, content_raw: Option<&str>) -> String {
-        content_full
-            .or(content_raw)
-            .unwrap_or("")
-            .to_string()
+        content_full.or(content_raw).unwrap_or("").to_string()
     }
 
     // Full content takes priority
@@ -667,7 +669,9 @@ fn distance_to_similarity(distance: f64) -> f64 {
 
 #[test]
 fn test_similar_article_response_serialize() {
-    use super::ai::types::{SimilarArticle, SimilarArticlesResponse, SimilarArticleTag, SimilarArticleCategory};
+    use super::ai::types::{
+        SimilarArticle, SimilarArticleCategory, SimilarArticleTag, SimilarArticlesResponse,
+    };
 
     let similar = SimilarArticle {
         fnord_id: 123,
@@ -676,17 +680,21 @@ fn test_similar_article_response_serialize() {
         published_at: Some("2024-01-15".to_string()),
         similarity: 0.85,
         tags: vec![
-            SimilarArticleTag { id: 1, name: "Tag1".to_string() },
-            SimilarArticleTag { id: 2, name: "Tag2".to_string() },
-        ],
-        categories: vec![
-            SimilarArticleCategory {
+            SimilarArticleTag {
                 id: 1,
-                name: "Politik".to_string(),
-                icon: Some("fa-landmark".to_string()),
-                color: Some("#dc3545".to_string()),
+                name: "Tag1".to_string(),
+            },
+            SimilarArticleTag {
+                id: 2,
+                name: "Tag2".to_string(),
             },
         ],
+        categories: vec![SimilarArticleCategory {
+            id: 1,
+            name: "Politik".to_string(),
+            icon: Some("fa-landmark".to_string()),
+            color: Some("#dc3545".to_string()),
+        }],
     };
 
     let response = SimilarArticlesResponse {
@@ -783,7 +791,10 @@ fn test_article_embedding_count_consistency() {
     };
 
     // with_embedding + without_embedding should equal total_articles
-    assert_eq!(count.with_embedding + count.without_embedding, count.total_articles);
+    assert_eq!(
+        count.with_embedding + count.without_embedding,
+        count.total_articles
+    );
 
     // processable should be <= without_embedding (subset of articles without embedding)
     assert!(count.processable <= count.without_embedding);
@@ -894,7 +905,8 @@ fn test_similar_articles_threshold_filter() {
         let similarity = distance_to_similarity(distance);
         let passes = similarity >= threshold;
         assert_eq!(
-            passes, should_pass,
+            passes,
+            should_pass,
             "Distance {} → similarity {} should {} pass threshold {}",
             distance,
             similarity,
@@ -922,7 +934,8 @@ fn test_semantic_search_threshold_filter() {
         let similarity = distance_to_similarity(distance);
         let passes = similarity >= threshold;
         assert_eq!(
-            passes, should_pass,
+            passes,
+            should_pass,
             "Distance {} → similarity {} should {} pass threshold {}",
             distance,
             similarity,
@@ -1079,7 +1092,12 @@ fn test_embedding_stats_processable_constraint() {
         .iter()
         .filter(|a| a.embedding.is_none())
         .filter(|a| a.processed_at.is_some())
-        .filter(|a| a.content_full.as_ref().map(|c| c.len() >= 100).unwrap_or(false))
+        .filter(|a| {
+            a.content_full
+                .as_ref()
+                .map(|c| c.len() >= 100)
+                .unwrap_or(false)
+        })
         .collect();
 
     assert_eq!(processable.len(), 1);
@@ -1091,7 +1109,7 @@ fn test_embedding_stats_processable_constraint() {
 
 #[test]
 fn test_batch_embedding_flow() {
-    use super::ai::types::{ArticleEmbeddingProgress, ArticleEmbeddingBatchResult};
+    use super::ai::types::{ArticleEmbeddingBatchResult, ArticleEmbeddingProgress};
 
     // Simulate a batch of 5 articles
     let total = 5i64;
@@ -1121,7 +1139,11 @@ fn test_batch_embedding_flow() {
             fnord_id: *id,
             title: title.to_string(),
             success: *success,
-            error: if *success { None } else { Some("Embedding failed".to_string()) },
+            error: if *success {
+                None
+            } else {
+                Some("Embedding failed".to_string())
+            },
         };
 
         assert_eq!(progress.current, current);
@@ -1254,7 +1276,10 @@ fn test_similarity_is_monotonic() {
     // As distance increases, similarity should decrease
     let distances = vec![0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
-    let similarities: Vec<f64> = distances.iter().map(|d| distance_to_similarity(*d)).collect();
+    let similarities: Vec<f64> = distances
+        .iter()
+        .map(|d| distance_to_similarity(*d))
+        .collect();
 
     for i in 1..similarities.len() {
         assert!(
@@ -1522,16 +1547,28 @@ fn test_assign_synonym_chain_prevention_logic() {
     }
 
     let keywords = vec![
-        MockKeyword { id: 1, canonical_id: None },      // Root keyword
-        MockKeyword { id: 2, canonical_id: Some(1) },   // Synonym of 1
-        MockKeyword { id: 3, canonical_id: None },      // Independent
+        MockKeyword {
+            id: 1,
+            canonical_id: None,
+        }, // Root keyword
+        MockKeyword {
+            id: 2,
+            canonical_id: Some(1),
+        }, // Synonym of 1
+        MockKeyword {
+            id: 3,
+            canonical_id: None,
+        }, // Independent
     ];
 
     // Try to assign 3 as synonym of 2 (2 already has canonical_id = 1)
     let canonical = keywords.iter().find(|k| k.id == 2).unwrap();
 
     let chain_would_form = canonical.canonical_id.is_some();
-    assert!(chain_would_form, "Should detect that canonical already has a parent");
+    assert!(
+        chain_would_form,
+        "Should detect that canonical already has a parent"
+    );
 
     // Try to assign 2 as synonym of 1 (1 has no parent) - should be allowed
     let canonical = keywords.iter().find(|k| k.id == 1).unwrap();

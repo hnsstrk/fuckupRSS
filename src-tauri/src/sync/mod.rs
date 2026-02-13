@@ -154,7 +154,10 @@ impl FeedSyncer {
     pub fn store_feed(conn: &Connection, feed: FetchedFeed) -> Result<SyncResult, SyncError> {
         let pentacle_id = feed.pentacle_id;
         let entry_count = feed.entries.len();
-        debug!("Storing {} entries for pentacle {}", entry_count, pentacle_id);
+        debug!(
+            "Storing {} entries for pentacle {}",
+            entry_count, pentacle_id
+        );
 
         // Begin transaction for atomic feed storage
         conn.execute("BEGIN TRANSACTION", [])?;
@@ -224,11 +227,30 @@ impl FeedSyncer {
                     r#"SELECT id, title, author, content_raw, content_full, summary, content_hash
                        FROM fnords WHERE pentacle_id = ?1 AND guid = ?2"#,
                     (&pentacle_id, &entry.guid),
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
+                    |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                            row.get(5)?,
+                            row.get(6)?,
+                        ))
+                    },
                 )
                 .optional()?;
 
-            if let Some((fnord_id, old_title, old_author, old_content, old_content_full, old_summary, old_hash)) = existing {
+            if let Some((
+                fnord_id,
+                old_title,
+                old_author,
+                old_content,
+                old_content_full,
+                old_summary,
+                old_hash,
+            )) = existing
+            {
                 // Article exists - check if content changed via hash comparison
                 // Only consider it a change if we had a previous hash AND it differs
                 let content_changed = match &old_hash {
@@ -258,7 +280,14 @@ impl FeedSyncer {
                             changed_at = CURRENT_TIMESTAMP,
                             revision_count = revision_count + 1
                         WHERE id = ?6"#,
-                        (&entry.title, &entry.author, &entry.content_raw, &entry.summary, &new_hash, &fnord_id),
+                        (
+                            &entry.title,
+                            &entry.author,
+                            &entry.content_raw,
+                            &entry.summary,
+                            &new_hash,
+                            &fnord_id,
+                        ),
                     )?;
 
                     updated_articles += 1;

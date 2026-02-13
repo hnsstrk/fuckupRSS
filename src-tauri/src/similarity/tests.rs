@@ -1,9 +1,7 @@
 //! Integration tests for the similarity module
 
 use super::embedding::cosine_similarity;
-use super::string::{
-    calculate_abbreviation_score, calculate_string_similarity, token_set_ratio,
-};
+use super::string::{calculate_abbreviation_score, calculate_string_similarity, token_set_ratio};
 
 #[test]
 fn test_trump_donald_trump_is_name_variant() {

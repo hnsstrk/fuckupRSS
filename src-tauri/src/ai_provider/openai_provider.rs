@@ -128,7 +128,11 @@ impl OpenAiCompatibleProvider {
     }
 
     /// Classify an HTTP error response for retry decisions.
-    fn classify_error(status: reqwest_new::StatusCode, body: &str, retry_after_header: Option<&str>) -> HttpError {
+    fn classify_error(
+        status: reqwest_new::StatusCode,
+        body: &str,
+        retry_after_header: Option<&str>,
+    ) -> HttpError {
         let api_message = serde_json::from_str::<ErrorResponse>(body)
             .ok()
             .and_then(|r| r.error)
@@ -181,7 +185,8 @@ impl OpenAiCompatibleProvider {
         url: &str,
         request: &ChatCompletionRequest,
     ) -> Result<(reqwest_new::StatusCode, bytes::Bytes), AiProviderError> {
-        let resp = self.client
+        let resp = self
+            .client
             .post(url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
@@ -202,7 +207,8 @@ impl OpenAiCompatibleProvider {
 
         if !status.is_success() {
             // Extract Retry-After header before consuming the response
-            let retry_after = resp.headers()
+            let retry_after = resp
+                .headers()
                 .get("retry-after")
                 .and_then(|v| v.to_str().ok())
                 .map(|s| s.to_string());
@@ -263,7 +269,8 @@ impl AiTextProvider for OpenAiCompatibleProvider {
         } else {
             messages.push(ChatMessage {
                 role: "system".to_string(),
-                content: "You are a professional news article analyst. Be concise and factual.".to_string(),
+                content: "You are a professional news article analyst. Be concise and factual."
+                    .to_string(),
             });
         }
 
@@ -326,9 +333,13 @@ impl AiTextProvider for OpenAiCompatibleProvider {
             match self.execute_request(&url, &request).await {
                 Ok((_status, body)) => {
                     // Successful response - parse it
-                    let response: ChatCompletionResponse = serde_json::from_slice(&body).map_err(|e| {
-                        AiProviderError::GenerationFailed(format!("Failed to parse response: {}", e))
-                    })?;
+                    let response: ChatCompletionResponse =
+                        serde_json::from_slice(&body).map_err(|e| {
+                            AiProviderError::GenerationFailed(format!(
+                                "Failed to parse response: {}",
+                                e
+                            ))
+                        })?;
 
                     let duration = request_start.elapsed();
 
@@ -380,52 +391,57 @@ impl AiTextProvider for OpenAiCompatibleProvider {
                         let duration = request_start.elapsed();
 
                         // Convert internal RETRYABLE markers to proper error types
-                        let final_error = match &e {
-                            AiProviderError::GenerationFailed(msg) if msg.starts_with("RETRYABLE:429:") => {
-                                warn!(
-                                    "[OpenAI] Rate limited after {} retries ({:.2}s total)",
-                                    attempt, duration.as_secs_f64()
-                                );
-                                AiProviderError::RateLimited
-                            }
-                            AiProviderError::GenerationFailed(msg) if msg.starts_with("RETRYABLE:") => {
-                                // Extract the actual error message from "RETRYABLE:5xx:message"
-                                let parts: Vec<&str> = msg.splitn(3, ':').collect();
-                                let code = parts.get(1).unwrap_or(&"5xx");
-                                let message = parts.get(2).unwrap_or(&"Server error");
-                                warn!(
+                        let final_error =
+                            match &e {
+                                AiProviderError::GenerationFailed(msg)
+                                    if msg.starts_with("RETRYABLE:429:") =>
+                                {
+                                    warn!(
+                                        "[OpenAI] Rate limited after {} retries ({:.2}s total)",
+                                        attempt,
+                                        duration.as_secs_f64()
+                                    );
+                                    AiProviderError::RateLimited
+                                }
+                                AiProviderError::GenerationFailed(msg)
+                                    if msg.starts_with("RETRYABLE:") =>
+                                {
+                                    // Extract the actual error message from "RETRYABLE:5xx:message"
+                                    let parts: Vec<&str> = msg.splitn(3, ':').collect();
+                                    let code = parts.get(1).unwrap_or(&"5xx");
+                                    let message = parts.get(2).unwrap_or(&"Server error");
+                                    warn!(
                                     "[OpenAI] Server error {} after {} retries ({:.2}s total): {}",
                                     code, attempt, duration.as_secs_f64(), message
                                 );
-                                AiProviderError::GenerationFailed(format!(
-                                    "Server error ({}) after {} retries: {}",
-                                    code, attempt, message
-                                ))
-                            }
-                            _ => {
-                                warn!(
-                                    "[OpenAI] Request failed after {:.2}s: {}",
-                                    duration.as_secs_f64(), e
-                                );
-                                e
-                            }
-                        };
+                                    AiProviderError::GenerationFailed(format!(
+                                        "Server error ({}) after {} retries: {}",
+                                        code, attempt, message
+                                    ))
+                                }
+                                _ => {
+                                    warn!(
+                                        "[OpenAI] Request failed after {:.2}s: {}",
+                                        duration.as_secs_f64(),
+                                        e
+                                    );
+                                    e
+                                }
+                            };
 
                         return Err(final_error);
                     }
 
                     // Retryable error - store and continue loop
-                    warn!(
-                        "[OpenAI] Retryable error on attempt {}: {}",
-                        attempt + 1, e
-                    );
+                    warn!("[OpenAI] Retryable error on attempt {}: {}", attempt + 1, e);
                     last_error = Some(e);
                 }
             }
         }
 
         // Should never reach here due to the loop logic, but just in case
-        Err(last_error.unwrap_or_else(|| AiProviderError::GenerationFailed("Unknown error".to_string())))
+        Err(last_error
+            .unwrap_or_else(|| AiProviderError::GenerationFailed("Unknown error".to_string())))
     }
 
     async fn is_available(&self) -> bool {
@@ -464,18 +480,27 @@ mod tests {
     fn test_retry_delay_exponential() {
         // attempt 0: ~1000ms base
         let d0 = OpenAiCompatibleProvider::retry_delay(0, None);
-        assert!(d0.as_millis() >= 750 && d0.as_millis() <= 1250,
-            "Attempt 0 delay should be ~1000ms, got {}ms", d0.as_millis());
+        assert!(
+            d0.as_millis() >= 750 && d0.as_millis() <= 1250,
+            "Attempt 0 delay should be ~1000ms, got {}ms",
+            d0.as_millis()
+        );
 
         // attempt 1: ~2000ms base
         let d1 = OpenAiCompatibleProvider::retry_delay(1, None);
-        assert!(d1.as_millis() >= 1500 && d1.as_millis() <= 2500,
-            "Attempt 1 delay should be ~2000ms, got {}ms", d1.as_millis());
+        assert!(
+            d1.as_millis() >= 1500 && d1.as_millis() <= 2500,
+            "Attempt 1 delay should be ~2000ms, got {}ms",
+            d1.as_millis()
+        );
 
         // attempt 2: ~4000ms base
         let d2 = OpenAiCompatibleProvider::retry_delay(2, None);
-        assert!(d2.as_millis() >= 3000 && d2.as_millis() <= 5000,
-            "Attempt 2 delay should be ~4000ms, got {}ms", d2.as_millis());
+        assert!(
+            d2.as_millis() >= 3000 && d2.as_millis() <= 5000,
+            "Attempt 2 delay should be ~4000ms, got {}ms",
+            d2.as_millis()
+        );
     }
 
     #[test]
@@ -488,7 +513,9 @@ mod tests {
     fn test_classify_error_auth_401() {
         let body = r#"{"error": {"message": "Invalid API key", "type": "auth_error"}}"#;
         let result = OpenAiCompatibleProvider::classify_error(
-            reqwest_new::StatusCode::UNAUTHORIZED, body, None
+            reqwest_new::StatusCode::UNAUTHORIZED,
+            body,
+            None,
         );
         assert!(matches!(result, HttpError::Auth(msg) if msg.contains("Invalid API key")));
     }
@@ -497,7 +524,9 @@ mod tests {
     fn test_classify_error_auth_403() {
         let body = r#"{"error": {"message": "Access denied", "type": "permission_error"}}"#;
         let result = OpenAiCompatibleProvider::classify_error(
-            reqwest_new::StatusCode::FORBIDDEN, body, None
+            reqwest_new::StatusCode::FORBIDDEN,
+            body,
+            None,
         );
         assert!(matches!(result, HttpError::Auth(msg) if msg.contains("Access denied")));
     }
@@ -506,16 +535,22 @@ mod tests {
     fn test_classify_error_rate_limit() {
         let body = r#"{"error": {"message": "Rate limit exceeded", "type": "rate_limit_error"}}"#;
         let result = OpenAiCompatibleProvider::classify_error(
-            reqwest_new::StatusCode::TOO_MANY_REQUESTS, body, Some("5")
+            reqwest_new::StatusCode::TOO_MANY_REQUESTS,
+            body,
+            Some("5"),
         );
-        assert!(matches!(result, HttpError::RateLimit { retry_after: Some(d) } if d == Duration::from_secs(5)));
+        assert!(
+            matches!(result, HttpError::RateLimit { retry_after: Some(d) } if d == Duration::from_secs(5))
+        );
     }
 
     #[test]
     fn test_classify_error_rate_limit_no_header() {
         let body = r#"{"error": {"message": "Rate limit exceeded", "type": "rate_limit_error"}}"#;
         let result = OpenAiCompatibleProvider::classify_error(
-            reqwest_new::StatusCode::TOO_MANY_REQUESTS, body, None
+            reqwest_new::StatusCode::TOO_MANY_REQUESTS,
+            body,
+            None,
         );
         assert!(matches!(result, HttpError::RateLimit { retry_after: None }));
     }
@@ -524,7 +559,9 @@ mod tests {
     fn test_classify_error_server_error() {
         let body = r#"{"error": {"message": "Internal server error", "type": "server_error"}}"#;
         let result = OpenAiCompatibleProvider::classify_error(
-            reqwest_new::StatusCode::INTERNAL_SERVER_ERROR, body, None
+            reqwest_new::StatusCode::INTERNAL_SERVER_ERROR,
+            body,
+            None,
         );
         assert!(matches!(result, HttpError::ServerError(500, _)));
     }
@@ -533,7 +570,9 @@ mod tests {
     fn test_classify_error_bad_request() {
         let body = r#"{"error": {"message": "Invalid model", "type": "invalid_request_error"}}"#;
         let result = OpenAiCompatibleProvider::classify_error(
-            reqwest_new::StatusCode::BAD_REQUEST, body, None
+            reqwest_new::StatusCode::BAD_REQUEST,
+            body,
+            None,
         );
         assert!(matches!(result, HttpError::ClientError(400, _)));
     }
@@ -542,7 +581,9 @@ mod tests {
     fn test_classify_error_malformed_body() {
         let body = "not json at all";
         let result = OpenAiCompatibleProvider::classify_error(
-            reqwest_new::StatusCode::INTERNAL_SERVER_ERROR, body, None
+            reqwest_new::StatusCode::INTERNAL_SERVER_ERROR,
+            body,
+            None,
         );
         assert!(matches!(result, HttpError::ServerError(500, msg) if msg == "not json at all"));
     }
@@ -561,13 +602,19 @@ mod tests {
     #[test]
     fn test_endpoint_url() {
         let provider = OpenAiCompatibleProvider::new("https://api.openai.com", "sk-test", None);
-        assert_eq!(provider.endpoint_url(), "https://api.openai.com/v1/chat/completions");
+        assert_eq!(
+            provider.endpoint_url(),
+            "https://api.openai.com/v1/chat/completions"
+        );
     }
 
     #[test]
     fn test_endpoint_url_trailing_slash() {
         let provider = OpenAiCompatibleProvider::new("https://api.openai.com/", "sk-test", None);
-        assert_eq!(provider.endpoint_url(), "https://api.openai.com/v1/chat/completions");
+        assert_eq!(
+            provider.endpoint_url(),
+            "https://api.openai.com/v1/chat/completions"
+        );
     }
 
     #[test]
@@ -575,10 +622,18 @@ mod tests {
         let request = ChatCompletionRequest {
             model: "gpt-5-nano".to_string(),
             messages: vec![
-                ChatMessage { role: "system".to_string(), content: "Test".to_string() },
-                ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
+                ChatMessage {
+                    role: "system".to_string(),
+                    content: "Test".to_string(),
+                },
+                ChatMessage {
+                    role: "user".to_string(),
+                    content: "Hello".to_string(),
+                },
             ],
-            response_format: Some(ResponseFormat { format_type: "json_object".to_string() }),
+            response_format: Some(ResponseFormat {
+                format_type: "json_object".to_string(),
+            }),
             max_completion_tokens: Some(MAX_COMPLETION_TOKENS),
             temperature: Some(0.3),
         };
@@ -593,9 +648,10 @@ mod tests {
     fn test_request_serialization_no_json_mode() {
         let request = ChatCompletionRequest {
             model: "gpt-5-nano".to_string(),
-            messages: vec![
-                ChatMessage { role: "user".to_string(), content: "Hello".to_string() },
-            ],
+            messages: vec![ChatMessage {
+                role: "user".to_string(),
+                content: "Hello".to_string(),
+            }],
             response_format: None,
             max_completion_tokens: Some(MAX_COMPLETION_TOKENS),
             temperature: None,

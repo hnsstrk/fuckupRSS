@@ -49,10 +49,7 @@ impl CorpusStats {
         // Load document frequencies
         let mut stmt = conn.prepare("SELECT term, document_count FROM corpus_stats")?;
         let rows = stmt.query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, u64>(1)?,
-            ))
+            Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
         })?;
 
         let mut document_frequencies = HashMap::new();
@@ -68,7 +65,10 @@ impl CorpusStats {
     }
 
     /// Update corpus stats in database with terms from a document
-    pub fn update_db_with_document(conn: &rusqlite::Connection, terms: &[String]) -> Result<(), rusqlite::Error> {
+    pub fn update_db_with_document(
+        conn: &rusqlite::Connection,
+        terms: &[String],
+    ) -> Result<(), rusqlite::Error> {
         let unique_terms: std::collections::HashSet<_> = terms.iter().collect();
 
         for term in unique_terms {
@@ -89,7 +89,11 @@ impl CorpusStats {
     /// Calculate IDF for a term
     /// Uses smoothed IDF: log((N + 1) / (df + 1)) + 1
     pub fn idf(&self, term: &str) -> f64 {
-        let df = self.document_frequencies.get(&term.to_lowercase()).copied().unwrap_or(0) as f64;
+        let df = self
+            .document_frequencies
+            .get(&term.to_lowercase())
+            .copied()
+            .unwrap_or(0) as f64;
         let n = self.total_documents as f64;
         // Smoothed IDF to avoid division by zero and extreme values
         ((n + 1.0) / (df + 1.0)).ln() + 1.0
@@ -101,7 +105,10 @@ impl CorpusStats {
         self.total_documents += 1;
         let unique_terms: std::collections::HashSet<_> = terms.iter().collect();
         for term in unique_terms {
-            *self.document_frequencies.entry(term.to_lowercase()).or_insert(0) += 1;
+            *self
+                .document_frequencies
+                .entry(term.to_lowercase())
+                .or_insert(0) += 1;
         }
     }
 
@@ -181,7 +188,6 @@ impl TfIdfExtractor {
 
         // Use the shorter stem (more normalized)
         // But ensure minimum length of 3
-        
 
         if de_stem.len() <= en_stem.len() && de_stem.len() >= 3 {
             de_stem.to_string()
@@ -197,7 +203,10 @@ impl TfIdfExtractor {
     /// Check if a word is likely a proper noun based on capitalization and known lists
     fn is_likely_proper_noun(&self, original_word: &str) -> bool {
         // All-uppercase words (acronyms like NATO, EU) are proper nouns
-        if original_word.chars().all(|c| c.is_uppercase() || !c.is_alphabetic()) {
+        if original_word
+            .chars()
+            .all(|c| c.is_uppercase() || !c.is_alphabetic())
+        {
             return true;
         }
 
@@ -220,7 +229,11 @@ impl TfIdfExtractor {
     /// Tokenize text into words, filtering additional user-defined stopwords
     /// Also applies canonicalization to map synonyms to their canonical forms
     /// Preserves original case for proper noun detection in stemming
-    fn tokenize_with_stopwords(&self, text: &str, user_stopwords: Option<&HashSet<String>>) -> Vec<String> {
+    fn tokenize_with_stopwords(
+        &self,
+        text: &str,
+        user_stopwords: Option<&HashSet<String>>,
+    ) -> Vec<String> {
         text.unicode_words()
             .filter(|w| {
                 let lower = w.to_lowercase();
@@ -282,7 +295,11 @@ impl TfIdfExtractor {
             .collect();
 
         // Sort by score descending
-        candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        candidates.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Return top N keywords
         candidates.truncate(self.max_keywords);
@@ -316,7 +333,11 @@ impl TfIdfExtractor {
             .collect();
 
         // Sort by score descending
-        candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        candidates.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Return top N keywords
         candidates.truncate(self.max_keywords);
@@ -329,7 +350,11 @@ impl TfIdfExtractor {
     }
 
     /// Smart extraction: uses corpus stats if meaningful, otherwise falls back to simple extraction
-    pub fn extract_smart(&self, text: &str, corpus_stats: Option<&CorpusStats>) -> Vec<KeywordCandidate> {
+    pub fn extract_smart(
+        &self,
+        text: &str,
+        corpus_stats: Option<&CorpusStats>,
+    ) -> Vec<KeywordCandidate> {
         match corpus_stats {
             Some(stats) if stats.is_meaningful() => self.extract(text, stats),
             _ => self.extract_simple(text),
@@ -367,7 +392,11 @@ impl TfIdfExtractor {
             .filter(|c| c.score >= self.min_score)
             .collect();
 
-        candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        candidates.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         candidates.truncate(self.max_keywords);
         candidates
     }
@@ -416,14 +445,22 @@ impl TfIdfExtractor {
             .filter(|c| c.frequency >= 2)
             .collect();
 
-        candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        candidates.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         candidates.truncate(self.max_keywords);
         candidates
     }
 
     /// Get tokens with user stopwords filtered (useful for corpus building)
     #[allow(dead_code)] // Public API for corpus building with custom stopwords
-    pub fn get_tokens_with_stopwords(&self, text: &str, user_stopwords: &HashSet<String>) -> Vec<String> {
+    pub fn get_tokens_with_stopwords(
+        &self,
+        text: &str,
+        user_stopwords: &HashSet<String>,
+    ) -> Vec<String> {
         self.tokenize_with_stopwords(text, Some(user_stopwords))
     }
 }
@@ -479,7 +516,8 @@ mod tests {
         // Note: "regierung" is canonicalized to "Regierung" via SYNONYM_GROUPS
         assert!(
             top_term == "Regierung" || top_term == "regierung",
-            "Expected 'Regierung' or 'regierung', got '{}'", top_term
+            "Expected 'Regierung' or 'regierung', got '{}'",
+            top_term
         );
     }
 
@@ -510,9 +548,21 @@ mod tests {
 
         // Build corpus stats
         let mut stats = CorpusStats::default();
-        stats.add_document(&["politik".to_string(), "regierung".to_string(), "gesetz".to_string()]);
-        stats.add_document(&["politik".to_string(), "wahl".to_string(), "partei".to_string()]);
-        stats.add_document(&["wirtschaft".to_string(), "handel".to_string(), "export".to_string()]);
+        stats.add_document(&[
+            "politik".to_string(),
+            "regierung".to_string(),
+            "gesetz".to_string(),
+        ]);
+        stats.add_document(&[
+            "politik".to_string(),
+            "wahl".to_string(),
+            "partei".to_string(),
+        ]);
+        stats.add_document(&[
+            "wirtschaft".to_string(),
+            "handel".to_string(),
+            "export".to_string(),
+        ]);
 
         // Extract from a new document
         let text = "Die Regierung plant neue Gesetze zur Wirtschaft. \
@@ -538,14 +588,26 @@ mod tests {
         let stem_iran3 = extractor.stem_word("iran", "iran");
 
         // All should stem to the same root
-        assert_eq!(stem_iran, stem_iran2, "iranischen and iranische should have same stem");
-        println!("iranischen -> {}, iranische -> {}, iran -> {}", stem_iran, stem_iran2, stem_iran3);
+        assert_eq!(
+            stem_iran, stem_iran2,
+            "iranischen and iranische should have same stem"
+        );
+        println!(
+            "iranischen -> {}, iranische -> {}, iran -> {}",
+            stem_iran, stem_iran2, stem_iran3
+        );
 
         // Test more German words
         let stem_deutsch = extractor.stem_word("deutschen", "deutschen");
         let stem_deutsch2 = extractor.stem_word("deutsche", "deutsche");
-        assert_eq!(stem_deutsch, stem_deutsch2, "deutschen and deutsche should have same stem");
-        println!("deutschen -> {}, deutsche -> {}", stem_deutsch, stem_deutsch2);
+        assert_eq!(
+            stem_deutsch, stem_deutsch2,
+            "deutschen and deutsche should have same stem"
+        );
+        println!(
+            "deutschen -> {}, deutsche -> {}",
+            stem_deutsch, stem_deutsch2
+        );
 
         let stem_reg = extractor.stem_word("regierung", "regierung");
         let stem_reg2 = extractor.stem_word("regierungen", "regierungen");
@@ -554,7 +616,9 @@ mod tests {
 
     #[test]
     fn test_stemming_consolidates_keywords() {
-        let extractor = TfIdfExtractor::new().with_stemming(true).with_max_keywords(10);
+        let extractor = TfIdfExtractor::new()
+            .with_stemming(true)
+            .with_max_keywords(10);
 
         // Text with various forms of the same words
         let text = "Die iranische Regierung und die iranischen Minister. \
@@ -566,7 +630,10 @@ mod tests {
         // Print keywords for debugging
         println!("Keywords with stemming:");
         for kw in &keywords {
-            println!("  {} (freq: {}, score: {:.2})", kw.term, kw.frequency, kw.score);
+            println!(
+                "  {} (freq: {}, score: {:.2})",
+                kw.term, kw.frequency, kw.score
+            );
         }
 
         // With stemming/canonicalization, "iranischen" and "iranischer" are consolidated
@@ -579,7 +646,11 @@ mod tests {
         assert!(iran_kw.is_some(), "Should find iran-related keyword");
         if let Some(kw) = iran_kw {
             // With canonicalization, forms in SYNONYM_GROUPS become "Iran"
-            assert!(kw.frequency >= 2, "Iranian forms should be consolidated, got freq={}", kw.frequency);
+            assert!(
+                kw.frequency >= 2,
+                "Iranian forms should be consolidated, got freq={}",
+                kw.frequency
+            );
         }
     }
 }

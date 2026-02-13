@@ -1,6 +1,8 @@
 //! Prompt template management commands
 
-use crate::ollama::{DEFAULT_ANALYSIS_PROMPT, DEFAULT_DISCORDIAN_PROMPT_WITH_STATS, DEFAULT_SUMMARY_PROMPT};
+use crate::ollama::{
+    DEFAULT_ANALYSIS_PROMPT, DEFAULT_DISCORDIAN_PROMPT_WITH_STATS, DEFAULT_SUMMARY_PROMPT,
+};
 use crate::AppState;
 use log::info;
 use tauri::State;
@@ -52,7 +54,8 @@ pub fn get_prompts(state: State<AppState>) -> Result<PromptTemplates, String> {
     Ok(PromptTemplates {
         summary_prompt: summary_prompt.unwrap_or_else(|| DEFAULT_SUMMARY_PROMPT.to_string()),
         analysis_prompt: analysis_prompt.unwrap_or_else(|| DEFAULT_ANALYSIS_PROMPT.to_string()),
-        discordian_prompt: discordian_prompt.unwrap_or_else(|| DEFAULT_DISCORDIAN_PROMPT_WITH_STATS.to_string()),
+        discordian_prompt: discordian_prompt
+            .unwrap_or_else(|| DEFAULT_DISCORDIAN_PROMPT_WITH_STATS.to_string()),
     })
 }
 

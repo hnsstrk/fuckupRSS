@@ -212,10 +212,7 @@ impl EmbeddingProvider for OpenAiEmbeddingProvider {
                         if attempt == MAX_RETRIES {
                             return Err(AiProviderError::RateLimited);
                         }
-                        warn!(
-                            "[OpenAI Embedding] Rate limited on attempt {}",
-                            attempt + 1
-                        );
+                        warn!("[OpenAI Embedding] Rate limited on attempt {}", attempt + 1);
                         last_error = Some(err);
                         continue;
                     }
@@ -257,7 +254,10 @@ impl EmbeddingProvider for OpenAiEmbeddingProvider {
             })?;
 
             let response: EmbeddingResponse = serde_json::from_slice(&body).map_err(|e| {
-                AiProviderError::GenerationFailed(format!("Failed to parse embedding response: {}", e))
+                AiProviderError::GenerationFailed(format!(
+                    "Failed to parse embedding response: {}",
+                    e
+                ))
             })?;
 
             let duration = request_start.elapsed();
@@ -309,29 +309,45 @@ mod tests {
 
     #[test]
     fn test_provider_name() {
-        let provider =
-            OpenAiEmbeddingProvider::new("https://api.openai.com", "sk-test", "text-embedding-3-small", 1024);
+        let provider = OpenAiEmbeddingProvider::new(
+            "https://api.openai.com",
+            "sk-test",
+            "text-embedding-3-small",
+            1024,
+        );
         assert_eq!(provider.provider_name(), "OpenAI Embedding");
     }
 
     #[test]
     fn test_embedding_dimensions() {
-        let provider =
-            OpenAiEmbeddingProvider::new("https://api.openai.com", "sk-test", "text-embedding-3-small", 1024);
+        let provider = OpenAiEmbeddingProvider::new(
+            "https://api.openai.com",
+            "sk-test",
+            "text-embedding-3-small",
+            1024,
+        );
         assert_eq!(provider.embedding_dimensions(), 1024);
     }
 
     #[test]
     fn test_embedding_dimensions_custom() {
-        let provider =
-            OpenAiEmbeddingProvider::new("https://api.openai.com", "sk-test", "text-embedding-3-large", 3072);
+        let provider = OpenAiEmbeddingProvider::new(
+            "https://api.openai.com",
+            "sk-test",
+            "text-embedding-3-large",
+            3072,
+        );
         assert_eq!(provider.embedding_dimensions(), 3072);
     }
 
     #[test]
     fn test_endpoint_url() {
-        let provider =
-            OpenAiEmbeddingProvider::new("https://api.openai.com", "sk-test", "text-embedding-3-small", 1024);
+        let provider = OpenAiEmbeddingProvider::new(
+            "https://api.openai.com",
+            "sk-test",
+            "text-embedding-3-small",
+            1024,
+        );
         assert_eq!(
             provider.endpoint_url(),
             "https://api.openai.com/v1/embeddings"
@@ -340,8 +356,12 @@ mod tests {
 
     #[test]
     fn test_endpoint_url_trailing_slash() {
-        let provider =
-            OpenAiEmbeddingProvider::new("https://api.openai.com/", "sk-test", "text-embedding-3-small", 1024);
+        let provider = OpenAiEmbeddingProvider::new(
+            "https://api.openai.com/",
+            "sk-test",
+            "text-embedding-3-small",
+            1024,
+        );
         assert_eq!(
             provider.endpoint_url(),
             "https://api.openai.com/v1/embeddings"

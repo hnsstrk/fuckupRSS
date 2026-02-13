@@ -1,13 +1,15 @@
 use crate::embeddings::{blob_to_embedding, cosine_similarity};
 use crate::keywords::{get_compound_components, should_split_compound};
-use crate::similarity::string::{calculate_string_similarity, calculate_abbreviation_score, calculate_exact_token_match_score};
+use crate::similarity::string::{
+    calculate_abbreviation_score, calculate_exact_token_match_score, calculate_string_similarity,
+};
 use crate::{find_canonical_keyword_with_db, normalize_keyword, AppState};
 use log::{info, trace, warn};
+use regex::Regex;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use tauri::{Emitter, State};
-use regex::Regex;
 
 // ============================================================
 // IMMANENTIZE NETWORK API
@@ -69,10 +71,10 @@ pub struct TrendingKeyword {
     pub id: i64,
     pub name: String,
     pub total_count: i64,
-    pub recent_count: i64,    // Last N days
-    pub growth_rate: f64,     // (recent - previous) / previous
-    pub trending_score: f64,  // ln(recent_count + 1) * (1.0 + growth_rate)
-    pub is_new: bool,         // true when previous_count == 0 and recent_count > 0
+    pub recent_count: i64,   // Last N days
+    pub growth_rate: f64,    // (recent - previous) / previous
+    pub trending_score: f64, // ln(recent_count + 1) * (1.0 + growth_rate)
+    pub is_new: bool,        // true when previous_count == 0 and recent_count > 0
 }
 
 /// Network statistics
@@ -100,7 +102,9 @@ fn keyword_from_row(row: &rusqlite::Row) -> Result<Keyword, rusqlite::Error> {
         first_seen: row.get(7)?,
         last_used: row.get(8)?,
         quality_score: row.get(9)?,
-        keyword_type: row.get::<_, Option<String>>(10)?.unwrap_or_else(|| "concept".to_string()),
+        keyword_type: row
+            .get::<_, Option<String>>(10)?
+            .unwrap_or_else(|| "concept".to_string()),
     })
 }
 
@@ -370,22 +374,18 @@ pub fn get_trending_keywords(
                 .then_with(|| b.recent_count.cmp(&a.recent_count))
         }),
         "count" => keywords.sort_by(|a, b| {
-            b.recent_count
-                .cmp(&a.recent_count)
-                .then_with(|| {
-                    b.growth_rate
-                        .partial_cmp(&a.growth_rate)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
+            b.recent_count.cmp(&a.recent_count).then_with(|| {
+                b.growth_rate
+                    .partial_cmp(&a.growth_rate)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
         }),
         "new" => keywords.sort_by(|a, b| {
-            b.is_new
-                .cmp(&a.is_new)
-                .then_with(|| {
-                    b.trending_score
-                        .partial_cmp(&a.trending_score)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
+            b.is_new.cmp(&a.is_new).then_with(|| {
+                b.trending_score
+                    .partial_cmp(&a.trending_score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
         }),
         _ => keywords.sort_by(|a, b| {
             b.trending_score
@@ -451,7 +451,8 @@ pub fn search_keywords(
     let fuzzy_pattern: String = query_lower
         .chars()
         .map(|c| format!("%{}", c))
-        .collect::<String>() + "%";
+        .collect::<String>()
+        + "%";
 
     // Also keep exact contains pattern for prioritization
     let contains_pattern = format!("%{}%", query_lower);
@@ -756,7 +757,10 @@ pub fn get_trending_comparison(
         "#,
         placeholders
     );
-    let mut counts_stmt = db.conn().prepare(&counts_query).map_err(|e| e.to_string())?;
+    let mut counts_stmt = db
+        .conn()
+        .prepare(&counts_query)
+        .map_err(|e| e.to_string())?;
 
     // Build params: all ids first, then days
     let mut params: Vec<Box<dyn rusqlite::ToSql>> = ids
@@ -769,20 +773,20 @@ pub fn get_trending_comparison(
         std::collections::HashMap::new();
 
     let rows = counts_stmt
-        .query_map(rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, i64>(2)?,
-            ))
-        })
+        .query_map(
+            rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())),
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            },
+        )
         .map_err(|e| e.to_string())?;
 
     for (id, date, count) in rows.flatten() {
-        daily_counts
-            .entry(id)
-            .or_default()
-            .insert(date, count);
+        daily_counts.entry(id).or_default().insert(date, count);
     }
 
     // Build result preserving original order
@@ -1029,9 +1033,11 @@ pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, Str
     let keywords: Vec<(i64, String)> = {
         let db = state.db_conn()?;
         let conn = db.conn();
-        let mut stmt = conn.prepare("SELECT id, name FROM immanentize")
+        let mut stmt = conn
+            .prepare("SELECT id, name FROM immanentize")
             .map_err(|e| e.to_string())?;
-        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        let rows = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
             .map_err(|e| e.to_string())?;
         rows.filter_map(|r| r.ok()).collect()
     };
@@ -1051,7 +1057,8 @@ pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, Str
     let db = state.db_conn()?;
     let conn = db.conn();
 
-    conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
+    conn.execute("BEGIN TRANSACTION", [])
+        .map_err(|e| e.to_string())?;
 
     let mut merged_count = 0i64;
     let mut affected_articles = 0i64;
@@ -1082,7 +1089,10 @@ pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, Str
                        WHERE immanentize_id = ?2"#,
                     rusqlite::params![can_id, id],
                 ) {
-                    warn!("Failed to move keyword references {} -> {}: {}", id, can_id, e);
+                    warn!(
+                        "Failed to move keyword references {} -> {}: {}",
+                        id, can_id, e
+                    );
                     continue;
                 }
 
@@ -1090,7 +1100,11 @@ pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, Str
                     "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
                     [id],
                 ) {
-                    trace!("Failed to clean duplicate references for keyword {}: {}", id, e);
+                    trace!(
+                        "Failed to clean duplicate references for keyword {}: {}",
+                        id,
+                        e
+                    );
                 }
 
                 if let Err(e) = conn.execute(
@@ -1115,7 +1129,9 @@ pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, Str
                     warn!("Failed to delete merged keyword {}: {}", id, e);
                 }
                 // Also remove from vec_immanentize (sqlite-vec)
-                if let Err(e) = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id]) {
+                if let Err(e) =
+                    conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id])
+                {
                     trace!("Failed to delete keyword {} from vec table: {}", id, e);
                 }
 
@@ -1148,9 +1164,11 @@ pub fn cleanup_garbage_keywords(state: State<AppState>) -> Result<CleanupResult,
         let db = state.db_conn()?;
         let conn = db.conn();
 
-        let mut stmt = conn.prepare("SELECT id, name FROM immanentize")
+        let mut stmt = conn
+            .prepare("SELECT id, name FROM immanentize")
             .map_err(|e| e.to_string())?;
-        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        let rows = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
             .map_err(|e| e.to_string())?;
         let keywords: Vec<(i64, String)> = rows.filter_map(|r| r.ok()).collect();
 
@@ -1329,12 +1347,15 @@ pub async fn calculate_keyword_quality_scores(
     let mut high_quality_count = 0i64;
 
     // Emit initial progress
-    let _ = window.emit("quality-score-progress", QualityScoreProgress {
-        current: 0,
-        total,
-        keyword_name: "Starting...".to_string(),
-        score: None,
-    });
+    let _ = window.emit(
+        "quality-score-progress",
+        QualityScoreProgress {
+            current: 0,
+            total,
+            keyword_name: "Starting...".to_string(),
+            score: None,
+        },
+    );
 
     // Process each keyword with separate lock acquisition
     for (idx, (id, name)) in keywords.into_iter().enumerate() {
@@ -1375,12 +1396,15 @@ pub async fn calculate_keyword_quality_scores(
 
         // Emit progress every 50 keywords or on last item
         if idx % 50 == 0 || idx == (total as usize - 1) {
-            let _ = window.emit("quality-score-progress", QualityScoreProgress {
-                current: (idx + 1) as i64,
-                total,
-                keyword_name: name,
-                score: result,
-            });
+            let _ = window.emit(
+                "quality-score-progress",
+                QualityScoreProgress {
+                    current: (idx + 1) as i64,
+                    total,
+                    keyword_name: name,
+                    score: result,
+                },
+            );
         }
 
         // Yield to allow other tasks to run
@@ -1470,18 +1494,20 @@ pub fn auto_prune_low_quality(
         let db = state.db_conn()?;
         let conn = db.conn();
 
-        let mut stmt = conn.prepare(
-            r#"SELECT id, name FROM immanentize
+        let mut stmt = conn
+            .prepare(
+                r#"SELECT id, name FROM immanentize
                WHERE quality_score IS NOT NULL
                AND quality_score < ?1
                AND first_seen < datetime('now', '-' || ?2 || ' days')
                AND article_count <= 1"#,
-        )
-        .map_err(|e| e.to_string())?;
-        let rows = stmt.query_map(params![threshold, min_age], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })
-        .map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![threshold, min_age], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .map_err(|e| e.to_string())?;
         rows.filter_map(|r| r.ok()).collect()
     };
 
@@ -1493,7 +1519,8 @@ pub fn auto_prune_low_quality(
         let db = state.db_conn()?;
         let conn = db.conn();
 
-        conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
+        conn.execute("BEGIN TRANSACTION", [])
+            .map_err(|e| e.to_string())?;
 
         let delete_result: Result<(), String> = (|| {
             for (id, name) in &candidates {
@@ -1501,7 +1528,8 @@ pub fn auto_prune_low_quality(
                 conn.execute(
                     "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
                     [id],
-                ).map_err(|e| format!("Failed to delete article refs for {}: {}", name, e))?;
+                )
+                .map_err(|e| format!("Failed to delete article refs for {}: {}", name, e))?;
 
                 conn.execute(
                     "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
@@ -1511,12 +1539,14 @@ pub fn auto_prune_low_quality(
                 conn.execute(
                     "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
                     [id],
-                ).map_err(|e| format!("Failed to delete category refs for {}: {}", name, e))?;
+                )
+                .map_err(|e| format!("Failed to delete category refs for {}: {}", name, e))?;
 
                 conn.execute(
                     "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
                     [id],
-                ).map_err(|e| format!("Failed to delete daily stats for {}: {}", name, e))?;
+                )
+                .map_err(|e| format!("Failed to delete daily stats for {}: {}", name, e))?;
 
                 conn.execute("DELETE FROM immanentize WHERE id = ?", [id])
                     .map_err(|e| format!("Failed to delete keyword {}: {}", name, e))?;
@@ -1606,7 +1636,8 @@ pub fn find_similar_keywords(
             let embedding_similarity = cosine_similarity(&target_embedding, &embedding);
 
             // Check if this is a name variant (e.g., "Trump" <-> "Donald Trump")
-            let name_variant_score = calculate_exact_token_match_score(&target_name_lower, &name.to_lowercase());
+            let name_variant_score =
+                calculate_exact_token_match_score(&target_name_lower, &name.to_lowercase());
 
             // Boost similarity for name variants - they should always appear
             let effective_similarity = if name_variant_score > 0.7 {
@@ -1629,7 +1660,11 @@ pub fn find_similar_keywords(
         })
         .collect();
 
-    similar.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
+    similar.sort_by(|a, b| {
+        b.similarity
+            .partial_cmp(&a.similarity)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     similar.truncate(limit as usize);
 
     Ok(similar)
@@ -1878,10 +1913,13 @@ pub fn find_true_synonyms(
             };
 
             // Check if this is likely an abbreviation
-            let is_abbrev = calculate_abbreviation_score(&name_a.to_lowercase(), &name_b.to_lowercase()) > 0.7;
+            let is_abbrev =
+                calculate_abbreviation_score(&name_a.to_lowercase(), &name_b.to_lowercase()) > 0.7;
 
             // Check if this is a name variant (single token matches multi-token)
-            let is_name_variant = calculate_exact_token_match_score(&name_a.to_lowercase(), &name_b.to_lowercase()) > 0.7;
+            let is_name_variant =
+                calculate_exact_token_match_score(&name_a.to_lowercase(), &name_b.to_lowercase())
+                    > 0.7;
 
             // Combined score: weight string similarity more for true synonyms
             let combined = if is_abbrev {
@@ -1899,7 +1937,9 @@ pub fn find_true_synonyms(
             };
 
             // Filter by thresholds
-            if string_sim >= string_threshold || (embedding_sim >= embedding_threshold && string_sim >= string_threshold * 0.5) {
+            if string_sim >= string_threshold
+                || (embedding_sim >= embedding_threshold && string_sim >= string_threshold * 0.5)
+            {
                 seen_pairs.insert((min_id, max_id));
                 candidates.push(TrueSynonymCandidate {
                     keyword_a_id: *id_a,
@@ -1927,7 +1967,8 @@ pub fn find_true_synonyms(
             (false, true) => std::cmp::Ordering::Greater,
             _ => {
                 // Then by combined score
-                b.combined_score.partial_cmp(&a.combined_score)
+                b.combined_score
+                    .partial_cmp(&a.combined_score)
                     .unwrap_or(std::cmp::Ordering::Equal)
             }
         }
@@ -2000,31 +2041,43 @@ Keywords: "{}" and "{}""#,
     }
 
     // Try to parse JSON from response
-    let parsed: LlmResponse = serde_json::from_str(&response).map_err(|e| {
-        // Fallback: check for YES/NO in response
-        let response_lower = response.to_lowercase();
-        if response_lower.contains("yes") && !response_lower.contains("no") {
-            return format!("Parsed as YES (confidence: low). Original error: {}", e);
-        }
-        if response_lower.contains("no") {
-            return format!("Parsed as NO (confidence: low). Original error: {}", e);
-        }
-        format!("Failed to parse LLM response: {}. Response: {}", e, response)
-    }).unwrap_or_else(|_err| {
-        // Fallback parsing from YES/NO
-        let response_lower = response.to_lowercase();
-        LlmResponse {
-            is_synonym: response_lower.contains("yes") && !response_lower.contains("no"),
-            confidence: 0.5, // Low confidence for fallback parsing
-            explanation: Some(format!("Parsed from raw response: {}", response.chars().take(100).collect::<String>())),
-        }
-    });
+    let parsed: LlmResponse = serde_json::from_str(&response)
+        .map_err(|e| {
+            // Fallback: check for YES/NO in response
+            let response_lower = response.to_lowercase();
+            if response_lower.contains("yes") && !response_lower.contains("no") {
+                return format!("Parsed as YES (confidence: low). Original error: {}", e);
+            }
+            if response_lower.contains("no") {
+                return format!("Parsed as NO (confidence: low). Original error: {}", e);
+            }
+            format!(
+                "Failed to parse LLM response: {}. Response: {}",
+                e, response
+            )
+        })
+        .unwrap_or_else(|_err| {
+            // Fallback parsing from YES/NO
+            let response_lower = response.to_lowercase();
+            LlmResponse {
+                is_synonym: response_lower.contains("yes") && !response_lower.contains("no"),
+                confidence: 0.5, // Low confidence for fallback parsing
+                explanation: Some(format!(
+                    "Parsed from raw response: {}",
+                    response.chars().take(100).collect::<String>()
+                )),
+            }
+        });
 
     Ok(SynonymVerificationResult {
         keyword_a,
         keyword_b,
         is_synonym: parsed.is_synonym,
-        confidence: if parsed.confidence > 0.0 { parsed.confidence } else { 0.8 },
+        confidence: if parsed.confidence > 0.0 {
+            parsed.confidence
+        } else {
+            0.8
+        },
         explanation: parsed.explanation,
     })
 }
@@ -2071,7 +2124,11 @@ pub fn merge_keyword_pair(
 ) -> Result<MergeSynonymsResult, String> {
     use crate::db::transaction::with_transaction_result;
 
-    log::info!("merge_keyword_pair called: keep_id={}, remove_id={}", keep_id, remove_id);
+    log::info!(
+        "merge_keyword_pair called: keep_id={}, remove_id={}",
+        keep_id,
+        remove_id
+    );
 
     let db = state.db_conn()?;
 
@@ -2122,7 +2179,10 @@ pub fn merge_keyword_pair(
 
         // Also remove from vec_immanentize (sqlite-vec)
         // Ignore error if table doesn't exist
-        let _ = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [remove_id]);
+        let _ = conn.execute(
+            "DELETE FROM vec_immanentize WHERE immanentize_id = ?",
+            [remove_id],
+        );
 
         Ok(MergeSynonymsResult {
             merged_pairs: 1,
@@ -2131,7 +2191,11 @@ pub fn merge_keyword_pair(
     });
 
     match &result {
-        Ok(r) => log::info!("merge_keyword_pair success: {} merged, {} articles affected", r.merged_pairs, r.affected_articles),
+        Ok(r) => log::info!(
+            "merge_keyword_pair success: {} merged, {} articles affected",
+            r.merged_pairs,
+            r.affected_articles
+        ),
         Err(e) => log::error!("merge_keyword_pair failed: {}", e),
     }
 
@@ -2286,7 +2350,10 @@ pub fn delete_keyword(state: State<AppState>, id: i64) -> Result<(), String> {
     let conn = db.conn();
 
     // Delete all associations before deleting the keyword itself
-    if let Err(e) = conn.execute("DELETE FROM fnord_immanentize WHERE immanentize_id = ?", [id]) {
+    if let Err(e) = conn.execute(
+        "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
+        [id],
+    ) {
         trace!("Failed to delete article refs for keyword {}: {}", id, e);
     }
 
@@ -2297,11 +2364,17 @@ pub fn delete_keyword(state: State<AppState>, id: i64) -> Result<(), String> {
         trace!("Failed to delete neighbors for keyword {}: {}", id, e);
     }
 
-    if let Err(e) = conn.execute("DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?", [id]) {
+    if let Err(e) = conn.execute(
+        "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
+        [id],
+    ) {
         trace!("Failed to delete category refs for keyword {}: {}", id, e);
     }
 
-    if let Err(e) = conn.execute("DELETE FROM immanentize_daily WHERE immanentize_id = ?", [id]) {
+    if let Err(e) = conn.execute(
+        "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
+        [id],
+    ) {
         trace!("Failed to delete daily stats for keyword {}: {}", id, e);
     }
 
@@ -2310,14 +2383,22 @@ pub fn delete_keyword(state: State<AppState>, id: i64) -> Result<(), String> {
     }
 
     if let Err(e) = conn.execute("DELETE FROM embedding_queue WHERE immanentize_id = ?", [id]) {
-        trace!("Failed to delete keyword {} from embedding queue: {}", id, e);
+        trace!(
+            "Failed to delete keyword {} from embedding queue: {}",
+            id,
+            e
+        );
     }
 
     if let Err(e) = conn.execute(
         "DELETE FROM dismissed_synonyms WHERE keyword_a_id = ? OR keyword_b_id = ?",
         params![id, id],
     ) {
-        trace!("Failed to delete dismissed synonyms for keyword {}: {}", id, e);
+        trace!(
+            "Failed to delete dismissed synonyms for keyword {}: {}",
+            id,
+            e
+        );
     }
 
     // Finally delete the keyword itself
@@ -2434,7 +2515,9 @@ pub fn auto_merge_similar_keywords(
                LIMIT ?"#,
         )
         .map_err(|e| e.to_string())?
-        .query_map([limit * 2], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+        .query_map([limit * 2], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         .collect();
@@ -2467,7 +2550,12 @@ pub fn auto_merge_similar_keywords(
             )
             .and_then(|mut stmt| {
                 let rows = stmt.query_map([&embedding_blob], |row| {
-                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, f64>(2)?, row.get::<_, i64>(3)?))
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, f64>(2)?,
+                        row.get::<_, i64>(3)?,
+                    ))
                 })?;
                 Ok(rows.filter_map(|r| r.ok()).collect::<Vec<_>>())
             })
@@ -2476,9 +2564,9 @@ pub fn auto_merge_similar_keywords(
         // Find the best match that satisfies our criteria
         let neighbor = neighbors.into_iter().find(|(id, _, dist, target_count)| {
             *id != keyword_id
-            && !merged_ids.contains(id)
-            && *dist <= max_distance
-            && *target_count >= article_count  // Target has same or more articles
+                && !merged_ids.contains(id)
+                && *dist <= max_distance
+                && *target_count >= article_count // Target has same or more articles
         });
 
         if let Some((target_id, target_name, distance, _)) = neighbor {
@@ -2497,7 +2585,7 @@ pub fn auto_merge_similar_keywords(
 
             // Skip if names are too different in length (probably not synonyms)
             let len_ratio = keyword_name.len().min(target_name.len()) as f64
-                          / keyword_name.len().max(target_name.len()) as f64;
+                / keyword_name.len().max(target_name.len()) as f64;
             if len_ratio < 0.3 {
                 continue;
             }
@@ -2505,7 +2593,10 @@ pub fn auto_merge_similar_keywords(
             if dry_run {
                 log::info!(
                     "Would merge '{}' ({} articles) into '{}' (similarity: {:.3})",
-                    keyword_name, article_count, target_name, similarity
+                    keyword_name,
+                    article_count,
+                    target_name,
+                    similarity
                 );
                 merge_details.push(AutoMergeDetail {
                     source_name: keyword_name.clone(),
@@ -2520,7 +2611,10 @@ pub fn auto_merge_similar_keywords(
                     Ok(articles_moved) => {
                         log::info!(
                             "Merged '{}' into '{}' (similarity: {:.3}, {} articles moved)",
-                            keyword_name, target_name, similarity, articles_moved
+                            keyword_name,
+                            target_name,
+                            similarity,
+                            articles_moved
                         );
                         merge_details.push(AutoMergeDetail {
                             source_name: keyword_name.clone(),
@@ -2532,7 +2626,12 @@ pub fn auto_merge_similar_keywords(
                         merged += 1;
                     }
                     Err(e) => {
-                        log::warn!("Failed to merge '{}' into '{}': {}", keyword_name, target_name, e);
+                        log::warn!(
+                            "Failed to merge '{}' into '{}': {}",
+                            keyword_name,
+                            target_name,
+                            e
+                        );
                     }
                 }
             }
@@ -2586,23 +2685,65 @@ fn perform_merge(conn: &rusqlite::Connection, keep_id: i64, remove_id: i64) -> R
     }
 
     // Clean up source keyword's associations
-    if let Err(e) = conn.execute("DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?", params![remove_id, remove_id]) {
-        trace!("Failed to delete neighbors for merged keyword {}: {}", remove_id, e);
+    if let Err(e) = conn.execute(
+        "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
+        params![remove_id, remove_id],
+    ) {
+        trace!(
+            "Failed to delete neighbors for merged keyword {}: {}",
+            remove_id,
+            e
+        );
     }
-    if let Err(e) = conn.execute("DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?", [remove_id]) {
-        trace!("Failed to delete category refs for merged keyword {}: {}", remove_id, e);
+    if let Err(e) = conn.execute(
+        "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
+        [remove_id],
+    ) {
+        trace!(
+            "Failed to delete category refs for merged keyword {}: {}",
+            remove_id,
+            e
+        );
     }
-    if let Err(e) = conn.execute("DELETE FROM immanentize_daily WHERE immanentize_id = ?", [remove_id]) {
-        trace!("Failed to delete daily stats for merged keyword {}: {}", remove_id, e);
+    if let Err(e) = conn.execute(
+        "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
+        [remove_id],
+    ) {
+        trace!(
+            "Failed to delete daily stats for merged keyword {}: {}",
+            remove_id,
+            e
+        );
     }
-    if let Err(e) = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [remove_id]) {
-        trace!("Failed to delete merged keyword {} from vec table: {}", remove_id, e);
+    if let Err(e) = conn.execute(
+        "DELETE FROM vec_immanentize WHERE immanentize_id = ?",
+        [remove_id],
+    ) {
+        trace!(
+            "Failed to delete merged keyword {} from vec table: {}",
+            remove_id,
+            e
+        );
     }
-    if let Err(e) = conn.execute("DELETE FROM embedding_queue WHERE immanentize_id = ?", [remove_id]) {
-        trace!("Failed to delete merged keyword {} from embedding queue: {}", remove_id, e);
+    if let Err(e) = conn.execute(
+        "DELETE FROM embedding_queue WHERE immanentize_id = ?",
+        [remove_id],
+    ) {
+        trace!(
+            "Failed to delete merged keyword {} from embedding queue: {}",
+            remove_id,
+            e
+        );
     }
-    if let Err(e) = conn.execute("DELETE FROM dismissed_synonyms WHERE keyword_a_id = ? OR keyword_b_id = ?", params![remove_id, remove_id]) {
-        trace!("Failed to delete dismissed synonyms for merged keyword {}: {}", remove_id, e);
+    if let Err(e) = conn.execute(
+        "DELETE FROM dismissed_synonyms WHERE keyword_a_id = ? OR keyword_b_id = ?",
+        params![remove_id, remove_id],
+    ) {
+        trace!(
+            "Failed to delete dismissed synonyms for merged keyword {}: {}",
+            remove_id,
+            e
+        );
     }
 
     // Delete the source keyword
@@ -2679,7 +2820,12 @@ pub fn update_keyword_types(state: State<AppState>) -> Result<KeywordTypeUpdateR
 
     log::info!(
         "Keyword types updated: {} total ({} concept, {} person, {} org, {} location, {} acronym)",
-        total_updated, concept_count, person_count, organization_count, location_count, acronym_count
+        total_updated,
+        concept_count,
+        person_count,
+        organization_count,
+        location_count,
+        acronym_count
     );
 
     Ok(KeywordTypeUpdateResult {
@@ -2706,8 +2852,8 @@ pub struct KeywordCleanupResult {
 /// seed known entities, and update keyword types
 #[tauri::command]
 pub fn cleanup_keywords(state: State<AppState>) -> Result<KeywordCleanupResult, String> {
-    use crate::text_analysis::{STOPWORDS, seed_known_keywords, update_types_from_seeds};
     use super::ai::helpers::detect_keyword_type;
+    use crate::text_analysis::{seed_known_keywords, update_types_from_seeds, STOPWORDS};
 
     let db = state.db_conn()?;
     let conn = db.conn();
@@ -2715,7 +2861,11 @@ pub fn cleanup_keywords(state: State<AppState>) -> Result<KeywordCleanupResult, 
     // Step 1: Refresh system stopwords in database
     // First, get current count
     let old_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM stopwords WHERE source = 'system'", [], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM stopwords WHERE source = 'system'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap_or(0);
 
     // Delete old system stopwords and re-insert
@@ -2732,7 +2882,11 @@ pub fn cleanup_keywords(state: State<AppState>) -> Result<KeywordCleanupResult, 
         }
     }
 
-    log::info!("Stopwords refreshed: {} old -> {} new", old_count, stopwords_inserted);
+    log::info!(
+        "Stopwords refreshed: {} old -> {} new",
+        old_count,
+        stopwords_inserted
+    );
 
     // Step 2: Delete keywords that are pure stopwords
     // Get all stopwords from DB for comparison
@@ -2759,19 +2913,31 @@ pub fn cleanup_keywords(state: State<AppState>) -> Result<KeywordCleanupResult, 
         // Check if the keyword is a single stopword
         if db_stopwords.contains(&name_lower) {
             // Delete the keyword and its associations
-            conn.execute("DELETE FROM fnord_immanentize WHERE immanentize_id = ?1", params![id])
-                .ok();
-            conn.execute("DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?1", params![id])
-                .ok();
+            conn.execute(
+                "DELETE FROM fnord_immanentize WHERE immanentize_id = ?1",
+                params![id],
+            )
+            .ok();
+            conn.execute(
+                "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?1",
+                params![id],
+            )
+            .ok();
             conn.execute("DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ?1 OR immanentize_id_b = ?1", params![id])
                 .ok();
-            if conn.execute("DELETE FROM immanentize WHERE id = ?1", params![id]).is_ok() {
+            if conn
+                .execute("DELETE FROM immanentize WHERE id = ?1", params![id])
+                .is_ok()
+            {
                 stopword_keywords_deleted += 1;
             }
         }
     }
 
-    log::info!("Deleted {} stopword-only keywords", stopword_keywords_deleted);
+    log::info!(
+        "Deleted {} stopword-only keywords",
+        stopword_keywords_deleted
+    );
 
     // Step 3: Seed known keywords
     let seeds_inserted = seed_known_keywords(conn).unwrap_or(0) as i64;
@@ -2779,7 +2945,10 @@ pub fn cleanup_keywords(state: State<AppState>) -> Result<KeywordCleanupResult, 
 
     // Step 4: Update types from seed data (for existing keywords)
     let types_updated_from_seeds = update_types_from_seeds(conn).unwrap_or(0) as i64;
-    log::info!("Updated {} keyword types from seeds", types_updated_from_seeds);
+    log::info!(
+        "Updated {} keyword types from seeds",
+        types_updated_from_seeds
+    );
 
     // Step 5: Run heuristic type detection on remaining keywords
     let keywords_needing_update: Vec<(i64, String)> = conn
@@ -2795,15 +2964,21 @@ pub fn cleanup_keywords(state: State<AppState>) -> Result<KeywordCleanupResult, 
         let detected_type = detect_keyword_type(name);
         // Only update if not concept (we want to keep specific types)
         if detected_type != "concept"
-            && conn.execute(
-                "UPDATE immanentize SET keyword_type = ?1 WHERE id = ?2",
-                params![&detected_type, id],
-            ).is_ok() {
-                types_updated_from_heuristics += 1;
-            }
+            && conn
+                .execute(
+                    "UPDATE immanentize SET keyword_type = ?1 WHERE id = ?2",
+                    params![&detected_type, id],
+                )
+                .is_ok()
+        {
+            types_updated_from_heuristics += 1;
+        }
     }
 
-    log::info!("Updated {} keyword types from heuristics", types_updated_from_heuristics);
+    log::info!(
+        "Updated {} keyword types from heuristics",
+        types_updated_from_heuristics
+    );
 
     Ok(KeywordCleanupResult {
         stopwords_refreshed: stopwords_inserted,
@@ -3103,7 +3278,7 @@ pub fn preview_compound_splits(state: State<AppState>) -> Result<Vec<CompoundSpl
                FROM immanentize
                WHERE name LIKE '%-%' AND LENGTH(name) > 5
                AND keyword_type NOT IN ('person', 'location')
-               AND LOWER(name) NOT LIKE 'anti-%'"#
+               AND LOWER(name) NOT LIKE 'anti-%'"#,
         )
         .map_err(|e| e.to_string())?
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
@@ -3346,7 +3521,10 @@ pub fn split_single_compound(
 
     info!(
         "Split compound '{}' (ID {}) into {} components, {} articles transferred",
-        keyword_name, keyword_id, components.len(), articles_affected
+        keyword_name,
+        keyword_id,
+        components.len(),
+        articles_affected
     );
 
     Ok(CompoundSplitDetail {
@@ -3360,10 +3538,7 @@ pub fn split_single_compound(
 
 /// Mark a compound keyword as preserved (will not be split)
 #[tauri::command]
-pub fn preserve_compound_keyword(
-    state: State<AppState>,
-    keyword_id: i64,
-) -> Result<(), String> {
+pub fn preserve_compound_keyword(state: State<AppState>, keyword_id: i64) -> Result<(), String> {
     let db = state.db_conn()?;
     let conn = db.conn();
 
@@ -3394,10 +3569,7 @@ pub fn preserve_compound_keyword(
 
 /// Remove preservation from a compound keyword (allow splitting again)
 #[tauri::command]
-pub fn unpreserve_compound_keyword(
-    state: State<AppState>,
-    keyword_id: i64,
-) -> Result<(), String> {
+pub fn unpreserve_compound_keyword(state: State<AppState>, keyword_id: i64) -> Result<(), String> {
     let db = state.db_conn()?;
     let conn = db.conn();
 
@@ -3552,10 +3724,7 @@ pub fn get_compound_decisions(state: State<AppState>) -> Result<Vec<CompoundDeci
 
 /// Clear a compound keyword decision (move back to review list)
 #[tauri::command]
-pub fn clear_compound_decision(
-    state: State<AppState>,
-    keyword_id: i64,
-) -> Result<(), String> {
+pub fn clear_compound_decision(state: State<AppState>, keyword_id: i64) -> Result<(), String> {
     let db = state.db_conn()?;
     let conn = db.conn();
 
@@ -3629,15 +3798,17 @@ pub fn batch_set_compound_decisions(
 /// Get statistics about compound keyword decisions
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompoundDecisionStats {
-    pub total_compounds: i64,      // All hyphenated keywords
-    pub needs_decision: i64,       // Without decision (in review list)
-    pub preserved_count: i64,      // Decision = preserve
-    pub split_count: i64,          // Decision = split
-    pub auto_excluded_count: i64,  // Excluded by rules (person, location, Anti-)
+    pub total_compounds: i64,     // All hyphenated keywords
+    pub needs_decision: i64,      // Without decision (in review list)
+    pub preserved_count: i64,     // Decision = preserve
+    pub split_count: i64,         // Decision = split
+    pub auto_excluded_count: i64, // Excluded by rules (person, location, Anti-)
 }
 
 #[tauri::command]
-pub fn get_compound_decision_stats(state: State<AppState>) -> Result<CompoundDecisionStats, String> {
+pub fn get_compound_decision_stats(
+    state: State<AppState>,
+) -> Result<CompoundDecisionStats, String> {
     let db = state.db_conn()?;
     let conn = db.conn();
 
@@ -3681,7 +3852,11 @@ pub fn get_compound_decision_stats(state: State<AppState>) -> Result<CompoundDec
     // Needs decision = total - decided - auto_excluded
     let decided_total = preserved_count + split_count;
     let needs_decision = total_compounds - decided_total - auto_excluded_count;
-    let needs_decision = if needs_decision < 0 { 0 } else { needs_decision };
+    let needs_decision = if needs_decision < 0 {
+        0
+    } else {
+        needs_decision
+    };
 
     Ok(CompoundDecisionStats {
         total_compounds,
@@ -3733,11 +3908,7 @@ pub fn update_keyword_type(
     )
     .map_err(|e| e.to_string())?;
 
-    log::info!(
-        "Updated keyword {} type to '{}'",
-        keyword_id,
-        keyword_type
-    );
+    log::info!("Updated keyword {} type to '{}'", keyword_id, keyword_type);
 
     Ok(())
 }
@@ -3749,9 +3920,9 @@ pub fn update_keyword_type(
 /// Context information for a keyword (for tooltips)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KeywordContext {
-    pub sentence: Option<String>,       // Sentence containing the keyword
-    pub article_title: Option<String>,  // Title of the most recent article
-    pub article_date: Option<String>,   // Publication date
+    pub sentence: Option<String>,      // Sentence containing the keyword
+    pub article_title: Option<String>, // Title of the most recent article
+    pub article_date: Option<String>,  // Publication date
 }
 
 /// Get the context of a keyword (sentence from most recent article)
@@ -3826,8 +3997,11 @@ pub(crate) fn extract_sentence_with_keyword(text: &str, keyword: &str) -> Option
     // 2. Try fuzzy match (handling declensions/suffixes)
     // "Vereinigte Staaten" should match "Vereinigten Staaten"
     // We split by non-word chars to get tokens
-    let tokens: Vec<&str> = keyword.split(|c: char| !c.is_alphanumeric()).filter(|s| !s.is_empty()).collect();
-    
+    let tokens: Vec<&str> = keyword
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|s| !s.is_empty())
+        .collect();
+
     if !tokens.is_empty() {
         // Build a regex pattern: token + [suffixes] + spaces + token ...
         // matching the keyword parts but allowing for German declensions (en, es, er, etc.)
@@ -3837,10 +4011,10 @@ pub(crate) fn extract_sentence_with_keyword(text: &str, keyword: &str) -> Option
             .map(|t| format!("{}[a-zäöüß]*", regex::escape(t)))
             .collect::<Vec<_>>()
             .join(r"[\s\-]+");
-            
+
         // Word boundary start, case insensitive
         let pattern = format!(r"(?i)\b{}", pattern_str);
-        
+
         if let Ok(re) = Regex::new(&pattern) {
             if let Some(mat) = re.find(&clean_text) {
                 return extract_sentence_at_pos(&clean_text, mat.start(), mat.end() - mat.start());
@@ -3896,9 +4070,11 @@ pub(crate) fn find_sentence_start(text: &str, pos: usize) -> usize {
             // Skip whitespace after sentence ender
             let next = i + 1;
             if next < text.len() {
-                return text[next..].chars()
+                return text[next..]
+                    .chars()
                     .take_while(|c| c.is_whitespace())
-                    .count() + next;
+                    .count()
+                    + next;
             }
             return next;
         }
@@ -3941,8 +4117,8 @@ pub(crate) fn truncate_at_word_boundary(text: &str, max_len: usize) -> &str {
 #[tauri::command]
 pub fn assign_synonym(
     state: State<AppState>,
-    synonym_id: i64,     // The keyword that becomes a synonym
-    canonical_id: i64,   // The main/canonical keyword
+    synonym_id: i64,   // The keyword that becomes a synonym
+    canonical_id: i64, // The main/canonical keyword
 ) -> Result<(), String> {
     if synonym_id == canonical_id {
         return Err("Synonym und Canonical duerfen nicht gleich sein".to_string());
@@ -3969,10 +4145,16 @@ pub fn assign_synonym(
         .map_err(|e| e.to_string())?;
 
     if !synonym_exists {
-        return Err(format!("Synonym-Keyword mit ID {} nicht gefunden", synonym_id));
+        return Err(format!(
+            "Synonym-Keyword mit ID {} nicht gefunden",
+            synonym_id
+        ));
     }
     if !canonical_exists {
-        return Err(format!("Canonical-Keyword mit ID {} nicht gefunden", canonical_id));
+        return Err(format!(
+            "Canonical-Keyword mit ID {} nicht gefunden",
+            canonical_id
+        ));
     }
 
     // Check if canonical is itself a synonym (prevent chains)
@@ -3985,7 +4167,10 @@ pub fn assign_synonym(
         .ok();
 
     if canonical_has_parent.is_some() {
-        return Err("Canonical-Keyword ist selbst ein Synonym. Synonym-Ketten sind nicht erlaubt.".to_string());
+        return Err(
+            "Canonical-Keyword ist selbst ein Synonym. Synonym-Ketten sind nicht erlaubt."
+                .to_string(),
+        );
     }
 
     // Update the synonym keyword
@@ -3997,15 +4182,26 @@ pub fn assign_synonym(
 
     // Get names for logging
     let synonym_name: String = conn
-        .query_row("SELECT name FROM immanentize WHERE id = ?", [synonym_id], |row| row.get(0))
+        .query_row(
+            "SELECT name FROM immanentize WHERE id = ?",
+            [synonym_id],
+            |row| row.get(0),
+        )
         .unwrap_or_else(|_| format!("ID:{}", synonym_id));
     let canonical_name: String = conn
-        .query_row("SELECT name FROM immanentize WHERE id = ?", [canonical_id], |row| row.get(0))
+        .query_row(
+            "SELECT name FROM immanentize WHERE id = ?",
+            [canonical_id],
+            |row| row.get(0),
+        )
         .unwrap_or_else(|_| format!("ID:{}", canonical_id));
 
     log::info!(
         "Assigned '{}' (ID:{}) as synonym of '{}' (ID:{})",
-        synonym_name, synonym_id, canonical_name, canonical_id
+        synonym_name,
+        synonym_id,
+        canonical_name,
+        canonical_id
     );
 
     Ok(())
@@ -4013,10 +4209,7 @@ pub fn assign_synonym(
 
 /// Remove synonym assignment (make keyword independent again)
 #[tauri::command]
-pub fn unassign_synonym(
-    state: State<AppState>,
-    keyword_id: i64,
-) -> Result<(), String> {
+pub fn unassign_synonym(state: State<AppState>, keyword_id: i64) -> Result<(), String> {
     let db = state.db_conn()?;
     let conn = db.conn();
 
@@ -4050,7 +4243,10 @@ fn test_exact_match() {
     let text = "Hier sind die Vereinigte Staaten von Amerika.";
     let kw = "Vereinigte Staaten";
     let sent = extract_sentence_with_keyword(text, kw);
-    assert_eq!(sent, Some("Hier sind die Vereinigte Staaten von Amerika.".to_string()));
+    assert_eq!(
+        sent,
+        Some("Hier sind die Vereinigte Staaten von Amerika.".to_string())
+    );
 }
 
 #[test]
@@ -4059,7 +4255,10 @@ fn test_fuzzy_declension_match() {
     let kw = "Vereinigte Staaten";
     // Should match "Vereinigten Staaten" because "Vereinigte" matches "Vereinigten" via regex "Vereinigte[...]*"
     let sent = extract_sentence_with_keyword(text, kw);
-    assert_eq!(sent, Some("Wir reisen in die Vereinigten Staaten bald.".to_string()));
+    assert_eq!(
+        sent,
+        Some("Wir reisen in die Vereinigten Staaten bald.".to_string())
+    );
 }
 
 #[test]
@@ -4067,7 +4266,10 @@ fn test_fuzzy_genitive_match() {
     let text = "Der Präsident der Vereinigten Staaten sprach.";
     let kw = "Vereinigte Staaten";
     let sent = extract_sentence_with_keyword(text, kw);
-    assert_eq!(sent, Some("Der Präsident der Vereinigten Staaten sprach.".to_string()));
+    assert_eq!(
+        sent,
+        Some("Der Präsident der Vereinigten Staaten sprach.".to_string())
+    );
 }
 
 #[test]

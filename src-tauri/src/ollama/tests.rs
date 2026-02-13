@@ -136,9 +136,14 @@ fn test_ollama_client_default() {
 fn test_recommended_models() {
     assert!(!RECOMMENDED_MAIN_MODEL.is_empty());
     assert!(!RECOMMENDED_EMBEDDING_MODEL.is_empty());
-    assert!(RECOMMENDED_MAIN_MODEL.contains("ministral") || RECOMMENDED_MAIN_MODEL.contains("qwen"));
+    assert!(
+        RECOMMENDED_MAIN_MODEL.contains("ministral") || RECOMMENDED_MAIN_MODEL.contains("qwen")
+    );
     // snowflake-arctic-embed2 for multilingual (DE/EN) embeddings
-    assert!(RECOMMENDED_EMBEDDING_MODEL.contains("snowflake") || RECOMMENDED_EMBEDDING_MODEL.contains("arctic"));
+    assert!(
+        RECOMMENDED_EMBEDDING_MODEL.contains("snowflake")
+            || RECOMMENDED_EMBEDDING_MODEL.contains("arctic")
+    );
 }
 
 #[test]

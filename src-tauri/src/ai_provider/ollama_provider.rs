@@ -48,9 +48,7 @@ impl AiTextProvider for OllamaTextProvider {
         let result = if json_mode {
             client.generate_simple(model, &full_prompt).await
         } else {
-            client
-                .summarize_with_prompt(model, "", &full_prompt)
-                .await
+            client.summarize_with_prompt(model, "", &full_prompt).await
         };
 
         match result {
@@ -61,9 +59,7 @@ impl AiTextProvider for OllamaTextProvider {
                 output_tokens: None,
             }),
             Err(e) => Err(match e {
-                crate::ollama::OllamaError::NotAvailable(msg) => {
-                    AiProviderError::NotAvailable(msg)
-                }
+                crate::ollama::OllamaError::NotAvailable(msg) => AiProviderError::NotAvailable(msg),
                 crate::ollama::OllamaError::GenerationFailed(msg) => {
                     AiProviderError::GenerationFailed(msg)
                 }
@@ -126,9 +122,7 @@ impl EmbeddingProvider for OllamaEmbeddingProvider {
             .generate_embedding(&self.model, text)
             .await
             .map_err(|e| match e {
-                crate::ollama::OllamaError::NotAvailable(msg) => {
-                    AiProviderError::NotAvailable(msg)
-                }
+                crate::ollama::OllamaError::NotAvailable(msg) => AiProviderError::NotAvailable(msg),
                 crate::ollama::OllamaError::GenerationFailed(msg) => {
                     AiProviderError::GenerationFailed(msg)
                 }

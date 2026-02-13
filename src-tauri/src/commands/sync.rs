@@ -207,7 +207,8 @@ pub async fn sync_all_feeds(state: State<'_, AppState>) -> Result<SyncResponse, 
                         total_updated += sync_result.updated_articles;
 
                         // Auto-fetch full content for new articles (parallel for speed)
-                        let fetched_count = fetch_full_content_for_articles_parallel(&state, id).await;
+                        let fetched_count =
+                            fetch_full_content_for_articles_parallel(&state, id).await;
 
                         results.push(SyncResultResponse {
                             pentacle_id: id,
@@ -284,7 +285,10 @@ pub async fn sync_all_feeds(state: State<'_, AppState>) -> Result<SyncResponse, 
 
 /// Sync a single feed
 #[tauri::command]
-pub async fn sync_feed(state: State<'_, AppState>, pentacle_id: i64) -> Result<SyncResultResponse, String> {
+pub async fn sync_feed(
+    state: State<'_, AppState>,
+    pentacle_id: i64,
+) -> Result<SyncResultResponse, String> {
     let syncer = FeedSyncer::new();
 
     // Get feed URL (sync)

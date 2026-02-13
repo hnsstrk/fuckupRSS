@@ -230,7 +230,9 @@ pub fn get_recommendations(
 
     info!("[{}] Starting recommendation generation", request_id);
 
-    let limit = limit.unwrap_or(DEFAULT_RECOMMENDATION_LIMIT).min(MAX_RECOMMENDATION_LIMIT) as usize;
+    let limit = limit
+        .unwrap_or(DEFAULT_RECOMMENDATION_LIMIT)
+        .min(MAX_RECOMMENDATION_LIMIT) as usize;
     let db = state.db_conn()?;
 
     let lock_time = start_time.elapsed();
@@ -240,14 +242,23 @@ pub fn get_recommendations(
     let profile_start = Instant::now();
     let profile = build_user_profile(db.conn())?;
     let profile_time = profile_start.elapsed();
-    debug!("[{}] Profile built in {:?} (read: {}, saved: {})",
-           request_id, profile_time, profile.total_read, profile.saved_article_ids.len());
+    debug!(
+        "[{}] Profile built in {:?} (read: {}, saved: {})",
+        request_id,
+        profile_time,
+        profile.total_read,
+        profile.saved_article_ids.len()
+    );
 
     // Cold start check
     if profile.total_read == 0 {
         info!("[{}] Cold start: returning popular articles", request_id);
         let result = get_cold_start_recommendations(db.conn(), limit);
-        info!("[{}] Cold start completed in {:?}", request_id, start_time.elapsed());
+        info!(
+            "[{}] Cold start completed in {:?}",
+            request_id,
+            start_time.elapsed()
+        );
         return result;
     }
 
@@ -255,8 +266,12 @@ pub fn get_recommendations(
     let candidates_start = Instant::now();
     let mut candidates = generate_candidates(db.conn(), &profile, CANDIDATE_POOL_SIZE)?;
     let candidates_time = candidates_start.elapsed();
-    debug!("[{}] Generated {} candidates in {:?}",
-           request_id, candidates.len(), candidates_time);
+    debug!(
+        "[{}] Generated {} candidates in {:?}",
+        request_id,
+        candidates.len(),
+        candidates_time
+    );
 
     // Score candidates
     let scoring_start = Instant::now();
@@ -277,7 +292,12 @@ pub fn get_recommendations(
     let rerank_start = Instant::now();
     let reranked = rerank_for_diversity(candidates, limit);
     let rerank_time = rerank_start.elapsed();
-    debug!("[{}] Reranked to {} results in {:?}", request_id, reranked.len(), rerank_time);
+    debug!(
+        "[{}] Reranked to {} results in {:?}",
+        request_id,
+        reranked.len(),
+        rerank_time
+    );
 
     // Convert to recommendations
     let build_start = Instant::now();
@@ -287,7 +307,12 @@ pub fn get_recommendations(
         recommendations.push(rec);
     }
     let build_time = build_start.elapsed();
-    debug!("[{}] Built {} recommendations in {:?}", request_id, recommendations.len(), build_time);
+    debug!(
+        "[{}] Built {} recommendations in {:?}",
+        request_id,
+        recommendations.len(),
+        build_time
+    );
 
     let total_time = start_time.elapsed();
     info!(
@@ -574,9 +599,8 @@ fn aggregate_keywords(
 
     // Get keywords from read articles
     let mut stmt = conn
-        .prepare(
-            &format!(
-                r#"SELECT fi.immanentize_id, COUNT(*) as count, COALESCE(i.quality_score, {}) as quality
+        .prepare(&format!(
+            r#"SELECT fi.immanentize_id, COUNT(*) as count, COALESCE(i.quality_score, {}) as quality
                FROM fnord_immanentize fi
                JOIN immanentize i ON i.id = fi.immanentize_id
                JOIN fnords f ON f.id = fi.fnord_id
@@ -584,9 +608,8 @@ fn aggregate_keywords(
                GROUP BY fi.immanentize_id
                ORDER BY count DESC
                LIMIT {}"#,
-                DEFAULT_KEYWORD_QUALITY, KEYWORD_AGGREGATION_LIMIT
-            ),
-        )
+            DEFAULT_KEYWORD_QUALITY, KEYWORD_AGGREGATION_LIMIT
+        ))
         .map_err(|e| e.to_string())?;
 
     let rows: Vec<(i64, f64, f64)> = stmt
@@ -616,10 +639,9 @@ fn aggregate_keywords(
         let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
 
         let saved_keywords: Vec<i64> = stmt
-            .query_map(
-                rusqlite::params_from_iter(saved_ids.iter()),
-                |row| row.get(0),
-            )
+            .query_map(rusqlite::params_from_iter(saved_ids.iter()), |row| {
+                row.get(0)
+            })
             .map_err(|e| e.to_string())?
             .filter_map(|r| r.ok())
             .collect();
@@ -877,15 +899,18 @@ fn get_keyword_candidates(
     let mut candidates = Vec::new();
 
     let rows: Vec<(i64, i64, Option<String>, i64, String)> = stmt
-        .query_map(rusqlite::params_from_iter(params.iter().map(|b| &**b)), |row| {
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-                row.get(4)?,
-            ))
-        })
+        .query_map(
+            rusqlite::params_from_iter(params.iter().map(|b| &**b)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         .collect();
@@ -917,11 +942,13 @@ fn get_keyword_candidates(
     Ok(candidates)
 }
 
-fn get_popular_candidates(conn: &rusqlite::Connection, limit: usize) -> Result<Vec<Candidate>, String> {
+fn get_popular_candidates(
+    conn: &rusqlite::Connection,
+    limit: usize,
+) -> Result<Vec<Candidate>, String> {
     let mut stmt = conn
-        .prepare(
-            &format!(
-                r#"SELECT
+        .prepare(&format!(
+            r#"SELECT
                 f.id,
                 f.pentacle_id,
                 f.published_at
@@ -932,15 +959,16 @@ fn get_popular_candidates(conn: &rusqlite::Connection, limit: usize) -> Result<V
               AND f.published_at > datetime('now', '-{} hours')
             ORDER BY p.article_count DESC, f.published_at DESC
             LIMIT ?"#,
-                POPULAR_ARTICLES_HOURS
-            ),
-        )
+            POPULAR_ARTICLES_HOURS
+        ))
         .map_err(|e| e.to_string())?;
 
     let mut candidates = Vec::new();
 
     let rows: Vec<(i64, i64, Option<String>)> = stmt
-        .query_map([limit as i64], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .query_map([limit as i64], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         .collect();
@@ -969,7 +997,11 @@ fn score_candidate(candidate: &mut Candidate, profile: &UserProfile) {
     let freshness_score = candidate.freshness_score;
 
     // Category boost
-    let category_boost = if candidate.category_ids.iter().any(|id| profile.category_weights.contains_key(id)) {
+    let category_boost = if candidate
+        .category_ids
+        .iter()
+        .any(|id| profile.category_weights.contains_key(id))
+    {
         CATEGORY_BOOST
     } else {
         1.0
@@ -1022,7 +1054,18 @@ fn build_recommendation(
     profile: &UserProfile,
 ) -> Result<Recommendation, String> {
     // Get article details
-    let (title, summary, url, image_url, pentacle_id, pentacle_title, pentacle_icon, published_at, political_bias, sachlichkeit): ArticleDetailsRow = conn
+    let (
+        title,
+        summary,
+        url,
+        image_url,
+        pentacle_id,
+        pentacle_title,
+        pentacle_icon,
+        published_at,
+        political_bias,
+        sachlichkeit,
+    ): ArticleDetailsRow = conn
         .query_row(
             r#"SELECT
                 f.title, f.summary, f.url, f.image_url,
@@ -1117,7 +1160,13 @@ fn generate_explanation(
 ) -> String {
     // Priority 1: Keywords
     if candidate.matching_keywords.len() >= 2 {
-        let kw_list = candidate.matching_keywords.iter().take(3).cloned().collect::<Vec<_>>().join(", ");
+        let kw_list = candidate
+            .matching_keywords
+            .iter()
+            .take(3)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", ");
         return format!("Basierend auf: {}", kw_list);
     }
 
@@ -1144,8 +1193,8 @@ fn calculate_freshness(published_at: &Option<String>) -> f64 {
         Some(dt) => {
             // Parse datetime and calculate age
             if let Ok(parsed) = chrono::DateTime::parse_from_rfc3339(dt) {
-                let age_hours = (chrono::Utc::now() - parsed.with_timezone(&chrono::Utc))
-                    .num_hours() as f64;
+                let age_hours =
+                    (chrono::Utc::now() - parsed.with_timezone(&chrono::Utc)).num_hours() as f64;
                 // Half-life: 48 hours
                 let decay = (-age_hours / FRESHNESS_DECAY_CONSTANT).exp();
                 decay.clamp(0.0, 1.0)
@@ -1162,9 +1211,8 @@ fn get_cold_start_recommendations(
     limit: usize,
 ) -> Result<Vec<Recommendation>, String> {
     let mut stmt = conn
-        .prepare(
-            &format!(
-                r#"SELECT
+        .prepare(&format!(
+            r#"SELECT
                 f.id, f.title, f.summary, f.url, f.image_url,
                 f.pentacle_id, p.title, p.icon_url,
                 f.published_at, f.political_bias, f.sachlichkeit
@@ -1174,9 +1222,8 @@ fn get_cold_start_recommendations(
               AND f.published_at > datetime('now', '-{} hours')
             ORDER BY f.published_at DESC
             LIMIT ?"#,
-                POPULAR_ARTICLES_HOURS
-            ),
-        )
+            POPULAR_ARTICLES_HOURS
+        ))
         .map_err(|e| e.to_string())?;
 
     let mut recommendations = Vec::new();
@@ -1201,7 +1248,20 @@ fn get_cold_start_recommendations(
         .filter_map(|r| r.ok())
         .collect();
 
-    for (fnord_id, title, summary, url, image_url, pentacle_id, pentacle_title, pentacle_icon, published_at, political_bias, sachlichkeit) in rows {
+    for (
+        fnord_id,
+        title,
+        summary,
+        url,
+        image_url,
+        pentacle_id,
+        pentacle_title,
+        pentacle_icon,
+        published_at,
+        political_bias,
+        sachlichkeit,
+    ) in rows
+    {
         let categories = get_article_categories(conn, fnord_id)?;
         let freshness = calculate_freshness(&published_at);
 
@@ -1229,7 +1289,10 @@ fn get_cold_start_recommendations(
     Ok(recommendations)
 }
 
-fn get_top_user_keywords(conn: &rusqlite::Connection, limit: i64) -> Result<Vec<KeywordWeight>, String> {
+fn get_top_user_keywords(
+    conn: &rusqlite::Connection,
+    limit: i64,
+) -> Result<Vec<KeywordWeight>, String> {
     let mut stmt = conn
         .prepare(
             r#"SELECT i.name, COUNT(*) as count, i.article_count
@@ -1259,7 +1322,10 @@ fn get_top_user_keywords(conn: &rusqlite::Connection, limit: i64) -> Result<Vec<
     Ok(keywords)
 }
 
-fn get_top_user_categories(conn: &rusqlite::Connection, limit: i64) -> Result<Vec<CategoryWeight>, String> {
+fn get_top_user_categories(
+    conn: &rusqlite::Connection,
+    limit: i64,
+) -> Result<Vec<CategoryWeight>, String> {
     let mut stmt = conn
         .prepare(
             r#"SELECT m.id, m.name, COUNT(*) as count
@@ -1387,7 +1453,10 @@ mod tests {
     fn test_freshness_calculation_now() {
         let now = chrono::Utc::now().to_rfc3339();
         let score = calculate_freshness(&Some(now));
-        assert!(score > 0.95, "Very recent article should have high freshness");
+        assert!(
+            score > 0.95,
+            "Very recent article should have high freshness"
+        );
     }
 
     #[test]
@@ -1395,7 +1464,11 @@ mod tests {
         let date = (chrono::Utc::now() - chrono::Duration::hours(24)).to_rfc3339();
         let score = calculate_freshness(&Some(date));
         // After 24 hours with 48-hour half-life, should be around 0.71
-        assert!(score > 0.6 && score < 0.85, "24h old should have moderate freshness: {}", score);
+        assert!(
+            score > 0.6 && score < 0.85,
+            "24h old should have moderate freshness: {}",
+            score
+        );
     }
 
     #[test]
@@ -1403,7 +1476,11 @@ mod tests {
         let date = (chrono::Utc::now() - chrono::Duration::hours(48)).to_rfc3339();
         let score = calculate_freshness(&Some(date));
         // Half-life is 48 hours (ln(2) * 100 ≈ 69.3), so should be around 0.5
-        assert!(score > 0.4 && score < 0.6, "48h old should have ~0.5 freshness: {}", score);
+        assert!(
+            score > 0.4 && score < 0.6,
+            "48h old should have ~0.5 freshness: {}",
+            score
+        );
     }
 
     #[test]
@@ -1411,7 +1488,11 @@ mod tests {
         let date = (chrono::Utc::now() - chrono::Duration::days(7)).to_rfc3339();
         let score = calculate_freshness(&Some(date));
         // 168 hours old, should be quite low
-        assert!(score < 0.15, "Week old article should have low freshness: {}", score);
+        assert!(
+            score < 0.15,
+            "Week old article should have low freshness: {}",
+            score
+        );
     }
 
     #[test]
@@ -1431,7 +1512,11 @@ mod tests {
         let future = (chrono::Utc::now() + chrono::Duration::hours(24)).to_rfc3339();
         let score = calculate_freshness(&Some(future));
         // Future dates should be clamped to 1.0
-        assert!((score - 1.0).abs() < 0.01, "Future date should be clamped to 1.0: {}", score);
+        assert!(
+            (score - 1.0).abs() < 0.01,
+            "Future date should be clamped to 1.0: {}",
+            score
+        );
     }
 
     // ============================================================
@@ -1461,7 +1546,10 @@ mod tests {
         };
 
         let explanation = generate_explanation(&candidate, &[], &profile);
-        assert!(explanation.starts_with("Basierend auf:"), "Should mention keywords");
+        assert!(
+            explanation.starts_with("Basierend auf:"),
+            "Should mention keywords"
+        );
         assert!(explanation.contains("Trump"), "Should include keyword");
     }
 
@@ -1606,8 +1694,11 @@ mod tests {
         score_candidate(&mut candidate, &profile);
 
         // Score = 0.40 * 0.9 + 0.30 * 0.0 + 0.25 * 1.0 + 0.05 = 0.66
-        assert!(candidate.final_score > 0.6 && candidate.final_score < 0.7,
-                "Score should be around 0.66: {}", candidate.final_score);
+        assert!(
+            candidate.final_score > 0.6 && candidate.final_score < 0.7,
+            "Score should be around 0.66: {}",
+            candidate.final_score
+        );
     }
 
     #[test]
@@ -1635,8 +1726,11 @@ mod tests {
         score_candidate(&mut candidate, &profile);
 
         // Score = 0.40 * 0.3 + 0.30 * 0.8 + 0.25 * 1.0 + 0.05 = 0.66
-        assert!(candidate.final_score > 0.6 && candidate.final_score < 0.7,
-                "Score should be around 0.66: {}", candidate.final_score);
+        assert!(
+            candidate.final_score > 0.6 && candidate.final_score < 0.7,
+            "Score should be around 0.66: {}",
+            candidate.final_score
+        );
     }
 
     #[test]
@@ -1667,7 +1761,11 @@ mod tests {
         score_candidate(&mut candidate, &profile);
 
         // With category boost (1.1x), score should be higher
-        assert!(candidate.final_score > 0.7, "Category boost should increase score: {}", candidate.final_score);
+        assert!(
+            candidate.final_score > 0.7,
+            "Category boost should increase score: {}",
+            candidate.final_score
+        );
     }
 
     #[test]
@@ -1699,8 +1797,11 @@ mod tests {
 
         // Without matching category, no boost
         let base_score = 0.40 * 0.8 + 0.30 * 0.5 + 0.25 * 0.9 + 0.05;
-        assert!((candidate.final_score - base_score).abs() < 0.01,
-                "Without category boost, score should be base: {}", candidate.final_score);
+        assert!(
+            (candidate.final_score - base_score).abs() < 0.01,
+            "Without category boost, score should be base: {}",
+            candidate.final_score
+        );
     }
 
     #[test]
@@ -1728,8 +1829,11 @@ mod tests {
         score_candidate(&mut candidate, &profile);
 
         // Score = 0.40 * 0.3 + 0.30 * 0.0 + 0.25 * 0.0 + 0.05 = 0.17
-        assert!(candidate.final_score > 0.15 && candidate.final_score < 0.2,
-                "Minimum score should be around 0.17: {}", candidate.final_score);
+        assert!(
+            candidate.final_score > 0.15 && candidate.final_score < 0.2,
+            "Minimum score should be around 0.17: {}",
+            candidate.final_score
+        );
     }
 
     // ============================================================
@@ -1806,7 +1910,10 @@ mod tests {
         // First should be highest score
         assert_eq!(reranked[0].fnord_id, 1);
         // Second should prefer different source
-        assert_eq!(reranked[1].fnord_id, 3, "Should pick different source over same source");
+        assert_eq!(
+            reranked[1].fnord_id, 3,
+            "Should pick different source over same source"
+        );
     }
 
     #[test]
@@ -1916,8 +2023,8 @@ mod tests {
         let read_ids: HashSet<i64> = HashSet::new();
         let saved_ids: HashSet<i64> = HashSet::new();
 
-        let weights = aggregate_keywords(conn, &read_ids, &saved_ids)
-            .expect("Failed to aggregate keywords");
+        let weights =
+            aggregate_keywords(conn, &read_ids, &saved_ids).expect("Failed to aggregate keywords");
 
         assert!(weights.is_empty());
     }
@@ -1939,8 +2046,8 @@ mod tests {
         let read_ids: HashSet<i64> = [1, 2].into_iter().collect();
         let saved_ids: HashSet<i64> = HashSet::new();
 
-        let weights = aggregate_keywords(conn, &read_ids, &saved_ids)
-            .expect("Failed to aggregate keywords");
+        let weights =
+            aggregate_keywords(conn, &read_ids, &saved_ids).expect("Failed to aggregate keywords");
 
         assert!(!weights.is_empty());
         // "TestKW_ReadArticles_A" appears in 2 articles, should have higher weight
@@ -1969,14 +2076,16 @@ mod tests {
         // With save on article 1 (has keyword 90200)
         insert_feedback(conn, 1, "save");
         let saved_ids: HashSet<i64> = [1].into_iter().collect();
-        let weights_with_save = aggregate_keywords(conn, &read_ids, &saved_ids)
-            .expect("Failed to aggregate keywords");
+        let weights_with_save =
+            aggregate_keywords(conn, &read_ids, &saved_ids).expect("Failed to aggregate keywords");
 
         // Keyword 90200 should have higher weight when its article is saved
         let weight_no_save = weights_no_save.get(&90200).unwrap_or(&0.0);
         let weight_with_save = weights_with_save.get(&90200).unwrap_or(&0.0);
-        assert!(weight_with_save >= weight_no_save,
-                "Saved article should boost keyword weight");
+        assert!(
+            weight_with_save >= weight_no_save,
+            "Saved article should boost keyword weight"
+        );
     }
 
     // ============================================================
@@ -1989,8 +2098,8 @@ mod tests {
         let conn = db.conn();
 
         let read_ids: HashSet<i64> = HashSet::new();
-        let weights = aggregate_categories(conn, &read_ids)
-            .expect("Failed to aggregate categories");
+        let weights =
+            aggregate_categories(conn, &read_ids).expect("Failed to aggregate categories");
 
         assert!(weights.is_empty());
     }
@@ -2011,8 +2120,8 @@ mod tests {
         link_fnord_category(conn, 3, 301);
 
         let read_ids: HashSet<i64> = [1, 2, 3].into_iter().collect();
-        let weights = aggregate_categories(conn, &read_ids)
-            .expect("Failed to aggregate categories");
+        let weights =
+            aggregate_categories(conn, &read_ids).expect("Failed to aggregate categories");
 
         // Politik (201) should have higher weight (2/3) than Wirtschaft (1/3)
         assert!(weights.get(&201).unwrap_or(&0.0) > weights.get(&301).unwrap_or(&0.0));
@@ -2032,12 +2141,14 @@ mod tests {
         insert_test_fnord(conn, 2, 1, "Unread Article", false, true);
 
         let profile = build_user_profile(conn).expect("Failed to build profile");
-        let candidates = generate_candidates(conn, &profile, 10)
-            .expect("Failed to generate candidates");
+        let candidates =
+            generate_candidates(conn, &profile, 10).expect("Failed to generate candidates");
 
         // Should not include read articles
-        assert!(!candidates.iter().any(|c| c.fnord_id == 1),
-                "Should not include read articles");
+        assert!(
+            !candidates.iter().any(|c| c.fnord_id == 1),
+            "Should not include read articles"
+        );
     }
 
     #[test]
@@ -2051,12 +2162,14 @@ mod tests {
         insert_feedback(conn, 1, "hide");
 
         let profile = build_user_profile(conn).expect("Failed to build profile");
-        let candidates = generate_candidates(conn, &profile, 10)
-            .expect("Failed to generate candidates");
+        let candidates =
+            generate_candidates(conn, &profile, 10).expect("Failed to generate candidates");
 
         // Should not include hidden articles
-        assert!(!candidates.iter().any(|c| c.fnord_id == 1),
-                "Should not include hidden articles");
+        assert!(
+            !candidates.iter().any(|c| c.fnord_id == 1),
+            "Should not include hidden articles"
+        );
     }
 
     // ============================================================
@@ -2080,7 +2193,10 @@ mod tests {
         let recommendations = get_cold_start_recommendations(conn, 10)
             .expect("Failed to get cold start recommendations");
 
-        assert!(!recommendations.is_empty(), "Should return recent articles for cold start");
+        assert!(
+            !recommendations.is_empty(),
+            "Should return recent articles for cold start"
+        );
         assert_eq!(recommendations[0].explanation, "Aktuelle Nachrichten");
     }
 
@@ -2101,7 +2217,10 @@ mod tests {
         let recommendations = get_cold_start_recommendations(conn, 10)
             .expect("Failed to get cold start recommendations");
 
-        assert!(recommendations.is_empty(), "Should not include old articles in cold start");
+        assert!(
+            recommendations.is_empty(),
+            "Should not include old articles in cold start"
+        );
     }
 
     // ============================================================
@@ -2122,8 +2241,7 @@ mod tests {
         link_fnord_keyword(conn, 1, 90301);
         link_fnord_keyword(conn, 2, 90300);
 
-        let keywords = get_top_user_keywords(conn, 5)
-            .expect("Failed to get top keywords");
+        let keywords = get_top_user_keywords(conn, 5).expect("Failed to get top keywords");
 
         assert!(!keywords.is_empty());
         // "TestKW_TopUser_Alpha" should be first (appears in 2 articles)
@@ -2142,8 +2260,7 @@ mod tests {
         link_fnord_category(conn, 1, 301); // Wirtschaft
         link_fnord_category(conn, 2, 201); // Politik again
 
-        let categories = get_top_user_categories(conn, 5)
-            .expect("Failed to get top categories");
+        let categories = get_top_user_categories(conn, 5).expect("Failed to get top categories");
 
         assert!(!categories.is_empty());
     }
@@ -2520,8 +2637,8 @@ mod tests {
         assert_eq!(profile.total_read, 3);
 
         // Generate candidates
-        let candidates = generate_candidates(conn, &profile, 10)
-            .expect("Failed to generate candidates");
+        let candidates =
+            generate_candidates(conn, &profile, 10).expect("Failed to generate candidates");
 
         // Should have unread candidates
         assert!(!candidates.is_empty());

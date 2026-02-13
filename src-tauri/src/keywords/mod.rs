@@ -1,12 +1,9 @@
-use crate::text_analysis::STOPWORDS;
 use crate::text_analysis::keyword_seeds::{
-    KNOWN_ACRONYMS as SEED_ACRONYMS,
-    KNOWN_CONCEPTS as SEED_CONCEPTS,
-    KNOWN_LOCATIONS as SEED_LOCATIONS,
-    KNOWN_ORGANIZATIONS as SEED_ORGANIZATIONS,
-    KNOWN_PERSONS as SEED_PERSONS,
-    KNOWN_SPORTS as SEED_SPORTS,
+    KNOWN_ACRONYMS as SEED_ACRONYMS, KNOWN_CONCEPTS as SEED_CONCEPTS,
+    KNOWN_LOCATIONS as SEED_LOCATIONS, KNOWN_ORGANIZATIONS as SEED_ORGANIZATIONS,
+    KNOWN_PERSONS as SEED_PERSONS, KNOWN_SPORTS as SEED_SPORTS,
 };
+use crate::text_analysis::STOPWORDS;
 use keyword_extraction::rake::{Rake, RakeParams};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -15,13 +12,10 @@ use whatlang::{detect, Lang};
 use yake_rust::{get_n_best, Config, StopWords};
 
 // Cached regex patterns for entity extraction (compiled once)
-static CAPITALIZED_PATTERN: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"\b([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+){0,3})\b").unwrap()
-});
+static CAPITALIZED_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\b([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+){0,3})\b").unwrap());
 
-static ACRONYM_PATTERN: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"\b([A-Z]{2,6})\b").unwrap()
-});
+static ACRONYM_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b([A-Z]{2,6})\b").unwrap());
 
 pub mod advanced;
 pub mod clustering;
@@ -30,13 +24,11 @@ pub mod types;
 
 // Clustering types are used by batch_processor.rs for cluster-based batch processing
 pub use clustering::{
-    cluster_articles, get_representatives, calculate_savings,
-    ArticleCluster, ArticleForClustering, ClusterConfig, ClusteringResult,
+    calculate_savings, cluster_articles, get_representatives, ArticleCluster, ArticleForClustering,
+    ClusterConfig, ClusteringResult,
 };
-pub use config::{KeywordConfig, defaults as keyword_defaults};
-pub use types::{
-    ArticleKeywordRef, ExtractedKeywordCandidate, KeywordSource, KeywordWithMetadata,
-};
+pub use config::{defaults as keyword_defaults, KeywordConfig};
+pub use types::{ArticleKeywordRef, ExtractedKeywordCandidate, KeywordSource, KeywordWithMetadata};
 
 #[cfg(test)]
 mod tests;
@@ -71,9 +63,8 @@ pub enum Language {
 }
 
 /// Unified stopwords from central text_analysis module (converted to owned Strings for RAKE/YAKE)
-static UNIFIED_STOPWORDS: Lazy<HashSet<String>> = Lazy::new(|| {
-    STOPWORDS.iter().map(|s| s.to_string()).collect()
-});
+static UNIFIED_STOPWORDS: Lazy<HashSet<String>> =
+    Lazy::new(|| STOPWORDS.iter().map(|s| s.to_string()).collect());
 
 /// Stopwords that commonly appear at edges of keywords and should be stripped
 /// These include articles, prepositions, and conjunctions in German and English
@@ -83,15 +74,12 @@ static EDGE_STOPWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         "der", "die", "das", "den", "dem", "des", "ein", "eine", "einer", "einem", "eines", "einen",
         // German prepositions
         "in", "im", "an", "am", "auf", "aus", "bei", "durch", "für", "gegen", "hinter", "mit",
-        "nach", "neben", "ohne", "über", "um", "unter", "von", "vor", "während", "wegen", "zu", "zum", "zur",
-        // German conjunctions
-        "und", "oder", "aber", "sondern", "denn", "doch", "sowie",
-        // English articles
-        "the", "a", "an",
-        // English prepositions
-        "on", "at", "to", "for", "of", "by", "with", "from", "into", "through", "during",
-        "before", "after", "above", "below", "between", "under", "over",
-        // English conjunctions
+        "nach", "neben", "ohne", "über", "um", "unter", "von", "vor", "während", "wegen", "zu",
+        "zum", "zur", // German conjunctions
+        "und", "oder", "aber", "sondern", "denn", "doch", "sowie", // English articles
+        "the", "a", "an", // English prepositions
+        "on", "at", "to", "for", "of", "by", "with", "from", "into", "through", "during", "before",
+        "after", "above", "below", "between", "under", "over", // English conjunctions
         "and", "or", "but",
     ];
     words.into_iter().collect()
@@ -129,19 +117,29 @@ static ORG_SUFFIXES: Lazy<Vec<&str>> = Lazy::new(|| {
 });
 
 /// Known acronyms from seed data - used for keyword validation
-static KNOWN_ACRONYMS: Lazy<HashSet<&str>> = Lazy::new(|| {
-    SEED_ACRONYMS.iter().copied().collect()
-});
+static KNOWN_ACRONYMS: Lazy<HashSet<&str>> = Lazy::new(|| SEED_ACRONYMS.iter().copied().collect());
 
 /// Known entities from seed data - used for validation
 static KNOWN_ENTITIES: Lazy<HashSet<&str>> = Lazy::new(|| {
     let mut set = HashSet::new();
-    for &s in SEED_PERSONS.iter() { set.insert(s); }
-    for &s in SEED_ORGANIZATIONS.iter() { set.insert(s); }
-    for &s in SEED_LOCATIONS.iter() { set.insert(s); }
-    for &s in SEED_ACRONYMS.iter() { set.insert(s); }
-    for &s in SEED_CONCEPTS.iter() { set.insert(s); }
-    for &s in SEED_SPORTS.iter() { set.insert(s); }
+    for &s in SEED_PERSONS.iter() {
+        set.insert(s);
+    }
+    for &s in SEED_ORGANIZATIONS.iter() {
+        set.insert(s);
+    }
+    for &s in SEED_LOCATIONS.iter() {
+        set.insert(s);
+    }
+    for &s in SEED_ACRONYMS.iter() {
+        set.insert(s);
+    }
+    for &s in SEED_CONCEPTS.iter() {
+        set.insert(s);
+    }
+    for &s in SEED_SPORTS.iter() {
+        set.insert(s);
+    }
     set
 });
 
@@ -260,13 +258,22 @@ impl KeywordExtractor {
                 eigenvector_weight: self.config.trisum_eigenvector_weight,
                 betweenness_weight: self.config.trisum_betweenness_weight,
             };
-            advanced::extract_textrank_trisum(&full_text, 4, self.max_keywords * 2, Some(trisum_config))
+            advanced::extract_textrank_trisum(
+                &full_text,
+                4,
+                self.max_keywords * 2,
+                Some(trisum_config),
+            )
         } else {
             // Standard TextRank
             advanced::extract_textrank(&full_text, 4, self.max_keywords * 2)
         };
 
-        let source_name = if self.config.use_trisum { "trisum" } else { "textrank" };
+        let source_name = if self.config.use_trisum {
+            "trisum"
+        } else {
+            "textrank"
+        };
         for kw in graph_keywords {
             let key = kw.text.to_lowercase();
             candidates
@@ -385,9 +392,7 @@ impl KeywordExtractor {
         // Use cached regex pattern for capitalized words
         for cap in CAPITALIZED_PATTERN.captures_iter(text) {
             let phrase = cap.get(1).unwrap().as_str().to_string();
-            if phrase.len() >= 3
-                && !UNIFIED_STOPWORDS.contains(&phrase.to_lowercase())
-            {
+            if phrase.len() >= 3 && !UNIFIED_STOPWORDS.contains(&phrase.to_lowercase()) {
                 let kw_type = self.classify_entity(&phrase);
                 if kw_type != KeywordType::Concept {
                     entities.push(ExtractedKeyword {
@@ -634,7 +639,11 @@ pub fn extract_keywords_with_semantic_scoring(
 
     // Sort and truncate
     let mut results = results;
-    results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    results.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     results.truncate(max_keywords);
     results
 }
@@ -1006,7 +1015,11 @@ pub fn is_garbage_keyword(keyword: &str) -> bool {
     }
 
     // === Pattern 3: Contains HTML-typical patterns ===
-    if lower.contains("data-") || lower.contains("aria-") || lower.contains("role=") || lower.contains("style=") {
+    if lower.contains("data-")
+        || lower.contains("aria-")
+        || lower.contains("role=")
+        || lower.contains("style=")
+    {
         return true;
     }
 
@@ -1016,9 +1029,9 @@ pub fn is_garbage_keyword(keyword: &str) -> bool {
     // - Contains only hex characters (0-9, a-f)
     // - Has mixed digits and letters
     if trimmed.len() >= 8 && !trimmed.contains(' ') {
-        let is_hex_like = lower.chars().all(|c| {
-            c.is_ascii_digit() || matches!(c, 'a'..='f')
-        });
+        let is_hex_like = lower
+            .chars()
+            .all(|c| c.is_ascii_digit() || matches!(c, 'a'..='f'));
         let has_digits = trimmed.chars().any(|c| c.is_numeric());
         let has_letters = trimmed.chars().any(|c| c.is_alphabetic());
 
@@ -1034,12 +1047,29 @@ pub fn is_garbage_keyword(keyword: &str) -> bool {
     }
 
     // === Pattern 6: Looks like a file path or URL component ===
-    if lower.contains("/") || lower.contains("\\") || lower.ends_with(".js") || lower.ends_with(".css") || lower.ends_with(".html") {
+    if lower.contains("/")
+        || lower.contains("\\")
+        || lower.ends_with(".js")
+        || lower.ends_with(".css")
+        || lower.ends_with(".html")
+    {
         return true;
     }
 
     // === Pattern 7: JavaScript/programming keywords ===
-    let js_keywords = ["function", "return", "const", "var", "let", "async", "await", "null", "undefined", "true", "false"];
+    let js_keywords = [
+        "function",
+        "return",
+        "const",
+        "var",
+        "let",
+        "async",
+        "await",
+        "null",
+        "undefined",
+        "true",
+        "false",
+    ];
     if js_keywords.contains(&lower.as_str()) {
         return true;
     }
@@ -1307,23 +1337,39 @@ static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(
         (
             "Künstliche Intelligenz",
             vec![
-                "ki", "ai", "artificial intelligence", "maschinelles lernen",
-                "machine learning", "ml", "deep learning", "neuronale netze",
+                "ki",
+                "ai",
+                "artificial intelligence",
+                "maschinelles lernen",
+                "machine learning",
+                "ml",
+                "deep learning",
+                "neuronale netze",
             ],
         ),
         // === Internationale Organisationen ===
         (
             "Europäische Union",
             vec![
-                "eu", "european union", "europa", "european", "europäisch",
-                "europäischen", "europäischer", "brüssel", "brussels",
+                "eu",
+                "european union",
+                "europa",
+                "european",
+                "europäisch",
+                "europäischen",
+                "europäischer",
+                "brüssel",
+                "brussels",
             ],
         ),
         (
             "NATO",
             vec![
-                "north atlantic treaty", "atlantisches bündnis", "nato-",
-                "transatlantisch", "transatlantic",
+                "north atlantic treaty",
+                "atlantisches bündnis",
+                "nato-",
+                "transatlantisch",
+                "transatlantic",
             ],
         ),
         (
@@ -1334,217 +1380,378 @@ static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(
         (
             "Vereinigte Staaten",
             vec![
-                "usa", "us", "united states", "amerika", "america",
-                "american", "amerikanisch", "amerikanischen", "amerikanischer",
-                "washington", "white house", "weißes haus",
+                "usa",
+                "us",
+                "united states",
+                "amerika",
+                "america",
+                "american",
+                "amerikanisch",
+                "amerikanischen",
+                "amerikanischer",
+                "washington",
+                "white house",
+                "weißes haus",
                 // German declension forms
-                "vereinigten staaten", "vereinigter staaten", "staaten",
+                "vereinigten staaten",
+                "vereinigter staaten",
+                "staaten",
             ],
         ),
         (
             "Deutschland",
             vec![
-                "germany", "brd", "bundesrepublik", "german", "deutsch",
-                "deutschen", "deutscher", "berlin", "bundestag", "bundesregierung",
+                "germany",
+                "brd",
+                "bundesrepublik",
+                "german",
+                "deutsch",
+                "deutschen",
+                "deutscher",
+                "berlin",
+                "bundestag",
+                "bundesregierung",
             ],
         ),
         (
             "Russland",
             vec![
-                "russia", "russian", "russisch", "russischen", "russischer",
-                "moskau", "moscow", "kreml", "kremlin", "russische föderation",
+                "russia",
+                "russian",
+                "russisch",
+                "russischen",
+                "russischer",
+                "moskau",
+                "moscow",
+                "kreml",
+                "kremlin",
+                "russische föderation",
             ],
         ),
         (
             "Ukraine",
             vec![
-                "ukrainian", "ukrainisch", "ukrainischen", "ukrainischer",
-                "kiew", "kyiv", "kiev", "donbass", "donezk", "luhansk",
+                "ukrainian",
+                "ukrainisch",
+                "ukrainischen",
+                "ukrainischer",
+                "kiew",
+                "kyiv",
+                "kiev",
+                "donbass",
+                "donezk",
+                "luhansk",
             ],
         ),
         (
             "China",
             vec![
-                "chinese", "chinesisch", "chinesischen", "chinesischer",
-                "peking", "beijing", "volksrepublik", "prc",
+                "chinese",
+                "chinesisch",
+                "chinesischen",
+                "chinesischer",
+                "peking",
+                "beijing",
+                "volksrepublik",
+                "prc",
             ],
         ),
         (
             "Großbritannien",
             vec![
-                "uk", "united kingdom", "british", "britisch", "britischen",
-                "england", "english", "englisch", "london", "westminster",
-                "scotland", "scottish", "schottland", "schottisch",
-                "wales", "welsh", "walisisch",
+                "uk",
+                "united kingdom",
+                "british",
+                "britisch",
+                "britischen",
+                "england",
+                "english",
+                "englisch",
+                "london",
+                "westminster",
+                "scotland",
+                "scottish",
+                "schottland",
+                "schottisch",
+                "wales",
+                "welsh",
+                "walisisch",
             ],
         ),
         (
             "Frankreich",
             vec![
-                "france", "french", "französisch", "französischen",
-                "paris", "élysée", "elysee",
+                "france",
+                "french",
+                "französisch",
+                "französischen",
+                "paris",
+                "élysée",
+                "elysee",
             ],
         ),
         (
             "Iran",
             vec![
-                "iranian", "iranisch", "iranische", "iranischen", "iranischer",
-                "teheran", "tehran", "persisch", "persian",
+                "iranian",
+                "iranisch",
+                "iranische",
+                "iranischen",
+                "iranischer",
+                "teheran",
+                "tehran",
+                "persisch",
+                "persian",
                 // Common variations
-                "irans", "der iran", "im iran", "iran-krise", "iran-konflikt",
+                "irans",
+                "der iran",
+                "im iran",
+                "iran-krise",
+                "iran-konflikt",
             ],
         ),
         (
             "Israel",
             vec![
-                "israeli", "israelisch", "israelischen", "israelischer",
-                "jerusalem", "tel aviv", "netanjahu", "netanyahu",
+                "israeli",
+                "israelisch",
+                "israelischen",
+                "israelischer",
+                "jerusalem",
+                "tel aviv",
+                "netanjahu",
+                "netanyahu",
             ],
         ),
         (
             "Türkei",
             vec![
-                "turkey", "turkish", "türkisch", "türkischen",
-                "ankara", "istanbul", "erdogan",
+                "turkey",
+                "turkish",
+                "türkisch",
+                "türkischen",
+                "ankara",
+                "istanbul",
+                "erdogan",
             ],
         ),
         (
             "Japan",
-            vec![
-                "japanese", "japanisch", "japanischen", "tokio", "tokyo",
-            ],
+            vec!["japanese", "japanisch", "japanischen", "tokio", "tokyo"],
         ),
         (
             "Indien",
             vec![
-                "india", "indian", "indisch", "indischen", "neu-delhi", "new delhi",
+                "india",
+                "indian",
+                "indisch",
+                "indischen",
+                "neu-delhi",
+                "new delhi",
             ],
         ),
         (
             "Brasilien",
             vec![
-                "brazil", "brazilian", "brasilianisch", "brasilianischen",
-                "brasília", "brasilia",
+                "brazil",
+                "brazilian",
+                "brasilianisch",
+                "brasilianischen",
+                "brasília",
+                "brasilia",
             ],
         ),
         (
             "Spanien",
-            vec![
-                "spain", "spanish", "spanisch", "spanischen", "madrid",
-            ],
+            vec!["spain", "spanish", "spanisch", "spanischen", "madrid"],
         ),
         (
             "Italien",
             vec![
-                "italy", "italian", "italienisch", "italienischen", "rom", "rome",
+                "italy",
+                "italian",
+                "italienisch",
+                "italienischen",
+                "rom",
+                "rome",
             ],
         ),
         (
             "Polen",
             vec![
-                "poland", "polish", "polnisch", "polnischen", "warschau", "warsaw",
+                "poland",
+                "polish",
+                "polnisch",
+                "polnischen",
+                "warschau",
+                "warsaw",
             ],
         ),
         (
             "Niederlande",
             vec![
-                "netherlands", "dutch", "niederländisch", "holland",
-                "amsterdam", "den haag", "the hague",
+                "netherlands",
+                "dutch",
+                "niederländisch",
+                "holland",
+                "amsterdam",
+                "den haag",
+                "the hague",
             ],
         ),
         (
             "Österreich",
             vec![
-                "austria", "austrian", "österreichisch", "österreichischen", "wien", "vienna",
+                "austria",
+                "austrian",
+                "österreichisch",
+                "österreichischen",
+                "wien",
+                "vienna",
             ],
         ),
         (
             "Schweiz",
             vec![
-                "switzerland", "swiss", "schweizerisch", "schweizer",
-                "bern", "zürich", "zurich", "genf", "geneva",
+                "switzerland",
+                "swiss",
+                "schweizerisch",
+                "schweizer",
+                "bern",
+                "zürich",
+                "zurich",
+                "genf",
+                "geneva",
             ],
         ),
         (
             "Dänemark",
             vec![
-                "denmark", "danish", "dänisch", "dänische", "dänischen",
-                "kopenhagen", "copenhagen",
+                "denmark",
+                "danish",
+                "dänisch",
+                "dänische",
+                "dänischen",
+                "kopenhagen",
+                "copenhagen",
             ],
         ),
         (
             "Griechenland",
             vec![
-                "greece", "greek", "griechisch", "griechische", "griechischen",
-                "athen", "athens",
+                "greece",
+                "greek",
+                "griechisch",
+                "griechische",
+                "griechischen",
+                "athen",
+                "athens",
             ],
         ),
         (
             "Ungarn",
             vec![
-                "hungary", "hungarian", "ungarisch", "ungarische", "ungarischen",
-                "budapest", "orban", "orbán",
+                "hungary",
+                "hungarian",
+                "ungarisch",
+                "ungarische",
+                "ungarischen",
+                "budapest",
+                "orban",
+                "orbán",
             ],
         ),
         (
             "Schweden",
             vec![
-                "sweden", "swedish", "schwedisch", "schwedische", "schwedischen",
+                "sweden",
+                "swedish",
+                "schwedisch",
+                "schwedische",
+                "schwedischen",
                 "stockholm",
             ],
         ),
         (
             "Norwegen",
             vec![
-                "norway", "norwegian", "norwegisch", "norwegische", "norwegischen",
+                "norway",
+                "norwegian",
+                "norwegisch",
+                "norwegische",
+                "norwegischen",
                 "oslo",
             ],
         ),
         (
             "Finnland",
             vec![
-                "finland", "finnish", "finnisch", "finnische", "finnischen",
+                "finland",
+                "finnish",
+                "finnisch",
+                "finnische",
+                "finnischen",
                 "helsinki",
             ],
         ),
         (
             "Belgien",
-            vec![
-                "belgium", "belgian", "belgisch", "belgische", "belgischen",
-            ],
+            vec!["belgium", "belgian", "belgisch", "belgische", "belgischen"],
         ),
         (
             "Portugal",
             vec![
-                "portuguese", "portugiesisch", "portugiesische", "portugiesischen",
-                "lissabon", "lisbon",
+                "portuguese",
+                "portugiesisch",
+                "portugiesische",
+                "portugiesischen",
+                "lissabon",
+                "lisbon",
             ],
         ),
         (
             "Tschechien",
             vec![
-                "czech", "tschechisch", "tschechische", "tschechischen",
-                "prag", "prague",
+                "czech",
+                "tschechisch",
+                "tschechische",
+                "tschechischen",
+                "prag",
+                "prague",
             ],
         ),
         (
             "Rumänien",
             vec![
-                "romania", "romanian", "rumänisch", "rumänische", "rumänischen",
-                "bukarest", "bucharest",
+                "romania",
+                "romanian",
+                "rumänisch",
+                "rumänische",
+                "rumänischen",
+                "bukarest",
+                "bucharest",
             ],
         ),
         (
             "Serbien",
             vec![
-                "serbia", "serbian", "serbisch", "serbische", "serbischen",
-                "belgrad", "belgrade",
+                "serbia",
+                "serbian",
+                "serbisch",
+                "serbische",
+                "serbischen",
+                "belgrad",
+                "belgrade",
             ],
         ),
         (
             "Kroatien",
             vec![
-                "croatia", "croatian", "kroatisch", "kroatische", "kroatischen",
+                "croatia",
+                "croatian",
+                "kroatisch",
+                "kroatische",
+                "kroatischen",
                 "zagreb",
             ],
         ),
@@ -1552,33 +1759,67 @@ static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(
         (
             "Klimawandel",
             vec![
-                "klimakrise", "climate change", "global warming", "erderwärmung",
-                "klimaschutz", "climate protection", "co2", "treibhausgas",
+                "klimakrise",
+                "climate change",
+                "global warming",
+                "erderwärmung",
+                "klimaschutz",
+                "climate protection",
+                "co2",
+                "treibhausgas",
             ],
         ),
         (
             "COVID-19",
-            vec!["corona", "coronavirus", "covid", "pandemie", "pandemic", "sars-cov-2"],
+            vec![
+                "corona",
+                "coronavirus",
+                "covid",
+                "pandemie",
+                "pandemic",
+                "sars-cov-2",
+            ],
         ),
         (
             "Migration",
             vec![
-                "migration", "flüchtlinge", "refugees", "asyl", "asylum",
-                "einwanderung", "immigration", "migranten", "migrants",
+                "migration",
+                "flüchtlinge",
+                "refugees",
+                "asyl",
+                "asylum",
+                "einwanderung",
+                "immigration",
+                "migranten",
+                "migrants",
             ],
         ),
         (
             "Wirtschaft",
             vec![
-                "economy", "economic", "ökonomie", "ökonomisch", "wirtschaftlich",
-                "wirtschaftlichen", "konjunktur", "rezession", "recession",
+                "economy",
+                "economic",
+                "ökonomie",
+                "ökonomisch",
+                "wirtschaftlich",
+                "wirtschaftlichen",
+                "konjunktur",
+                "rezession",
+                "recession",
             ],
         ),
         (
             "Sicherheit",
             vec![
-                "security", "sicherheitspolitik", "verteidigung", "defense", "defence",
-                "militär", "military", "streitkräfte", "armed forces",
+                "security",
+                "sicherheitspolitik",
+                "verteidigung",
+                "defense",
+                "defence",
+                "militär",
+                "military",
+                "streitkräfte",
+                "armed forces",
             ],
         ),
         // === Deutsche Konzepte mit Deklinationsformen ===
@@ -1596,16 +1837,17 @@ static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(
         ),
         (
             "Proteste",
-            vec!["protest", "proteste", "protesten", "protests", "demonstration", "demonstrationen"],
+            vec![
+                "protest",
+                "proteste",
+                "protesten",
+                "protests",
+                "demonstration",
+                "demonstrationen",
+            ],
         ),
-        (
-            "Sanktionen",
-            vec!["sanktion", "sanktionen", "sanctions"],
-        ),
-        (
-            "Wahlen",
-            vec!["wahl", "wahlen", "election", "elections"],
-        ),
+        ("Sanktionen", vec!["sanktion", "sanktionen", "sanctions"]),
+        ("Wahlen", vec!["wahl", "wahlen", "election", "elections"]),
         (
             "Regierung",
             vec!["regierung", "regierungen", "government", "governments"],
@@ -1620,12 +1862,23 @@ static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(
         ),
         (
             "Demonstranten",
-            vec!["demonstrant", "demonstranten", "protestierende", "protestierenden"],
+            vec![
+                "demonstrant",
+                "demonstranten",
+                "protestierende",
+                "protestierenden",
+            ],
         ),
         // === Prominente Personen (vollständige Namen) ===
         (
             "Donald Trump",
-            vec!["trump", "trumps", "donald j. trump", "ex-präsident trump", "präsident trump"],
+            vec![
+                "trump",
+                "trumps",
+                "donald j. trump",
+                "ex-präsident trump",
+                "präsident trump",
+            ],
         ),
         (
             "Joe Biden",
@@ -1683,9 +1936,8 @@ use std::sync::RwLock;
 
 /// Cached dynamic synonyms loaded from the database
 /// Maps variant name (lowercase) → canonical name
-static DYNAMIC_SYNONYMS: Lazy<RwLock<HashMap<String, String>>> = Lazy::new(|| {
-    RwLock::new(HashMap::new())
-});
+static DYNAMIC_SYNONYMS: Lazy<RwLock<HashMap<String, String>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
 
 /// Load synonyms from database (canonical_id relationships)
 /// Call this on startup and after merging keywords
@@ -1702,7 +1954,9 @@ pub fn load_dynamic_synonyms(conn: &Connection) -> Result<usize, String> {
         .map_err(|e| e.to_string())?;
 
     let pairs: Vec<(String, String)> = stmt
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         .collect();
@@ -1754,7 +2008,10 @@ pub fn get_all_synonyms_with_db(keyword: &str) -> Vec<String> {
     if let Ok(cache) = DYNAMIC_SYNONYMS.read() {
         // Find all variants that map to the same canonical
         let canonical = cache.get(&lower).cloned();
-        let check_canonical = canonical.as_ref().map(|s| s.to_lowercase()).unwrap_or(lower.clone());
+        let check_canonical = canonical
+            .as_ref()
+            .map(|s| s.to_lowercase())
+            .unwrap_or(lower.clone());
 
         for (variant, canon) in cache.iter() {
             if canon.to_lowercase() == check_canonical && !result.contains(&variant.to_string()) {
@@ -1782,26 +2039,65 @@ pub fn clear_dynamic_synonyms_cache() {
 static NO_SPLIT_KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
         // German Bundeslaender
-        "sachsen-anhalt", "baden-württemberg", "schleswig-holstein",
-        "nordrhein-westfalen", "rheinland-pfalz", "mecklenburg-vorpommern",
+        "sachsen-anhalt",
+        "baden-württemberg",
+        "schleswig-holstein",
+        "nordrhein-westfalen",
+        "rheinland-pfalz",
+        "mecklenburg-vorpommern",
         // Place names
-        "crans-montana", "tel-aviv", "new-york", "hong-kong", "rio-de-janeiro",
-        "saudi-arabien", "guinea-bissau", "timor-leste", "papua-neuguinea",
-        "bosnien-herzegowina", "trinidad-tobago", "antigua-barbuda",
+        "crans-montana",
+        "tel-aviv",
+        "new-york",
+        "hong-kong",
+        "rio-de-janeiro",
+        "saudi-arabien",
+        "guinea-bissau",
+        "timor-leste",
+        "papua-neuguinea",
+        "bosnien-herzegowina",
+        "trinidad-tobago",
+        "antigua-barbuda",
         // Sports terms (leagues, cups, events)
-        "fa-cup", "dfb-pokal", "europa-league", "champions-league",
-        "grand-slam", "super-g", "afrika-cup", "handball-em", "handball-wm",
-        "fußball-em", "fußball-wm", "tennis-atp", "formel-1", "formel-e",
+        "fa-cup",
+        "dfb-pokal",
+        "europa-league",
+        "champions-league",
+        "grand-slam",
+        "super-g",
+        "afrika-cup",
+        "handball-em",
+        "handball-wm",
+        "fußball-em",
+        "fußball-wm",
+        "tennis-atp",
+        "formel-1",
+        "formel-e",
         // Established compound terms
-        "covid-19", "sars-cov-2", "e-mail", "wi-fi", "cd-rom", "t-shirt",
+        "covid-19",
+        "sars-cov-2",
+        "e-mail",
+        "wi-fi",
+        "cd-rom",
+        "t-shirt",
         // Person names with hyphens (common patterns)
-        "al-scharaa", "al-assad", "al-qaida", "al-jazeera",
-        "bin-laden", "ibn-saud",
+        "al-scharaa",
+        "al-assad",
+        "al-qaida",
+        "al-jazeera",
+        "bin-laden",
+        "ibn-saud",
         // Organization abbreviations that look like compounds
-        "un-sicherheitsrat", "eu-kommission", "eu-parlament",
+        "un-sicherheitsrat",
+        "eu-kommission",
+        "eu-parlament",
         // Geographic features and infrastructure
-        "gaza-streifen", "fehmarnbelt-tunnel", "chagos-inseln",
-        "rhein-main", "ruhr-gebiet", "ost-west",
+        "gaza-streifen",
+        "fehmarnbelt-tunnel",
+        "chagos-inseln",
+        "rhein-main",
+        "ruhr-gebiet",
+        "ost-west",
     ]
     .iter()
     .copied()
@@ -1811,11 +2107,9 @@ static NO_SPLIT_KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 /// Words that should not be split from compounds (particles, prepositions)
 static COMPOUND_IGNORE_PARTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
-        "und", "oder", "für", "mit", "von", "zu", "bei", "auf", "in", "an",
-        "and", "or", "for", "with", "from", "to", "at", "on", "in",
-        "der", "die", "das", "den", "dem", "des",
-        "the", "a", "an",
-        "-", "",
+        "und", "oder", "für", "mit", "von", "zu", "bei", "auf", "in", "an", "and", "or", "for",
+        "with", "from", "to", "at", "on", "in", "der", "die", "das", "den", "dem", "des", "the",
+        "a", "an", "-", "",
     ]
     .iter()
     .copied()
@@ -1826,26 +2120,114 @@ static COMPOUND_IGNORE_PARTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 static VALID_COMPOUND_PARTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     [
         // Politicians (last names)
-        "trump", "biden", "putin", "scholz", "merkel", "macron", "erdogan",
-        "merz", "habeck", "lindner", "weidel", "söder", "laschet", "musk",
-        "netanjahu", "selenskyj", "xi", "jinping", "modi", "johnson",
+        "trump",
+        "biden",
+        "putin",
+        "scholz",
+        "merkel",
+        "macron",
+        "erdogan",
+        "merz",
+        "habeck",
+        "lindner",
+        "weidel",
+        "söder",
+        "laschet",
+        "musk",
+        "netanjahu",
+        "selenskyj",
+        "xi",
+        "jinping",
+        "modi",
+        "johnson",
         // Parties and organizations
-        "cdu", "csu", "spd", "fdp", "afd", "grüne", "linke", "bsw",
-        "nato", "eu", "un", "usa", "bnd", "cia", "fbi", "nsa", "bka",
-        "opec", "g7", "g20", "who", "imf", "ezb", "fed",
+        "cdu",
+        "csu",
+        "spd",
+        "fdp",
+        "afd",
+        "grüne",
+        "linke",
+        "bsw",
+        "nato",
+        "eu",
+        "un",
+        "usa",
+        "bnd",
+        "cia",
+        "fbi",
+        "nsa",
+        "bka",
+        "opec",
+        "g7",
+        "g20",
+        "who",
+        "imf",
+        "ezb",
+        "fed",
         // Countries and regions
-        "ukraine", "russland", "china", "iran", "israel", "gaza", "syrien",
-        "deutschland", "usa", "frankreich", "polen", "türkei", "grönland",
-        "arktis", "balkan", "nahost", "afrika", "asien", "europa", "amerika",
+        "ukraine",
+        "russland",
+        "china",
+        "iran",
+        "israel",
+        "gaza",
+        "syrien",
+        "deutschland",
+        "usa",
+        "frankreich",
+        "polen",
+        "türkei",
+        "grönland",
+        "arktis",
+        "balkan",
+        "nahost",
+        "afrika",
+        "asien",
+        "europa",
+        "amerika",
         // Common topic words (nouns)
-        "klima", "energie", "migration", "wirtschaft", "politik", "militär",
-        "krieg", "krise", "deal", "streit", "konflikt", "reform", "wahl",
-        "zölle", "sanktionen", "abkommen", "gipfel", "verhandlungen",
-        "sicherheit", "verteidigung", "handel", "druck", "hilfe", "unterstützung",
-        "präsident", "kanzler", "minister", "regierung", "opposition",
-        "spaltung", "einigung", "austritt", "beitritt", "verbot", "gesetz",
+        "klima",
+        "energie",
+        "migration",
+        "wirtschaft",
+        "politik",
+        "militär",
+        "krieg",
+        "krise",
+        "deal",
+        "streit",
+        "konflikt",
+        "reform",
+        "wahl",
+        "zölle",
+        "sanktionen",
+        "abkommen",
+        "gipfel",
+        "verhandlungen",
+        "sicherheit",
+        "verteidigung",
+        "handel",
+        "druck",
+        "hilfe",
+        "unterstützung",
+        "präsident",
+        "kanzler",
+        "minister",
+        "regierung",
+        "opposition",
+        "spaltung",
+        "einigung",
+        "austritt",
+        "beitritt",
+        "verbot",
+        "gesetz",
         // Actions/States
-        "administration", "kommission", "rat", "parlament", "kongress",
+        "administration",
+        "kommission",
+        "rat",
+        "parlament",
+        "kongress",
     ]
     .iter()
     .copied()
@@ -1953,7 +2335,10 @@ pub fn split_compound_keyword(keyword: &str) -> Vec<String> {
     // Return both the original compound AND the split parts
     let mut result = vec![keyword.to_string()];
     for part in components {
-        if !result.iter().any(|r| r.to_lowercase() == part.to_lowercase()) {
+        if !result
+            .iter()
+            .any(|r| r.to_lowercase() == part.to_lowercase())
+        {
             result.push(part);
         }
     }

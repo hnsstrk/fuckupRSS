@@ -1,6 +1,6 @@
+use crate::text_analysis::keyword_seeds::{seed_known_keywords, update_types_from_seeds};
 use log::info;
 use rusqlite::Connection;
-use crate::text_analysis::keyword_seeds::{seed_known_keywords, update_types_from_seeds};
 
 /// Default stopwords embedded at compile time from txt files
 const STOPWORDS_DE: &str = include_str!("../../resources/stopwords/de.txt");
@@ -178,7 +178,9 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     // Add confidence column to fnord_sephiroth if missing (for consistency with fnord_immanentize)
     let has_fs_confidence: bool = conn
-        .prepare("SELECT COUNT(*) FROM pragma_table_info('fnord_sephiroth') WHERE name = 'confidence'")?
+        .prepare(
+            "SELECT COUNT(*) FROM pragma_table_info('fnord_sephiroth') WHERE name = 'confidence'",
+        )?
         .query_row([], |row| row.get(0))?;
 
     if !has_fs_confidence {
@@ -423,7 +425,9 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
     // Migration 9: Create vec0 virtual table for fast vector similarity search
     // This enables O(log n) approximate nearest neighbor search via sqlite-vec
     let has_vec_table: bool = conn
-        .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='vec_immanentize'")?
+        .prepare(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='vec_immanentize'",
+        )?
         .query_row([], |row| row.get::<_, i64>(0).map(|c| c > 0))?;
 
     if !has_vec_table {

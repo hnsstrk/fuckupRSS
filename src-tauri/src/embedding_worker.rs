@@ -66,9 +66,13 @@ fn get_queue_size(db: &Arc<Mutex<Database>>) -> Result<i64, String> {
 }
 
 /// Get keywords from the queue
-fn get_queued_keywords(db: &Arc<Mutex<Database>>, limit: i64) -> Result<Vec<(i64, i64, String)>, String> {
+fn get_queued_keywords(
+    db: &Arc<Mutex<Database>>,
+    limit: i64,
+) -> Result<Vec<(i64, i64, String)>, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = db.conn()
+    let mut stmt = db
+        .conn()
         .prepare(
             r#"SELECT eq.id, eq.immanentize_id, i.name
                FROM embedding_queue eq
@@ -144,7 +148,8 @@ fn record_failure(db: &Arc<Mutex<Database>>, queue_id: i64, error: &str) -> Resu
 /// Remove entries that have exceeded max attempts
 fn cleanup_failed_entries(db: &Arc<Mutex<Database>>) -> Result<i64, String> {
     let db = db.lock().map_err(|e| e.to_string())?;
-    let count = db.conn()
+    let count = db
+        .conn()
         .execute("DELETE FROM embedding_queue WHERE attempts >= 3", [])
         .map_err(|e| e.to_string())?;
     Ok(count as i64)
@@ -205,7 +210,9 @@ pub async fn process_embedding_queue(
         for (queue_id, keyword_id, name, result) in results {
             match result {
                 Ok(embedding) => {
-                    if let Err(e) = save_embedding_and_dequeue(&db, queue_id, keyword_id, &embedding) {
+                    if let Err(e) =
+                        save_embedding_and_dequeue(&db, queue_id, keyword_id, &embedding)
+                    {
                         error!("Failed to save embedding for '{}': {}", name, e);
                         failed += 1;
                     } else {
@@ -225,13 +232,16 @@ pub async fn process_embedding_queue(
         if let Some(handle) = app_handle {
             let queue_size = get_queue_size(&db).unwrap_or(0);
             let total = initial_total.unwrap_or(queue_size + processed + failed);
-            let _ = handle.emit("embedding-progress", EmbeddingProgress {
-                queue_size,
-                total,
-                processed,
-                failed,
-                is_processing: true,
-            });
+            let _ = handle.emit(
+                "embedding-progress",
+                EmbeddingProgress {
+                    queue_size,
+                    total,
+                    processed,
+                    failed,
+                    is_processing: true,
+                },
+            );
         }
     }
 
@@ -245,7 +255,10 @@ pub async fn process_embedding_queue(
 }
 
 /// Calculate quality scores for keywords that have embeddings but no score yet
-pub fn calculate_pending_quality_scores(db: &Arc<Mutex<Database>>, limit: i64) -> Result<i64, String> {
+pub fn calculate_pending_quality_scores(
+    db: &Arc<Mutex<Database>>,
+    limit: i64,
+) -> Result<i64, String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
     let conn = db_guard.conn();
 
@@ -332,10 +345,10 @@ pub fn start_background_worker(
     let handle_clone = app_handle.clone();
 
     tauri::async_runtime::spawn(async move {
-        let idle_interval = Duration::from_secs(10);  // When queue is empty
-        let batch_pause = Duration::from_secs(5);     // When batch analysis is running
-        let batch_size = 50i64;  // Process more at once
-        let mut initial_total: Option<i64> = None;  // Track total for progress bar
+        let idle_interval = Duration::from_secs(10); // When queue is empty
+        let batch_pause = Duration::from_secs(5); // When batch analysis is running
+        let batch_size = 50i64; // Process more at once
+        let mut initial_total: Option<i64> = None; // Track total for progress bar
 
         while worker_clone.is_running.load(Ordering::SeqCst) {
             // Check if batch analysis is running - yield to it
@@ -356,13 +369,26 @@ pub fn start_background_worker(
                     initial_total = Some(queue_size);
                     debug!("Embedding queue started with {} items total", queue_size);
                 }
-                debug!("Embedding queue has {} items remaining, processing...", queue_size);
+                debug!(
+                    "Embedding queue has {} items remaining, processing...",
+                    queue_size
+                );
 
                 // Process batch
-                match process_embedding_queue(db_clone.clone(), Some(&handle_clone), batch_size, initial_total).await {
+                match process_embedding_queue(
+                    db_clone.clone(),
+                    Some(&handle_clone),
+                    batch_size,
+                    initial_total,
+                )
+                .await
+                {
                     Ok((processed, failed)) => {
                         if processed > 0 || failed > 0 {
-                            info!("Embedding worker: processed={}, failed={}", processed, failed);
+                            info!(
+                                "Embedding worker: processed={}, failed={}",
+                                processed, failed
+                            );
                         }
                         // Quality scores are calculated when queue is empty (below)
                     }
@@ -376,13 +402,16 @@ pub fn start_background_worker(
                 // Emit progress update
                 let remaining = get_queue_size(&db_clone).unwrap_or(0);
                 let total = initial_total.unwrap_or(0);
-                let _ = handle_clone.emit("embedding-progress", EmbeddingProgress {
-                    queue_size: remaining,
-                    total,
-                    processed: 0,
-                    failed: 0,
-                    is_processing: remaining > 0,
-                });
+                let _ = handle_clone.emit(
+                    "embedding-progress",
+                    EmbeddingProgress {
+                        queue_size: remaining,
+                        total,
+                        processed: 0,
+                        failed: 0,
+                        is_processing: remaining > 0,
+                    },
+                );
 
                 // No pause between batches - keep going until queue is empty!
                 // (unless batch analysis starts, checked at loop start)
@@ -417,7 +446,10 @@ pub fn start_background_worker(
 }
 
 /// Calculate embedding similarity for all neighbor pairs that don't have it yet
-pub fn calculate_neighbor_similarities(db: &Arc<Mutex<Database>>, limit: i64) -> Result<i64, String> {
+pub fn calculate_neighbor_similarities(
+    db: &Arc<Mutex<Database>>,
+    limit: i64,
+) -> Result<i64, String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
     let conn = db_guard.conn();
 
@@ -466,7 +498,12 @@ pub fn calculate_neighbor_similarities(db: &Arc<Mutex<Database>>, limit: i64) ->
                        WHERE immanentize_id_a = ?3 AND immanentize_id_b = ?4"#,
                     rusqlite::params![sim, combined, id_a, id_b],
                 ) {
-                    trace!("Failed to update neighbor similarity {} <-> {}: {}", id_a, id_b, e);
+                    trace!(
+                        "Failed to update neighbor similarity {} <-> {}: {}",
+                        id_a,
+                        id_b,
+                        e
+                    );
                     continue;
                 }
                 updated += 1;
@@ -505,7 +542,8 @@ fn calculate_combined_weight_for_pair(
 /// Queue all keywords without embeddings (for initial setup or recovery)
 pub fn queue_keywords_without_embeddings(db: &Arc<Mutex<Database>>) -> Result<i64, String> {
     let db_guard = db.lock().map_err(|e| e.to_string())?;
-    let count = db_guard.conn()
+    let count = db_guard
+        .conn()
         .execute(
             r#"INSERT OR IGNORE INTO embedding_queue (immanentize_id, priority, queued_at)
                SELECT id,

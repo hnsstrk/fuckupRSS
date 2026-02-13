@@ -2,9 +2,9 @@
 //!
 //! Learns from user corrections to improve keyword and category suggestions.
 
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use rusqlite::{Connection, params};
 
 /// Types of corrections that can be recorded
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,9 +79,8 @@ impl BiasWeights {
     pub fn load_from_db(conn: &Connection) -> Result<Self, rusqlite::Error> {
         let mut weights = Self::new();
 
-        let mut stmt = conn.prepare(
-            "SELECT weight_type, context_key, term, weight FROM bias_weights"
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT weight_type, context_key, term, weight FROM bias_weights")?;
 
         let rows = stmt.query_map([], |row| {
             Ok((
@@ -218,7 +217,11 @@ fn record_category_correction(
     was_added: bool,
 ) -> Result<(), rusqlite::Error> {
     let context_key = format!("cat_{}", category_id);
-    let adjustment = if was_added { WEIGHT_ADJUSTMENT } else { -WEIGHT_ADJUSTMENT };
+    let adjustment = if was_added {
+        WEIGHT_ADJUSTMENT
+    } else {
+        -WEIGHT_ADJUSTMENT
+    };
 
     // Try to update existing weight
     let updated = conn.execute(
@@ -291,7 +294,13 @@ fn adjust_category_term_weight(
              correction_count = correction_count + 1,
              last_updated = CURRENT_TIMESTAMP
          WHERE weight_type = 'category_term' AND context_key = ? AND term = ?",
-        params![MIN_WEIGHT, MAX_WEIGHT, adjustment, &context_key, &term_lower],
+        params![
+            MIN_WEIGHT,
+            MAX_WEIGHT,
+            adjustment,
+            &context_key,
+            &term_lower
+        ],
     )?;
 
     // If no existing weight, insert new one
@@ -319,11 +328,8 @@ pub struct BiasStats {
 }
 
 pub fn get_bias_stats(conn: &Connection) -> Result<BiasStats, rusqlite::Error> {
-    let total_weights: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM bias_weights",
-        [],
-        |row| row.get(0),
-    )?;
+    let total_weights: i64 =
+        conn.query_row("SELECT COUNT(*) FROM bias_weights", [], |row| row.get(0))?;
 
     let total_corrections: i64 = conn.query_row(
         "SELECT COALESCE(SUM(correction_count), 0) FROM bias_weights",
@@ -387,11 +393,13 @@ mod tests {
         // First adjustment creates new entry
         adjust_keyword_boost(&conn, "Politik", 0.1).unwrap();
 
-        let (weight, count): (f64, i64) = conn.query_row(
-            "SELECT weight, correction_count FROM bias_weights WHERE context_key = 'politik'",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        ).unwrap();
+        let (weight, count): (f64, i64) = conn
+            .query_row(
+                "SELECT weight, correction_count FROM bias_weights WHERE context_key = 'politik'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
 
         assert!((weight - 1.1).abs() < 0.001);
         assert_eq!(count, 1);
@@ -406,11 +414,13 @@ mod tests {
         // Adjust again
         adjust_keyword_boost(&conn, "Politik", 0.1).unwrap();
 
-        let (weight, count): (f64, i64) = conn.query_row(
-            "SELECT weight, correction_count FROM bias_weights WHERE context_key = 'politik'",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        ).unwrap();
+        let (weight, count): (f64, i64) = conn
+            .query_row(
+                "SELECT weight, correction_count FROM bias_weights WHERE context_key = 'politik'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
 
         assert!((weight - 1.2).abs() < 0.001);
         assert_eq!(count, 2);
@@ -425,11 +435,13 @@ mod tests {
             adjust_keyword_boost(&conn, "BadKeyword", -0.2).unwrap();
         }
 
-        let weight: f64 = conn.query_row(
-            "SELECT weight FROM bias_weights WHERE context_key = 'badkeyword'",
-            [],
-            |row| row.get(0),
-        ).unwrap();
+        let weight: f64 = conn
+            .query_row(
+                "SELECT weight FROM bias_weights WHERE context_key = 'badkeyword'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
 
         assert!(weight >= MIN_WEIGHT);
     }
@@ -445,7 +457,8 @@ mod tests {
              ('category_term', '201', 'regierung', 1.5),
              ('source_weight', 'ai', NULL, 0.9)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         let weights = BiasWeights::load_from_db(&conn).unwrap();
 

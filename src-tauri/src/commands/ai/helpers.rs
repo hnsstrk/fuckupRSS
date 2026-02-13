@@ -7,8 +7,8 @@ use crate::ai_provider::{
 use crate::commands::settings::get_embedding_model_from_db;
 use crate::db::Database;
 use crate::ollama::{
-    get_language_for_locale, DEFAULT_ANALYSIS_PROMPT, DEFAULT_NUM_CTX,
-    DEFAULT_SUMMARY_PROMPT, RECOMMENDED_MAIN_MODEL,
+    get_language_for_locale, DEFAULT_ANALYSIS_PROMPT, DEFAULT_NUM_CTX, DEFAULT_SUMMARY_PROMPT,
+    RECOMMENDED_MAIN_MODEL,
 };
 use crate::AppState;
 use crate::SEPHIROTH_CATEGORIES;
@@ -50,11 +50,9 @@ pub fn get_ollama_url(db: &Database) -> String {
 /// Get a string setting from database with a default
 pub fn get_setting(db: &Database, key: &str, default: &str) -> String {
     db.conn()
-        .query_row(
-            "SELECT value FROM settings WHERE key = ?1",
-            [key],
-            |row| row.get::<_, String>(0),
-        )
+        .query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| {
+            row.get::<_, String>(0)
+        })
         .unwrap_or_else(|_| default.to_string())
 }
 
@@ -296,7 +294,10 @@ pub fn merge_categories_stat_primary(
     for (name, confidence) in stat_categories {
         if *confidence >= min_confidence && seen.insert(name.to_lowercase()) {
             // Validate against known categories
-            if SEPHIROTH_CATEGORIES.iter().any(|s| s.to_lowercase() == name.to_lowercase()) {
+            if SEPHIROTH_CATEGORIES
+                .iter()
+                .any(|s| s.to_lowercase() == name.to_lowercase())
+            {
                 result.push(name.clone());
             }
         }
@@ -305,9 +306,12 @@ pub fn merge_categories_stat_primary(
     // 2. LLM categories as supplement (validated)
     for cat in llm_categories {
         if seen.insert(cat.to_lowercase())
-            && SEPHIROTH_CATEGORIES.iter().any(|s| s.to_lowercase() == cat.to_lowercase()) {
-                result.push(cat.clone());
-            }
+            && SEPHIROTH_CATEGORIES
+                .iter()
+                .any(|s| s.to_lowercase() == cat.to_lowercase())
+        {
+            result.push(cat.clone());
+        }
     }
 
     // 3. Local categories as fallback
@@ -343,7 +347,11 @@ pub fn determine_keyword_sources(
             let is_statistical = stat_lower.contains(&k.to_lowercase());
             KeywordWithSource {
                 name: k.clone(),
-                source: if is_statistical { KeywordSource::Statistical } else { KeywordSource::Ai },
+                source: if is_statistical {
+                    KeywordSource::Statistical
+                } else {
+                    KeywordSource::Ai
+                },
                 confidence: if is_statistical { 0.8 } else { 1.0 },
                 keyword_type: "concept".to_string(),
             }
@@ -399,7 +407,10 @@ pub fn determine_keyword_sources_with_types(
 /// 3. OR matching person title patterns (Dr., Prof., etc.)
 pub fn detect_keyword_type(keyword: &str) -> String {
     // Check for acronyms (all caps, 2-6 chars)
-    if keyword.len() >= 2 && keyword.len() <= 6 && keyword.chars().all(|c| c.is_uppercase() || c.is_numeric()) {
+    if keyword.len() >= 2
+        && keyword.len() <= 6
+        && keyword.chars().all(|c| c.is_uppercase() || c.is_numeric())
+    {
         return "acronym".to_string();
     }
 
@@ -412,12 +423,13 @@ pub fn detect_keyword_type(keyword: &str) -> String {
 
     // Legal entity suffixes (case-insensitive check)
     let org_suffixes = [
-        "gmbh", "ag", "inc", "inc.", "corp", "corp.", "ltd", "ltd.", "co.", "co",
-        "e.v.", "ev", "eg", "se", "sa", "kg", "ohg", "plc", "llc", "mbh",
+        "gmbh", "ag", "inc", "inc.", "corp", "corp.", "ltd", "ltd.", "co.", "co", "e.v.", "ev",
+        "eg", "se", "sa", "kg", "ohg", "plc", "llc", "mbh",
     ];
-    if org_suffixes.iter().any(|suf| {
-        keyword_lower.ends_with(&format!(" {}", suf)) || keyword_lower == *suf
-    }) {
+    if org_suffixes
+        .iter()
+        .any(|suf| keyword_lower.ends_with(&format!(" {}", suf)) || keyword_lower == *suf)
+    {
         return "organization".to_string();
     }
 
@@ -425,40 +437,133 @@ pub fn detect_keyword_type(keyword: &str) -> String {
     // We check if the indicator appears as a distinct word component
     let org_word_indicators = [
         // German institutions (as whole words or compound endings) - including plural forms
-        "verband", "verbände", "institut", "institute", "ministerium", "ministerien",
-        "bundesamt", "behörde", "behörden", "bundesanstalt", "landesamt",
-        "stiftung", "stiftungen", "verein", "vereine", "gewerkschaft", "gewerkschaften",
-        "kammer", "kammern", "akademie", "akademien",
-        "universität", "universitäten", "hochschule", "hochschulen",
-        "zentrum", "zentren", "agentur", "agenturen", "anstalt", "anstalten",
-        "gesellschaft", "gesellschaften", "genossenschaft", "genossenschaften",
-        "bundesregierung", "landesregierung",
+        "verband",
+        "verbände",
+        "institut",
+        "institute",
+        "ministerium",
+        "ministerien",
+        "bundesamt",
+        "behörde",
+        "behörden",
+        "bundesanstalt",
+        "landesamt",
+        "stiftung",
+        "stiftungen",
+        "verein",
+        "vereine",
+        "gewerkschaft",
+        "gewerkschaften",
+        "kammer",
+        "kammern",
+        "akademie",
+        "akademien",
+        "universität",
+        "universitäten",
+        "hochschule",
+        "hochschulen",
+        "zentrum",
+        "zentren",
+        "agentur",
+        "agenturen",
+        "anstalt",
+        "anstalten",
+        "gesellschaft",
+        "gesellschaften",
+        "genossenschaft",
+        "genossenschaften",
+        "bundesregierung",
+        "landesregierung",
         // English institutions
-        "foundation", "foundations", "institute", "institutes", "university", "universities",
-        "college", "colleges", "council", "councils", "committee", "committees",
-        "commission", "commissions", "agency", "agencies", "authority", "authorities",
-        "board", "boards", "trust", "trusts", "association", "associations",
-        "federation", "federations", "coalition", "coalitions", "alliance", "alliances",
-        "organization", "organisations", "organisation", "organizations",
-        "corporation", "corporations", "company", "companies",
-        "holdings", "partners", "enterprises",
+        "foundation",
+        "foundations",
+        "institute",
+        "institutes",
+        "university",
+        "universities",
+        "college",
+        "colleges",
+        "council",
+        "councils",
+        "committee",
+        "committees",
+        "commission",
+        "commissions",
+        "agency",
+        "agencies",
+        "authority",
+        "authorities",
+        "board",
+        "boards",
+        "trust",
+        "trusts",
+        "association",
+        "associations",
+        "federation",
+        "federations",
+        "coalition",
+        "coalitions",
+        "alliance",
+        "alliances",
+        "organization",
+        "organisations",
+        "organisation",
+        "organizations",
+        "corporation",
+        "corporations",
+        "company",
+        "companies",
+        "holdings",
+        "partners",
+        "enterprises",
         // Political
-        "partei", "parteien", "fraktion", "fraktionen",
+        "partei",
+        "parteien",
+        "fraktion",
+        "fraktionen",
         // Sports clubs/teams - specific patterns
-        "vfb", "vfl", "fsv", "tsv",
-        "rovers", "wanderers", "albion",
+        "vfb",
+        "vfl",
+        "fsv",
+        "tsv",
+        "rovers",
+        "wanderers",
+        "albion",
         "borussia",
         // Media
-        "tribune", "gazette", "herald",
-        "broadcasting", "television",
+        "tribune",
+        "gazette",
+        "herald",
+        "broadcasting",
+        "television",
         // Tech companies
-        "labs", "solutions", "technologies",
+        "labs",
+        "solutions",
+        "technologies",
         // Military/Government
-        "brigade", "brigaden", "division", "divisionen", "command", "corps",
-        "department", "departments", "ministry", "ministries", "tribunal", "tribunals",
+        "brigade",
+        "brigaden",
+        "division",
+        "divisionen",
+        "command",
+        "corps",
+        "department",
+        "departments",
+        "ministry",
+        "ministries",
+        "tribunal",
+        "tribunals",
         // Other
-        "airline", "airlines", "airways", "railway", "railways",
-        "insurance", "versicherung", "versicherungen", "krankenkasse", "krankenkassen",
+        "airline",
+        "airlines",
+        "airways",
+        "railway",
+        "railways",
+        "insurance",
+        "versicherung",
+        "versicherungen",
+        "krankenkasse",
+        "krankenkassen",
     ];
 
     // Check if org indicator appears as a whole word or word part
@@ -468,9 +573,9 @@ pub fn detect_keyword_type(keyword: &str) -> String {
             return "organization".to_string();
         }
         // Check word boundaries (space before/after)
-        if keyword_lower.ends_with(&format!(" {}", ind)) ||
-           keyword_lower.starts_with(&format!("{} ", ind)) ||
-           keyword_lower.contains(&format!(" {} ", ind))
+        if keyword_lower.ends_with(&format!(" {}", ind))
+            || keyword_lower.starts_with(&format!("{} ", ind))
+            || keyword_lower.contains(&format!(" {} ", ind))
         {
             return "organization".to_string();
         }
@@ -491,16 +596,25 @@ pub fn detect_keyword_type(keyword: &str) -> String {
     }
 
     // Additional German compound suffixes that indicate organizations
-    let org_compound_suffixes = [
-        "bund", "verband", "werk", "dienst", "wesen", "amt",
-    ];
+    let org_compound_suffixes = ["bund", "verband", "werk", "dienst", "wesen", "amt"];
     for suf in org_compound_suffixes.iter() {
         // Must end with this suffix and have substantial content before
         if keyword_lower.ends_with(suf) && keyword.len() > suf.len() + 5 {
             // Additional check: the part before should contain an org-related stem
             let prefix = &keyword_lower[..keyword_lower.len() - suf.len()];
-            let org_stems = ["gewerk", "arbeit", "beamt", "polizei", "feuerwehr", "rettung",
-                           "bundes", "landes", "kranken", "versicher", "angestellt"];
+            let org_stems = [
+                "gewerk",
+                "arbeit",
+                "beamt",
+                "polizei",
+                "feuerwehr",
+                "rettung",
+                "bundes",
+                "landes",
+                "kranken",
+                "versicher",
+                "angestellt",
+            ];
             if org_stems.iter().any(|stem| prefix.contains(stem)) {
                 return "organization".to_string();
             }
@@ -510,8 +624,8 @@ pub fn detect_keyword_type(keyword: &str) -> String {
     // Organization patterns with word boundaries (case-insensitive)
     let org_boundary_patterns = [
         // Sports clubs - need word boundary check
-        ("fc ", true, false),  // starts with
-        (" fc", false, true),  // ends with
+        ("fc ", true, false), // starts with
+        (" fc", false, true), // ends with
         ("sc ", true, false),
         (" sc", false, true),
         ("sv ", true, false),
@@ -591,15 +705,29 @@ pub fn detect_keyword_type(keyword: &str) -> String {
     // Specific organization patterns - longer patterns that can be matched with contains
     let org_long_patterns = [
         // Political parties
-        "die grünen", "die linke", "freie wähler",
+        "die grünen",
+        "die linke",
+        "freie wähler",
         // Specific organizations
-        "federal reserve", "european commission", "world health",
+        "federal reserve",
+        "european commission",
+        "world health",
         // Tech companies
-        "google", "microsoft", "amazon", "facebook", "twitter",
+        "google",
+        "microsoft",
+        "amazon",
+        "facebook",
+        "twitter",
         // NGOs
-        "amnesty international", "greenpeace", "caritas", "diakonie",
+        "amnesty international",
+        "greenpeace",
+        "caritas",
+        "diakonie",
         // Government/Security
-        "bundeswehr", "polizei", "feuerwehr", "rettungsdienst",
+        "bundeswehr",
+        "polizei",
+        "feuerwehr",
+        "rettungsdienst",
     ];
 
     for pat in org_long_patterns.iter() {
@@ -612,28 +740,24 @@ pub fn detect_keyword_type(keyword: &str) -> String {
     // These are often embedded in other words, so we need strict matching
     let org_abbrev_patterns = [
         // Political parties
-        "cdu", "csu", "spd", "fdp", "afd",
-        // International organizations
-        "eu", "un", "uno", "who", "nato", "unicef", "unesco", "wto", "imf",
-        // Media
-        "bbc", "cnn", "nbc", "abc", "ard", "zdf", "rtl", "fox", "sat.1",
-        // Sports
+        "cdu", "csu", "spd", "fdp", "afd", // International organizations
+        "eu", "un", "uno", "who", "nato", "unicef", "unesco", "wto", "imf", // Media
+        "bbc", "cnn", "nbc", "abc", "ard", "zdf", "rtl", "fox", "sat.1", // Sports
         "fifa", "uefa", "ioc", "nfl", "nba", "mlb", "nhl", "pga", "atp", "wta",
         // Tech (short names)
-        "meta",
-        // NGOs (short names)
+        "meta", // NGOs (short names)
         "amnesty", "oxfam",
     ];
 
     for pat in org_abbrev_patterns.iter() {
         // Must be exact match, or with word boundaries (space, hyphen)
-        if keyword_lower == *pat ||
-           keyword_lower.starts_with(&format!("{} ", pat)) ||
-           keyword_lower.ends_with(&format!(" {}", pat)) ||
-           keyword_lower.contains(&format!(" {} ", pat)) ||
-           keyword_lower.starts_with(&format!("{}-", pat)) ||
-           keyword_lower.ends_with(&format!("-{}", pat)) ||
-           keyword_lower.contains(&format!("-{}-", pat))
+        if keyword_lower == *pat
+            || keyword_lower.starts_with(&format!("{} ", pat))
+            || keyword_lower.ends_with(&format!(" {}", pat))
+            || keyword_lower.contains(&format!(" {} ", pat))
+            || keyword_lower.starts_with(&format!("{}-", pat))
+            || keyword_lower.ends_with(&format!("-{}", pat))
+            || keyword_lower.contains(&format!("-{}-", pat))
         {
             return "organization".to_string();
         }
@@ -646,9 +770,9 @@ pub fn detect_keyword_type(keyword: &str) -> String {
     // Location suffixes - only for single-word keywords to avoid false positives
     // Multi-word phrases are handled by loc_indicators and known_locations
     let loc_suffixes = [
-        "land", "reich", "istan", "abad", "burg", "berg", "dorf", "heim",
-        "hausen", "stadt", "furt", "haven", "hafen", "see", "tal", "wald",
-        "field", "town", "ville", "port", "bridge", "shire", "ford",
+        "land", "reich", "istan", "abad", "burg", "berg", "dorf", "heim", "hausen", "stadt",
+        "furt", "haven", "hafen", "see", "tal", "wald", "field", "town", "ville", "port", "bridge",
+        "shire", "ford",
     ];
 
     // Only apply suffix matching to single words (no spaces)
@@ -658,7 +782,13 @@ pub fn detect_keyword_type(keyword: &str) -> String {
                 let prefix = &keyword[..keyword.len() - suf.len()];
                 if !prefix.is_empty() && prefix.chars().last().is_some_and(|c| c.is_alphabetic()) {
                     // Avoid false positives like "Homeland"
-                    let non_location_with_suffix = ["homeland", "fatherland", "motherland", "wasteland", "dreamland"];
+                    let non_location_with_suffix = [
+                        "homeland",
+                        "fatherland",
+                        "motherland",
+                        "wasteland",
+                        "dreamland",
+                    ];
                     if !non_location_with_suffix.iter().any(|w| keyword_lower == *w) {
                         return "location".to_string();
                     }
@@ -673,7 +803,11 @@ pub fn detect_keyword_type(keyword: &str) -> String {
         let prefix = &keyword_lower[..keyword_lower.len() - 3];
         // Check if it looks like a country name (ends with n, l, r, t, k before "ien")
         let country_like_chars = ['n', 'l', 'r', 't', 'k', 'd', 's', 'b', 'm'];
-        if prefix.chars().last().is_some_and(|c| country_like_chars.contains(&c)) {
+        if prefix
+            .chars()
+            .last()
+            .is_some_and(|c| country_like_chars.contains(&c))
+        {
             // Additional check: not a person's name pattern (no apostrophe, no common surname endings)
             if !keyword.contains('\'') && !keyword_lower.ends_with("brien") {
                 return "location".to_string();
@@ -683,11 +817,36 @@ pub fn detect_keyword_type(keyword: &str) -> String {
 
     // Location indicators (contains)
     let loc_indicators = [
-        "stadt ", " stadt", "kreis", "bezirk", "region ", " region", "provinz",
-        "bundesstaat", "bundesland", "kanton", "distrikt", "county", "state of",
-        "republic of", "kingdom of", "emirate", "airport", "flughafen", "hafen",
-        "bahnhof", "station", "straße", "strasse", "platz", "allee", "avenue",
-        "street", "road", "square", "plaza",
+        "stadt ",
+        " stadt",
+        "kreis",
+        "bezirk",
+        "region ",
+        " region",
+        "provinz",
+        "bundesstaat",
+        "bundesland",
+        "kanton",
+        "distrikt",
+        "county",
+        "state of",
+        "republic of",
+        "kingdom of",
+        "emirate",
+        "airport",
+        "flughafen",
+        "hafen",
+        "bahnhof",
+        "station",
+        "straße",
+        "strasse",
+        "platz",
+        "allee",
+        "avenue",
+        "street",
+        "road",
+        "square",
+        "plaza",
     ];
     if loc_indicators.iter().any(|ind| keyword_lower.contains(ind)) {
         return "location".to_string();
@@ -696,33 +855,165 @@ pub fn detect_keyword_type(keyword: &str) -> String {
     // Known countries and major cities
     let known_locations = [
         // Countries (German names)
-        "deutschland", "österreich", "schweiz", "frankreich", "italien", "spanien",
-        "portugal", "griechenland", "türkei", "russland", "ukraine", "polen",
-        "tschechien", "ungarn", "rumänien", "bulgarien", "kroatien", "serbien",
-        "niederlande", "belgien", "luxemburg", "dänemark", "schweden", "norwegen",
-        "finnland", "estland", "lettland", "litauen", "irland", "großbritannien",
-        "england", "schottland", "wales", "nordirland", "china", "japan", "indien",
-        "pakistan", "iran", "irak", "syrien", "israel", "ägypten", "marokko",
-        "südafrika", "nigeria", "kenia", "brasilien", "argentinien", "mexiko",
-        "kanada", "australien", "neuseeland",
+        "deutschland",
+        "österreich",
+        "schweiz",
+        "frankreich",
+        "italien",
+        "spanien",
+        "portugal",
+        "griechenland",
+        "türkei",
+        "russland",
+        "ukraine",
+        "polen",
+        "tschechien",
+        "ungarn",
+        "rumänien",
+        "bulgarien",
+        "kroatien",
+        "serbien",
+        "niederlande",
+        "belgien",
+        "luxemburg",
+        "dänemark",
+        "schweden",
+        "norwegen",
+        "finnland",
+        "estland",
+        "lettland",
+        "litauen",
+        "irland",
+        "großbritannien",
+        "england",
+        "schottland",
+        "wales",
+        "nordirland",
+        "china",
+        "japan",
+        "indien",
+        "pakistan",
+        "iran",
+        "irak",
+        "syrien",
+        "israel",
+        "ägypten",
+        "marokko",
+        "südafrika",
+        "nigeria",
+        "kenia",
+        "brasilien",
+        "argentinien",
+        "mexiko",
+        "kanada",
+        "australien",
+        "neuseeland",
         // Countries (English names)
-        "germany", "austria", "switzerland", "france", "italy", "spain", "portugal",
-        "greece", "turkey", "russia", "ukraine", "poland", "czechia", "hungary",
-        "romania", "bulgaria", "croatia", "serbia", "netherlands", "belgium",
-        "denmark", "sweden", "norway", "finland", "ireland", "britain", "scotland",
-        "wales", "china", "japan", "india", "pakistan", "iran", "iraq", "syria",
-        "israel", "egypt", "morocco", "south africa", "nigeria", "kenya", "brazil",
-        "argentina", "mexico", "canada", "australia", "new zealand", "united states",
+        "germany",
+        "austria",
+        "switzerland",
+        "france",
+        "italy",
+        "spain",
+        "portugal",
+        "greece",
+        "turkey",
+        "russia",
+        "ukraine",
+        "poland",
+        "czechia",
+        "hungary",
+        "romania",
+        "bulgaria",
+        "croatia",
+        "serbia",
+        "netherlands",
+        "belgium",
+        "denmark",
+        "sweden",
+        "norway",
+        "finland",
+        "ireland",
+        "britain",
+        "scotland",
+        "wales",
+        "china",
+        "japan",
+        "india",
+        "pakistan",
+        "iran",
+        "iraq",
+        "syria",
+        "israel",
+        "egypt",
+        "morocco",
+        "south africa",
+        "nigeria",
+        "kenya",
+        "brazil",
+        "argentina",
+        "mexico",
+        "canada",
+        "australia",
+        "new zealand",
+        "united states",
         "united kingdom",
         // Major cities
-        "berlin", "münchen", "hamburg", "köln", "frankfurt", "stuttgart", "düsseldorf",
-        "dortmund", "essen", "leipzig", "bremen", "dresden", "hannover", "nürnberg",
-        "wien", "zürich", "genf", "bern", "paris", "london", "rom", "madrid",
-        "barcelona", "amsterdam", "brüssel", "kopenhagen", "stockholm", "oslo",
-        "helsinki", "warschau", "prag", "budapest", "athen", "istanbul", "moskau",
-        "kiew", "kyjiw", "peking", "beijing", "shanghai", "tokio", "tokyo", "delhi",
-        "mumbai", "teheran", "kairo", "kapstadt", "lagos", "new york", "los angeles",
-        "chicago", "washington", "toronto", "sydney", "melbourne",
+        "berlin",
+        "münchen",
+        "hamburg",
+        "köln",
+        "frankfurt",
+        "stuttgart",
+        "düsseldorf",
+        "dortmund",
+        "essen",
+        "leipzig",
+        "bremen",
+        "dresden",
+        "hannover",
+        "nürnberg",
+        "wien",
+        "zürich",
+        "genf",
+        "bern",
+        "paris",
+        "london",
+        "rom",
+        "madrid",
+        "barcelona",
+        "amsterdam",
+        "brüssel",
+        "kopenhagen",
+        "stockholm",
+        "oslo",
+        "helsinki",
+        "warschau",
+        "prag",
+        "budapest",
+        "athen",
+        "istanbul",
+        "moskau",
+        "kiew",
+        "kyjiw",
+        "peking",
+        "beijing",
+        "shanghai",
+        "tokio",
+        "tokyo",
+        "delhi",
+        "mumbai",
+        "teheran",
+        "kairo",
+        "kapstadt",
+        "lagos",
+        "new york",
+        "los angeles",
+        "chicago",
+        "washington",
+        "toronto",
+        "sydney",
+        "melbourne",
     ];
     if known_locations.iter().any(|loc| keyword_lower == *loc) {
         return "location".to_string();
@@ -734,12 +1025,42 @@ pub fn detect_keyword_type(keyword: &str) -> String {
 
     // First check for person title indicators (strong signal)
     let person_titles = [
-        "dr.", "dr ", "prof.", "prof ", "herr ", "frau ", "mr.", "mr ", "mrs.", "mrs ",
-        "ms.", "ms ", "sir ", "lord ", "lady ", "dame ", "graf ", "baron ", "prinz ",
-        "könig ", "präsident ", "kanzler ", "minister ", "general ", "oberst ",
-        "kapitän ", "direktor ", "chef ", "ceo ", "cfo ", "cto ",
+        "dr.",
+        "dr ",
+        "prof.",
+        "prof ",
+        "herr ",
+        "frau ",
+        "mr.",
+        "mr ",
+        "mrs.",
+        "mrs ",
+        "ms.",
+        "ms ",
+        "sir ",
+        "lord ",
+        "lady ",
+        "dame ",
+        "graf ",
+        "baron ",
+        "prinz ",
+        "könig ",
+        "präsident ",
+        "kanzler ",
+        "minister ",
+        "general ",
+        "oberst ",
+        "kapitän ",
+        "direktor ",
+        "chef ",
+        "ceo ",
+        "cfo ",
+        "cto ",
     ];
-    if person_titles.iter().any(|title| keyword_lower.starts_with(title)) {
+    if person_titles
+        .iter()
+        .any(|title| keyword_lower.starts_with(title))
+    {
         return "person".to_string();
     }
 
@@ -750,9 +1071,9 @@ pub fn detect_keyword_type(keyword: &str) -> String {
         if w.contains('-') {
             w.split('-').all(|part| {
                 let chars: Vec<char> = part.chars().collect();
-                !chars.is_empty() &&
-                chars[0].is_uppercase() &&
-                chars.iter().skip(1).all(|c| c.is_lowercase())
+                !chars.is_empty()
+                    && chars[0].is_uppercase()
+                    && chars.iter().skip(1).all(|c| c.is_lowercase())
             })
         }
         // Handle Irish/Scottish names with apostrophe (e.g., "O'Brien", "O'Connor", "McDonald")
@@ -763,14 +1084,13 @@ pub fn detect_keyword_type(keyword: &str) -> String {
                     return true; // Empty part after split is OK
                 }
                 let chars: Vec<char> = part.chars().collect();
-                chars[0].is_uppercase() &&
-                chars.iter().skip(1).all(|c| c.is_lowercase())
+                chars[0].is_uppercase() && chars.iter().skip(1).all(|c| c.is_lowercase())
             })
         } else {
             let chars: Vec<char> = w.chars().collect();
-            !chars.is_empty() &&
-            chars[0].is_uppercase() &&
-            chars.iter().skip(1).all(|c| c.is_lowercase())
+            !chars.is_empty()
+                && chars[0].is_uppercase()
+                && chars.iter().skip(1).all(|c| c.is_lowercase())
         }
     };
 
@@ -781,131 +1101,461 @@ pub fn detect_keyword_type(keyword: &str) -> String {
             // Now apply strict exclusion rules
 
             // Exclusion: German articles at start (Der, Die, Das, Ein, Eine, etc.)
-            let german_articles = ["der", "die", "das", "ein", "eine", "einem", "einen",
-                                   "einer", "eines", "dem", "den", "am", "im", "vom", "zum",
-                                   "zur", "beim", "als", "für", "mit", "aus", "bei", "nach",
-                                   "vor", "seit", "von", "zu", "auch", "und", "oder", "aber",
-                                   "wenn", "weil", "dass", "ob", "wie", "was", "wer", "wo",
-                                   "wann", "warum", "welche", "welcher", "welches", "diese",
-                                   "dieser", "dieses", "jede", "jeder", "jedes", "alle",
-                                   "keine", "keiner", "keines", "meine", "mein", "sein",
-                                   "seine", "ihre", "ihr", "unser", "unsere", "euer", "eure"];
-            if german_articles.iter().any(|art| words[0].to_lowercase() == *art) {
+            let german_articles = [
+                "der", "die", "das", "ein", "eine", "einem", "einen", "einer", "eines", "dem",
+                "den", "am", "im", "vom", "zum", "zur", "beim", "als", "für", "mit", "aus", "bei",
+                "nach", "vor", "seit", "von", "zu", "auch", "und", "oder", "aber", "wenn", "weil",
+                "dass", "ob", "wie", "was", "wer", "wo", "wann", "warum", "welche", "welcher",
+                "welches", "diese", "dieser", "dieses", "jede", "jeder", "jedes", "alle", "keine",
+                "keiner", "keines", "meine", "mein", "sein", "seine", "ihre", "ihr", "unser",
+                "unsere", "euer", "eure",
+            ];
+            if german_articles
+                .iter()
+                .any(|art| words[0].to_lowercase() == *art)
+            {
                 return "concept".to_string();
             }
 
             // Exclusion: English articles/prepositions at start
-            let english_starters = ["the", "a", "an", "for", "from", "with", "by", "in", "on",
-                                    "at", "to", "of", "is", "are", "was", "were", "be", "been",
-                                    "being", "have", "has", "had", "do", "does", "did", "will",
-                                    "would", "could", "should", "may", "might", "must", "shall",
-                                    "can", "this", "that", "these", "those", "my", "your", "his",
-                                    "her", "its", "our", "their", "some", "any", "no", "every",
-                                    "all", "both", "each", "few", "more", "most", "other", "such",
-                                    "how", "what", "when", "where", "why", "who", "which", "if",
-                                    "then", "than", "so", "as", "like", "just", "only", "also",
-                                    "very", "too", "not", "but", "and", "or"];
-            if english_starters.iter().any(|art| words[0].to_lowercase() == *art) {
+            let english_starters = [
+                "the", "a", "an", "for", "from", "with", "by", "in", "on", "at", "to", "of", "is",
+                "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does",
+                "did", "will", "would", "could", "should", "may", "might", "must", "shall", "can",
+                "this", "that", "these", "those", "my", "your", "his", "her", "its", "our",
+                "their", "some", "any", "no", "every", "all", "both", "each", "few", "more",
+                "most", "other", "such", "how", "what", "when", "where", "why", "who", "which",
+                "if", "then", "than", "so", "as", "like", "just", "only", "also", "very", "too",
+                "not", "but", "and", "or",
+            ];
+            if english_starters
+                .iter()
+                .any(|art| words[0].to_lowercase() == *art)
+            {
                 return "concept".to_string();
             }
 
             // Exclusion: Common non-person compound words
             let non_person_words = [
                 // Temporal
-                "januar", "februar", "märz", "april", "mai", "juni", "juli", "august",
-                "september", "oktober", "november", "dezember", "january", "february",
-                "march", "may", "june", "july", "october", "december",
-                "montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag", "sonntag",
-                "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-                "jahr", "jahre", "monat", "woche", "tag", "stunde", "minute",
-                "year", "years", "month", "week", "day", "hour", "minute",
-                "weltkrieg", "neuzeit", "weltkriegs",
+                "januar",
+                "februar",
+                "märz",
+                "april",
+                "mai",
+                "juni",
+                "juli",
+                "august",
+                "september",
+                "oktober",
+                "november",
+                "dezember",
+                "january",
+                "february",
+                "march",
+                "may",
+                "june",
+                "july",
+                "october",
+                "december",
+                "montag",
+                "dienstag",
+                "mittwoch",
+                "donnerstag",
+                "freitag",
+                "samstag",
+                "sonntag",
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+                "sunday",
+                "jahr",
+                "jahre",
+                "monat",
+                "woche",
+                "tag",
+                "stunde",
+                "minute",
+                "year",
+                "years",
+                "month",
+                "week",
+                "day",
+                "hour",
+                "minute",
+                "weltkrieg",
+                "neuzeit",
+                "weltkriegs",
                 // Geographic
-                "norden", "süden", "osten", "westen", "north", "south", "east", "west",
-                "central", "eastern", "western", "northern", "southern",
+                "norden",
+                "süden",
+                "osten",
+                "westen",
+                "north",
+                "south",
+                "east",
+                "west",
+                "central",
+                "eastern",
+                "western",
+                "northern",
+                "southern",
                 // Nationalities/Adjectives (German)
-                "britische", "britischer", "britisches", "britischen",
-                "deutsche", "deutscher", "deutsches", "deutschen",
-                "amerikanische", "amerikanischer", "amerikanisches", "amerikanischen",
-                "französische", "französischer", "französisches", "französischen",
-                "europäische", "europäischer", "europäisches", "europäischen",
-                "internationale", "internationaler", "internationales", "internationalen",
-                "nationale", "nationaler", "nationales", "nationalen",
-                "russische", "russischer", "russisches", "russischen",
-                "chinesische", "chinesischer", "chinesisches", "chinesischen",
+                "britische",
+                "britischer",
+                "britisches",
+                "britischen",
+                "deutsche",
+                "deutscher",
+                "deutsches",
+                "deutschen",
+                "amerikanische",
+                "amerikanischer",
+                "amerikanisches",
+                "amerikanischen",
+                "französische",
+                "französischer",
+                "französisches",
+                "französischen",
+                "europäische",
+                "europäischer",
+                "europäisches",
+                "europäischen",
+                "internationale",
+                "internationaler",
+                "internationales",
+                "internationalen",
+                "nationale",
+                "nationaler",
+                "nationales",
+                "nationalen",
+                "russische",
+                "russischer",
+                "russisches",
+                "russischen",
+                "chinesische",
+                "chinesischer",
+                "chinesisches",
+                "chinesischen",
                 // Nationalities/Adjectives (English)
-                "british", "german", "american", "french", "european", "international",
-                "national", "russian", "chinese", "global", "local", "regional",
+                "british",
+                "german",
+                "american",
+                "french",
+                "european",
+                "international",
+                "national",
+                "russian",
+                "chinese",
+                "global",
+                "local",
+                "regional",
                 // Political/Abstract
-                "krieg", "frieden", "politik", "wirtschaft", "kultur", "gesellschaft",
-                "war", "peace", "politics", "economy", "culture", "society",
-                "reform", "krise", "crisis", "konflikt", "conflict",
-                "zusammenarbeit", "cooperation", "integration", "einigung",
-                "souveränität", "sovereignty", "sicherheit", "security",
+                "krieg",
+                "frieden",
+                "politik",
+                "wirtschaft",
+                "kultur",
+                "gesellschaft",
+                "war",
+                "peace",
+                "politics",
+                "economy",
+                "culture",
+                "society",
+                "reform",
+                "krise",
+                "crisis",
+                "konflikt",
+                "conflict",
+                "zusammenarbeit",
+                "cooperation",
+                "integration",
+                "einigung",
+                "souveränität",
+                "sovereignty",
+                "sicherheit",
+                "security",
                 // Tech/Science
-                "software", "hardware", "internet", "digital", "cyber", "tech",
-                "science", "research", "study", "projekt", "project",
-                "programm", "program", "programme",
+                "software",
+                "hardware",
+                "internet",
+                "digital",
+                "cyber",
+                "tech",
+                "science",
+                "research",
+                "study",
+                "projekt",
+                "project",
+                "programm",
+                "program",
+                "programme",
                 // Events
-                "game", "games", "cup", "championship", "tournament", "festival",
-                "conference", "summit", "meeting", "congress", "forum",
-                "awards", "prize", "prix", "globes", "open", "classic", "masters",
-                "slam", "slams", "tour", "series", "league", "leagues",
-                "sentry", "operation", "exercise",
+                "game",
+                "games",
+                "cup",
+                "championship",
+                "tournament",
+                "festival",
+                "conference",
+                "summit",
+                "meeting",
+                "congress",
+                "forum",
+                "awards",
+                "prize",
+                "prix",
+                "globes",
+                "open",
+                "classic",
+                "masters",
+                "slam",
+                "slams",
+                "tour",
+                "series",
+                "league",
+                "leagues",
+                "sentry",
+                "operation",
+                "exercise",
                 // Sports terms
-                "football", "fußball", "handball", "basketball", "volleyball",
-                "tennis", "golf", "rugby", "cricket", "hockey", "soccer",
-                "cycling", "swimming", "athletics", "racing",
-                "team", "teams", "squad", "club", "clubs", "match", "final",
-                "blacks", "stars", "giants", "lions", "eagles",
+                "football",
+                "fußball",
+                "handball",
+                "basketball",
+                "volleyball",
+                "tennis",
+                "golf",
+                "rugby",
+                "cricket",
+                "hockey",
+                "soccer",
+                "cycling",
+                "swimming",
+                "athletics",
+                "racing",
+                "team",
+                "teams",
+                "squad",
+                "club",
+                "clubs",
+                "match",
+                "final",
+                "blacks",
+                "stars",
+                "giants",
+                "lions",
+                "eagles",
                 // Media terms
-                "news", "report", "interview", "article", "story", "video",
-                "film", "movie", "show", "series", "episode", "season",
-                "book", "books", "novel", "magazine", "journal", "paper",
-                "funk", "radio", "tv", "television",
+                "news",
+                "report",
+                "interview",
+                "article",
+                "story",
+                "video",
+                "film",
+                "movie",
+                "show",
+                "series",
+                "episode",
+                "season",
+                "book",
+                "books",
+                "novel",
+                "magazine",
+                "journal",
+                "paper",
+                "funk",
+                "radio",
+                "tv",
+                "television",
                 // Common nouns
-                "haus", "house", "gebäude", "building", "straße", "street", "road",
-                "park", "garden", "museum", "theater", "cinema", "hotel",
-                "hospital", "school", "church", "palace", "castle", "tower",
-                "bridge", "station", "airport", "port", "harbor",
-                "truck", "car", "vehicle", "fahrzeug",
-                "cases", "cleaning", "health", "wealth",
+                "haus",
+                "house",
+                "gebäude",
+                "building",
+                "straße",
+                "street",
+                "road",
+                "park",
+                "garden",
+                "museum",
+                "theater",
+                "cinema",
+                "hotel",
+                "hospital",
+                "school",
+                "church",
+                "palace",
+                "castle",
+                "tower",
+                "bridge",
+                "station",
+                "airport",
+                "port",
+                "harbor",
+                "truck",
+                "car",
+                "vehicle",
+                "fahrzeug",
+                "cases",
+                "cleaning",
+                "health",
+                "wealth",
                 // Abstract concepts
-                "system", "systems", "service", "services", "process", "method",
-                "model", "models", "plan", "plans",
-                "initiative", "campaign", "movement", "trend",
-                "act", "law", "bill", "treaty", "agreement", "deal", "pact",
-                "fashion", "finance", "business", "industry",
-                "depression", "recession", "inflation",
+                "system",
+                "systems",
+                "service",
+                "services",
+                "process",
+                "method",
+                "model",
+                "models",
+                "plan",
+                "plans",
+                "initiative",
+                "campaign",
+                "movement",
+                "trend",
+                "act",
+                "law",
+                "bill",
+                "treaty",
+                "agreement",
+                "deal",
+                "pact",
+                "fashion",
+                "finance",
+                "business",
+                "industry",
+                "depression",
+                "recession",
+                "inflation",
                 // Adjectives often in compounds
-                "new", "neu", "alte", "old", "große", "great", "big", "small",
-                "erste", "ersten", "erster", "erstes",
-                "first", "zweite", "zweiten", "zweiter",
-                "second", "dritte", "dritten", "dritter", "third",
-                "letzte", "letzten", "letzter", "last",
-                "nächste", "nächsten", "nächster", "next",
-                "andere", "anderen", "anderer", "other",
-                "black", "white", "red", "blue", "green", "golden", "silver",
-                "schwarz", "weiß", "rot", "blau", "grün", "gold", "silber",
-                "fast", "slow", "quick", "dry", "wet", "cold", "hot", "warm",
-                "mental", "physical", "social", "political", "economic",
-                "kalter", "kalte", "kaltes", "heißer", "heiße", "heißes",
-                "frühe", "früher", "frühen", "späte", "später", "späten",
-                "heilige", "heiliger", "heiligen",
+                "new",
+                "neu",
+                "alte",
+                "old",
+                "große",
+                "great",
+                "big",
+                "small",
+                "erste",
+                "ersten",
+                "erster",
+                "erstes",
+                "first",
+                "zweite",
+                "zweiten",
+                "zweiter",
+                "second",
+                "dritte",
+                "dritten",
+                "dritter",
+                "third",
+                "letzte",
+                "letzten",
+                "letzter",
+                "last",
+                "nächste",
+                "nächsten",
+                "nächster",
+                "next",
+                "andere",
+                "anderen",
+                "anderer",
+                "other",
+                "black",
+                "white",
+                "red",
+                "blue",
+                "green",
+                "golden",
+                "silver",
+                "schwarz",
+                "weiß",
+                "rot",
+                "blau",
+                "grün",
+                "gold",
+                "silber",
+                "fast",
+                "slow",
+                "quick",
+                "dry",
+                "wet",
+                "cold",
+                "hot",
+                "warm",
+                "mental",
+                "physical",
+                "social",
+                "political",
+                "economic",
+                "kalter",
+                "kalte",
+                "kaltes",
+                "heißer",
+                "heiße",
+                "heißes",
+                "frühe",
+                "früher",
+                "frühen",
+                "späte",
+                "später",
+                "späten",
+                "heilige",
+                "heiliger",
+                "heiligen",
                 // Quantifiers and pronouns
-                "mehr", "more", "weniger", "less", "viel", "many", "much",
-                "alle", "alles", "allen", "aller",
-                "all", "keine", "keiner", "keines", "keinen", "none",
-                "einige", "some", "mehrere", "gute", "guter", "gutes", "guten",
-                "million", "millionen", "milliarde", "milliarden", "billion",
-                "tausend", "thousand", "hundert", "hundred",
-                "fünf", "zehn", "zwanzig", "dreißig", "fünfzig",
+                "mehr",
+                "more",
+                "weniger",
+                "less",
+                "viel",
+                "many",
+                "much",
+                "alle",
+                "alles",
+                "allen",
+                "aller",
+                "all",
+                "keine",
+                "keiner",
+                "keines",
+                "keinen",
+                "none",
+                "einige",
+                "some",
+                "mehrere",
+                "gute",
+                "guter",
+                "gutes",
+                "guten",
+                "million",
+                "millionen",
+                "milliarde",
+                "milliarden",
+                "billion",
+                "tausend",
+                "thousand",
+                "hundert",
+                "hundred",
+                "fünf",
+                "zehn",
+                "zwanzig",
+                "dreißig",
+                "fünfzig",
             ];
 
             // Check if any word in the keyword matches non-person words
-            let has_non_person_word = words.iter().any(|w| {
-                non_person_words.iter().any(|npw| w.to_lowercase() == *npw)
-            });
+            let has_non_person_word = words
+                .iter()
+                .any(|w| non_person_words.iter().any(|npw| w.to_lowercase() == *npw));
 
             if has_non_person_word {
                 return "concept".to_string();
@@ -914,48 +1564,108 @@ pub fn detect_keyword_type(keyword: &str) -> String {
             // Exclusion: Patterns that indicate non-person
             let non_person_patterns = [
                 // Dates and time references
-                "jahr ", " jahr", "jahre", "monat", " tag", "tag ",
+                "jahr ",
+                " jahr",
+                "jahre",
+                "monat",
+                " tag",
+                "tag ",
                 // Financial/Legal
-                "euro", "dollar", "prozent", "percent", "gesetz", "act ",
-                "haft", "strafe", "urteil", "klage", "anklage",
+                "euro",
+                "dollar",
+                "prozent",
+                "percent",
+                "gesetz",
+                "act ",
+                "haft",
+                "strafe",
+                "urteil",
+                "klage",
+                "anklage",
                 // Events (specific patterns)
-                " cup", "cup ", " open", "open ", " slam", "slam ",
-                " tour", "tour ", " prix", "prix ", " award", "awards",
+                " cup",
+                "cup ",
+                " open",
+                "open ",
+                " slam",
+                "slam ",
+                " tour",
+                "tour ",
+                " prix",
+                "prix ",
+                " award",
+                "awards",
                 // Organizations patterns - only prefix patterns, not suffix
                 // (suffix patterns like " sc", " fc" removed - they break names like "Olaf Scholz")
-                "fc ", "sc ", "ac ",
-                "united", "city ", " city", "palace", "villa", "milan",
-                "rovers", "wanderers", "athletic",
+                "fc ",
+                "sc ",
+                "ac ",
+                "united",
+                "city ",
+                " city",
+                "palace",
+                "villa",
+                "milan",
+                "rovers",
+                "wanderers",
+                "athletic",
                 // News/Media
-                " news", "news ", " daily", "daily ", " times", "times ",
+                " news",
+                "news ",
+                " daily",
+                "daily ",
+                " times",
+                "times ",
                 // Technology
-                "linux", "windows", "android", "ios", "macos", "ubuntu",
-                "firefox", "chrome", "safari", "edge",
+                "linux",
+                "windows",
+                "android",
+                "ios",
+                "macos",
+                "ubuntu",
+                "firefox",
+                "chrome",
+                "safari",
+                "edge",
                 // Compound indicators
-                "abkommen", "vereinbarung", "vertrag", "treaty",
-                "gesundheit", "health", "sicherheit", "security",
-                "wirtschaft", "economy", "wissenschaft", "science",
+                "abkommen",
+                "vereinbarung",
+                "vertrag",
+                "treaty",
+                "gesundheit",
+                "health",
+                "sicherheit",
+                "security",
+                "wirtschaft",
+                "economy",
+                "wissenschaft",
+                "science",
             ];
 
-            if non_person_patterns.iter().any(|pat| keyword_lower.contains(pat)) {
+            if non_person_patterns
+                .iter()
+                .any(|pat| keyword_lower.contains(pat))
+            {
                 return "concept".to_string();
             }
 
             // Sports club suffixes - only match at end of keyword as whole word
             let sports_club_suffixes = [" fc", " sc", " ac"];
-            if sports_club_suffixes.iter().any(|suf| keyword_lower.ends_with(suf)) {
+            if sports_club_suffixes
+                .iter()
+                .any(|suf| keyword_lower.ends_with(suf))
+            {
                 return "concept".to_string();
             }
 
             // Exclusion: Single word that could be a name but is actually common noun
             let ambiguous_single_words = [
-                "china", "berlin", "paris", "london", "rom", "madrid", "wien", "tokio",
-                "jordan", "georgia", "dakota", "montana", "virginia", "carolina",
-                "phoenix", "aurora", "trinity", "liberty", "justice", "victory",
-                "diamond", "crystal", "ruby", "amber", "jade", "pearl", "ivy",
-                "rose", "lily", "violet", "daisy", "holly", "heather",
-                "hunter", "mason", "carter", "cooper", "walker", "taylor",
-                "cook", "baker", "fisher", "miller", "smith", "king", "prince",
+                "china", "berlin", "paris", "london", "rom", "madrid", "wien", "tokio", "jordan",
+                "georgia", "dakota", "montana", "virginia", "carolina", "phoenix", "aurora",
+                "trinity", "liberty", "justice", "victory", "diamond", "crystal", "ruby", "amber",
+                "jade", "pearl", "ivy", "rose", "lily", "violet", "daisy", "holly", "heather",
+                "hunter", "mason", "carter", "cooper", "walker", "taylor", "cook", "baker",
+                "fisher", "miller", "smith", "king", "prince",
             ];
 
             if words.len() == 1 && ambiguous_single_words.iter().any(|w| keyword_lower == *w) {
@@ -1072,9 +1782,10 @@ pub fn derive_categories_from_keywords(
             Err(_) => continue,
         };
 
-        let categories: Vec<(String, f64)> = match stmt.query_map(rusqlite::params![keyword_id], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
-        }) {
+        let categories: Vec<(String, f64)> = match stmt
+            .query_map(rusqlite::params![keyword_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+            }) {
             Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
             Err(_) => continue,
         };
@@ -1102,7 +1813,9 @@ pub fn derive_categories_from_keywords(
     // Filter and sort categories
     let mut results: Vec<(String, f64)> = category_scores
         .into_iter()
-        .filter(|(_, cs)| cs.score >= min_score && cs.supporting_keywords >= min_supporting_keywords)
+        .filter(|(_, cs)| {
+            cs.score >= min_score && cs.supporting_keywords >= min_supporting_keywords
+        })
         .map(|(name, cs)| (name, cs.score))
         .collect();
 
@@ -1116,7 +1829,7 @@ pub fn derive_categories_from_keywords(
 // ANALYSIS CACHE (Content-Hash Based)
 // ============================================================
 
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// Cached analysis result
 #[derive(Debug, Clone)]
@@ -1204,7 +1917,7 @@ pub fn store_analysis_cache(
 use crate::ai_provider::{AiProviderError, GenerationResult};
 use crate::ollama::{
     BiasAnalysis, DiscordianAnalysis, DiscordianAnalysisWithRejections, RawBiasAnalysis,
-    DEFAULT_DISCORDIAN_PROMPT_WITH_STATS, DEFAULT_DISCORDIAN_PROMPT,
+    DEFAULT_DISCORDIAN_PROMPT, DEFAULT_DISCORDIAN_PROMPT_WITH_STATS,
 };
 use log::{debug, info, warn};
 
@@ -1264,7 +1977,14 @@ pub fn log_generation_cost(
             provider_name, model, input_tokens, output_tokens, cost
         );
 
-        log_ai_cost(conn, provider_name, model, input_tokens, output_tokens, cost);
+        log_ai_cost(
+            conn,
+            provider_name,
+            model,
+            input_tokens,
+            output_tokens,
+            cost,
+        );
     }
 }
 
@@ -1296,7 +2016,10 @@ pub async fn discordian_analysis_via_provider(
     stat_categories: &[(String, f64)],
     custom_prompt: Option<&str>,
 ) -> Result<(DiscordianAnalysisWithRejections, TokenUsage), AiProviderError> {
-    debug!("Starting Discordian analysis via provider for: {}", truncate_str_helper(title, 60));
+    debug!(
+        "Starting Discordian analysis via provider for: {}",
+        truncate_str_helper(title, 60)
+    );
     let language = get_language_for_locale(locale);
     let truncated_content: String = content.chars().take(6000).collect();
 
@@ -1515,18 +2238,30 @@ mod tests {
 
     #[test]
     fn test_detect_organization_german_institutions() {
-        assert_eq!(detect_keyword_type("Bundesamt für Verfassungsschutz"), "organization");
+        assert_eq!(
+            detect_keyword_type("Bundesamt für Verfassungsschutz"),
+            "organization"
+        );
         assert_eq!(detect_keyword_type("Pestel-Institut"), "organization");
         assert_eq!(detect_keyword_type("Das Ministerium"), "organization");
         assert_eq!(detect_keyword_type("Lokale Behörden"), "organization");
-        assert_eq!(detect_keyword_type("Deutscher Gewerkschaftsbund"), "organization");
-        assert_eq!(detect_keyword_type("Industrie- und Handelskammer"), "organization");
+        assert_eq!(
+            detect_keyword_type("Deutscher Gewerkschaftsbund"),
+            "organization"
+        );
+        assert_eq!(
+            detect_keyword_type("Industrie- und Handelskammer"),
+            "organization"
+        );
     }
 
     #[test]
     fn test_detect_organization_english_institutions() {
         assert_eq!(detect_keyword_type("Cambridge University"), "organization");
-        assert_eq!(detect_keyword_type("World Health Organization"), "organization");
+        assert_eq!(
+            detect_keyword_type("World Health Organization"),
+            "organization"
+        );
         assert_eq!(detect_keyword_type("European Commission"), "organization");
         assert_eq!(detect_keyword_type("Federal Reserve"), "organization");
     }
@@ -1937,7 +2672,10 @@ mod tests {
         let local = vec!["politik".to_string(), "Sport".to_string()];
         let result = validate_and_merge_categories(&llm, local);
         // "politik" should be deduped against "Politik" (case-insensitive)
-        let politik_count = result.iter().filter(|c| c.to_lowercase() == "politik").count();
+        let politik_count = result
+            .iter()
+            .filter(|c| c.to_lowercase() == "politik")
+            .count();
         assert_eq!(politik_count, 1);
     }
 
@@ -1956,7 +2694,10 @@ mod tests {
 
     #[test]
     fn test_merge_categories_stat_primary_stat_first() {
-        let stat = vec![("Politik".to_string(), 0.8), ("Wirtschaft".to_string(), 0.7)];
+        let stat = vec![
+            ("Politik".to_string(), 0.8),
+            ("Wirtschaft".to_string(), 0.7),
+        ];
         let llm = vec!["Technik".to_string()];
         let local = vec!["Sport".to_string()];
         let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
@@ -2032,7 +2773,10 @@ mod tests {
         let llm = vec!["Politik".to_string(), "Wirtschaft".to_string()];
         let local = vec!["politik".to_string()];
         let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
-        let politik_count = result.iter().filter(|c| c.to_lowercase() == "politik").count();
+        let politik_count = result
+            .iter()
+            .filter(|c| c.to_lowercase() == "politik")
+            .count();
         assert_eq!(politik_count, 1);
     }
 
@@ -2087,7 +2831,9 @@ mod tests {
         let final_kw = vec!["Alpha".to_string(), "Beta".to_string()];
         let stat_kw = vec!["Alpha".to_string(), "Beta".to_string()];
         let result = determine_keyword_sources(&final_kw, &stat_kw);
-        assert!(result.iter().all(|k| matches!(k.source, KeywordSource::Statistical)));
+        assert!(result
+            .iter()
+            .all(|k| matches!(k.source, KeywordSource::Statistical)));
     }
 
     #[test]
@@ -2141,10 +2887,7 @@ mod tests {
             "Wirtschaft".to_string(),
             "Technik".to_string(),
         ];
-        let stat_cats = vec![
-            ("Politik".to_string(), 0.8),
-            ("Technik".to_string(), 0.6),
-        ];
+        let stat_cats = vec![("Politik".to_string(), 0.8), ("Technik".to_string(), 0.6)];
         let result = determine_category_sources(&final_cats, &stat_cats);
         assert_eq!(result[0].source, "statistical"); // Politik
         assert_eq!(result[1].source, "ai"); // Wirtschaft
@@ -2411,11 +3154,9 @@ mod tests {
         assert_eq!(count, 1); // Should still log (both tokens present)
 
         let cost: f64 = conn
-            .query_row(
-                "SELECT estimated_cost_usd FROM ai_cost_log",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT estimated_cost_usd FROM ai_cost_log", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(cost, 0.0);
     }

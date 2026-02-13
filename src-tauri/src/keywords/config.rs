@@ -80,7 +80,7 @@ impl KeywordConfig {
             statistical_confidence: 0.8,
             compound_confidence_factor: 0.8,
             use_mmr: true,
-            mmr_lambda: 0.5, // Slightly more diversity for batch
+            mmr_lambda: 0.5,  // Slightly more diversity for batch
             use_trisum: true, // Use TRISUM for better quality in batch
             trisum_pagerank_weight: 0.4,
             trisum_eigenvector_weight: 0.35,
@@ -137,12 +137,12 @@ impl KeywordConfig {
             statistical_confidence: 0.8,
             compound_confidence_factor: 0.8,
             use_mmr: true,
-            mmr_lambda: 0.3, // Low lambda = high diversity
+            mmr_lambda: 0.3,  // Low lambda = high diversity
             use_trisum: true, // Use TRISUM for multi-centrality
             trisum_pagerank_weight: 0.3,
             trisum_eigenvector_weight: 0.3,
             trisum_betweenness_weight: 0.4, // Emphasize bridge terms
-            levenshtein_max_distance: 3, // Stricter deduplication
+            levenshtein_max_distance: 3,    // Stricter deduplication
         }
     }
 
@@ -300,8 +300,7 @@ mod tests {
 
     #[test]
     fn test_levenshtein_builder() {
-        let config = KeywordConfig::standard()
-            .with_levenshtein_distance(3);
+        let config = KeywordConfig::standard().with_levenshtein_distance(3);
         assert_eq!(config.levenshtein_max_distance, 3);
     }
 

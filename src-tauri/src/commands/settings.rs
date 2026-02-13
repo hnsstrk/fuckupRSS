@@ -13,9 +13,7 @@ use tauri::State;
 pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_json::Value>> {
     let db = state.db_conn()?;
 
-    let mut stmt = db
-        .conn()
-        .prepare("SELECT key, value FROM settings")?;
+    let mut stmt = db.conn().prepare("SELECT key, value FROM settings")?;
 
     let settings_map: HashMap<String, String> = stmt
         .query_map([], |row| {
@@ -57,10 +55,16 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_j
 
     // Add defaults for missing settings
     if !result.contains_key("locale") {
-        result.insert("locale".to_string(), serde_json::Value::String("de".to_string()));
+        result.insert(
+            "locale".to_string(),
+            serde_json::Value::String("de".to_string()),
+        );
     }
     if !result.contains_key("theme_mode") {
-        result.insert("theme_mode".to_string(), serde_json::Value::String("system".to_string()));
+        result.insert(
+            "theme_mode".to_string(),
+            serde_json::Value::String("system".to_string()),
+        );
     }
     if !result.contains_key("dark_theme") {
         // Fall back to legacy 'theme' key if exists
@@ -69,52 +73,98 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_j
             .and_then(|v| v.as_str())
             .unwrap_or("mocha")
             .to_string();
-        result.insert("dark_theme".to_string(), serde_json::Value::String(default_dark));
+        result.insert(
+            "dark_theme".to_string(),
+            serde_json::Value::String(default_dark),
+        );
     }
     if !result.contains_key("light_theme") {
-        result.insert("light_theme".to_string(), serde_json::Value::String("latte".to_string()));
+        result.insert(
+            "light_theme".to_string(),
+            serde_json::Value::String("latte".to_string()),
+        );
     }
     if !result.contains_key("showTerminologyTooltips") {
-        result.insert("showTerminologyTooltips".to_string(), serde_json::Value::Bool(true));
+        result.insert(
+            "showTerminologyTooltips".to_string(),
+            serde_json::Value::Bool(true),
+        );
     }
     if !result.contains_key("syncInterval") {
-        result.insert("syncInterval".to_string(), serde_json::Value::Number(30.into()));
+        result.insert(
+            "syncInterval".to_string(),
+            serde_json::Value::Number(30.into()),
+        );
     }
     if !result.contains_key("syncOnStart") {
         result.insert("syncOnStart".to_string(), serde_json::Value::Bool(true));
     }
     if !result.contains_key("logLevel") {
-        let default_level = if cfg!(debug_assertions) { "debug" } else { "info" };
-        result.insert("logLevel".to_string(), serde_json::Value::String(default_level.to_string()));
+        let default_level = if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "info"
+        };
+        result.insert(
+            "logLevel".to_string(),
+            serde_json::Value::String(default_level.to_string()),
+        );
     }
     if !result.contains_key("ollama_num_ctx") {
-        result.insert("ollama_num_ctx".to_string(), serde_json::Value::Number(DEFAULT_NUM_CTX.into()));
+        result.insert(
+            "ollama_num_ctx".to_string(),
+            serde_json::Value::Number(DEFAULT_NUM_CTX.into()),
+        );
     }
     if !result.contains_key("embedding_model") {
-        result.insert("embedding_model".to_string(), serde_json::Value::String(RECOMMENDED_EMBEDDING_MODEL.to_string()));
+        result.insert(
+            "embedding_model".to_string(),
+            serde_json::Value::String(RECOMMENDED_EMBEDDING_MODEL.to_string()),
+        );
     }
     if !result.contains_key("enable_headless_browser") {
-        result.insert("enable_headless_browser".to_string(), serde_json::Value::Bool(false));
+        result.insert(
+            "enable_headless_browser".to_string(),
+            serde_json::Value::Bool(false),
+        );
     }
 
     // AI provider defaults
     if !result.contains_key("ai_text_provider") {
-        result.insert("ai_text_provider".to_string(), serde_json::Value::String("ollama".to_string()));
+        result.insert(
+            "ai_text_provider".to_string(),
+            serde_json::Value::String("ollama".to_string()),
+        );
     }
     if !result.contains_key("ollama_url") {
-        result.insert("ollama_url".to_string(), serde_json::Value::String("http://localhost:11434".to_string()));
+        result.insert(
+            "ollama_url".to_string(),
+            serde_json::Value::String("http://localhost:11434".to_string()),
+        );
     }
     if !result.contains_key("ollama_model") {
-        result.insert("ollama_model".to_string(), serde_json::Value::String(RECOMMENDED_MAIN_MODEL.to_string()));
+        result.insert(
+            "ollama_model".to_string(),
+            serde_json::Value::String(RECOMMENDED_MAIN_MODEL.to_string()),
+        );
     }
     if !result.contains_key("openai_base_url") {
-        result.insert("openai_base_url".to_string(), serde_json::Value::String("https://api.openai.com".to_string()));
+        result.insert(
+            "openai_base_url".to_string(),
+            serde_json::Value::String("https://api.openai.com".to_string()),
+        );
     }
     if !result.contains_key("openai_api_key") {
-        result.insert("openai_api_key".to_string(), serde_json::Value::String(String::new()));
+        result.insert(
+            "openai_api_key".to_string(),
+            serde_json::Value::String(String::new()),
+        );
     }
     if !result.contains_key("openai_model") {
-        result.insert("openai_model".to_string(), serde_json::Value::String(DEFAULT_OPENAI_MODEL.to_string()));
+        result.insert(
+            "openai_model".to_string(),
+            serde_json::Value::String(DEFAULT_OPENAI_MODEL.to_string()),
+        );
     }
     if !result.contains_key("cost_limit_monthly") {
         result.insert("cost_limit_monthly".to_string(), serde_json::json!(5.0));
@@ -122,13 +172,22 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_j
 
     // Embedding provider defaults
     if !result.contains_key("embedding_provider") {
-        result.insert("embedding_provider".to_string(), serde_json::Value::String("ollama".to_string()));
+        result.insert(
+            "embedding_provider".to_string(),
+            serde_json::Value::String("ollama".to_string()),
+        );
     }
     if !result.contains_key("openai_embedding_model") {
-        result.insert("openai_embedding_model".to_string(), serde_json::Value::String(DEFAULT_OPENAI_EMBEDDING_MODEL.to_string()));
+        result.insert(
+            "openai_embedding_model".to_string(),
+            serde_json::Value::String(DEFAULT_OPENAI_EMBEDDING_MODEL.to_string()),
+        );
     }
     if !result.contains_key("embedding_dimensions") {
-        result.insert("embedding_dimensions".to_string(), serde_json::Value::Number(1024.into()));
+        result.insert(
+            "embedding_dimensions".to_string(),
+            serde_json::Value::Number(1024.into()),
+        );
     }
 
     Ok(result)
@@ -138,19 +197,22 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_j
 pub fn set_setting(state: State<AppState>, key: String, value: String) -> CmdResult<()> {
     // Input validation
     if key.is_empty() {
-        return Err(FuckupError::Validation("Setting key cannot be empty".to_string()));
+        return Err(FuckupError::Validation(
+            "Setting key cannot be empty".to_string(),
+        ));
     }
     if key.len() > 256 {
-        return Err(FuckupError::Validation("Setting key too long (max 256 characters)".to_string()));
+        return Err(FuckupError::Validation(
+            "Setting key too long (max 256 characters)".to_string(),
+        ));
     }
 
     let db = state.db_conn()?;
 
-    db.conn()
-        .execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
-            (&key, &value),
-        )?;
+    db.conn().execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+        (&key, &value),
+    )?;
 
     Ok(())
 }
@@ -161,11 +223,9 @@ pub fn get_setting(state: State<AppState>, key: String) -> CmdResult<Option<Stri
 
     let result = db
         .conn()
-        .query_row(
-            "SELECT value FROM settings WHERE key = ?1",
-            [&key],
-            |row| row.get(0),
-        )
+        .query_row("SELECT value FROM settings WHERE key = ?1", [&key], |row| {
+            row.get(0)
+        })
         .ok();
 
     Ok(result)
@@ -304,7 +364,10 @@ pub fn get_platform() -> &'static str {
 pub fn set_log_level(level: String) -> CmdResult<()> {
     // Input validation
     if !["error", "warn", "info", "debug", "trace"].contains(&level.as_str()) {
-        return Err(FuckupError::Validation(format!("Invalid log level: {}", level)));
+        return Err(FuckupError::Validation(format!(
+            "Invalid log level: {}",
+            level
+        )));
     }
 
     let log_level = LogLevel::from(level.as_str());
@@ -346,13 +409,18 @@ mod tests {
             .expect("Failed to prepare statement");
 
         let settings: HashMap<String, String> = stmt
-            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
             .expect("Failed to query")
             .filter_map(|r| r.ok())
             .collect();
 
         // Settings table should have some defaults from schema initialization
-        assert!(!settings.is_empty() || settings.is_empty(), "Settings query should work");
+        assert!(
+            !settings.is_empty() || settings.is_empty(),
+            "Settings query should work"
+        );
     }
 
     #[test]
@@ -475,7 +543,10 @@ mod tests {
             )
             .expect("Failed to query setting");
 
-        assert_eq!(updated_value, "false", "Boolean should be stored as string 'false'");
+        assert_eq!(
+            updated_value, "false",
+            "Boolean should be stored as string 'false'"
+        );
     }
 
     #[test]
@@ -531,7 +602,11 @@ mod tests {
             )
             .ok();
 
-        assert_eq!(result, Some("test_value".to_string()), "Should return the value");
+        assert_eq!(
+            result,
+            Some("test_value".to_string()),
+            "Should return the value"
+        );
     }
 
     #[test]
@@ -593,11 +668,9 @@ mod tests {
 
             let result: String = db
                 .conn()
-                .query_row(
-                    "SELECT value FROM settings WHERE key = ?1",
-                    [key],
-                    |row| row.get(0),
-                )
+                .query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| {
+                    row.get(0)
+                })
                 .expect(&format!("Failed to query {} setting", key));
 
             assert_eq!(result, "test_value", "Setting {} should work", key);
@@ -672,7 +745,10 @@ mod tests {
         assert!(parse_bool("true"), "'true' should parse to true");
         assert!(!parse_bool("false"), "'false' should parse to false");
         assert!(!parse_bool(""), "empty string should parse to false");
-        assert!(!parse_bool("TRUE"), "'TRUE' should parse to false (case-sensitive)");
+        assert!(
+            !parse_bool("TRUE"),
+            "'TRUE' should parse to false (case-sensitive)"
+        );
     }
 
     #[test]
@@ -696,11 +772,7 @@ mod tests {
         let db = setup_test_db();
 
         // Insert multiple settings
-        let settings = [
-            ("key1", "value1"),
-            ("key2", "value2"),
-            ("key3", "value3"),
-        ];
+        let settings = [("key1", "value1"), ("key2", "value2"), ("key3", "value3")];
 
         for (key, value) in settings {
             db.conn()
@@ -715,14 +787,16 @@ mod tests {
         for (key, expected_value) in settings {
             let result: String = db
                 .conn()
-                .query_row(
-                    "SELECT value FROM settings WHERE key = ?1",
-                    [key],
-                    |row| row.get(0),
-                )
+                .query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| {
+                    row.get(0)
+                })
                 .expect("Failed to query setting");
 
-            assert_eq!(result, expected_value, "Setting {} should have correct value", key);
+            assert_eq!(
+                result, expected_value,
+                "Setting {} should have correct value",
+                key
+            );
         }
     }
 
@@ -782,7 +856,10 @@ mod tests {
         let model = get_embedding_model_from_db(db.conn());
 
         // Should return the default model when not set
-        assert_eq!(model, RECOMMENDED_EMBEDDING_MODEL, "Should return default embedding model");
+        assert_eq!(
+            model, RECOMMENDED_EMBEDDING_MODEL,
+            "Should return default embedding model"
+        );
     }
 
     #[test]
@@ -799,7 +876,10 @@ mod tests {
 
         let model = get_embedding_model_from_db(db.conn());
 
-        assert_eq!(model, "custom-model:latest", "Should return custom embedding model");
+        assert_eq!(
+            model, "custom-model:latest",
+            "Should return custom embedding model"
+        );
     }
 
     // ============================================================

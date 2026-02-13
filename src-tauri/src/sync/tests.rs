@@ -23,7 +23,10 @@ fn test_compute_content_hash_different_input() {
     let hash1 = compute_content_hash("Title", Some("Author"), Some("Content"), None);
     let hash2 = compute_content_hash("Title", Some("Author"), Some("Different Content"), None);
 
-    assert_ne!(hash1, hash2, "Different input should produce different hash");
+    assert_ne!(
+        hash1, hash2,
+        "Different input should produce different hash"
+    );
 }
 
 #[test]
@@ -40,7 +43,10 @@ fn test_compute_content_hash_none_fields() {
     let hash2 = compute_content_hash("Title", Some(""), None, None);
 
     // Empty string author should produce different hash than None
-    assert_ne!(hash1, hash2, "None and empty string should produce different hashes");
+    assert_ne!(
+        hash1, hash2,
+        "None and empty string should produce different hashes"
+    );
 }
 
 #[test]
@@ -163,7 +169,10 @@ fn test_store_feed_no_update_on_same_content() {
     };
 
     let result2 = FeedSyncer::store_feed(conn, feed2).expect("Failed to store feed");
-    assert_eq!(result2.new_articles, 0, "Should have 0 new articles on re-sync");
+    assert_eq!(
+        result2.new_articles, 0,
+        "Should have 0 new articles on re-sync"
+    );
     assert_eq!(
         result2.updated_articles, 0,
         "Should have 0 updated articles when content unchanged"
@@ -255,8 +264,11 @@ fn test_store_feed_updates_pentacle_metadata() {
     let conn = db.conn();
 
     // Insert pentacle with minimal data
-    conn.execute("INSERT INTO pentacles (url) VALUES (?1)", ["https://example.com/feed.xml"])
-        .expect("Failed to insert pentacle");
+    conn.execute(
+        "INSERT INTO pentacles (url) VALUES (?1)",
+        ["https://example.com/feed.xml"],
+    )
+    .expect("Failed to insert pentacle");
 
     let pentacle_id: i64 = conn
         .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
@@ -275,7 +287,12 @@ fn test_store_feed_updates_pentacle_metadata() {
     FeedSyncer::store_feed(conn, feed).expect("Failed to store feed");
 
     // Verify pentacle was updated
-    let (title, description, site_url, icon_url): (Option<String>, Option<String>, Option<String>, Option<String>) = conn
+    let (title, description, site_url, icon_url): (
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    ) = conn
         .query_row(
             "SELECT title, description, site_url, icon_url FROM pentacles WHERE id = ?1",
             [pentacle_id],

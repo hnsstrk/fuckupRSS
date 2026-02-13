@@ -49,7 +49,10 @@ fn test_sephiroth_seeded_with_13_categories() {
         .query_row("SELECT COUNT(*) FROM sephiroth", [], |row| row.get(0))
         .expect("Failed to count sephiroth");
 
-    assert_eq!(count, 19, "Should have 19 default categories (6 main + 13 sub)");
+    assert_eq!(
+        count, 19,
+        "Should have 19 default categories (6 main + 13 sub)"
+    );
 }
 
 #[test]
@@ -84,7 +87,11 @@ fn test_sephiroth_categories_names() {
 
         // With hierarchical categories, some names may exist at multiple levels
         // (e.g., "Wirtschaft" as both main and sub, "Sicherheit" as both main and sub)
-        assert!(exists >= 1, "Category '{}' should exist at least once", category);
+        assert!(
+            exists >= 1,
+            "Category '{}' should exist at least once",
+            category
+        );
     }
 }
 
@@ -324,7 +331,10 @@ fn test_settings_crud() {
         )
         .expect("Failed to read setting");
 
-    assert_eq!(value, "initial_value", "Setting value should be 'initial_value'");
+    assert_eq!(
+        value, "initial_value",
+        "Setting value should be 'initial_value'"
+    );
 
     // Update setting
     conn.execute(
@@ -341,7 +351,10 @@ fn test_settings_crud() {
         )
         .expect("Failed to read updated setting");
 
-    assert_eq!(updated_value, "updated_value", "Setting value should be 'updated_value'");
+    assert_eq!(
+        updated_value, "updated_value",
+        "Setting value should be 'updated_value'"
+    );
 
     // Test INSERT OR REPLACE for existing keys (like theme which has a default)
     conn.execute(

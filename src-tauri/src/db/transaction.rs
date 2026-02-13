@@ -90,11 +90,8 @@ mod tests {
     #[test]
     fn test_transaction_commits_on_success() {
         let conn = Connection::open_in_memory().unwrap();
-        conn.execute(
-            "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)",
-            [],
-        )
-        .unwrap();
+        conn.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)", [])
+            .unwrap();
 
         let result = with_transaction(&conn, |conn| {
             conn.execute("INSERT INTO test (value) VALUES (?1)", ["test1"])?;
@@ -139,11 +136,8 @@ mod tests {
     #[test]
     fn test_transaction_returns_value() {
         let conn = Connection::open_in_memory().unwrap();
-        conn.execute(
-            "CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)",
-            [],
-        )
-        .unwrap();
+        conn.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)", [])
+            .unwrap();
 
         let inserted_id = with_transaction(&conn, |conn| {
             conn.execute("INSERT INTO test (value) VALUES (?1)", ["test"])?;

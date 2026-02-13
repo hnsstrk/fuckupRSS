@@ -149,10 +149,7 @@ fn calculate_coherence(embeddings: &[&[f32]]) -> f64 {
 
 /// Find the representative article in a cluster
 /// Prefers: already processed > closest to centroid > first article
-fn find_representative(
-    articles: &[&ArticleForClustering],
-    centroid: &[f32],
-) -> i64 {
+fn find_representative(articles: &[&ArticleForClustering], centroid: &[f32]) -> i64 {
     if articles.is_empty() {
         return 0;
     }
@@ -177,7 +174,9 @@ fn find_representative(
         .min_by(|&&i, &&j| {
             let dist_i = cosine_distance(&articles[i].embedding, centroid);
             let dist_j = cosine_distance(&articles[j].embedding, centroid);
-            dist_i.partial_cmp(&dist_j).unwrap_or(std::cmp::Ordering::Equal)
+            dist_i
+                .partial_cmp(&dist_j)
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
         .map(|&i| articles[i].id)
         .unwrap_or(articles[0].id)
@@ -306,13 +305,14 @@ pub fn cluster_articles(
         let coherence = calculate_coherence(&embeddings);
 
         // Get article references for representative selection
-        let cluster_articles: Vec<&ArticleForClustering> = article_indices
-            .iter()
-            .map(|&idx| &articles[idx])
-            .collect();
+        let cluster_articles: Vec<&ArticleForClustering> =
+            article_indices.iter().map(|&idx| &articles[idx]).collect();
 
         let representative_id = find_representative(&cluster_articles, &centroid);
-        let article_ids: Vec<i64> = article_indices.iter().map(|&idx| articles[idx].id).collect();
+        let article_ids: Vec<i64> = article_indices
+            .iter()
+            .map(|&idx| articles[idx].id)
+            .collect();
 
         clusters.push(ArticleCluster {
             cluster_id: cluster_id_counter,
@@ -511,15 +511,13 @@ mod tests {
     #[test]
     fn test_calculate_savings() {
         let result = ClusteringResult {
-            clusters: vec![
-                ArticleCluster {
-                    cluster_id: 0,
-                    representative_id: 1,
-                    article_ids: vec![1, 2, 3, 4, 5],
-                    centroid: vec![],
-                    coherence: 0.9,
-                },
-            ],
+            clusters: vec![ArticleCluster {
+                cluster_id: 0,
+                representative_id: 1,
+                article_ids: vec![1, 2, 3, 4, 5],
+                centroid: vec![],
+                coherence: 0.9,
+            }],
             unclustered_ids: vec![6],
             total_articles: 6,
             representatives_count: 2, // 1 cluster rep + 1 unclustered

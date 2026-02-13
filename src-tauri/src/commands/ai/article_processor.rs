@@ -3,11 +3,11 @@
 use crate::ai_provider::{AiTextProvider, EmbeddingProvider};
 use crate::ollama::DiscordianAnalysis;
 use crate::text_analysis::{
-    record_correction, BiasWeights, CategoryMatcher, CorrectionRecord, CorrectionType, CorpusStats,
+    record_correction, BiasWeights, CategoryMatcher, CorpusStats, CorrectionRecord, CorrectionType,
     TfIdfExtractor,
 };
-use crate::{classify_by_keywords, extract_keywords};
 use crate::AppState;
+use crate::{classify_by_keywords, extract_keywords};
 use log::{info, warn};
 use std::sync::Arc;
 use std::time::Instant;
@@ -62,7 +62,11 @@ pub async fn generate_summary(
             )
             .map_err(|e| e.to_string())?;
         // Use the provider's configured model for OpenAI (frontend sends Ollama model names)
-        let effective_model = crate::ai_provider::resolve_effective_model(provider.provider_name(), &model, &provider_model);
+        let effective_model = crate::ai_provider::resolve_effective_model(
+            provider.provider_name(),
+            &model,
+            &provider_model,
+        );
         (provider, effective_model, content)
     };
 
@@ -75,12 +79,22 @@ pub async fn generate_summary(
         });
     }
 
-    match summarize_via_provider(provider.as_ref(), &effective_model, &content, &prompt_template)
-        .await
+    match summarize_via_provider(
+        provider.as_ref(),
+        &effective_model,
+        &content,
+        &prompt_template,
+    )
+    .await
     {
         Ok((summary, usage)) => {
             let db = state.db_conn()?;
-            log_generation_cost(db.conn(), provider.provider_name(), &effective_model, &usage);
+            log_generation_cost(
+                db.conn(),
+                provider.provider_name(),
+                &effective_model,
+                &usage,
+            );
             db.conn()
                 .execute(
                     "UPDATE fnords SET summary = ?1, processed_at = CURRENT_TIMESTAMP WHERE id = ?2",
@@ -114,7 +128,12 @@ pub async fn analyze_article(
     let locale = get_locale_from_db(&state);
     let prompt_template = get_analysis_prompt(&state, &locale);
 
-    let (provider, effective_model, title, content): (Arc<dyn AiTextProvider>, String, String, String) = {
+    let (provider, effective_model, title, content): (
+        Arc<dyn AiTextProvider>,
+        String,
+        String,
+        String,
+    ) = {
         let db = state.db_conn()?;
         let (provider, provider_model) = create_text_provider(&db);
         let (title, content) = db
@@ -125,7 +144,11 @@ pub async fn analyze_article(
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .map_err(|e| e.to_string())?;
-        let effective_model = crate::ai_provider::resolve_effective_model(provider.provider_name(), &model, &provider_model);
+        let effective_model = crate::ai_provider::resolve_effective_model(
+            provider.provider_name(),
+            &model,
+            &provider_model,
+        );
         (provider, effective_model, title, content)
     };
 
@@ -138,12 +161,23 @@ pub async fn analyze_article(
         });
     }
 
-    match analyze_bias_via_provider(provider.as_ref(), &effective_model, &title, &content, &prompt_template)
-        .await
+    match analyze_bias_via_provider(
+        provider.as_ref(),
+        &effective_model,
+        &title,
+        &content,
+        &prompt_template,
+    )
+    .await
     {
         Ok((analysis, usage)) => {
             let db = state.db_conn()?;
-            log_generation_cost(db.conn(), provider.provider_name(), &effective_model, &usage);
+            log_generation_cost(
+                db.conn(),
+                provider.provider_name(),
+                &effective_model,
+                &usage,
+            );
             db.conn()
                 .execute(
                     r#"UPDATE fnords SET
@@ -182,7 +216,12 @@ pub async fn process_article(
     let summary_prompt_template = get_summary_prompt(&state, &locale);
     let analysis_prompt_template = get_analysis_prompt(&state, &locale);
 
-    let (provider, effective_model, title, content): (Arc<dyn AiTextProvider>, String, String, String) = {
+    let (provider, effective_model, title, content): (
+        Arc<dyn AiTextProvider>,
+        String,
+        String,
+        String,
+    ) = {
         let db = state.db_conn()?;
         let (provider, provider_model) = create_text_provider(&db);
         let (title, content) = db
@@ -193,7 +232,11 @@ pub async fn process_article(
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .map_err(|e| e.to_string())?;
-        let effective_model = crate::ai_provider::resolve_effective_model(provider.provider_name(), &model, &provider_model);
+        let effective_model = crate::ai_provider::resolve_effective_model(
+            provider.provider_name(),
+            &model,
+            &provider_model,
+        );
         (provider, effective_model, title, content)
     };
 
@@ -220,16 +263,31 @@ pub async fn process_article(
     let analysis_prompt = analysis_prompt_template.clone();
     let provider_ref = provider.clone();
 
-    let summary_future = summarize_via_provider(provider.as_ref(), &effective_model, &content, &summary_prompt);
-    let analysis_future =
-        analyze_bias_via_provider(provider_ref.as_ref(), &model_clone, &title, &content_clone, &analysis_prompt);
+    let summary_future = summarize_via_provider(
+        provider.as_ref(),
+        &effective_model,
+        &content,
+        &summary_prompt,
+    );
+    let analysis_future = analyze_bias_via_provider(
+        provider_ref.as_ref(),
+        &model_clone,
+        &title,
+        &content_clone,
+        &analysis_prompt,
+    );
 
     let (summary_result, analysis_result) = tokio::join!(summary_future, analysis_future);
 
     let summary_response = match summary_result {
         Ok((summary, usage)) => {
             let db = state.db_conn()?;
-            log_generation_cost(db.conn(), provider.provider_name(), &effective_model, &usage);
+            log_generation_cost(
+                db.conn(),
+                provider.provider_name(),
+                &effective_model,
+                &usage,
+            );
             let _ = db.conn().execute(
                 "UPDATE fnords SET summary = ?1 WHERE id = ?2",
                 (&summary, fnord_id),
@@ -252,7 +310,12 @@ pub async fn process_article(
     let analysis_response = match analysis_result {
         Ok((analysis, usage)) => {
             let db = state.db_conn()?;
-            log_generation_cost(db.conn(), provider.provider_name(), &effective_model, &usage);
+            log_generation_cost(
+                db.conn(),
+                provider.provider_name(),
+                &effective_model,
+                &usage,
+            );
             let _ = db.conn().execute(
                 r#"UPDATE fnords SET
                     political_bias = ?1,
@@ -290,7 +353,16 @@ pub async fn process_article_discordian(
     let custom_discordian_prompt = get_discordian_prompt(&state);
 
     // Step 1: Load article content, bias weights, and corpus stats
-    let (provider, effective_model, embedding_provider, title, content, article_date, bias_weights, corpus_stats): (
+    let (
+        provider,
+        effective_model,
+        embedding_provider,
+        title,
+        content,
+        article_date,
+        bias_weights,
+        corpus_stats,
+    ): (
         Arc<dyn AiTextProvider>,
         String,
         Arc<dyn EmbeddingProvider>,
@@ -313,8 +385,21 @@ pub async fn process_article_discordian(
             .map_err(|e| e.to_string())?;
         let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
         let corpus = CorpusStats::load_from_db(db.conn()).ok();
-        let effective_model = crate::ai_provider::resolve_effective_model(provider.provider_name(), &model, &provider_model);
-        (provider, effective_model, embedding_provider, title, content, article_date, bias, corpus)
+        let effective_model = crate::ai_provider::resolve_effective_model(
+            provider.provider_name(),
+            &model,
+            &provider_model,
+        );
+        (
+            provider,
+            effective_model,
+            embedding_provider,
+            title,
+            content,
+            article_date,
+            bias,
+            corpus,
+        )
     };
 
     if content.is_empty() {
@@ -344,7 +429,10 @@ pub async fn process_article_discordian(
 
     keyword_candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     keyword_candidates.truncate(15);
-    let stat_keywords: Vec<String> = keyword_candidates.into_iter().map(|(term, _)| term).collect();
+    let stat_keywords: Vec<String> = keyword_candidates
+        .into_iter()
+        .map(|(term, _)| term)
+        .collect();
 
     // Extract tokens for corpus stats update
     let document_tokens = extractor.get_tokens(&text_for_analysis);
@@ -370,22 +458,27 @@ pub async fn process_article_discordian(
     let llm_start = Instant::now();
 
     match discordian_analysis_via_provider(
-            provider.as_ref(),
-            &effective_model,
-            &title,
-            &content,
-            &locale,
-            &stat_keywords,
-            &stat_categories,
-            custom_discordian_prompt.as_deref(),
-        )
-        .await
+        provider.as_ref(),
+        &effective_model,
+        &title,
+        &content,
+        &locale,
+        &stat_keywords,
+        &stat_categories,
+        custom_discordian_prompt.as_deref(),
+    )
+    .await
     {
         Ok((analysis_with_rejections, usage)) => {
             // Log cost with a brief DB lock
             {
                 let db = state.db_conn()?;
-                log_generation_cost(db.conn(), provider.provider_name(), &effective_model, &usage);
+                log_generation_cost(
+                    db.conn(),
+                    provider.provider_name(),
+                    &effective_model,
+                    &usage,
+                );
             }
             let duration = llm_start.elapsed();
             info!(
@@ -423,7 +516,8 @@ pub async fn process_article_discordian(
                         .ok();
 
                     if let Some(cat_id) = cat_id {
-                        let matching_terms: Vec<String> = stat_keywords.iter().take(5).cloned().collect();
+                        let matching_terms: Vec<String> =
+                            stat_keywords.iter().take(5).cloned().collect();
 
                         let _ = record_correction(
                             db.conn(),
@@ -454,7 +548,12 @@ pub async fn process_article_discordian(
                             sachlichkeit = ?3,
                             processed_at = CURRENT_TIMESTAMP
                         WHERE id = ?4"#,
-                        (&analysis.summary, analysis.political_bias, analysis.sachlichkeit, fnord_id),
+                        (
+                            &analysis.summary,
+                            analysis.political_bias,
+                            analysis.sachlichkeit,
+                            fnord_id,
+                        ),
                     )
                     .map_err(|e| e.to_string())?;
             }
@@ -466,11 +565,16 @@ pub async fn process_article_discordian(
                     validate_and_merge_categories(&analysis.categories, local_categories);
                 let categories_with_source =
                     determine_category_sources(&merged_categories, &stat_categories);
-                let categories_saved =
-                    save_article_categories_with_source(db.conn(), fnord_id, &categories_with_source);
+                let categories_saved = save_article_categories_with_source(
+                    db.conn(),
+                    fnord_id,
+                    &categories_with_source,
+                );
 
-                let merged_keywords = merge_keywords(&analysis.keywords, local_keywords.clone(), 15);
-                let keywords_with_source = determine_keyword_sources(&merged_keywords, &stat_keywords);
+                let merged_keywords =
+                    merge_keywords(&analysis.keywords, local_keywords.clone(), 15);
+                let keywords_with_source =
+                    determine_keyword_sources(&merged_keywords, &stat_keywords);
                 let (tags_saved, tag_ids) = save_article_keywords_with_source(
                     db.conn(),
                     fnord_id,
@@ -484,10 +588,19 @@ pub async fn process_article_discordian(
             };
 
             // Generate article embedding
-            if let Err(e) =
-                generate_and_save_article_embedding(embedding_provider.as_ref(), &state.db, fnord_id, &title, &content).await
+            if let Err(e) = generate_and_save_article_embedding(
+                embedding_provider.as_ref(),
+                &state.db,
+                fnord_id,
+                &title,
+                &content,
+            )
+            .await
             {
-                warn!("Failed to generate embedding for article {}: {}", fnord_id, e);
+                warn!(
+                    "Failed to generate embedding for article {}: {}",
+                    fnord_id, e
+                );
             }
 
             // Update corpus stats
@@ -527,7 +640,8 @@ pub async fn process_article_discordian(
                     .take(15)
                     .collect();
 
-                let categories_saved = save_article_categories(db.conn(), fnord_id, &local_categories);
+                let categories_saved =
+                    save_article_categories(db.conn(), fnord_id, &local_categories);
                 let (tags_saved, tag_ids) = save_article_keywords_and_network(
                     db.conn(),
                     fnord_id,
@@ -542,10 +656,19 @@ pub async fn process_article_discordian(
 
             // Generate article embedding even if LLM analysis failed
             // This ensures articles processed with fallback methods still get embeddings for similarity search
-            if let Err(embed_err) =
-                generate_and_save_article_embedding(embedding_provider.as_ref(), &state.db, fnord_id, &title, &content).await
+            if let Err(embed_err) = generate_and_save_article_embedding(
+                embedding_provider.as_ref(),
+                &state.db,
+                fnord_id,
+                &title,
+                &content,
+            )
+            .await
             {
-                warn!("Failed to generate embedding for article {} in fallback mode: {}", fnord_id, embed_err);
+                warn!(
+                    "Failed to generate embedding for article {} in fallback mode: {}",
+                    fnord_id, embed_err
+                );
             }
 
             Ok(DiscordianResponse {
@@ -554,7 +677,10 @@ pub async fn process_article_discordian(
                 analysis: None,
                 categories_saved,
                 tags_saved,
-                error: Some(format!("LLM failed, used statistical + local extraction: {}", e)),
+                error: Some(format!(
+                    "LLM failed, used statistical + local extraction: {}",
+                    e
+                )),
             })
         }
     }

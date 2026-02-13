@@ -7,7 +7,7 @@
 //! - Abbreviation detection
 
 use std::collections::HashSet;
-use strsim::{normalized_levenshtein, jaro_winkler};
+use strsim::{jaro_winkler, normalized_levenshtein};
 
 /// Token Set Ratio: Measures similarity based on token overlap.
 ///
@@ -110,8 +110,10 @@ pub fn calculate_abbreviation_score(short: &str, long: &str) -> f64 {
     let first_letters: String = words
         .iter()
         .filter(|w| {
-            !["and", "of", "the", "for", "in", "der", "die", "das", "und", "für", "von"]
-                .contains(&w.to_lowercase().as_str())
+            ![
+                "and", "of", "the", "for", "in", "der", "die", "das", "und", "für", "von",
+            ]
+            .contains(&w.to_lowercase().as_str())
         })
         .filter_map(|w| w.chars().next())
         .collect::<String>()

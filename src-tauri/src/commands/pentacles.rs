@@ -23,10 +23,8 @@ pub struct Pentacle {
 pub fn get_pentacles(state: State<AppState>) -> CmdResult<Vec<Pentacle>> {
     let db = state.db_conn()?;
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt = db.conn().prepare(
+        r#"
             SELECT
                 p.id,
                 p.url,
@@ -44,7 +42,7 @@ pub fn get_pentacles(state: State<AppState>) -> CmdResult<Vec<Pentacle>> {
             GROUP BY p.id
             ORDER BY p.title COLLATE NOCASE
             "#,
-        )?;
+    )?;
 
     let pentacles = stmt
         .query_map([], |row| {
@@ -68,7 +66,11 @@ pub fn get_pentacles(state: State<AppState>) -> CmdResult<Vec<Pentacle>> {
 }
 
 #[tauri::command]
-pub fn add_pentacle(state: State<AppState>, url: String, title: Option<String>) -> CmdResult<Pentacle> {
+pub fn add_pentacle(
+    state: State<AppState>,
+    url: String,
+    title: Option<String>,
+) -> CmdResult<Pentacle> {
     // Input validation
     const MAX_URL_LEN: usize = 2048;
     const MAX_TITLE_LEN: usize = 500;
@@ -78,32 +80,42 @@ pub fn add_pentacle(state: State<AppState>, url: String, title: Option<String>) 
     }
 
     if url.len() > MAX_URL_LEN {
-        return Err(FuckupError::Validation(format!("URL too long (max {} characters)", MAX_URL_LEN)));
+        return Err(FuckupError::Validation(format!(
+            "URL too long (max {} characters)",
+            MAX_URL_LEN
+        )));
     }
 
     // Validate URL format and scheme
-    let parsed_url = Url::parse(&url)
-        .map_err(|_| FuckupError::Validation("Invalid URL format".to_string()))?;
+    let parsed_url =
+        Url::parse(&url).map_err(|_| FuckupError::Validation("Invalid URL format".to_string()))?;
 
     match parsed_url.scheme() {
         "http" | "https" => {}
-        scheme => return Err(FuckupError::Validation(format!("Invalid URL scheme '{}'. Only http and https are allowed.", scheme))),
+        scheme => {
+            return Err(FuckupError::Validation(format!(
+                "Invalid URL scheme '{}'. Only http and https are allowed.",
+                scheme
+            )))
+        }
     }
 
     // Validate title length if provided
     if let Some(ref t) = title {
         if t.len() > MAX_TITLE_LEN {
-            return Err(FuckupError::Validation(format!("Title too long (max {} characters)", MAX_TITLE_LEN)));
+            return Err(FuckupError::Validation(format!(
+                "Title too long (max {} characters)",
+                MAX_TITLE_LEN
+            )));
         }
     }
 
     let db = state.db_conn()?;
 
-    db.conn()
-        .execute(
-            "INSERT INTO pentacles (url, title) VALUES (?1, ?2)",
-            (&url, &title),
-        )?;
+    db.conn().execute(
+        "INSERT INTO pentacles (url, title) VALUES (?1, ?2)",
+        (&url, &title),
+    )?;
 
     let id = db.conn().last_insert_rowid();
 
@@ -139,7 +151,10 @@ pub struct PentacleArticleStats {
 }
 
 #[tauri::command]
-pub fn count_pentacle_articles(state: State<AppState>, pentacle_id: i64) -> CmdResult<PentacleArticleStats> {
+pub fn count_pentacle_articles(
+    state: State<AppState>,
+    pentacle_id: i64,
+) -> CmdResult<PentacleArticleStats> {
     let db = state.db_conn()?;
 
     let stats = db.conn().query_row(
@@ -195,7 +210,10 @@ mod tests {
             db.conn()
                 .execute(
                     "INSERT INTO pentacles (url, title) VALUES (?1, ?2)",
-                    [format!("https://example{}.com/feed.xml", i), format!("Feed {}", i)],
+                    [
+                        format!("https://example{}.com/feed.xml", i),
+                        format!("Feed {}", i),
+                    ],
                 )
                 .expect("Failed to insert pentacle");
         }
@@ -226,12 +244,21 @@ mod tests {
             .expect("Failed to get pentacle id");
 
         // Insert fnords with different statuses
-        for (i, status) in ["concealed", "concealed", "illuminated", "golden_apple"].iter().enumerate() {
+        for (i, status) in ["concealed", "concealed", "illuminated", "golden_apple"]
+            .iter()
+            .enumerate()
+        {
             db.conn()
                 .execute(
                     r#"INSERT INTO fnords (pentacle_id, guid, url, title, status)
                        VALUES (?1, ?2, ?3, ?4, ?5)"#,
-                    rusqlite::params![pentacle_id, format!("guid-{}", i), format!("https://example.com/{}", i), format!("Article {}", i), status],
+                    rusqlite::params![
+                        pentacle_id,
+                        format!("guid-{}", i),
+                        format!("https://example.com/{}", i),
+                        format!("Article {}", i),
+                        status
+                    ],
                 )
                 .expect("Failed to insert fnord");
         }
@@ -260,7 +287,10 @@ mod tests {
         assert_eq!(article_count, 4, "Should have 4 articles");
         assert_eq!(unread_count, 2, "Should have 2 unread (concealed)");
         assert_eq!(illuminated_count, 1, "Should have 1 read (illuminated)");
-        assert_eq!(golden_apple_count, 1, "Should have 1 favorite (golden_apple)");
+        assert_eq!(
+            golden_apple_count, 1,
+            "Should have 1 favorite (golden_apple)"
+        );
     }
 
     #[test]
@@ -351,11 +381,9 @@ mod tests {
 
         let title: Option<String> = db
             .conn()
-            .query_row(
-                "SELECT title FROM pentacles WHERE id = ?1",
-                [id],
-                |row| row.get(0),
-            )
+            .query_row("SELECT title FROM pentacles WHERE id = ?1", [id], |row| {
+                row.get(0)
+            })
             .expect("Failed to query pentacle");
 
         assert!(title.is_none(), "Title should be NULL");
@@ -432,7 +460,10 @@ mod tests {
         );
 
         // The schema has a UNIQUE constraint on the url column
-        assert!(result.is_err(), "Duplicate URL should be rejected (UNIQUE constraint)");
+        assert!(
+            result.is_err(),
+            "Duplicate URL should be rejected (UNIQUE constraint)"
+        );
     }
 
     // ============================================================
@@ -455,7 +486,11 @@ mod tests {
         // Verify it exists
         let count_before: i64 = db
             .conn()
-            .query_row("SELECT COUNT(*) FROM pentacles WHERE id = ?1", [id], |row| row.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM pentacles WHERE id = ?1",
+                [id],
+                |row| row.get(0),
+            )
             .expect("Failed to count");
         assert_eq!(count_before, 1, "Pentacle should exist before delete");
 
@@ -467,7 +502,11 @@ mod tests {
         // Verify it's gone
         let count_after: i64 = db
             .conn()
-            .query_row("SELECT COUNT(*) FROM pentacles WHERE id = ?1", [id], |row| row.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM pentacles WHERE id = ?1",
+                [id],
+                |row| row.get(0),
+            )
             .expect("Failed to count");
         assert_eq!(count_after, 0, "Pentacle should be deleted");
     }
@@ -492,7 +531,13 @@ mod tests {
                 .execute(
                     r#"INSERT INTO fnords (pentacle_id, guid, url, title, status)
                        VALUES (?1, ?2, ?3, ?4, ?5)"#,
-                    rusqlite::params![pentacle_id, format!("guid-{}", i), format!("https://example.com/{}", i), format!("Article {}", i), "concealed"],
+                    rusqlite::params![
+                        pentacle_id,
+                        format!("guid-{}", i),
+                        format!("https://example.com/{}", i),
+                        format!("Article {}", i),
+                        "concealed"
+                    ],
                 )
                 .expect("Failed to insert fnord");
         }
@@ -535,7 +580,10 @@ mod tests {
             .execute("DELETE FROM pentacles WHERE id = 9999", [])
             .expect("Failed to execute delete");
 
-        assert_eq!(affected, 0, "Deleting non-existent pentacle should affect 0 rows");
+        assert_eq!(
+            affected, 0,
+            "Deleting non-existent pentacle should affect 0 rows"
+        );
     }
 
     #[test]

@@ -57,7 +57,10 @@ pub fn save_article_categories_with_source(
                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)"#,
                 rusqlite::params![fnord_id, sephiroth_id, cat.confidence, &cat.source],
             ) {
-                warn!("Failed to save category {} for fnord {}: {}", cat.name, fnord_id, e);
+                warn!(
+                    "Failed to save category {} for fnord {}: {}",
+                    cat.name, fnord_id, e
+                );
                 continue;
             }
 
@@ -87,8 +90,8 @@ pub fn save_article_keywords_and_network(
     categories_saved: &[String],
     article_date: Option<&str>,
 ) -> (Vec<String>, Vec<i64>) {
-    use crate::keywords::types::KeywordSource;
     use crate::commands::ai::helpers::detect_keyword_type;
+    use crate::keywords::types::KeywordSource;
     let kws_with_source: Vec<KeywordWithSource> = keywords
         .iter()
         .map(|k| KeywordWithSource {
@@ -98,7 +101,13 @@ pub fn save_article_keywords_and_network(
             keyword_type: detect_keyword_type(k),
         })
         .collect();
-    save_article_keywords_with_source(conn, fnord_id, &kws_with_source, categories_saved, article_date)
+    save_article_keywords_with_source(
+        conn,
+        fnord_id,
+        &kws_with_source,
+        categories_saved,
+        article_date,
+    )
 }
 
 /// Save keywords with source tracking (statistical vs ai)
@@ -218,7 +227,11 @@ pub fn save_article_keywords_with_source(
                WHERE LOWER(name) = LOWER(?1)"#,
             [store_keyword],
         ) {
-            trace!("Failed to update keyword count for '{}': {}", store_keyword, e);
+            trace!(
+                "Failed to update keyword count for '{}': {}",
+                store_keyword,
+                e
+            );
         }
 
         if let Ok(tag_id) = conn.query_row::<i64, _, _>(
@@ -261,7 +274,11 @@ pub fn save_article_keywords_with_source(
                VALUES (?1, 0, CURRENT_TIMESTAMP)"#,
             [keyword_id],
         ) {
-            trace!("Failed to queue keyword {} for embedding: {}", keyword_id, e);
+            trace!(
+                "Failed to queue keyword {} for embedding: {}",
+                keyword_id,
+                e
+            );
         }
     }
 

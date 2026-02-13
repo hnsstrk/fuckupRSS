@@ -138,19 +138,21 @@ pub fn find_similar_articles(
 
     let similar: Vec<SimilarArticle> = basic_articles
         .into_iter()
-        .map(|(article_id, title, pentacle_title, published_at, similarity)| {
-            let tags = get_article_tags(db.conn(), article_id);
-            let categories = get_article_main_categories(db.conn(), article_id);
-            SimilarArticle {
-                fnord_id: article_id,
-                title,
-                pentacle_title,
-                published_at,
-                similarity,
-                tags,
-                categories,
-            }
-        })
+        .map(
+            |(article_id, title, pentacle_title, published_at, similarity)| {
+                let tags = get_article_tags(db.conn(), article_id);
+                let categories = get_article_main_categories(db.conn(), article_id);
+                SimilarArticle {
+                    fnord_id: article_id,
+                    title,
+                    pentacle_title,
+                    published_at,
+                    similarity,
+                    tags,
+                    categories,
+                }
+            },
+        )
         .collect();
 
     Ok(SimilarArticlesResponse { fnord_id, similar })
@@ -237,7 +239,9 @@ pub async fn semantic_search(
 
 /// Get count of articles with and without embeddings
 #[tauri::command]
-pub fn get_article_embedding_stats(state: State<AppState>) -> Result<ArticleEmbeddingCount, String> {
+pub fn get_article_embedding_stats(
+    state: State<AppState>,
+) -> Result<ArticleEmbeddingCount, String> {
     let db = state.db_conn()?;
 
     let total_articles: i64 = db
@@ -337,8 +341,14 @@ pub async fn generate_article_embeddings_batch(
     let mut failed = 0i64;
 
     for (idx, (fnord_id, title, content)) in articles.into_iter().enumerate() {
-        let result =
-            generate_and_save_article_embedding(provider.as_ref(), &state.db, fnord_id, &title, &content).await;
+        let result = generate_and_save_article_embedding(
+            provider.as_ref(),
+            &state.db,
+            fnord_id,
+            &title,
+            &content,
+        )
+        .await;
 
         let (success, error) = match result {
             Ok(()) => {

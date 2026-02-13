@@ -161,14 +161,14 @@ pub fn create_embedding_provider(config: &EmbeddingProviderConfig) -> Arc<dyn Em
             &config.ollama_embedding_model,
             config.embedding_dimensions,
         )),
-        ProviderType::OpenAiCompatible => Arc::new(
-            openai_embedding_provider::OpenAiEmbeddingProvider::new(
+        ProviderType::OpenAiCompatible => {
+            Arc::new(openai_embedding_provider::OpenAiEmbeddingProvider::new(
                 &config.openai_base_url,
                 &config.openai_api_key,
                 &config.openai_embedding_model,
                 config.embedding_dimensions,
-            ),
-        ),
+            ))
+        }
     }
 }
 
@@ -221,7 +221,10 @@ mod tests {
 
     #[test]
     fn test_provider_type_from_str_ollama() {
-        assert_eq!(ProviderType::from_str_setting("ollama"), ProviderType::Ollama);
+        assert_eq!(
+            ProviderType::from_str_setting("ollama"),
+            ProviderType::Ollama
+        );
     }
 
     #[test]
@@ -234,9 +237,15 @@ mod tests {
 
     #[test]
     fn test_provider_type_from_str_unknown_defaults_to_ollama() {
-        assert_eq!(ProviderType::from_str_setting("unknown"), ProviderType::Ollama);
+        assert_eq!(
+            ProviderType::from_str_setting("unknown"),
+            ProviderType::Ollama
+        );
         assert_eq!(ProviderType::from_str_setting(""), ProviderType::Ollama);
-        assert_eq!(ProviderType::from_str_setting("openai"), ProviderType::Ollama);
+        assert_eq!(
+            ProviderType::from_str_setting("openai"),
+            ProviderType::Ollama
+        );
     }
 
     #[test]
@@ -251,10 +260,16 @@ mod tests {
     #[test]
     fn test_provider_type_roundtrip() {
         let ollama = ProviderType::Ollama;
-        assert_eq!(ProviderType::from_str_setting(ollama.to_setting_str()), ollama);
+        assert_eq!(
+            ProviderType::from_str_setting(ollama.to_setting_str()),
+            ollama
+        );
 
         let openai = ProviderType::OpenAiCompatible;
-        assert_eq!(ProviderType::from_str_setting(openai.to_setting_str()), openai);
+        assert_eq!(
+            ProviderType::from_str_setting(openai.to_setting_str()),
+            openai
+        );
     }
 
     #[test]
@@ -506,7 +521,8 @@ mod tests {
 
     #[test]
     fn test_resolve_effective_model_openai_ignores_frontend() {
-        let result = resolve_effective_model("OpenAI-compatible", "ministral-3:latest", "gpt-5-nano");
+        let result =
+            resolve_effective_model("OpenAI-compatible", "ministral-3:latest", "gpt-5-nano");
         assert_eq!(result, "gpt-5-nano");
     }
 

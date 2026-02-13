@@ -85,11 +85,10 @@ pub fn import_opml(
     let mut errors = Vec::new();
 
     for feed in feeds {
-        if feed.already_exists
-            && skip_existing {
-                skipped += 1;
-                continue;
-            }
+        if feed.already_exists && skip_existing {
+            skipped += 1;
+            continue;
+        }
 
         // Insert feed into database
         match db.conn().execute(
@@ -169,7 +168,8 @@ pub fn export_opml(state: State<AppState>) -> Result<String, String> {
     }
 
     // Serialize to XML string
-    opml.to_string().map_err(|e| format!("OPML serialization error: {}", e))
+    opml.to_string()
+        .map_err(|e| format!("OPML serialization error: {}", e))
 }
 
 /// Recursively collect feeds from OPML outlines
@@ -211,17 +211,18 @@ fn collect_feeds_from_outlines(
 
         // Recursively process children (for nested categories)
         if !outline.outlines.is_empty() {
-            let cat_name = outline
-                .title
-                .as_deref()
-                .unwrap_or_else(|| {
-                    if outline.text.is_empty() {
-                        category.unwrap_or("")
-                    } else {
-                        &outline.text
-                    }
-                });
-            let cat_name = if cat_name.is_empty() { None } else { Some(cat_name) };
+            let cat_name = outline.title.as_deref().unwrap_or_else(|| {
+                if outline.text.is_empty() {
+                    category.unwrap_or("")
+                } else {
+                    &outline.text
+                }
+            });
+            let cat_name = if cat_name.is_empty() {
+                None
+            } else {
+                Some(cat_name)
+            };
             collect_feeds_from_outlines(&outline.outlines, cat_name, existing_urls, feeds);
         }
     }
@@ -267,11 +268,17 @@ mod tests {
         assert_eq!(feeds.len(), 3);
 
         // Check Tech category feeds
-        let ars = feeds.iter().find(|f| f.url.contains("arstechnica")).unwrap();
+        let ars = feeds
+            .iter()
+            .find(|f| f.url.contains("arstechnica"))
+            .unwrap();
         assert_eq!(ars.title, Some("Ars Technica".to_string()));
         assert_eq!(ars.category, Some("Tech".to_string()));
 
-        let hn = feeds.iter().find(|f| f.url.contains("ycombinator")).unwrap();
+        let hn = feeds
+            .iter()
+            .find(|f| f.url.contains("ycombinator"))
+            .unwrap();
         assert_eq!(hn.title, Some("Hacker News".to_string()));
         assert_eq!(hn.category, Some("Tech".to_string()));
 
@@ -292,7 +299,10 @@ mod tests {
         let bbc = feeds.iter().find(|f| f.url.contains("bbc")).unwrap();
         assert!(bbc.already_exists);
 
-        let ars = feeds.iter().find(|f| f.url.contains("arstechnica")).unwrap();
+        let ars = feeds
+            .iter()
+            .find(|f| f.url.contains("arstechnica"))
+            .unwrap();
         assert!(!ars.already_exists);
     }
 

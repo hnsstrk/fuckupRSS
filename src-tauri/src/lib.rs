@@ -16,15 +16,26 @@ mod text_analysis;
 pub use categories::{classify_by_keywords, CategoryClassifier, SEPHIROTH_CATEGORIES};
 pub use embedding_worker::EmbeddingWorker;
 pub use keywords::{
-    extract_keywords, normalize_keyword, normalize_and_dedupe_keywords,
-    find_canonical_keyword, find_canonical_keyword_with_db, load_dynamic_synonyms,
-    split_compound_keyword, expand_compound_keywords,
-    should_split_compound, get_compound_components,
-    KeywordExtractor, Language,
-    // Unified keyword types
-    KeywordSource, KeywordWithMetadata, ExtractedKeywordCandidate, ArticleKeywordRef,
+    expand_compound_keywords,
+    extract_keywords,
+    find_canonical_keyword,
+    find_canonical_keyword_with_db,
+    get_compound_components,
+    keyword_defaults,
+    load_dynamic_synonyms,
+    normalize_and_dedupe_keywords,
+    normalize_keyword,
+    should_split_compound,
+    split_compound_keyword,
+    ArticleKeywordRef,
+    ExtractedKeywordCandidate,
     // Centralized configuration
-    KeywordConfig, keyword_defaults,
+    KeywordConfig,
+    KeywordExtractor,
+    // Unified keyword types
+    KeywordSource,
+    KeywordWithMetadata,
+    Language,
 };
 pub use logging::LogLevel;
 
