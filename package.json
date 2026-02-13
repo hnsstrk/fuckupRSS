@@ -26,7 +26,9 @@
     "rust:fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "rust:fmt:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
     "rust:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
-    "prepare": "husky"
+    "prepare": "husky",
+    "sbom:generate": "npx @cyclonedx/cyclonedx-npm --output-file sbom/frontend-bom.json && cd src-tauri && cargo cyclonedx --format json && mv fuckuprss.cdx.json ../sbom/backend-bom.json",
+    "sbom:validate": "cyclonedx validate --input-file sbom/frontend-bom.json && cyclonedx validate --input-file sbom/backend-bom.json"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.1.1",

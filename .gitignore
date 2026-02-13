@@ -42,6 +42,9 @@ playwright-report/
 test-results/
 coverage/
 
+# SBOM (generated artifacts)
+sbom/
+
 # Playwright CLI
 .playwright-cli/
 traces/
