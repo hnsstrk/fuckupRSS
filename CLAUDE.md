@@ -29,6 +29,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md) | Datenbank-Tabellen, Revisionsverwaltung, Settings |
 | [docs/guides/TESTING.md](docs/guides/TESTING.md) | Test-Befehle, Patterns, Anforderungen |
 | [docs/guides/HARDWARE_OPTIMIZATION.md](docs/guides/HARDWARE_OPTIMIZATION.md) | VRAM-Optimierung, Ollama-Konfiguration |
+| [docs/guides/CI_CD_SETUP.md](docs/guides/CI_CD_SETUP.md) | CI/CD Pipeline, Gitea Actions Runner Setup |
 | [README.md](README.md) | Technology Stack, Illuminatus! Terminologie, Ollama Setup |
 
 ## Project Overview
@@ -53,6 +54,27 @@ npm run tauri build
 
 # Nur Frontend entwickeln (ohne Tauri)
 npm run dev
+```
+
+**Alle npm Scripts:**
+```bash
+# Code-Qualitaet
+npm run lint              # ESLint
+npm run lint:fix          # ESLint auto-fix
+npm run format            # Prettier write
+npm run format:check      # Prettier check
+npm run rust:fmt          # Rust formatieren
+npm run rust:fmt:check    # Rust Format pruefen
+npm run rust:clippy       # Clippy
+
+# Security
+npm run security:scan     # Semgrep (auto rules)
+npm run security:owasp    # Semgrep (OWASP Top 10)
+npm run security:audit    # npm audit + cargo audit
+
+# SBOM
+npm run sbom:generate     # Frontend + Backend SBOMs
+npm run sbom:validate     # SBOMs validieren
 ```
 
 ## Testing
@@ -123,18 +145,69 @@ semgrep scan --config auto <datei1> <datei2> ...
 
 **Quick Commands:**
 ```bash
-# BOM validieren
-cyclonedx validate --input-file bom.json
+# SBOMs generieren (Frontend + Backend)
+npm run sbom:generate
 
-# BOM analysieren
-cyclonedx analyze --input-file bom.json
-
-# BOM-Format konvertieren (JSON <-> XML)
-cyclonedx convert --input-file bom.xml --output-file bom.json
-
-# Zwei BOMs vergleichen
-cyclonedx diff bom-old.json bom-new.json
+# SBOMs validieren
+npm run sbom:validate
 ```
+
+## Linting & Formatting
+
+### Frontend (ESLint + Prettier)
+
+```bash
+npm run lint              # ESLint pruefen
+npm run lint:fix          # ESLint auto-fix
+npm run format            # Prettier formatieren
+npm run format:check      # Prettier pruefen (CI)
+```
+
+**Config-Dateien:**
+- `eslint.config.js` - ESLint 9.x Flat Config (TypeScript + Svelte)
+- `.prettierrc` - Prettier Config (printWidth=100, singleQuote=false)
+- `.prettierignore` - Prettier Ausnahmen
+- `.editorconfig` - Editor-Einstellungen (LF, indent)
+
+### Rust (rustfmt + Clippy)
+
+```bash
+npm run rust:fmt          # Rust formatieren
+npm run rust:fmt:check    # Rust Format pruefen (CI)
+npm run rust:clippy       # Clippy Lint-Check
+```
+
+**Config-Dateien:**
+- `src-tauri/rustfmt.toml` - max_width=100, edition=2021
+- `src-tauri/clippy.toml` - too-many-arguments-threshold=8
+
+## Git Hooks (Husky)
+
+Automatische Qualitaetssicherung via Git Hooks (Husky 9 + lint-staged).
+
+### Pre-commit (bei jedem Commit)
+- **Frontend:** ESLint --fix + Prettier auf staged Dateien (via lint-staged)
+- **Rust:** cargo fmt --check + cargo clippy (nur bei .rs-Aenderungen)
+
+### Pre-push (vor jedem Push)
+- Frontend-Tests (vitest)
+- Rust-Tests (cargo test --lib --bins)
+- svelte-check Typ-Pruefung
+
+**Hooks umgehen (nur in Ausnahmen!):** `git commit --no-verify` / `git push --no-verify`
+
+## CI/CD (Gitea Actions)
+
+Pipeline in `.gitea/workflows/ci.yaml`. Ausfuehrliches Setup-Guide: [docs/guides/CI_CD_SETUP.md](docs/guides/CI_CD_SETUP.md)
+
+**Pipeline-Stages:**
+1. **Lint** - ESLint, Prettier, svelte-check, cargo fmt, Clippy
+2. **Tests** - Vitest, cargo test (Linux + macOS), E2E
+3. **Security** - Semgrep, npm audit
+4. **Build** - Linux (.deb, .AppImage), macOS (.dmg)
+5. **SBOM** - CycloneDX Frontend + Backend
+
+**Runner:** act_runner im Host-Modus (linux-x64 + macos-arm64)
 
 ## Icons
 
@@ -282,12 +355,23 @@ fuckupRSS/
 │   │   └── DATABASE_SCHEMA.md
 │   └── guides/
 │       ├── TESTING.md
-│       └── QUALITY_CHECKLIST.md
+│       ├── QUALITY_CHECKLIST.md
+│       └── CI_CD_SETUP.md
 ├── .claude/                      # Claude Code Konfiguration
 │   └── skills/
 │       └── playwright-cli/       # Playwright CLI Skills
 │           ├── SKILL.md          # Skill-Definition und Commands
 │           └── references/       # Detaillierte Anleitungen
+├── .gitea/                       # CI/CD
+│   └── workflows/
+│       └── ci.yaml               # Gitea Actions Pipeline
+├── .husky/                       # Git Hooks
+│   ├── pre-commit                # lint-staged + Rust checks
+│   └── pre-push                  # Tests + svelte-check
+├── eslint.config.js              # ESLint 9.x Flat Config
+├── .prettierrc                   # Prettier Config
+├── .editorconfig                 # Editor-Einstellungen
+├── .semgrepignore                # Semgrep Ausnahmen
 ├── fuckupRSS-Anforderungen.md    # Technische Spezifikation
 ├── playwright-cli.json           # Playwright CLI Konfiguration
 ├── README.md                     # Projekt-Dokumentation
