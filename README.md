@@ -299,7 +299,7 @@ cargo tauri dev
 
 ### Voraussetzungen für Entwicklung
 - Rust 1.75+
-- Node.js 20+
+- Node.js 22+
 - Tauri CLI (`cargo install tauri-cli`)
 
 ### Tests

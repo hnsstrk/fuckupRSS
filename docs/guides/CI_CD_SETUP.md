@@ -136,7 +136,7 @@ Die Pipeline ist in `.gitea/workflows/ci.yaml` definiert:
 
 | Stage | Runner | Jobs |
 |-------|--------|------|
-| **1. Lint** | linux-x64 | ESLint, Prettier, svelte-check, cargo fmt, Clippy |
+| **1. Lint** | linux-x64 | ESLint, Prettier, svelte-check, tsc --noEmit, cargo fmt, Clippy |
 | **2. Tests** | Beide | Vitest (Linux), cargo test (beide), E2E (Linux) |
 | **3. Security** | linux-x64 | Semgrep, npm audit |
 | **4. Build** | Beide | Linux (.deb, .AppImage), macOS (.dmg) |
