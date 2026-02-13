@@ -92,7 +92,7 @@
   }: Props = $props();
 
   // Synonym selection state
-  let selectedSynonymIds = $state(new SvelteSet<number>());
+  let selectedSynonymIds = new SvelteSet<number>();
   let assigningSynonyms = $state(false);
   let synonymError = $state<string | null>(null);
   let synonymSuccess = $state<string | null>(null);

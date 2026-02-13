@@ -242,7 +242,7 @@ export function sanitizeArticleContent(dirtyHtml: string): string {
   }
 
   // Pre-Processing: Entferne bekannte problematische Patterns
-  let processedHtml = dirtyHtml
+  const processedHtml = dirtyHtml
     // Entferne Video-Player SVGs (tagesschau, BBC, etc.)
     .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, "")
     // Entferne leere Spans

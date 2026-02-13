@@ -266,7 +266,7 @@ export function getDiffStats(segments: DiffSegment[]): {
       case "removed":
         removedWords += wordCount;
         break;
-      case "modified":
+      case "modified": {
         modifiedSegments++;
         // Count the old text as removed words
         const oldWordCount = (seg.oldText || "")
@@ -277,6 +277,7 @@ export function getDiffStats(segments: DiffSegment[]): {
         // Count the new text as added words
         addedWords += wordCount;
         break;
+      }
       default:
         unchangedWords += wordCount;
     }
