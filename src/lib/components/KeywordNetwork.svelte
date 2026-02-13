@@ -219,17 +219,47 @@
           <!-- Trending Keywords -->
           {#if networkStore.trendingKeywords.length > 0}
             <div class="list-section">
-              <div class="section-label">{$_('network.trending')}</div>
-              {#each networkStore.trendingKeywords.slice(0, 5) as keyword (keyword.id)}
+              <div class="section-label trending-header">
+                <span>{$_('network.trending')}</span>
+                <div class="trending-period-buttons">
+                  {#each [{days: 1, key: 'trendingPeriod24h'}, {days: 3, key: 'trendingPeriod3d'}, {days: 7, key: 'trendingPeriod7d'}, {days: 14, key: 'trendingPeriod14d'}] as period (period.days)}
+                    <button
+                      class="period-btn {networkStore.trendingPeriod === period.days ? 'active' : ''}"
+                      onclick={() => networkStore.setTrendingPeriod(period.days)}
+                    >
+                      {$_(`network.${period.key}`)}
+                    </button>
+                  {/each}
+                </div>
+                <Tooltip content={$_('network.trendingTooltip', { values: { days: networkStore.trendingPeriod } })}>
+                  <i class="fa-solid fa-circle-info trending-info"></i>
+                </Tooltip>
+              </div>
+              {#each networkStore.trendingKeywords.slice(0, 10) as keyword (keyword.id)}
                 <button
                   class="keyword-item trending {networkStore.selectedKeyword?.id === keyword.id ? 'active' : ''}"
                   onclick={() => networkStore.selectKeyword(keyword.id)}
                 >
                   <span class="keyword-name">
-                    <i class="trend-icon fa-solid fa-caret-up"></i>
+                    {#if keyword.growth_rate > 0.2}
+                      <i class="trend-icon fa-solid fa-arrow-trend-up"></i>
+                    {:else if keyword.growth_rate > 0}
+                      <i class="trend-icon fa-solid fa-caret-up"></i>
+                    {:else if keyword.growth_rate === 0}
+                      <i class="trend-icon neutral fa-solid fa-minus"></i>
+                    {:else}
+                      <i class="trend-icon negative fa-solid fa-caret-down"></i>
+                    {/if}
                     {keyword.name}
                   </span>
-                  <span class="keyword-count">{keyword.recent_count}</span>
+                  <span class="keyword-count">
+                    {#if keyword.growth_rate > 0}
+                      <span class="growth positive">+{Math.round(keyword.growth_rate * 100)}%</span>
+                    {:else if keyword.growth_rate < 0}
+                      <span class="growth negative">{Math.round(keyword.growth_rate * 100)}%</span>
+                    {/if}
+                    {keyword.recent_count}
+                  </span>
                 </button>
               {/each}
             </div>
@@ -594,10 +624,81 @@
     border-left: 2px solid var(--accent-primary);
   }
 
+  .trending-header {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+  }
+
+  .trending-period-buttons {
+    display: flex;
+    gap: 0.125rem;
+    margin-left: auto;
+  }
+
+  .period-btn {
+    padding: 0.0625rem 0.375rem;
+    font-size: 0.5625rem;
+    font-weight: 500;
+    border: 1px solid var(--border-default);
+    border-radius: 0.75rem;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: none;
+    letter-spacing: normal;
+    line-height: 1.4;
+  }
+
+  .period-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+  }
+
+  .period-btn.active {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: var(--bg-base);
+  }
+
+  .trending-info {
+    font-size: 0.625rem;
+    color: var(--text-faint);
+    cursor: help;
+  }
+
+  .trending-info:hover {
+    color: var(--text-muted);
+  }
+
   .keyword-item.trending .trend-icon {
     color: var(--accent-success);
     font-size: 0.625rem;
     margin-right: 0.25rem;
+  }
+
+  .keyword-item.trending .trend-icon.neutral {
+    color: var(--text-muted);
+  }
+
+  .keyword-item.trending .trend-icon.negative {
+    color: var(--accent-error);
+  }
+
+  .growth {
+    font-size: 0.625rem;
+    font-weight: 500;
+    margin-right: 0.25rem;
+  }
+
+  .growth.positive {
+    color: var(--accent-success);
+  }
+
+  .growth.negative {
+    color: var(--accent-error);
   }
 
   .keyword-name {

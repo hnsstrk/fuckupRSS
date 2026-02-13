@@ -69,8 +69,9 @@ pub struct TrendingKeyword {
     pub id: i64,
     pub name: String,
     pub total_count: i64,
-    pub recent_count: i64, // Last 7 days
-    pub growth_rate: f64,  // recent / (total - recent)
+    pub recent_count: i64,    // Last N days
+    pub growth_rate: f64,     // (recent - previous) / previous
+    pub trending_score: f64,  // recent_count * (1.0 + growth_rate)
 }
 
 /// Network statistics
@@ -274,6 +275,11 @@ pub fn get_category_keywords(
 }
 
 /// Get trending keywords (most growth in last N days)
+///
+/// Uses immanentize_daily for efficient period comparison:
+/// - Recent period: last N days
+/// - Previous period: N to 2N days ago
+/// - trending_score = recent_count * (1.0 + growth_rate)
 #[tauri::command]
 pub fn get_trending_keywords(
     state: State<AppState>,
@@ -292,14 +298,30 @@ pub fn get_trending_keywords(
                 i.id,
                 i.name,
                 i.article_count as total_count,
-                (SELECT COUNT(DISTINCT fi.fnord_id)
-                 FROM fnord_immanentize fi
-                 JOIN fnords f ON f.id = fi.fnord_id
-                 WHERE fi.immanentize_id = i.id
-                 AND f.published_at > datetime('now', '-' || ?1 || ' days')) as recent_count
+                COALESCE(recent.cnt, 0) as recent_count,
+                COALESCE(prev.cnt, 0) as previous_count
             FROM immanentize i
-            WHERE i.article_count > 2
-            ORDER BY recent_count DESC
+            LEFT JOIN (
+                SELECT immanentize_id, SUM(count) as cnt
+                FROM immanentize_daily
+                WHERE date >= DATE('now', '-' || ?1 || ' days')
+                GROUP BY immanentize_id
+            ) recent ON recent.immanentize_id = i.id
+            LEFT JOIN (
+                SELECT immanentize_id, SUM(count) as cnt
+                FROM immanentize_daily
+                WHERE date >= DATE('now', '-' || (?1 * 2) || ' days')
+                  AND date < DATE('now', '-' || ?1 || ' days')
+                GROUP BY immanentize_id
+            ) prev ON prev.immanentize_id = i.id
+            WHERE (i.is_canonical = TRUE OR i.is_canonical IS NULL)
+              AND i.article_count >= 3
+              AND COALESCE(recent.cnt, 0) > 0
+            ORDER BY (COALESCE(recent.cnt, 0) * (1.0 + CASE
+                WHEN COALESCE(prev.cnt, 0) > 0
+                    THEN (CAST(COALESCE(recent.cnt, 0) - COALESCE(prev.cnt, 0) AS REAL) / COALESCE(prev.cnt, 0))
+                ELSE 1.0
+            END)) DESC
             LIMIT ?2
             "#,
         )
@@ -309,21 +331,25 @@ pub fn get_trending_keywords(
         .query_map(rusqlite::params![days, limit], |row| {
             let total: i64 = row.get::<_, Option<i64>>(2)?.unwrap_or(0);
             let recent: i64 = row.get::<_, Option<i64>>(3)?.unwrap_or(0);
-            let older = total - recent;
-            let growth = if older > 0 {
-                recent as f64 / older as f64
+            let previous: i64 = row.get::<_, Option<i64>>(4)?.unwrap_or(0);
+
+            let growth_rate = if previous > 0 {
+                (recent as f64 - previous as f64) / previous as f64
             } else if recent > 0 {
-                recent as f64
+                1.0
             } else {
                 0.0
             };
+
+            let trending_score = recent as f64 * (1.0 + growth_rate);
 
             Ok(TrendingKeyword {
                 id: row.get(0)?,
                 name: row.get(1)?,
                 total_count: total,
                 recent_count: recent,
-                growth_rate: growth,
+                growth_rate,
+                trending_score,
             })
         })
         .map_err(|e| e.to_string())?

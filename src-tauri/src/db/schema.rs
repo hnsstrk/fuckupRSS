@@ -988,6 +988,14 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Composite index for immanentize_daily trending queries (date range + aggregation)
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_immanentize_daily_date_id_count
+            ON immanentize_daily(date, immanentize_id, count);
+        "#,
+    )?;
+
     Ok(())
 }
 

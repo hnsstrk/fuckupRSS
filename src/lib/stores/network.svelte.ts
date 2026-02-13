@@ -61,6 +61,7 @@ class ImmanentizeNetworkStore {
   neighbors = $state<KeywordNeighbor[]>([]);
   keywordCategories = $state<KeywordCategory[]>([]);
   trendingKeywords = $state<TrendingKeyword[]>([]);
+  trendingPeriod = $state(7);
   networkStats = $state<NetworkStats | null>(null);
   searchResults = $state<Keyword[]>([]);
   searchQuery = $state('');
@@ -276,15 +277,21 @@ class ImmanentizeNetworkStore {
     }
   }
 
-  async loadTrendingKeywords(days = 7): Promise<void> {
+  async loadTrendingKeywords(days?: number): Promise<void> {
+    const d = days ?? this.trendingPeriod;
     try {
       this.trendingKeywords = await invoke<TrendingKeyword[]>("get_trending_keywords", {
-        days,
+        days: d,
         limit: 20,
       });
     } catch (e) {
       console.error("Failed to load trending keywords:", e);
     }
+  }
+
+  async setTrendingPeriod(days: number): Promise<void> {
+    this.trendingPeriod = days;
+    await this.loadTrendingKeywords(days);
   }
 
   async loadNetworkStats(): Promise<void> {

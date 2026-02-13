@@ -463,7 +463,22 @@
       "noCompounds": "No compound keywords found",
       "preserveKeyword": "Preserve",
       "unpreserveKeyword": "Remove protection",
-      "preserved": "Protected"
+      "preserved": "Protected",
+      "orphanedArticles": {
+        "title": "Orphaned Articles",
+        "description": "Finds and deletes articles whose source no longer exists.",
+        "scan": "Scan for orphaned articles",
+        "scanning": "Scanning...",
+        "found": "{count} orphaned articles found.",
+        "foundWithFavorites": "{count} orphaned articles found, {favorites} of which are favorites.",
+        "noOrphans": "No orphaned articles found.",
+        "deleteAll": "Delete all (incl. favorites)",
+        "deleteExceptFavorites": "Delete (keep favorites)",
+        "confirmDeleteAll": "Really delete all {count} orphaned articles, including {favorites} favorites?",
+        "confirmDelete": "Really delete {count} orphaned articles?",
+        "deleted": "{count} orphaned articles deleted.",
+        "cancel": "Cancel"
+      }
     },
     "stopwords": {
       "title": "Stopwords",
@@ -722,6 +737,11 @@
     "searchResults": "Search Results",
     "noResults": "No results found",
     "trending": "Trending",
+    "trendingTooltip": "Keywords with the strongest growth in new articles over the last {days} days. Score = frequency × growth rate.",
+    "trendingPeriod24h": "24h",
+    "trendingPeriod3d": "3 days",
+    "trendingPeriod7d": "7 days",
+    "trendingPeriod14d": "14 days",
     "allKeywords": "All Keywords",
     "loadMore": "Load more",
     "loading": "Loading...",
@@ -1041,6 +1061,19 @@
   "common": {
     "cancel": "Cancel",
     "retry": "Retry"
+  },
+  "deletePentacle": {
+    "title": "Delete Source",
+    "confirm": "Do you really want to delete the source \"{title}\"?",
+    "articleCount": "This source contains {count} article.",
+    "articleCountPlural": "This source contains {count} articles.",
+    "favoritesWarning": "{count} of them is marked as favorite.",
+    "favoritesWarningPlural": "{count} of them are marked as favorites.",
+    "noArticles": "This source contains no articles.",
+    "deleteAll": "Delete All",
+    "cancel": "Cancel",
+    "success": "Source and {count} articles deleted.",
+    "successNoArticles": "Source deleted."
   },
   "compound": {
     "title": "Compound Keywords",

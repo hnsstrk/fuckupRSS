@@ -297,6 +297,7 @@ export interface TrendingKeyword {
   total_count: number;
   recent_count: number;
   growth_rate: number;
+  trending_score: number;
 }
 
 export interface NetworkStats {

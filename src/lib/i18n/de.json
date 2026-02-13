@@ -463,7 +463,22 @@
       "noCompounds": "Keine Compound-Keywords gefunden",
       "preserveKeyword": "Erhalten",
       "unpreserveKeyword": "Schutz aufheben",
-      "preserved": "Geschuetzt"
+      "preserved": "Geschuetzt",
+      "orphanedArticles": {
+        "title": "Verwaiste Artikel",
+        "description": "Findet und löscht Artikel, deren Quelle nicht mehr vorhanden ist.",
+        "scan": "Nach verwaisten Artikeln suchen",
+        "scanning": "Suche läuft...",
+        "found": "{count} verwaiste Artikel gefunden.",
+        "foundWithFavorites": "{count} verwaiste Artikel gefunden, davon {favorites} Favoriten.",
+        "noOrphans": "Keine verwaisten Artikel gefunden.",
+        "deleteAll": "Alle löschen (inkl. Favoriten)",
+        "deleteExceptFavorites": "Löschen (Favoriten behalten)",
+        "confirmDeleteAll": "Wirklich alle {count} verwaisten Artikel löschen, einschließlich {favorites} Favoriten?",
+        "confirmDelete": "Wirklich {count} verwaiste Artikel löschen?",
+        "deleted": "{count} verwaiste Artikel gelöscht.",
+        "cancel": "Abbrechen"
+      }
     },
     "stopwords": {
       "title": "Stopwörter",
@@ -722,6 +737,11 @@
     "searchResults": "Suchergebnisse",
     "noResults": "Keine Ergebnisse gefunden",
     "trending": "Trending",
+    "trendingTooltip": "Schlagworte mit dem stärksten Wachstum in neuen Artikeln der letzten {days} Tage. Score = Häufigkeit × Wachstumsrate.",
+    "trendingPeriod24h": "24h",
+    "trendingPeriod3d": "3 Tage",
+    "trendingPeriod7d": "7 Tage",
+    "trendingPeriod14d": "14 Tage",
     "allKeywords": "Alle Stichworte",
     "loadMore": "Weitere laden",
     "loading": "Lade...",
@@ -1041,6 +1061,19 @@
   "common": {
     "cancel": "Abbrechen",
     "retry": "Erneut versuchen"
+  },
+  "deletePentacle": {
+    "title": "Quelle löschen",
+    "confirm": "Möchten Sie die Quelle \"{title}\" wirklich löschen?",
+    "articleCount": "Diese Quelle enthält {count} Artikel.",
+    "articleCountPlural": "Diese Quelle enthält {count} Artikel.",
+    "favoritesWarning": "Davon sind {count} als Favoriten markiert.",
+    "favoritesWarningPlural": "Davon sind {count} als Favoriten markiert.",
+    "noArticles": "Diese Quelle enthält keine Artikel.",
+    "deleteAll": "Alles löschen",
+    "cancel": "Abbrechen",
+    "success": "Quelle und {count} Artikel gelöscht.",
+    "successNoArticles": "Quelle gelöscht."
   },
   "compound": {
     "title": "Compound-Keywords",
