@@ -1,6 +1,6 @@
 export interface Toast {
   id: number;
-  type: 'success' | 'error' | 'info';
+  type: "success" | "error" | "info";
   message: string;
 }
 
@@ -66,7 +66,7 @@ export interface FnordRevision {
 export interface FnordFilter {
   pentacle_id?: number;
   sephiroth_id?: number;
-  main_sephiroth_id?: number;  // Filter by main category (includes all subcategories)
+  main_sephiroth_id?: number; // Filter by main category (includes all subcategories)
   status?: string;
   limit?: number;
   offset?: number;
@@ -227,7 +227,7 @@ export interface ArticleCategory {
   icon: string | null;
   color: string | null;
   confidence: number;
-  source: 'ai' | 'manual';
+  source: "ai" | "manual";
   assigned_at: string | null;
   parent_id: number | null;
   main_category_name: string | null;
@@ -328,7 +328,7 @@ export interface NetworkGraph {
   edges: GraphEdge[];
 }
 
-export type MainView = 'articles' | 'network' | 'fnord' | 'mindfuck';
+export type MainView = "articles" | "network" | "fnord" | "mindfuck";
 
 // Operation Mindfuck (Bias Mirror)
 export interface SubCategoryReadStats {
@@ -472,16 +472,24 @@ export interface SemanticSearchResponse {
 }
 
 // Keyword types for entity classification
-export type KeywordType = 'concept' | 'person' | 'organization' | 'location' | 'acronym';
+export type KeywordType = "concept" | "person" | "organization" | "location" | "acronym";
 
 // Extraction methods that can contribute to a keyword
-export type ExtractionMethod = 'yake' | 'rake' | 'ngram' | 'textrank' | 'entity' | 'enhanced_ner' | 'tfidf' | 'ai';
+export type ExtractionMethod =
+  | "yake"
+  | "rake"
+  | "ngram"
+  | "textrank"
+  | "entity"
+  | "enhanced_ner"
+  | "tfidf"
+  | "ai";
 
 // Article Keywords & Categories (with source tracking)
 export interface ArticleKeyword {
   id: number;
   name: string;
-  source: 'ai' | 'statistical' | 'manual';
+  source: "ai" | "statistical" | "manual";
   confidence: number;
   // New fields for advanced extraction info
   keyword_type?: KeywordType;
@@ -495,7 +503,7 @@ export interface ArticleCategoryDetailed {
   name: string;
   icon: string | null;
   color: string | null;
-  source: 'ai' | 'manual';
+  source: "ai" | "manual";
   confidence: number;
   parent_id: number | null;
   parent_name: string | null;
@@ -534,7 +542,7 @@ export interface BiasStats {
 
 export interface CorrectionInput {
   fnord_id: number;
-  correction_type: 'keyword_added' | 'keyword_removed' | 'category_added' | 'category_removed';
+  correction_type: "keyword_added" | "keyword_removed" | "category_added" | "category_removed";
   old_value?: string;
   new_value?: string;
   // For category corrections: the terms that matched this category (from statistical analysis)
@@ -663,20 +671,20 @@ export interface RecommendationStats {
 
 // Recommendation loading state machine
 export type RecommendationLoadState =
-  | { status: 'idle' }
-  | { status: 'loading'; phase: RecommendationPhase; startedAt: number }
-  | { status: 'success'; recommendations: Recommendation[]; loadedAt: number }
-  | { status: 'empty'; stats: RecommendationStats | null; reason: string }
-  | { status: 'error'; code: string; message: string; retryable: boolean }
-  | { status: 'timeout'; elapsedMs: number }
-  | { status: 'cancelled' };
+  | { status: "idle" }
+  | { status: "loading"; phase: RecommendationPhase; startedAt: number }
+  | { status: "success"; recommendations: Recommendation[]; loadedAt: number }
+  | { status: "empty"; stats: RecommendationStats | null; reason: string }
+  | { status: "error"; code: string; message: string; retryable: boolean }
+  | { status: "timeout"; elapsedMs: number }
+  | { status: "cancelled" };
 
 export type RecommendationPhase =
-  | 'init'
-  | 'loading_profile'
-  | 'generating_candidates'
-  | 'scoring'
-  | 'finalizing';
+  | "init"
+  | "loading_profile"
+  | "generating_candidates"
+  | "scoring"
+  | "finalizing";
 
 // True Synonym Detection (hybrid string + embedding similarity)
 export interface TrueSynonymCandidate {

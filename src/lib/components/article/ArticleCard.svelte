@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { locale } from 'svelte-i18n';
+  import { locale } from "svelte-i18n";
   import {
     formatFullDate,
     formatSimilarity,
@@ -8,7 +8,7 @@
     getBiasLabel,
     getBiasColor,
     getCategoryColorVar,
-  } from '../../utils/articleFormat';
+  } from "../../utils/articleFormat";
 
   interface Category {
     id?: number;
@@ -64,18 +64,17 @@
     showBias = false,
     showReason = false,
     showAction = false,
-    actionLabel = 'Read',
+    actionLabel = "Read",
     maxTags = 3,
     onclick,
-    onaction
+    onaction,
   }: Props = $props();
 
-  const currentLocale = $derived($locale || 'de');
+  const currentLocale = $derived($locale || "de");
   const displayedTags = $derived(tags.slice(0, maxTags));
   const remainingTags = $derived(tags.length > maxTags ? tags.length - maxTags : 0);
   const hasMetaRow = $derived(
-    (showCategories && categories.length > 0) ||
-    (showTags && tags.length > 0)
+    (showCategories && categories.length > 0) || (showTags && tags.length > 0),
   );
 
   function handleAction(e: MouseEvent) {
@@ -88,7 +87,7 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') {
+    if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       onclick?.();
     }
@@ -151,11 +150,7 @@
       <p class="card-reason">{reason}</p>
     {/if}
     {#if showAction}
-      <button
-        type="button"
-        class="card-action"
-        onclick={handleAction}
-      >
+      <button type="button" class="card-action" onclick={handleAction}>
         {actionLabel}
       </button>
     {/if}
@@ -233,9 +228,15 @@
     font-size: 0.75rem;
   }
 
-  .status-concealed { color: var(--fnord-color); }
-  .status-illuminated { color: var(--illuminated-color); }
-  .status-golden_apple { color: var(--golden-apple-color); }
+  .status-concealed {
+    color: var(--fnord-color);
+  }
+  .status-illuminated {
+    color: var(--illuminated-color);
+  }
+  .status-golden_apple {
+    color: var(--golden-apple-color);
+  }
 
   .card-bias {
     font-weight: 500;

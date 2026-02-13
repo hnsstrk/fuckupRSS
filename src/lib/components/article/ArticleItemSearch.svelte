@@ -1,10 +1,6 @@
 <script lang="ts">
-  import { locale } from 'svelte-i18n';
-  import {
-    formatRelativeDate,
-    formatSimilarity,
-    truncateText
-  } from '../../utils/articleFormat';
+  import { locale } from "svelte-i18n";
+  import { formatRelativeDate, formatSimilarity, truncateText } from "../../utils/articleFormat";
 
   interface Props {
     fnord_id: number;
@@ -27,21 +23,14 @@
     summary = null,
     active = false,
     showSummary = true,
-    onclick
+    onclick,
   }: Props = $props();
 
-  const currentLocale = $derived($locale || 'de');
-  const truncatedSummary = $derived(
-    summary && showSummary ? truncateText(summary, 120) : null
-  );
+  const currentLocale = $derived($locale || "de");
+  const truncatedSummary = $derived(summary && showSummary ? truncateText(summary, 120) : null);
 </script>
 
-<button
-  class="article-item-search"
-  class:active
-  type="button"
-  {onclick}
->
+<button class="article-item-search" class:active type="button" {onclick}>
   <div class="article-row">
     <div class="search-similarity">
       {formatSimilarity(similarity)}

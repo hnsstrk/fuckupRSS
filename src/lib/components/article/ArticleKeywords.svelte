@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { _ } from 'svelte-i18n';
-  import { invoke } from '@tauri-apps/api/core';
-  import type { ArticleKeyword, KeywordType, ExtractionMethod, CorrectionInput } from '$lib/types';
+  import { onMount, onDestroy } from "svelte";
+  import { _ } from "svelte-i18n";
+  import { invoke } from "@tauri-apps/api/core";
+  import type { ArticleKeyword, KeywordType, ExtractionMethod, CorrectionInput } from "$lib/types";
 
   interface Props {
     fnordId: number;
@@ -14,7 +14,7 @@
   let { fnordId, keywords, editing, onUpdate }: Props = $props();
 
   // Search state
-  let searchInput = $state('');
+  let searchInput = $state("");
   let searchResults = $state<{ id: number; name: string; count: number }[]>([]);
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   let loading = $state(false);
@@ -30,7 +30,9 @@
 
   // Expanded keyword neighbors (for get_similar_keywords)
   let expandedKeywordId = $state<number | null>(null);
-  let expandedNeighbors = $state<{ id: number; name: string; similarity: number; cooccurrence: number }[]>([]);
+  let expandedNeighbors = $state<
+    { id: number; name: string; similarity: number; cooccurrence: number }[]
+  >([]);
   let loadingNeighbors = $state(false);
 
   // Semantic scores for suggestions
@@ -38,28 +40,32 @@
   let loadingSemanticScores = $state(false);
 
   // Get source icon class
-  function getSourceIcon(source: ArticleKeyword['source']): string {
+  function getSourceIcon(source: ArticleKeyword["source"]): string {
     switch (source) {
-      case 'ai':
-        return 'fa-solid fa-robot';
-      case 'statistical':
-        return 'fa-solid fa-chart-line';
-      case 'manual':
-        return 'fa-solid fa-user';
+      case "ai":
+        return "fa-solid fa-robot";
+      case "statistical":
+        return "fa-solid fa-chart-line";
+      case "manual":
+        return "fa-solid fa-user";
       default:
-        return 'fa-solid fa-tag';
+        return "fa-solid fa-tag";
     }
   }
 
   // Get source tooltip
-  function getSourceLabel(source: ArticleKeyword['source']): string {
+  function getSourceLabel(source: ArticleKeyword["source"]): string {
     switch (source) {
-      case 'ai':
-        return $_('keywordTooltips.sourceAi') || $_('articleView.sourceAi') || 'KI-generiert';
-      case 'statistical':
-        return $_('keywordTooltips.sourceStatistical') || $_('articleView.sourceStatistical') || 'Statistisch';
-      case 'manual':
-        return $_('keywordTooltips.sourceManual') || $_('articleView.sourceManual') || 'Manuell';
+      case "ai":
+        return $_("keywordTooltips.sourceAi") || $_("articleView.sourceAi") || "KI-generiert";
+      case "statistical":
+        return (
+          $_("keywordTooltips.sourceStatistical") ||
+          $_("articleView.sourceStatistical") ||
+          "Statistisch"
+        );
+      case "manual":
+        return $_("keywordTooltips.sourceManual") || $_("articleView.sourceManual") || "Manuell";
       default:
         return source;
     }
@@ -68,52 +74,56 @@
   // Get keyword type icon (Font Awesome)
   function getTypeIcon(type: KeywordType | undefined): string {
     switch (type) {
-      case 'person':
-        return 'fa-solid fa-user-tie';
-      case 'organization':
-        return 'fa-solid fa-building';
-      case 'location':
-        return 'fa-solid fa-location-dot';
-      case 'acronym':
-        return 'fa-solid fa-font';
-      case 'concept':
+      case "person":
+        return "fa-solid fa-user-tie";
+      case "organization":
+        return "fa-solid fa-building";
+      case "location":
+        return "fa-solid fa-location-dot";
+      case "acronym":
+        return "fa-solid fa-font";
+      case "concept":
       default:
-        return 'fa-solid fa-lightbulb';
+        return "fa-solid fa-lightbulb";
     }
   }
 
   // Get keyword type label
   function getTypeLabel(type: KeywordType | undefined): string {
     switch (type) {
-      case 'person':
-        return $_('keywordTooltips.typePerson') || $_('articleKeywords.typePerson') || 'Person';
-      case 'organization':
-        return $_('keywordTooltips.typeOrganization') || $_('articleKeywords.typeOrganization') || 'Organisation';
-      case 'location':
-        return $_('keywordTooltips.typeLocation') || $_('articleKeywords.typeLocation') || 'Ort';
-      case 'acronym':
-        return $_('keywordTooltips.typeAcronym') || $_('articleKeywords.typeAcronym') || 'Akronym';
-      case 'concept':
+      case "person":
+        return $_("keywordTooltips.typePerson") || $_("articleKeywords.typePerson") || "Person";
+      case "organization":
+        return (
+          $_("keywordTooltips.typeOrganization") ||
+          $_("articleKeywords.typeOrganization") ||
+          "Organisation"
+        );
+      case "location":
+        return $_("keywordTooltips.typeLocation") || $_("articleKeywords.typeLocation") || "Ort";
+      case "acronym":
+        return $_("keywordTooltips.typeAcronym") || $_("articleKeywords.typeAcronym") || "Akronym";
+      case "concept":
       default:
-        return $_('keywordTooltips.typeConcept') || $_('articleKeywords.typeConcept') || 'Konzept';
+        return $_("keywordTooltips.typeConcept") || $_("articleKeywords.typeConcept") || "Konzept";
     }
   }
 
   // Get extraction method labels
   function getMethodLabels(methods: ExtractionMethod[] | undefined): string {
-    if (!methods || methods.length === 0) return '';
+    if (!methods || methods.length === 0) return "";
     const labels: Record<string, string> = {
-      'yake': 'YAKE',
-      'rake': 'RAKE',
-      'ngram': 'N-Gram',
-      'textrank': 'TextRank',
-      'entity': 'NER',
-      'enhanced_ner': 'NER+',
-      'tfidf': 'TF-IDF',
-      'ai': 'LLM',
-      'manual': 'Manuell'
+      yake: "YAKE",
+      rake: "RAKE",
+      ngram: "N-Gram",
+      textrank: "TextRank",
+      entity: "NER",
+      enhanced_ner: "NER+",
+      tfidf: "TF-IDF",
+      ai: "LLM",
+      manual: "Manuell",
     };
-    return methods.map(m => labels[m] || m).join(', ');
+    return methods.map((m) => labels[m] || m).join(", ");
   }
 
   // Check if keyword has multiple extraction methods (confirmed by multiple sources)
@@ -123,17 +133,17 @@
 
   // Get quality score color
   function getQualityColor(score: number | undefined): string {
-    if (score === undefined || score === null) return 'var(--text-muted)';
-    if (score >= 0.7) return 'var(--status-success)';
-    if (score >= 0.4) return 'var(--status-warning)';
-    return 'var(--status-error)';
+    if (score === undefined || score === null) return "var(--text-muted)";
+    if (score >= 0.7) return "var(--status-success)";
+    if (score >= 0.4) return "var(--status-warning)";
+    return "var(--status-error)";
   }
 
   // Get confidence color (same thresholds as quality)
   function getConfidenceColor(confidence: number): string {
-    if (confidence >= 0.7) return 'var(--status-success)';
-    if (confidence >= 0.4) return 'var(--status-warning)';
-    return 'var(--status-error)';
+    if (confidence >= 0.7) return "var(--status-success)";
+    if (confidence >= 0.4) return "var(--status-warning)";
+    return "var(--status-error)";
   }
 
   // Search for keywords
@@ -148,16 +158,19 @@
 
     searchTimeout = setTimeout(async () => {
       try {
-        const results = await invoke<{ id: number; name: string; count: number }[]>('search_keywords', {
-          query: searchInput,
-          limit: 10,
-        });
+        const results = await invoke<{ id: number; name: string; count: number }[]>(
+          "search_keywords",
+          {
+            query: searchInput,
+            limit: 10,
+          },
+        );
         // Filter out keywords already assigned
         const existingIds = new Set(keywords.map((k) => k.id));
         searchResults = results.filter((r) => !existingIds.has(r.id));
         showDropdown = searchResults.length > 0 || searchInput.length >= 2;
       } catch (e) {
-        console.error('Failed to search keywords:', e);
+        console.error("Failed to search keywords:", e);
         searchResults = [];
         showDropdown = false;
       }
@@ -170,16 +183,16 @@
     loadingSuggestions = true;
     try {
       const analysis = await invoke<{ keyword_candidates: { term: string; score: number }[] }>(
-        'analyze_article_statistical',
-        { fnordId }
+        "analyze_article_statistical",
+        { fnordId },
       );
       // Filter out already assigned keywords
-      const existingNames = new Set(keywords.map(k => k.name.toLowerCase()));
+      const existingNames = new Set(keywords.map((k) => k.name.toLowerCase()));
       suggestedKeywords = analysis.keyword_candidates
-        .filter(k => !existingNames.has(k.term.toLowerCase()))
+        .filter((k) => !existingNames.has(k.term.toLowerCase()))
         .slice(0, 5);
     } catch (e) {
-      console.error('Failed to load suggestions:', e);
+      console.error("Failed to load suggestions:", e);
     } finally {
       loadingSuggestions = false;
     }
@@ -191,14 +204,14 @@
     loadingSimilar = true;
     try {
       const similar = await invoke<{ id: number; name: string; similarity: number }[]>(
-        'get_keyword_suggestions_from_network',
-        { fnordId, limit: 5 }
+        "get_keyword_suggestions_from_network",
+        { fnordId, limit: 5 },
       );
       // Filter out already assigned keywords
-      const existingIds = new Set(keywords.map(k => k.id));
-      similarKeywords = similar.filter(k => !existingIds.has(k.id));
+      const existingIds = new Set(keywords.map((k) => k.id));
+      similarKeywords = similar.filter((k) => !existingIds.has(k.id));
     } catch (e) {
-      console.error('Failed to load similar keywords:', e);
+      console.error("Failed to load similar keywords:", e);
     } finally {
       loadingSimilar = false;
     }
@@ -217,15 +230,14 @@
     expandedKeywordId = keywordId;
     loadingNeighbors = true;
     try {
-      const neighbors = await invoke<{ id: number; name: string; similarity: number; cooccurrence: number }[]>(
-        'get_similar_keywords',
-        { keywordId, limit: 5 }
-      );
+      const neighbors = await invoke<
+        { id: number; name: string; similarity: number; cooccurrence: number }[]
+      >("get_similar_keywords", { keywordId, limit: 5 });
       // Filter out already assigned keywords
-      const existingIds = new Set(keywords.map(k => k.id));
-      expandedNeighbors = neighbors.filter(n => !existingIds.has(n.id));
+      const existingIds = new Set(keywords.map((k) => k.id));
+      expandedNeighbors = neighbors.filter((n) => !existingIds.has(n.id));
     } catch (e) {
-      console.error('Failed to load keyword neighbors:', e);
+      console.error("Failed to load keyword neighbors:", e);
       expandedNeighbors = [];
     } finally {
       loadingNeighbors = false;
@@ -237,11 +249,10 @@
     if (suggestedKeywords.length === 0 || loadingSemanticScores) return;
     loadingSemanticScores = true;
     try {
-      const keywordTerms = suggestedKeywords.map(s => s.term);
-      const scores = await invoke<{ keyword: string; semantic_score: number; combined_score: number }[]>(
-        'score_keywords_semantically',
-        { fnordId, keywords: keywordTerms, semanticWeight: 0.4 }
-      );
+      const keywordTerms = suggestedKeywords.map((s) => s.term);
+      const scores = await invoke<
+        { keyword: string; semantic_score: number; combined_score: number }[]
+      >("score_keywords_semantically", { fnordId, keywords: keywordTerms, semanticWeight: 0.4 });
       // Update the map
       const newScores = new Map<string, number>();
       for (const score of scores) {
@@ -258,7 +269,7 @@
         return bCombined - aCombined;
       });
     } catch (e) {
-      console.error('Failed to load semantic scores:', e);
+      console.error("Failed to load semantic scores:", e);
     } finally {
       loadingSemanticScores = false;
     }
@@ -269,7 +280,7 @@
     loading = true;
     try {
       // The Rust command expects the keyword as a string and returns the created/found keyword
-      const newKeyword = await invoke<ArticleKeyword>('add_article_keyword', {
+      const newKeyword = await invoke<ArticleKeyword>("add_article_keyword", {
         fnordId,
         keyword: keywordName,
       });
@@ -277,23 +288,25 @@
       // Record correction for bias learning
       const correction: CorrectionInput = {
         fnord_id: fnordId,
-        correction_type: 'keyword_added',
+        correction_type: "keyword_added",
         new_value: keywordName,
       };
-      await invoke('record_correction', { correction });
+      await invoke("record_correction", { correction });
 
       // Update local state
       onUpdate([...keywords, newKeyword]);
 
       // Remove from suggestions if present
-      suggestedKeywords = suggestedKeywords.filter(s => s.term.toLowerCase() !== keywordName.toLowerCase());
+      suggestedKeywords = suggestedKeywords.filter(
+        (s) => s.term.toLowerCase() !== keywordName.toLowerCase(),
+      );
 
       // Clear search
-      searchInput = '';
+      searchInput = "";
       searchResults = [];
       showDropdown = false;
     } catch (e) {
-      console.error('Failed to add keyword:', e);
+      console.error("Failed to add keyword:", e);
     } finally {
       loading = false;
     }
@@ -303,7 +316,7 @@
   async function removeKeyword(keyword: ArticleKeyword) {
     loading = true;
     try {
-      await invoke('remove_article_keyword', {
+      await invoke("remove_article_keyword", {
         fnordId,
         keywordId: keyword.id,
       });
@@ -311,15 +324,15 @@
       // Record correction for bias learning
       const correction: CorrectionInput = {
         fnord_id: fnordId,
-        correction_type: 'keyword_removed',
+        correction_type: "keyword_removed",
         old_value: keyword.name,
       };
-      await invoke('record_correction', { correction });
+      await invoke("record_correction", { correction });
 
       // Update local state
       onUpdate(keywords.filter((k) => k.id !== keyword.id));
     } catch (e) {
-      console.error('Failed to remove keyword:', e);
+      console.error("Failed to remove keyword:", e);
     } finally {
       loading = false;
     }
@@ -328,14 +341,14 @@
   // Handle click outside to close dropdown
   function handleClickOutside(e: MouseEvent) {
     const target = e.target as HTMLElement;
-    if (!target.closest('.keyword-search-container')) {
+    if (!target.closest(".keyword-search-container")) {
       showDropdown = false;
     }
   }
 
   // Navigate to keyword in network view
   function navigateToKeyword(keywordId: number) {
-    window.dispatchEvent(new CustomEvent('navigate-to-network', { detail: { keywordId } }));
+    window.dispatchEvent(new CustomEvent("navigate-to-network", { detail: { keywordId } }));
   }
 
   // Load suggestions when editing mode is enabled
@@ -369,18 +382,18 @@
   }
 
   onMount(() => {
-    window.addEventListener('keywords-changed', handleKeywordsChanged);
+    window.addEventListener("keywords-changed", handleKeywordsChanged);
   });
 
   onDestroy(() => {
-    window.removeEventListener('keywords-changed', handleKeywordsChanged);
+    window.removeEventListener("keywords-changed", handleKeywordsChanged);
   });
 
   // Add an existing keyword by ID (for similar keywords from network)
   async function addKeywordById(keywordId: number, keywordName: string) {
     loading = true;
     try {
-      const newKeyword = await invoke<ArticleKeyword>('add_article_keyword', {
+      const newKeyword = await invoke<ArticleKeyword>("add_article_keyword", {
         fnordId,
         keyword: keywordName,
       });
@@ -388,18 +401,18 @@
       // Record correction for bias learning
       const correction: CorrectionInput = {
         fnord_id: fnordId,
-        correction_type: 'keyword_added',
+        correction_type: "keyword_added",
         new_value: keywordName,
       };
-      await invoke('record_correction', { correction });
+      await invoke("record_correction", { correction });
 
       // Update local state
       onUpdate([...keywords, newKeyword]);
 
       // Remove from similar keywords
-      similarKeywords = similarKeywords.filter(s => s.id !== keywordId);
+      similarKeywords = similarKeywords.filter((s) => s.id !== keywordId);
     } catch (e) {
-      console.error('Failed to add keyword by ID:', e);
+      console.error("Failed to add keyword by ID:", e);
     } finally {
       loading = false;
     }
@@ -450,14 +463,23 @@
                 {#if methodLabels}
                   <div class="tooltip-row">
                     <i class="fa-solid fa-layer-group"></i>
-                    <span>{$_('keywordTooltips.extractionMethodsLabel') || 'Extraktionsmethoden'}: {methodLabels}</span>
-                    <span class="tooltip-note">{$_('keywordTooltips.extractionMethodsNote') || 'Mehrere Methoden erhöhen das Vertrauen.'}</span>
+                    <span
+                      >{$_("keywordTooltips.extractionMethodsLabel") || "Extraktionsmethoden"}: {methodLabels}</span
+                    >
+                    <span class="tooltip-note"
+                      >{$_("keywordTooltips.extractionMethodsNote") ||
+                        "Mehrere Methoden erhöhen das Vertrauen."}</span
+                    >
                   </div>
                 {/if}
                 {#if isMultiConfirmed(keyword)}
                   <div class="tooltip-row">
                     <i class="fa-solid fa-check-double"></i>
-                    <span>{$_('keywordTooltips.multiConfirmed') || $_('articleKeywords.multiConfirmed') || 'Mehrfach bestätigt'}</span>
+                    <span
+                      >{$_("keywordTooltips.multiConfirmed") ||
+                        $_("articleKeywords.multiConfirmed") ||
+                        "Mehrfach bestätigt"}</span
+                    >
                   </div>
                 {/if}
               {/if}
@@ -470,15 +492,21 @@
                     <div class="tooltip-row">
                       <i class="fa-solid fa-percent"></i>
                       <span>
-                        {$_('keywordTooltips.confidenceLabel') || $_('articleKeywords.confidence') || 'Konfidenz'}:
+                        {$_("keywordTooltips.confidenceLabel") ||
+                          $_("articleKeywords.confidence") ||
+                          "Konfidenz"}:
                         {Math.round(keyword.confidence * 100)}%
                       </span>
-                      <span class="tooltip-note">{$_('keywordTooltips.confidenceNote') || 'Schätzung der Relevanz für den Artikel.'}</span>
+                      <span class="tooltip-note"
+                        >{$_("keywordTooltips.confidenceNote") ||
+                          "Schätzung der Relevanz für den Artikel."}</span
+                      >
                     </div>
                     <div class="tooltip-confidence-bar">
                       <div
                         class="tooltip-confidence-fill"
-                        style="width: {keyword.confidence * 100}%; background-color: {getConfidenceColor(keyword.confidence)}"
+                        style="width: {keyword.confidence *
+                          100}%; background-color: {getConfidenceColor(keyword.confidence)}"
                       ></div>
                     </div>
                   </div>
@@ -488,14 +516,20 @@
                     <div class="tooltip-row">
                       <i class="fa-solid fa-chart-line"></i>
                       <span>
-                        {$_('keywordTooltips.qualityLabel') || 'Qualität'}: {Math.round(keyword.quality_score * 100)}%
+                        {$_("keywordTooltips.qualityLabel") || "Qualität"}: {Math.round(
+                          keyword.quality_score * 100,
+                        )}%
                       </span>
-                      <span class="tooltip-note">{$_('keywordTooltips.qualityNote') || 'Bewertung aus Nutzung und Vernetzung.'}</span>
+                      <span class="tooltip-note"
+                        >{$_("keywordTooltips.qualityNote") ||
+                          "Bewertung aus Nutzung und Vernetzung."}</span
+                      >
                     </div>
                     <div class="tooltip-quality-bar">
                       <div
                         class="tooltip-quality-fill"
-                        style="width: {keyword.quality_score * 100}%; background-color: {getQualityColor(keyword.quality_score)}"
+                        style="width: {keyword.quality_score *
+                          100}%; background-color: {getQualityColor(keyword.quality_score)}"
                       ></div>
                     </div>
                   </div>
@@ -506,7 +540,11 @@
               <hr class="tooltip-divider" />
               <div class="tooltip-row tooltip-action">
                 <i class="fa-solid fa-diagram-project"></i>
-                <span>{$_('keywordTooltips.openNetwork') || $_('network.title') || 'Im Netzwerk anzeigen'}</span>
+                <span
+                  >{$_("keywordTooltips.openNetwork") ||
+                    $_("network.title") ||
+                    "Im Netzwerk anzeigen"}</span
+                >
               </div>
             </div>
           </div>
@@ -529,13 +567,19 @@
               class:active={expandedKeywordId === keyword.id}
               onclick={() => toggleKeywordExpand(keyword.id)}
               disabled={loadingNeighbors && expandedKeywordId === keyword.id}
-              title={$_('keywordTooltips.showNeighbors') || $_('articleKeywords.showNeighbors') || 'Ähnliche Keywords anzeigen'}
-              aria-label={$_('articleKeywords.showNeighbors') || 'Ähnliche Keywords anzeigen'}
+              title={$_("keywordTooltips.showNeighbors") ||
+                $_("articleKeywords.showNeighbors") ||
+                "Ähnliche Keywords anzeigen"}
+              aria-label={$_("articleKeywords.showNeighbors") || "Ähnliche Keywords anzeigen"}
             >
               {#if loadingNeighbors && expandedKeywordId === keyword.id}
                 <i class="fa-solid fa-spinner fa-spin"></i>
               {:else}
-                <i class="fa-solid fa-{expandedKeywordId === keyword.id ? 'chevron-up' : 'chevron-down'}"></i>
+                <i
+                  class="fa-solid fa-{expandedKeywordId === keyword.id
+                    ? 'chevron-up'
+                    : 'chevron-down'}"
+                ></i>
               {/if}
             </button>
           {/if}
@@ -547,8 +591,8 @@
               class="remove-btn"
               onclick={() => removeKeyword(keyword)}
               disabled={loading}
-              title={$_('keywordTooltips.remove') || $_('articleKeywords.remove') || 'Entfernen'}
-              aria-label={$_('articleKeywords.remove') || 'Entfernen'}
+              title={$_("keywordTooltips.remove") || $_("articleKeywords.remove") || "Entfernen"}
+              aria-label={$_("articleKeywords.remove") || "Entfernen"}
             >
               <i class="fa-solid fa-xmark"></i>
             </button>
@@ -570,7 +614,7 @@
                     class="neighbor-chip"
                     onclick={() => addKeywordById(neighbor.id, neighbor.name)}
                     disabled={loading}
-                    title={`${$_('keywordTooltips.similarityLabel') || $_('articleKeywords.similarity') || 'Ähnlichkeit'}: ${Math.round(neighbor.similarity * 100)}% (${$_('keywordTooltips.similarityNote') || 'Semantische Nähe (Embedding).'}) | ${$_('keywordTooltips.cooccurrenceLabel') || $_('articleKeywords.cooccurrence') || 'Kookkurrenz'}: ${neighbor.cooccurrence} (${$_('keywordTooltips.cooccurrenceNote') || 'Gemeinsame Artikelanzahl.'})`}
+                    title={`${$_("keywordTooltips.similarityLabel") || $_("articleKeywords.similarity") || "Ähnlichkeit"}: ${Math.round(neighbor.similarity * 100)}% (${$_("keywordTooltips.similarityNote") || "Semantische Nähe (Embedding)."}) | ${$_("keywordTooltips.cooccurrenceLabel") || $_("articleKeywords.cooccurrence") || "Kookkurrenz"}: ${neighbor.cooccurrence} (${$_("keywordTooltips.cooccurrenceNote") || "Gemeinsame Artikelanzahl."})`}
                   >
                     <i class="fa-solid fa-plus"></i>
                     {neighbor.name}
@@ -581,7 +625,9 @@
                 {/each}
               </div>
             {:else}
-              <span class="no-neighbors">{$_('articleKeywords.noNeighbors') || 'Keine ähnlichen Keywords'}</span>
+              <span class="no-neighbors"
+                >{$_("articleKeywords.noNeighbors") || "Keine ähnlichen Keywords"}</span
+              >
             {/if}
           </div>
         {/if}
@@ -589,7 +635,7 @@
     {/each}
 
     {#if keywords.length === 0 && !editing}
-      <span class="no-keywords">{$_('articleKeywords.none') || 'Keine Keywords'}</span>
+      <span class="no-keywords">{$_("articleKeywords.none") || "Keine Keywords"}</span>
     {/if}
   </div>
 
@@ -598,7 +644,7 @@
     <div class="suggestions-section">
       <span class="suggestions-label">
         <i class="fa-solid fa-lightbulb"></i>
-        {$_('articleKeywords.suggestions') || 'Vorschläge'}:
+        {$_("articleKeywords.suggestions") || "Vorschläge"}:
         {#if loadingSemanticScores}
           <i class="fa-solid fa-spinner fa-spin semantic-loading"></i>
         {/if}
@@ -613,15 +659,15 @@
             onclick={() => addKeyword(suggestion.term)}
             disabled={loading}
             title={semanticScore !== undefined
-              ? `${$_('keywordTooltips.tfidfLabel') || 'TF-IDF'}: ${Math.round(suggestion.score * 100)}% (${$_('keywordTooltips.tfidfNote') || 'Statistischer Relevanz-Score.'}) | ${$_('keywordTooltips.semanticLabel') || $_('articleKeywords.semanticScore') || 'Semantik'}: ${Math.round(semanticScore * 100)}% (${$_('keywordTooltips.semanticNote') || 'Embedding-Score zum Artikel.'})`
-              : `${$_('keywordTooltips.tfidfLabel') || 'TF-IDF'}: ${Math.round(suggestion.score * 100)}% (${$_('keywordTooltips.tfidfNote') || 'Statistischer Relevanz-Score.'})`}
+              ? `${$_("keywordTooltips.tfidfLabel") || "TF-IDF"}: ${Math.round(suggestion.score * 100)}% (${$_("keywordTooltips.tfidfNote") || "Statistischer Relevanz-Score."}) | ${$_("keywordTooltips.semanticLabel") || $_("articleKeywords.semanticScore") || "Semantik"}: ${Math.round(semanticScore * 100)}% (${$_("keywordTooltips.semanticNote") || "Embedding-Score zum Artikel."})`
+              : `${$_("keywordTooltips.tfidfLabel") || "TF-IDF"}: ${Math.round(suggestion.score * 100)}% (${$_("keywordTooltips.tfidfNote") || "Statistischer Relevanz-Score."})`}
           >
             <i class="fa-solid fa-plus"></i>
             {suggestion.term}
             {#if semanticScore !== undefined && semanticScore > 0}
               <span
                 class="semantic-badge"
-                title={`${$_('keywordTooltips.semanticLabel') || $_('articleKeywords.semanticScore') || 'Semantische Ähnlichkeit'}: ${Math.round(semanticScore * 100)}% | ${$_('keywordTooltips.semanticNote') || 'Embedding-Score zum Artikel.'}`}
+                title={`${$_("keywordTooltips.semanticLabel") || $_("articleKeywords.semanticScore") || "Semantische Ähnlichkeit"}: ${Math.round(semanticScore * 100)}% | ${$_("keywordTooltips.semanticNote") || "Embedding-Score zum Artikel."}`}
               >
                 <i class="fa-solid fa-brain"></i>
                 {Math.round(semanticScore * 100)}%
@@ -638,7 +684,7 @@
     <div class="similar-section">
       <span class="similar-label">
         <i class="fa-solid fa-diagram-project"></i>
-        {$_('articleKeywords.fromNetwork') || 'Aus Netzwerk'}:
+        {$_("articleKeywords.fromNetwork") || "Aus Netzwerk"}:
       </span>
       <div class="similar-list">
         {#each similarKeywords as similar}
@@ -647,7 +693,7 @@
             class="similar-chip"
             onclick={() => addKeywordById(similar.id, similar.name)}
             disabled={loading}
-            title={`${$_('keywordTooltips.similarityLabel') || $_('articleKeywords.similarity') || 'Ähnlichkeit'}: ${Math.round(similar.similarity * 100)}% (${$_('keywordTooltips.similarityNote') || 'Semantische Nähe (Embedding).'})`}
+            title={`${$_("keywordTooltips.similarityLabel") || $_("articleKeywords.similarity") || "Ähnlichkeit"}: ${Math.round(similar.similarity * 100)}% (${$_("keywordTooltips.similarityNote") || "Semantische Nähe (Embedding)."})`}
           >
             <i class="fa-solid fa-plus"></i>
             {similar.name}
@@ -661,7 +707,7 @@
   {#if editing && loadingSimilar}
     <div class="loading-similar">
       <i class="fa-solid fa-spinner fa-spin"></i>
-      {$_('articleKeywords.loadingNetwork') || 'Lade Netzwerk-Vorschläge...'}
+      {$_("articleKeywords.loadingNetwork") || "Lade Netzwerk-Vorschläge..."}
     </div>
   {/if}
 
@@ -675,7 +721,8 @@
           class="search-input"
           bind:value={searchInput}
           oninput={handleSearch}
-          placeholder={$_('articleKeywords.searchPlaceholder') || 'Keyword suchen oder hinzufügen...'}
+          placeholder={$_("articleKeywords.searchPlaceholder") ||
+            "Keyword suchen oder hinzufügen..."}
           disabled={loading}
         />
         {#if loading || loadingSuggestions}
@@ -693,12 +740,14 @@
                 onclick={() => addKeyword(result.name)}
               >
                 <span class="result-name">{result.name}</span>
-                <span class="result-count">{result.count} {$_('articleKeywords.articles') || 'Artikel'}</span>
+                <span class="result-count"
+                  >{result.count} {$_("articleKeywords.articles") || "Artikel"}</span
+                >
               </button>
             {/each}
           {/if}
           <!-- Option to create new keyword -->
-          {#if searchInput.trim().length >= 2 && !searchResults.some(r => r.name.toLowerCase() === searchInput.toLowerCase())}
+          {#if searchInput.trim().length >= 2 && !searchResults.some((r) => r.name.toLowerCase() === searchInput.toLowerCase())}
             <button
               type="button"
               class="search-result-item create-new"
@@ -858,7 +907,10 @@
     opacity: 0;
     visibility: hidden;
     transform: translateY(-4px);
-    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+    transition:
+      opacity 0.15s ease,
+      transform 0.15s ease,
+      visibility 0.15s ease;
     z-index: 20;
     pointer-events: none;
   }

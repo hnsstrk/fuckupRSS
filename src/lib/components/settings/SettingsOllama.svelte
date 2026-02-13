@@ -154,9 +154,7 @@
     if (savedOpenaiModel) {
       openaiModel = savedOpenaiModel;
       // Determine if the saved model matches a preset
-      const matchingPreset = openaiModelPresets.find(
-        (p) => p.value === savedOpenaiModel,
-      );
+      const matchingPreset = openaiModelPresets.find((p) => p.value === savedOpenaiModel);
       openaiModelPreset = matchingPreset ? savedOpenaiModel : "custom";
     }
 
@@ -181,14 +179,10 @@
     });
     if (savedEmbeddingProvider) embeddingProvider = savedEmbeddingProvider;
 
-    const savedOpenaiEmbeddingModel = await invoke<string | null>(
-      "get_setting",
-      {
-        key: "openai_embedding_model",
-      },
-    );
-    if (savedOpenaiEmbeddingModel)
-      openaiEmbeddingModel = savedOpenaiEmbeddingModel;
+    const savedOpenaiEmbeddingModel = await invoke<string | null>("get_setting", {
+      key: "openai_embedding_model",
+    });
+    if (savedOpenaiEmbeddingModel) openaiEmbeddingModel = savedOpenaiEmbeddingModel;
 
     // Load cost data
     await loadMonthlyCost();
@@ -331,8 +325,7 @@
 
       if (ollamaStatus) {
         selectedMainModel = savedMainModel || ollamaStatus.recommended_main;
-        selectedEmbeddingModel =
-          savedEmbeddingModel || ollamaStatus.recommended_embedding;
+        selectedEmbeddingModel = savedEmbeddingModel || ollamaStatus.recommended_embedding;
         appState.ollamaStatus = ollamaStatus;
         // Sync selectedModel to appState for batch processing if not already set
         if (selectedMainModel && !appState.selectedModel) {
@@ -349,9 +342,7 @@
 
   async function loadLoadedModels() {
     try {
-      const response = await invoke<{ models: typeof loadedModels }>(
-        "get_loaded_models",
-      );
+      const response = await invoke<{ models: typeof loadedModels }>("get_loaded_models");
       loadedModels = response.models;
     } catch (e) {
       console.error("Failed to load loaded models:", e);
@@ -369,9 +360,7 @@
   }
 
   function isRecommendedModel(model: string, recommended: string): boolean {
-    return (
-      model === recommended || model.startsWith(recommended.split(":")[0] + ":")
-    );
+    return model === recommended || model.startsWith(recommended.split(":")[0] + ":");
   }
 
   function isModelInstalled(modelName: string): boolean {
@@ -381,16 +370,12 @@
 
   // Check if main model is missing (selected but not installed)
   let isMainModelMissing = $derived(
-    selectedMainModel &&
-      ollamaStatus?.available &&
-      !isModelInstalled(selectedMainModel),
+    selectedMainModel && ollamaStatus?.available && !isModelInstalled(selectedMainModel),
   );
 
   // Check if embedding model is missing (selected but not installed)
   let isEmbeddingModelMissing = $derived(
-    selectedEmbeddingModel &&
-      ollamaStatus?.available &&
-      !isModelInstalled(selectedEmbeddingModel),
+    selectedEmbeddingModel && ollamaStatus?.available && !isModelInstalled(selectedEmbeddingModel),
   );
 
   async function handleNumCtxChange(value: number) {
@@ -433,10 +418,9 @@
     downloadError = null;
 
     try {
-      const result = await invoke<{ success: boolean; error: string | null }>(
-        "pull_model",
-        { model },
-      );
+      const result = await invoke<{ success: boolean; error: string | null }>("pull_model", {
+        model,
+      });
       if (result.success) {
         await loadOllamaStatus();
       } else {
@@ -570,11 +554,7 @@
       {$_("settings.ollama.ollamaUrlDescription")}
     </p>
     {#if ollamaTestResult}
-      <div
-        class="connection-result {ollamaTestResult.success
-          ? 'success'
-          : 'error'}"
-      >
+      <div class="connection-result {ollamaTestResult.success ? 'success' : 'error'}">
         {#if ollamaTestResult.success}
           <i class="fa-solid fa-check"></i>
           {$_("settings.ollama.connected")}
@@ -615,9 +595,7 @@
   {#if ollamaStatus?.available}
     <!-- Loaded Models Display -->
     <div class="setting-group">
-      <span class="label"
-        >{$_("settings.ollama.loadedModels") || "Geladene Modelle (VRAM)"}</span
-      >
+      <span class="label">{$_("settings.ollama.loadedModels") || "Geladene Modelle (VRAM)"}</span>
       <div class="loaded-models">
         {#if loadedModels.length === 0}
           <div class="no-models">
@@ -627,8 +605,7 @@
           {#each loadedModels as model (model.name)}
             <div class="loaded-model">
               <span class="model-name">{model.name}</span>
-              <span class="model-info"
-                >{model.parameter_size} · {formatBytes(model.size_vram)}</span
+              <span class="model-info">{model.parameter_size} · {formatBytes(model.size_vram)}</span
               >
             </div>
           {/each}
@@ -641,36 +618,24 @@
       <span class="label">{$_("settings.ollama.mainModel")}</span>
       <div class="model-row">
         <div class="custom-select model-select">
-          <button
-            type="button"
-            class="select-trigger"
-            onclick={toggleMainModelDropdown}
-          >
+          <button type="button" class="select-trigger" onclick={toggleMainModelDropdown}>
             <span>
               {selectedMainModel || $_("settings.ollama.noModels")}
               {#if isModelLoaded(selectedMainModel)}
                 <i class="loaded-badge fa-solid fa-circle"></i>
               {/if}
               {#if ollamaStatus && isRecommendedModel(selectedMainModel, ollamaStatus.recommended_main)}
-                <span class="recommended"
-                  >{$_("settings.ollama.recommended")}</span
-                >
+                <span class="recommended">{$_("settings.ollama.recommended")}</span>
               {/if}
             </span>
-            <i
-              class="arrow fa-solid {mainModelDropdownOpen
-                ? 'fa-caret-up'
-                : 'fa-caret-down'}"
-            ></i>
+            <i class="arrow fa-solid {mainModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
           </button>
           {#if mainModelDropdownOpen}
             <div class="select-options">
               {#each ollamaStatus.models as model (model)}
                 <button
                   type="button"
-                  class="select-option {selectedMainModel === model
-                    ? 'selected'
-                    : ''}"
+                  class="select-option {selectedMainModel === model ? 'selected' : ''}"
                   onclick={() => selectMainModel(model)}
                 >
                   {model}
@@ -678,9 +643,7 @@
                     <i class="loaded-badge fa-solid fa-circle"></i>
                   {/if}
                   {#if isRecommendedModel(model, ollamaStatus.recommended_main)}
-                    <span class="recommended"
-                      >{$_("settings.ollama.recommended")}</span
-                    >
+                    <span class="recommended">{$_("settings.ollama.recommended")}</span>
                   {/if}
                 </button>
               {/each}
@@ -712,9 +675,7 @@
                 values: { model: selectedMainModel },
               })}</span
             >
-            <span class="warning-hint"
-              >{$_("settings.ollama.modelMissingHint")}</span
-            >
+            <span class="warning-hint">{$_("settings.ollama.modelMissingHint")}</span>
           </div>
           <button
             type="button"
@@ -734,10 +695,7 @@
 
     <!-- Context Length (num_ctx) -->
     <div class="setting-group">
-      <span class="label"
-        >{$_("settings.ollama.contextLength") ||
-          "Kontext-Lange (num_ctx)"}</span
-      >
+      <span class="label">{$_("settings.ollama.contextLength") || "Kontext-Lange (num_ctx)"}</span>
       <div class="custom-select">
         <button
           type="button"
@@ -749,27 +707,19 @@
           }}
         >
           <span>
-            {numCtxOptions.find((o) => o.value === ollamaNumCtx)?.label ||
-              ollamaNumCtx}
+            {numCtxOptions.find((o) => o.value === ollamaNumCtx)?.label || ollamaNumCtx}
             <span class="ctx-desc">
-              ({numCtxOptions.find((o) => o.value === ollamaNumCtx)?.desc ||
-                ""})
+              ({numCtxOptions.find((o) => o.value === ollamaNumCtx)?.desc || ""})
             </span>
           </span>
-          <i
-            class="arrow fa-solid {numCtxDropdownOpen
-              ? 'fa-caret-up'
-              : 'fa-caret-down'}"
-          ></i>
+          <i class="arrow fa-solid {numCtxDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
         </button>
         {#if numCtxDropdownOpen}
           <div class="select-options">
             {#each numCtxOptions as option (option.value)}
               <button
                 type="button"
-                class="select-option ctx-option {ollamaNumCtx === option.value
-                  ? 'selected'
-                  : ''}"
+                class="select-option ctx-option {ollamaNumCtx === option.value ? 'selected' : ''}"
                 onclick={() => handleNumCtxChange(option.value)}
               >
                 <span class="ctx-label">{option.label}</span>
@@ -791,9 +741,7 @@
         type="button"
         class="btn-load-models"
         onclick={handleLoadModels}
-        disabled={loadingModels ||
-          !selectedMainModel ||
-          !selectedEmbeddingModel}
+        disabled={loadingModels || !selectedMainModel || !selectedEmbeddingModel}
       >
         {#if loadingModels}
           {$_("settings.ollama.loadingModels") || "Lade Modelle..."}
@@ -820,9 +768,7 @@
 <!-- ============================================ -->
 {#if aiTextProvider === "openai_compatible"}
   <div class="setting-group">
-    <span class="label section-label"
-      >{$_("settings.ollama.openaiSection")}</span
-    >
+    <span class="label section-label">{$_("settings.ollama.openaiSection")}</span>
 
     <!-- API Base URL -->
     <div class="sub-field">
@@ -868,37 +814,25 @@
     <div class="sub-field">
       <span class="sub-label">{$_("settings.ollama.openaiModelSelect")}</span>
       <div class="custom-select">
-        <button
-          type="button"
-          class="select-trigger"
-          onclick={toggleOpenaiModelDropdown}
-        >
+        <button type="button" class="select-trigger" onclick={toggleOpenaiModelDropdown}>
           <span>
             {#if openaiModelPreset === "custom"}
               {$_("settings.ollama.openaiModelCustom")}: {openaiModel}
             {:else}
-              {openaiModelPresets.find((p) => p.value === openaiModelPreset)
-                ?.label || openaiModel}
+              {openaiModelPresets.find((p) => p.value === openaiModelPreset)?.label || openaiModel}
               {#if openaiModelPreset === "gpt-5-nano"}
-                <span class="recommended"
-                  >{$_("settings.ollama.openaiModelRecommended")}</span
-                >
+                <span class="recommended">{$_("settings.ollama.openaiModelRecommended")}</span>
               {/if}
             {/if}
           </span>
-          <i
-            class="arrow fa-solid {openaiModelDropdownOpen
-              ? 'fa-caret-up'
-              : 'fa-caret-down'}"
-          ></i>
+          <i class="arrow fa-solid {openaiModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
         </button>
         {#if openaiModelDropdownOpen}
           <div class="select-options">
             {#each openaiModelPresets as preset (preset.value)}
               <button
                 type="button"
-                class="select-option openai-model-option {openaiModelPreset ===
-                preset.value
+                class="select-option openai-model-option {openaiModelPreset === preset.value
                   ? 'selected'
                   : ''}"
                 onclick={() => handleOpenaiModelPresetChange(preset.value)}
@@ -908,23 +842,18 @@
                   <span class="openai-model-price">{preset.price}</span>
                 </div>
                 {#if preset.value === "gpt-5-nano"}
-                  <span class="recommended"
-                    >{$_("settings.ollama.recommended")}</span
-                  >
+                  <span class="recommended">{$_("settings.ollama.recommended")}</span>
                 {/if}
               </button>
             {/each}
             <button
               type="button"
-              class="select-option openai-model-option {openaiModelPreset ===
-              'custom'
+              class="select-option openai-model-option {openaiModelPreset === 'custom'
                 ? 'selected'
                 : ''}"
               onclick={() => handleOpenaiModelPresetChange("custom")}
             >
-              <span class="openai-model-name"
-                >{$_("settings.ollama.openaiModelCustom")}...</span
-              >
+              <span class="openai-model-name">{$_("settings.ollama.openaiModelCustom")}...</span>
             </button>
           </div>
         {/if}
@@ -952,18 +881,12 @@
           bind:value={openaiTemperature}
           onchange={saveOpenaiSettings}
         >
-          <option value="auto"
-            >{$_("settings.ollama.openaiTemperatureAuto")}</option
-          >
-          <option value="0"
-            >0 ({$_("settings.ollama.openaiTemperatureDeterministic")})</option
-          >
+          <option value="auto">{$_("settings.ollama.openaiTemperatureAuto")}</option>
+          <option value="0">0 ({$_("settings.ollama.openaiTemperatureDeterministic")})</option>
           <option value="0.3">0.3</option>
           <option value="0.5">0.5</option>
           <option value="0.7">0.7</option>
-          <option value="1.0"
-            >1.0 ({$_("settings.ollama.openaiTemperatureDefault")})</option
-          >
+          <option value="1.0">1.0 ({$_("settings.ollama.openaiTemperatureDefault")})</option>
         </select>
       </div>
       <p class="setting-description">
@@ -1005,11 +928,7 @@
         {/if}
       </button>
       {#if openaiTestResult}
-        <div
-          class="connection-result {openaiTestResult.success
-            ? 'success'
-            : 'error'}"
-        >
+        <div class="connection-result {openaiTestResult.success ? 'success' : 'error'}">
           {#if openaiTestResult.success}
             <i class="fa-solid fa-check"></i>
             {$_("settings.ollama.connected")}
@@ -1038,9 +957,7 @@
       <div class="cost-display">
         <div class="cost-header">
           <span class="cost-spent"
-            >{$_("settings.ollama.costSpent")}: ${monthlyCost.spent.toFixed(
-              2,
-            )}</span
+            >{$_("settings.ollama.costSpent")}: ${monthlyCost.spent.toFixed(2)}</span
           >
           <span class="cost-limit">/ ${monthlyCost.limit.toFixed(2)}</span>
         </div>
@@ -1054,13 +971,9 @@
         </div>
         <div class="cost-footer">
           <span class="cost-remaining"
-            >{$_("settings.ollama.costRemaining")}: ${monthlyCost.remaining.toFixed(
-              2,
-            )}</span
+            >{$_("settings.ollama.costRemaining")}: ${monthlyCost.remaining.toFixed(2)}</span
           >
-          <span class="cost-percentage"
-            >{monthlyCost.percentage.toFixed(0)}%</span
-          >
+          <span class="cost-percentage">{monthlyCost.percentage.toFixed(0)}%</span>
         </div>
       </div>
     {/if}
@@ -1104,9 +1017,7 @@
     </button>
     <button
       type="button"
-      class="toggle-btn {embeddingProvider === 'openai_compatible'
-        ? 'active'
-        : ''}"
+      class="toggle-btn {embeddingProvider === 'openai_compatible' ? 'active' : ''}"
       onclick={() => saveEmbeddingProvider("openai_compatible")}
     >
       <i class="fa-solid fa-cloud"></i>
@@ -1119,9 +1030,7 @@
     {#if aiTextProvider === "openai_compatible"}
       <!-- Show Ollama URL for embeddings when OpenAI is the text provider -->
       <div class="sub-field">
-        <span class="sub-label"
-          >{$_("settings.ollama.ollamaUrlForEmbeddings")}</span
-        >
+        <span class="sub-label">{$_("settings.ollama.ollamaUrlForEmbeddings")}</span>
         <div class="url-row">
           <input
             type="text"
@@ -1144,11 +1053,7 @@
           </button>
         </div>
         {#if ollamaTestResult}
-          <div
-            class="connection-result {ollamaTestResult.success
-              ? 'success'
-              : 'error'}"
-          >
+          <div class="connection-result {ollamaTestResult.success ? 'success' : 'error'}">
             {#if ollamaTestResult.success}
               <i class="fa-solid fa-check"></i>
               {$_("settings.ollama.connected")}
@@ -1169,23 +1074,14 @@
     {#if ollamaStatus?.available}
       <div class="model-row">
         <div class="custom-select model-select">
-          <button
-            type="button"
-            class="select-trigger"
-            onclick={toggleEmbeddingModelDropdown}
-          >
+          <button type="button" class="select-trigger" onclick={toggleEmbeddingModelDropdown}>
             <span>
               {selectedEmbeddingModel || $_("settings.ollama.noModels")}
               {#if ollamaStatus && isRecommendedModel(selectedEmbeddingModel, ollamaStatus.recommended_embedding)}
-                <span class="recommended"
-                  >{$_("settings.ollama.recommended")}</span
-                >
+                <span class="recommended">{$_("settings.ollama.recommended")}</span>
               {/if}
             </span>
-            <i
-              class="arrow fa-solid {embeddingModelDropdownOpen
-                ? 'fa-caret-up'
-                : 'fa-caret-down'}"
+            <i class="arrow fa-solid {embeddingModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"
             ></i>
           </button>
           {#if embeddingModelDropdownOpen}
@@ -1193,16 +1089,12 @@
               {#each ollamaStatus.models as model (model)}
                 <button
                   type="button"
-                  class="select-option {selectedEmbeddingModel === model
-                    ? 'selected'
-                    : ''}"
+                  class="select-option {selectedEmbeddingModel === model ? 'selected' : ''}"
                   onclick={() => selectEmbeddingModel(model)}
                 >
                   {model}
                   {#if isRecommendedModel(model, ollamaStatus.recommended_embedding)}
-                    <span class="recommended"
-                      >{$_("settings.ollama.recommended")}</span
-                    >
+                    <span class="recommended">{$_("settings.ollama.recommended")}</span>
                   {/if}
                 </button>
               {/each}
@@ -1213,8 +1105,7 @@
           <button
             type="button"
             class="btn-download"
-            onclick={() =>
-              handleDownloadModel(ollamaStatus!.recommended_embedding)}
+            onclick={() => handleDownloadModel(ollamaStatus!.recommended_embedding)}
             disabled={downloadingModel !== null}
           >
             {#if downloadingModel === ollamaStatus.recommended_embedding}
@@ -1235,9 +1126,7 @@
                 values: { model: selectedEmbeddingModel },
               })}</span
             >
-            <span class="warning-hint"
-              >{$_("settings.ollama.modelMissingHint")}</span
-            >
+            <span class="warning-hint">{$_("settings.ollama.modelMissingHint")}</span>
           </div>
           <button
             type="button"
@@ -1257,15 +1146,12 @@
   {:else}
     <!-- OpenAI Embedding Configuration -->
     <div class="sub-field">
-      <span class="sub-label">{$_("settings.ollama.openaiEmbeddingModel")}</span
-      >
+      <span class="sub-label">{$_("settings.ollama.openaiEmbeddingModel")}</span>
       <div class="openai-embedding-presets">
         {#each openaiEmbeddingPresets as preset (preset.value)}
           <button
             type="button"
-            class="preset-btn {openaiEmbeddingModel === preset.value
-              ? 'active'
-              : ''}"
+            class="preset-btn {openaiEmbeddingModel === preset.value ? 'active' : ''}"
             onclick={() => saveOpenaiEmbeddingModel(preset.value)}
           >
             <span class="preset-name">{preset.label}</span>

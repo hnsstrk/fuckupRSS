@@ -64,10 +64,10 @@
       return;
     }
     try {
-      stopwordSearchResults = await invoke<StopwordSearchResult[]>(
-        "search_stopwords",
-        { query, limit: 50 }
-      );
+      stopwordSearchResults = await invoke<StopwordSearchResult[]>("search_stopwords", {
+        query,
+        limit: 50,
+      });
     } catch (e) {
       console.error("Failed to search stopwords:", e);
     }
@@ -153,12 +153,10 @@
       toasts.success(
         $_("settings.stopwords.exportSuccess", {
           values: { count: userStopwords.length },
-        })
+        }),
       );
     } catch (e) {
-      toasts.error(
-        $_("settings.stopwords.exportError", { values: { error: String(e) } })
-      );
+      toasts.error($_("settings.stopwords.exportError", { values: { error: String(e) } }));
     } finally {
       exportLoading = false;
     }
@@ -194,14 +192,12 @@
             skipped: result.skipped,
             total: result.total,
           },
-        })
+        }),
       );
 
       await Promise.all([loadStopwordStats(), loadUserStopwords()]);
     } catch (e) {
-      toasts.error(
-        $_("settings.stopwords.importError", { values: { error: String(e) } })
-      );
+      toasts.error($_("settings.stopwords.importError", { values: { error: String(e) } }));
     } finally {
       importLoading = false;
     }
@@ -217,18 +213,10 @@
     <div class="confirm-dialog">
       <p class="confirm-message">{$_("settings.stopwords.confirmClear")}</p>
       <div class="confirm-actions">
-        <button
-          type="button"
-          class="btn-secondary"
-          onclick={() => (confirmClearStopwords = false)}
-        >
+        <button type="button" class="btn-secondary" onclick={() => (confirmClearStopwords = false)}>
           {$_("confirm.no")}
         </button>
-        <button
-          type="button"
-          class="btn-danger-solid"
-          onclick={clearAllUserStopwords}
-        >
+        <button type="button" class="btn-danger-solid" onclick={clearAllUserStopwords}>
           {$_("confirm.yes")}
         </button>
       </div>
@@ -274,7 +262,11 @@
       class="stopword-input"
       disabled={stopwordLoading}
     />
-    <button type="submit" class="btn-action" disabled={stopwordLoading || newStopword.trim().length < 2}>
+    <button
+      type="submit"
+      class="btn-action"
+      disabled={stopwordLoading || newStopword.trim().length < 2}
+    >
       {$_("settings.stopwords.add")}
     </button>
   </form>

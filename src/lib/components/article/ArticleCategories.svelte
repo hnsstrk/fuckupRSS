@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { _ } from 'svelte-i18n';
-  import { invoke } from '@tauri-apps/api/core';
-  import type { ArticleCategoryDetailed, Sephiroth, CorrectionInput } from '$lib/types';
-  import { getCategoryColorVar } from '$lib/utils/articleFormat';
+  import { onMount, onDestroy } from "svelte";
+  import { _ } from "svelte-i18n";
+  import { invoke } from "@tauri-apps/api/core";
+  import type { ArticleCategoryDetailed, Sephiroth, CorrectionInput } from "$lib/types";
+  import { getCategoryColorVar } from "$lib/utils/articleFormat";
 
   interface Props {
     fnordId: number;
@@ -53,9 +53,9 @@
     loading = true;
     loadError = null;
     try {
-      allCategories = await invoke<Sephiroth[]>('get_all_categories');
+      allCategories = await invoke<Sephiroth[]>("get_all_categories");
     } catch (e) {
-      console.error('Failed to load categories:', e);
+      console.error("Failed to load categories:", e);
       loadError = e instanceof Error ? e.message : String(e);
     } finally {
       loading = false;
@@ -63,24 +63,24 @@
   }
 
   // Get source icon class
-  function getSourceIcon(source: ArticleCategoryDetailed['source']): string {
+  function getSourceIcon(source: ArticleCategoryDetailed["source"]): string {
     switch (source) {
-      case 'ai':
-        return 'fa-solid fa-robot';
-      case 'manual':
-        return 'fa-solid fa-user';
+      case "ai":
+        return "fa-solid fa-robot";
+      case "manual":
+        return "fa-solid fa-user";
       default:
-        return 'fa-solid fa-folder';
+        return "fa-solid fa-folder";
     }
   }
 
   // Get source tooltip
-  function getSourceLabel(source: ArticleCategoryDetailed['source']): string {
+  function getSourceLabel(source: ArticleCategoryDetailed["source"]): string {
     switch (source) {
-      case 'ai':
-        return $_('articleView.sourceAi') || 'KI-generiert';
-      case 'manual':
-        return $_('articleView.sourceManual') || 'Manuell';
+      case "ai":
+        return $_("articleView.sourceAi") || "KI-generiert";
+      case "manual":
+        return $_("articleView.sourceManual") || "Manuell";
       default:
         return source;
     }
@@ -90,7 +90,7 @@
   async function addCategory(category: Sephiroth) {
     loading = true;
     try {
-      await invoke('add_article_category', {
+      await invoke("add_article_category", {
         fnordId,
         sephirothId: category.id,
       });
@@ -98,12 +98,12 @@
       // Record correction for bias learning
       const correction: CorrectionInput = {
         fnord_id: fnordId,
-        correction_type: 'category_added',
+        correction_type: "category_added",
         new_value: category.name,
         category_id: category.id,
         matching_terms: [], // Manual additions don't have statistical matching terms
       };
-      await invoke('record_correction', { correction });
+      await invoke("record_correction", { correction });
 
       // Find parent info if this is a subcategory
       const parent = category.parent_id
@@ -116,7 +116,7 @@
         name: category.name,
         icon: category.icon,
         color: category.color,
-        source: 'manual',
+        source: "manual",
         confidence: 1.0,
         parent_id: category.parent_id,
         parent_name: parent?.name || null,
@@ -127,7 +127,7 @@
       // Close dropdown
       showDropdown = false;
     } catch (e) {
-      console.error('Failed to add category:', e);
+      console.error("Failed to add category:", e);
     } finally {
       loading = false;
     }
@@ -137,7 +137,7 @@
   async function removeCategory(category: ArticleCategoryDetailed) {
     loading = true;
     try {
-      await invoke('remove_article_category', {
+      await invoke("remove_article_category", {
         fnordId,
         sephirothId: category.sephiroth_id,
       });
@@ -149,17 +149,17 @@
       // need to be tracked from the initial statistical analysis.
       const correction: CorrectionInput = {
         fnord_id: fnordId,
-        correction_type: 'category_removed',
+        correction_type: "category_removed",
         old_value: category.name,
         category_id: category.sephiroth_id,
         matching_terms: [], // Could be populated if we store this with assignments
       };
-      await invoke('record_correction', { correction });
+      await invoke("record_correction", { correction });
 
       // Update local state
       onUpdate(categories.filter((c) => c.sephiroth_id !== category.sephiroth_id));
     } catch (e) {
-      console.error('Failed to remove category:', e);
+      console.error("Failed to remove category:", e);
     } finally {
       loading = false;
     }
@@ -168,7 +168,7 @@
   // Handle click outside to close dropdown
   function handleClickOutside(e: MouseEvent) {
     const target = e.target as HTMLElement;
-    if (!target.closest('.category-dropdown-container')) {
+    if (!target.closest(".category-dropdown-container")) {
       showDropdown = false;
     }
   }
@@ -188,8 +188,8 @@
 
     try {
       const freshCategories = await invoke<ArticleCategoryDetailed[]>(
-        'get_article_categories_detailed',
-        { fnordId }
+        "get_article_categories_detailed",
+        { fnordId },
       );
       onUpdate(freshCategories);
     } catch {
@@ -198,11 +198,11 @@
   }
 
   onMount(() => {
-    window.addEventListener('batch-complete', handleBatchComplete);
+    window.addEventListener("batch-complete", handleBatchComplete);
   });
 
   onDestroy(() => {
-    window.removeEventListener('batch-complete', handleBatchComplete);
+    window.removeEventListener("batch-complete", handleBatchComplete);
   });
 </script>
 
@@ -221,9 +221,15 @@
           <i class="category-icon {category.icon}"></i>
         {/if}
         <span class="category-name">{category.name}</span>
-        <i class="source-icon {getSourceIcon(category.source)}" title={getSourceLabel(category.source)}></i>
+        <i
+          class="source-icon {getSourceIcon(category.source)}"
+          title={getSourceLabel(category.source)}
+        ></i>
         {#if category.confidence < 1.0}
-          <span class="category-confidence" title={$_('articleCategories.confidence') || 'Konfidenz'}>
+          <span
+            class="category-confidence"
+            title={$_("articleCategories.confidence") || "Konfidenz"}
+          >
             {Math.round(category.confidence * 100)}%
           </span>
         {/if}
@@ -233,8 +239,8 @@
             class="remove-btn"
             onclick={() => removeCategory(category)}
             disabled={loading}
-            title={$_('articleCategories.remove') || 'Entfernen'}
-            aria-label={$_('articleCategories.remove') || 'Entfernen'}
+            title={$_("articleCategories.remove") || "Entfernen"}
+            aria-label={$_("articleCategories.remove") || "Entfernen"}
           >
             <i class="fa-solid fa-xmark"></i>
           </button>
@@ -243,7 +249,7 @@
     {/each}
 
     {#if categories.length === 0 && !editing}
-      <span class="no-categories">{$_('articleCategories.none') || 'Keine Kategorien'}</span>
+      <span class="no-categories">{$_("articleCategories.none") || "Keine Kategorien"}</span>
     {/if}
   </div>
 
@@ -261,7 +267,7 @@
         {:else}
           <i class="fa-solid fa-plus"></i>
         {/if}
-        <span>{$_('articleCategories.add') || 'Kategorie hinzufuegen'}</span>
+        <span>{$_("articleCategories.add") || "Kategorie hinzufuegen"}</span>
         {#if !loading}
           <i class="fa-solid fa-chevron-down dropdown-chevron" class:open={showDropdown}></i>
         {/if}
@@ -276,7 +282,7 @@
             </div>
           {:else if groupedCategories.length === 0}
             <div class="dropdown-empty">
-              {$_('articleCategories.allAssigned') || 'Alle Kategorien zugewiesen'}
+              {$_("articleCategories.allAssigned") || "Alle Kategorien zugewiesen"}
             </div>
           {:else}
             {#each groupedCategories as group (group.main.id)}

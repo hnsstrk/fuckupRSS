@@ -1,5 +1,5 @@
 /* Import additional themes - must be before tailwind directives */
-@import './lib/themes/index.css';
+@import "./lib/themes/index.css";
 
 @tailwind base;
 @tailwind components;
@@ -518,32 +518,32 @@ html.tokyo-storm {
    Tokyo Night Day (offizielle folke/tokyonight.nvim Farben)
    =========================================== */
 html.tokyo-day {
-  --bg-base: #e1e2e7;       /* bg - Haupthintergrund */
-  --bg-surface: #d0d5e3;    /* bg_dark - Sidebar, Panels */
-  --bg-overlay: #c4c8da;    /* bg_highlight - Modals, Dropdowns */
-  --bg-muted: #c1c9df;      /* bg_dark1 - deaktivierte Elemente */
-  --bg-highlight: #b6bdd5;  /* Hover/Fokus - sanfter Kontrast */
+  --bg-base: #e1e2e7; /* bg - Haupthintergrund */
+  --bg-surface: #d0d5e3; /* bg_dark - Sidebar, Panels */
+  --bg-overlay: #c4c8da; /* bg_highlight - Modals, Dropdowns */
+  --bg-muted: #c1c9df; /* bg_dark1 - deaktivierte Elemente */
+  --bg-highlight: #b6bdd5; /* Hover/Fokus - sanfter Kontrast */
 
-  --text-primary: #3760bf;  /* fg - Haupttext */
-  --text-secondary: #6172b0;/* fg_dark - Sekundärtext */
-  --text-muted: #848cb5;    /* comment - Kommentare, Hints */
-  --text-faint: #a8aecb;    /* fg_gutter - Zeilennummern, Placeholders */
+  --text-primary: #3760bf; /* fg - Haupttext */
+  --text-secondary: #6172b0; /* fg_dark - Sekundärtext */
+  --text-muted: #848cb5; /* comment - Kommentare, Hints */
+  --text-faint: #a8aecb; /* fg_gutter - Zeilennummern, Placeholders */
 
-  --border-default: #b4b5b9;/* border */
-  --border-muted: #c4c8da;  /* bg_highlight */
+  --border-default: #b4b5b9; /* border */
+  --border-muted: #c4c8da; /* bg_highlight */
 
-  --accent-primary: #2e7de9;  /* blue */
-  --accent-secondary: #7847bd;/* purple (satter als magenta) */
-  --accent-warning: #8c6c3e;  /* warning/orange */
-  --accent-error: #c64343;    /* error (gedämpfter, offiziell) */
-  --accent-success: #587539;  /* green */
-  --accent-info: #07879d;     /* info/cyan */
+  --accent-primary: #2e7de9; /* blue */
+  --accent-secondary: #7847bd; /* purple (satter als magenta) */
+  --accent-warning: #8c6c3e; /* warning/orange */
+  --accent-error: #c64343; /* error (gedämpfter, offiziell) */
+  --accent-success: #587539; /* green */
+  --accent-info: #07879d; /* info/cyan */
 
   --status-error: #c64343;
   --status-success: #587539;
   --status-warning: #8c6c3e;
 
-  --fnord-color: #f52a65;     /* red - auffällig für Fnords */
+  --fnord-color: #f52a65; /* red - auffällig für Fnords */
   --illuminated-color: #a8aecb;
   --golden-apple-color: #8c6c3e;
 
@@ -637,7 +637,7 @@ html.tokyo-storm,
 html.solarized-dark {
   /* Dark theme diff colors */
   --diff-deleted-bg: rgba(243, 139, 168, 0.25);
-  --diff-added-bg: rgba(166, 227, 161, 0.30);
+  --diff-added-bg: rgba(166, 227, 161, 0.3);
   --diff-modified-old-bg: rgba(250, 179, 135, 0.15);
   --diff-modified-new-bg: rgba(250, 179, 135, 0.35);
 }
@@ -650,8 +650,8 @@ html.gruvbox-light,
 html.tokyo-day,
 html.solarized-light {
   /* Light theme diff colors - slightly more saturated for visibility */
-  --diff-deleted-bg: rgba(211, 47, 47, 0.20);
-  --diff-added-bg: rgba(46, 125, 50, 0.20);
+  --diff-deleted-bg: rgba(211, 47, 47, 0.2);
+  --diff-added-bg: rgba(46, 125, 50, 0.2);
   --diff-modified-old-bg: rgba(230, 81, 0, 0.12);
   --diff-modified-new-bg: rgba(230, 81, 0, 0.25);
 }
@@ -711,112 +711,112 @@ html.macchiato,
 html.frappe,
 html.latte {
   /* Kategoriefarben aus Catppuccin-Palette */
-  --category-1: var(--ctp-sky);       /* Wissen & Technologie */
-  --category-2: var(--ctp-red);       /* Politik & Gesellschaft */
-  --category-3: var(--ctp-yellow);    /* Wirtschaft */
-  --category-4: var(--ctp-green);     /* Umwelt & Gesundheit */
-  --category-5: var(--ctp-peach);     /* Sicherheit */
-  --category-6: var(--ctp-pink);      /* Kultur & Leben */
+  --category-1: var(--ctp-sky); /* Wissen & Technologie */
+  --category-2: var(--ctp-red); /* Politik & Gesellschaft */
+  --category-3: var(--ctp-yellow); /* Wirtschaft */
+  --category-4: var(--ctp-green); /* Umwelt & Gesundheit */
+  --category-5: var(--ctp-peach); /* Sicherheit */
+  --category-6: var(--ctp-pink); /* Kultur & Leben */
 }
 
 /* --- Ayu Dark (offizielle Ayu-Farben) --- */
 html.ayu-dark {
-  --category-1: #59c2ff;  /* Blue - Wissen & Technologie */
-  --category-2: #f07178;  /* Red - Politik & Gesellschaft */
-  --category-3: #e6b450;  /* Yellow - Wirtschaft */
-  --category-4: #aad94c;  /* Green - Umwelt & Gesundheit */
-  --category-5: #ff8f40;  /* Orange - Sicherheit */
-  --category-6: #d2a6ff;  /* Purple - Kultur & Leben */
+  --category-1: #59c2ff; /* Blue - Wissen & Technologie */
+  --category-2: #f07178; /* Red - Politik & Gesellschaft */
+  --category-3: #e6b450; /* Yellow - Wirtschaft */
+  --category-4: #aad94c; /* Green - Umwelt & Gesundheit */
+  --category-5: #ff8f40; /* Orange - Sicherheit */
+  --category-6: #d2a6ff; /* Purple - Kultur & Leben */
 }
 
 /* --- Ayu Mirage (offizielle Ayu-Farben) --- */
 html.ayu-mirage {
-  --category-1: #73d0ff;  /* Blue - Wissen & Technologie */
-  --category-2: #f28779;  /* Red - Politik & Gesellschaft */
-  --category-3: #ffcc66;  /* Yellow - Wirtschaft */
-  --category-4: #87d96c;  /* Green - Umwelt & Gesundheit */
-  --category-5: #ffad66;  /* Orange - Sicherheit */
-  --category-6: #d4bfff;  /* Purple - Kultur & Leben */
+  --category-1: #73d0ff; /* Blue - Wissen & Technologie */
+  --category-2: #f28779; /* Red - Politik & Gesellschaft */
+  --category-3: #ffcc66; /* Yellow - Wirtschaft */
+  --category-4: #87d96c; /* Green - Umwelt & Gesundheit */
+  --category-5: #ffad66; /* Orange - Sicherheit */
+  --category-6: #d4bfff; /* Purple - Kultur & Leben */
 }
 
 /* --- Ayu Light (offizielle Ayu-Farben) --- */
 html.ayu-light {
-  --category-1: #399ee6;  /* Blue - Wissen & Technologie */
-  --category-2: #f07171;  /* Red - Politik & Gesellschaft */
-  --category-3: #f29718;  /* Orange - Wirtschaft */
-  --category-4: #86b300;  /* Green - Umwelt & Gesundheit */
-  --category-5: #fa8d3e;  /* Orange - Sicherheit */
-  --category-6: #a37acc;  /* Purple - Kultur & Leben */
+  --category-1: #399ee6; /* Blue - Wissen & Technologie */
+  --category-2: #f07171; /* Red - Politik & Gesellschaft */
+  --category-3: #f29718; /* Orange - Wirtschaft */
+  --category-4: #86b300; /* Green - Umwelt & Gesundheit */
+  --category-5: #fa8d3e; /* Orange - Sicherheit */
+  --category-6: #a37acc; /* Purple - Kultur & Leben */
 }
 
 /* --- Gruvbox Dark (offizielle bright Gruvbox-Farben) --- */
 html.gruvbox-dark {
-  --category-1: #83a598;  /* Blue - Wissen & Technologie */
-  --category-2: #fb4934;  /* Bright Red - Politik & Gesellschaft */
-  --category-3: #fabd2f;  /* Bright Yellow - Wirtschaft */
-  --category-4: #b8bb26;  /* Bright Green - Umwelt & Gesundheit */
-  --category-5: #fe8019;  /* Bright Orange - Sicherheit */
-  --category-6: #d3869b;  /* Bright Purple - Kultur & Leben */
+  --category-1: #83a598; /* Blue - Wissen & Technologie */
+  --category-2: #fb4934; /* Bright Red - Politik & Gesellschaft */
+  --category-3: #fabd2f; /* Bright Yellow - Wirtschaft */
+  --category-4: #b8bb26; /* Bright Green - Umwelt & Gesundheit */
+  --category-5: #fe8019; /* Bright Orange - Sicherheit */
+  --category-6: #d3869b; /* Bright Purple - Kultur & Leben */
 }
 
 /* --- Gruvbox Light (offizielle neutral Gruvbox-Farben) --- */
 html.gruvbox-light {
-  --category-1: #458588;  /* Blue - Wissen & Technologie */
-  --category-2: #cc241d;  /* Red - Politik & Gesellschaft */
-  --category-3: #d79921;  /* Yellow - Wirtschaft */
-  --category-4: #98971a;  /* Green - Umwelt & Gesundheit */
-  --category-5: #d65d0e;  /* Orange - Sicherheit */
-  --category-6: #b16286;  /* Purple - Kultur & Leben */
+  --category-1: #458588; /* Blue - Wissen & Technologie */
+  --category-2: #cc241d; /* Red - Politik & Gesellschaft */
+  --category-3: #d79921; /* Yellow - Wirtschaft */
+  --category-4: #98971a; /* Green - Umwelt & Gesundheit */
+  --category-5: #d65d0e; /* Orange - Sicherheit */
+  --category-6: #b16286; /* Purple - Kultur & Leben */
 }
 
 /* --- Tokyo Night (offizielle Tokyo Night-Farben) --- */
 html.tokyo-night {
-  --category-1: #7dcfff;  /* Cyan - Wissen & Technologie */
-  --category-2: #f7768e;  /* Red - Politik & Gesellschaft */
-  --category-3: #e0af68;  /* Yellow - Wirtschaft */
-  --category-4: #9ece6a;  /* Green - Umwelt & Gesundheit */
-  --category-5: #ff9e64;  /* Orange - Sicherheit */
-  --category-6: #bb9af7;  /* Purple - Kultur & Leben */
+  --category-1: #7dcfff; /* Cyan - Wissen & Technologie */
+  --category-2: #f7768e; /* Red - Politik & Gesellschaft */
+  --category-3: #e0af68; /* Yellow - Wirtschaft */
+  --category-4: #9ece6a; /* Green - Umwelt & Gesundheit */
+  --category-5: #ff9e64; /* Orange - Sicherheit */
+  --category-6: #bb9af7; /* Purple - Kultur & Leben */
 }
 
 /* --- Tokyo Night Storm (offizielle Tokyo Night-Farben) --- */
 html.tokyo-storm {
-  --category-1: #7dcfff;  /* Cyan - Wissen & Technologie */
-  --category-2: #f7768e;  /* Red - Politik & Gesellschaft */
-  --category-3: #e0af68;  /* Yellow - Wirtschaft */
-  --category-4: #9ece6a;  /* Green - Umwelt & Gesundheit */
-  --category-5: #ff9e64;  /* Orange - Sicherheit */
-  --category-6: #bb9af7;  /* Purple - Kultur & Leben */
+  --category-1: #7dcfff; /* Cyan - Wissen & Technologie */
+  --category-2: #f7768e; /* Red - Politik & Gesellschaft */
+  --category-3: #e0af68; /* Yellow - Wirtschaft */
+  --category-4: #9ece6a; /* Green - Umwelt & Gesundheit */
+  --category-5: #ff9e64; /* Orange - Sicherheit */
+  --category-6: #bb9af7; /* Purple - Kultur & Leben */
 }
 
 /* --- Tokyo Night Day (offizielle folke/tokyonight.nvim Farben) --- */
 html.tokyo-day {
-  --category-1: #07879d;  /* info/cyan - Wissen & Technologie */
-  --category-2: #c64343;  /* error/red - Politik & Gesellschaft */
-  --category-3: #8c6c3e;  /* warning/brown - Wirtschaft */
-  --category-4: #587539;  /* green - Umwelt & Gesundheit */
-  --category-5: #b15c00;  /* orange - Sicherheit */
-  --category-6: #7847bd;  /* purple - Kultur & Leben */
+  --category-1: #07879d; /* info/cyan - Wissen & Technologie */
+  --category-2: #c64343; /* error/red - Politik & Gesellschaft */
+  --category-3: #8c6c3e; /* warning/brown - Wirtschaft */
+  --category-4: #587539; /* green - Umwelt & Gesundheit */
+  --category-5: #b15c00; /* orange - Sicherheit */
+  --category-6: #7847bd; /* purple - Kultur & Leben */
 }
 
 /* --- Solarized Dark (offizielle Solarized-Farben) --- */
 html.solarized-dark {
-  --category-1: #2aa198;  /* Cyan - Wissen & Technologie */
-  --category-2: #dc322f;  /* Red - Politik & Gesellschaft */
-  --category-3: #b58900;  /* Yellow - Wirtschaft */
-  --category-4: #859900;  /* Green - Umwelt & Gesundheit */
-  --category-5: #cb4b16;  /* Orange - Sicherheit */
-  --category-6: #d33682;  /* Magenta - Kultur & Leben */
+  --category-1: #2aa198; /* Cyan - Wissen & Technologie */
+  --category-2: #dc322f; /* Red - Politik & Gesellschaft */
+  --category-3: #b58900; /* Yellow - Wirtschaft */
+  --category-4: #859900; /* Green - Umwelt & Gesundheit */
+  --category-5: #cb4b16; /* Orange - Sicherheit */
+  --category-6: #d33682; /* Magenta - Kultur & Leben */
 }
 
 /* --- Solarized Light (offizielle Solarized-Farben) --- */
 html.solarized-light {
-  --category-1: #2aa198;  /* Cyan - Wissen & Technologie */
-  --category-2: #dc322f;  /* Red - Politik & Gesellschaft */
-  --category-3: #b58900;  /* Yellow - Wirtschaft */
-  --category-4: #859900;  /* Green - Umwelt & Gesundheit */
-  --category-5: #cb4b16;  /* Orange - Sicherheit */
-  --category-6: #d33682;  /* Magenta - Kultur & Leben */
+  --category-1: #2aa198; /* Cyan - Wissen & Technologie */
+  --category-2: #dc322f; /* Red - Politik & Gesellschaft */
+  --category-3: #b58900; /* Yellow - Wirtschaft */
+  --category-4: #859900; /* Green - Umwelt & Gesundheit */
+  --category-5: #cb4b16; /* Orange - Sicherheit */
+  --category-6: #d33682; /* Magenta - Kultur & Leben */
 }
 
 /* ===========================================
@@ -862,10 +862,10 @@ html.latte {
 
 /* --- Ayu Dark --- */
 html.ayu-dark {
-  --bias-strong-left: #59c2ff;  /* Blue */
-  --bias-lean-left: #95e6cb;    /* Cyan */
-  --bias-center: #aad94c;       /* Green */
-  --bias-lean-right: #ff8f40;   /* Orange */
+  --bias-strong-left: #59c2ff; /* Blue */
+  --bias-lean-left: #95e6cb; /* Cyan */
+  --bias-center: #aad94c; /* Green */
+  --bias-lean-right: #ff8f40; /* Orange */
   --bias-strong-right: #f07178; /* Red */
 
   --sach-emotional: #ff8f40;
@@ -875,10 +875,10 @@ html.ayu-dark {
 
 /* --- Ayu Mirage --- */
 html.ayu-mirage {
-  --bias-strong-left: #73d0ff;  /* Blue */
-  --bias-lean-left: #95e6cb;    /* Cyan */
-  --bias-center: #87d96c;       /* Green */
-  --bias-lean-right: #ffad66;   /* Orange */
+  --bias-strong-left: #73d0ff; /* Blue */
+  --bias-lean-left: #95e6cb; /* Cyan */
+  --bias-center: #87d96c; /* Green */
+  --bias-lean-right: #ffad66; /* Orange */
   --bias-strong-right: #f28779; /* Red */
 
   --sach-emotional: #ffad66;
@@ -888,10 +888,10 @@ html.ayu-mirage {
 
 /* --- Ayu Light --- */
 html.ayu-light {
-  --bias-strong-left: #399ee6;  /* Blue */
-  --bias-lean-left: #4cbf99;    /* Cyan */
-  --bias-center: #86b300;       /* Green */
-  --bias-lean-right: #fa8d3e;   /* Orange */
+  --bias-strong-left: #399ee6; /* Blue */
+  --bias-lean-left: #4cbf99; /* Cyan */
+  --bias-center: #86b300; /* Green */
+  --bias-lean-right: #fa8d3e; /* Orange */
   --bias-strong-right: #f07171; /* Red */
 
   --sach-emotional: #fa8d3e;
@@ -901,10 +901,10 @@ html.ayu-light {
 
 /* --- Gruvbox Dark --- */
 html.gruvbox-dark {
-  --bias-strong-left: #83a598;  /* Blue */
-  --bias-lean-left: #8ec07c;    /* Aqua */
-  --bias-center: #b8bb26;       /* Green */
-  --bias-lean-right: #fe8019;   /* Orange */
+  --bias-strong-left: #83a598; /* Blue */
+  --bias-lean-left: #8ec07c; /* Aqua */
+  --bias-center: #b8bb26; /* Green */
+  --bias-lean-right: #fe8019; /* Orange */
   --bias-strong-right: #fb4934; /* Red */
 
   --sach-emotional: #fe8019;
@@ -914,10 +914,10 @@ html.gruvbox-dark {
 
 /* --- Gruvbox Light --- */
 html.gruvbox-light {
-  --bias-strong-left: #458588;  /* Blue */
-  --bias-lean-left: #689d6a;    /* Aqua */
-  --bias-center: #98971a;       /* Green */
-  --bias-lean-right: #d65d0e;   /* Orange */
+  --bias-strong-left: #458588; /* Blue */
+  --bias-lean-left: #689d6a; /* Aqua */
+  --bias-center: #98971a; /* Green */
+  --bias-lean-right: #d65d0e; /* Orange */
   --bias-strong-right: #cc241d; /* Red */
 
   --sach-emotional: #d65d0e;
@@ -927,10 +927,10 @@ html.gruvbox-light {
 
 /* --- Tokyo Night --- */
 html.tokyo-night {
-  --bias-strong-left: #7aa2f7;  /* Blue */
-  --bias-lean-left: #7dcfff;    /* Cyan */
-  --bias-center: #9ece6a;       /* Green */
-  --bias-lean-right: #ff9e64;   /* Orange */
+  --bias-strong-left: #7aa2f7; /* Blue */
+  --bias-lean-left: #7dcfff; /* Cyan */
+  --bias-center: #9ece6a; /* Green */
+  --bias-lean-right: #ff9e64; /* Orange */
   --bias-strong-right: #f7768e; /* Red */
 
   --sach-emotional: #ff9e64;
@@ -940,10 +940,10 @@ html.tokyo-night {
 
 /* --- Tokyo Night Storm --- */
 html.tokyo-storm {
-  --bias-strong-left: #7aa2f7;  /* Blue */
-  --bias-lean-left: #7dcfff;    /* Cyan */
-  --bias-center: #9ece6a;       /* Green */
-  --bias-lean-right: #ff9e64;   /* Orange */
+  --bias-strong-left: #7aa2f7; /* Blue */
+  --bias-lean-left: #7dcfff; /* Cyan */
+  --bias-center: #9ece6a; /* Green */
+  --bias-lean-right: #ff9e64; /* Orange */
   --bias-strong-right: #f7768e; /* Red */
 
   --sach-emotional: #ff9e64;
@@ -953,10 +953,10 @@ html.tokyo-storm {
 
 /* --- Tokyo Night Day (offizielle folke/tokyonight.nvim Farben) --- */
 html.tokyo-day {
-  --bias-strong-left: #2e7de9;  /* blue */
-  --bias-lean-left: #07879d;    /* info/cyan */
-  --bias-center: #587539;       /* green */
-  --bias-lean-right: #b15c00;   /* orange */
+  --bias-strong-left: #2e7de9; /* blue */
+  --bias-lean-left: #07879d; /* info/cyan */
+  --bias-center: #587539; /* green */
+  --bias-lean-right: #b15c00; /* orange */
   --bias-strong-right: #c64343; /* error/red (gedämpfter) */
 
   --sach-emotional: #b15c00;
@@ -966,10 +966,10 @@ html.tokyo-day {
 
 /* --- Solarized Dark --- */
 html.solarized-dark {
-  --bias-strong-left: #268bd2;  /* Blue */
-  --bias-lean-left: #2aa198;    /* Cyan */
-  --bias-center: #859900;       /* Green */
-  --bias-lean-right: #cb4b16;   /* Orange */
+  --bias-strong-left: #268bd2; /* Blue */
+  --bias-lean-left: #2aa198; /* Cyan */
+  --bias-center: #859900; /* Green */
+  --bias-lean-right: #cb4b16; /* Orange */
   --bias-strong-right: #dc322f; /* Red */
 
   --sach-emotional: #cb4b16;
@@ -979,10 +979,10 @@ html.solarized-dark {
 
 /* --- Solarized Light --- */
 html.solarized-light {
-  --bias-strong-left: #268bd2;  /* Blue */
-  --bias-lean-left: #2aa198;    /* Cyan */
-  --bias-center: #859900;       /* Green */
-  --bias-lean-right: #cb4b16;   /* Orange */
+  --bias-strong-left: #268bd2; /* Blue */
+  --bias-lean-left: #2aa198; /* Cyan */
+  --bias-center: #859900; /* Green */
+  --bias-lean-right: #cb4b16; /* Orange */
   --bias-strong-right: #dc322f; /* Red */
 
   --sach-emotional: #cb4b16;
@@ -1058,31 +1058,69 @@ body,
 /* ===========================================
    Utility Classes
    =========================================== */
-.bg-base { background-color: var(--bg-base); }
-.bg-surface { background-color: var(--bg-surface); }
-.bg-overlay { background-color: var(--bg-overlay); }
-.bg-muted { background-color: var(--bg-muted); }
-.bg-highlight { background-color: var(--bg-highlight); }
+.bg-base {
+  background-color: var(--bg-base);
+}
+.bg-surface {
+  background-color: var(--bg-surface);
+}
+.bg-overlay {
+  background-color: var(--bg-overlay);
+}
+.bg-muted {
+  background-color: var(--bg-muted);
+}
+.bg-highlight {
+  background-color: var(--bg-highlight);
+}
 
-.text-primary { color: var(--text-primary); }
-.text-secondary { color: var(--text-secondary); }
-.text-muted { color: var(--text-muted); }
-.text-faint { color: var(--text-faint); }
+.text-primary {
+  color: var(--text-primary);
+}
+.text-secondary {
+  color: var(--text-secondary);
+}
+.text-muted {
+  color: var(--text-muted);
+}
+.text-faint {
+  color: var(--text-faint);
+}
 
-.border-default { border-color: var(--border-default); }
-.border-muted { border-color: var(--border-muted); }
+.border-default {
+  border-color: var(--border-default);
+}
+.border-muted {
+  border-color: var(--border-muted);
+}
 
-.text-accent { color: var(--accent-primary); }
-.text-fnord { color: var(--fnord-color); }
-.text-illuminated { color: var(--illuminated-color); }
-.text-golden { color: var(--golden-apple-color); }
+.text-accent {
+  color: var(--accent-primary);
+}
+.text-fnord {
+  color: var(--fnord-color);
+}
+.text-illuminated {
+  color: var(--illuminated-color);
+}
+.text-golden {
+  color: var(--golden-apple-color);
+}
 
-.bg-accent { background-color: var(--accent-primary); }
-.bg-fnord { background-color: var(--fnord-color); }
+.bg-accent {
+  background-color: var(--accent-primary);
+}
+.bg-fnord {
+  background-color: var(--fnord-color);
+}
 
 /* Hover states */
-.hover-overlay:hover { background-color: var(--bg-overlay); }
-.hover-surface:hover { background-color: var(--bg-surface); }
+.hover-overlay:hover {
+  background-color: var(--bg-overlay);
+}
+.hover-surface:hover {
+  background-color: var(--bg-surface);
+}
 
 /* ===========================================
    Unified Heading System

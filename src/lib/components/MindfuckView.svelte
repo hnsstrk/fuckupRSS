@@ -2,16 +2,11 @@
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
-  import type {
-    ReadingProfile,
-    BlindSpot,
-    CounterPerspective,
-    ReadingTrend,
-  } from "../types";
+  import type { ReadingProfile, BlindSpot, CounterPerspective, ReadingTrend } from "../types";
   import Tabs, { type Tab } from "./Tabs.svelte";
   import Tooltip from "./Tooltip.svelte";
   import { RecommendationList } from "./recommendation";
-  import { getCategoryColorVar, getBiasColor } from '$lib/utils/articleFormat';
+  import { getCategoryColorVar, getBiasColor } from "$lib/utils/articleFormat";
 
   // Tab state
   let activeTab = $state<string>("overview");
@@ -139,7 +134,9 @@
   }
 
   function handleReadArticle(fnordId: number) {
-    window.dispatchEvent(new CustomEvent('navigate-to-article', { detail: { articleId: fnordId } }));
+    window.dispatchEvent(
+      new CustomEvent("navigate-to-article", { detail: { articleId: fnordId } }),
+    );
   }
 
   // Derived values
@@ -187,7 +184,7 @@
           <p>{$_("mindfuck.profile.noData")}</p>
         </div>
       {:else}
-        {@const maxRead = Math.max(...readingProfile.by_category.map(c => c.read_count), 1)}
+        {@const maxRead = Math.max(...readingProfile.by_category.map((c) => c.read_count), 1)}
         <!-- Profile Overview -->
         <div class="section">
           <h3>{$_("mindfuck.profile.title")}</h3>
@@ -205,7 +202,10 @@
               <span class="stat-label">{$_("mindfuck.profile.readPercentage")}</span>
             </div>
             <div class="stat-item">
-              <span class="stat-value bias-indicator" style="color: {getBiasColor(readingProfile.avg_political_bias)}">
+              <span
+                class="stat-value bias-indicator"
+                style="color: {getBiasColor(readingProfile.avg_political_bias)}"
+              >
                 {biasIndicator}
               </span>
               <span class="stat-label">{$_("mindfuck.profile.avgBias")}</span>
@@ -229,7 +229,7 @@
                 <div class="card-header">
                   <div class="card-icon-wrapper">
                     {#if cat.icon}
-                      <i class="{cat.icon}"></i>
+                      <i class={cat.icon}></i>
                     {:else}
                       <i class="fa-solid fa-folder"></i>
                     {/if}
@@ -262,15 +262,21 @@
                           {/if}
                           <span class="subcategory-name">{sub.name}</span>
                           {#if sub.percentage < 30 && sub.total_count > 5}
-                            <span class="warning-badge" title={$_("mindfuck.blindSpots.lowReadRate")}>!</span>
+                            <span
+                              class="warning-badge"
+                              title={$_("mindfuck.blindSpots.lowReadRate")}>!</span
+                            >
                           {/if}
                         </div>
                         <div class="subcategory-stats">
-                          <span class="subcategory-count" title="{$_('mindfuck.categories.read')}">
+                          <span class="subcategory-count" title={$_("mindfuck.categories.read")}>
                             {sub.read_count}
                           </span>
                           <span class="subcategory-divider">/</span>
-                          <span class="subcategory-count" title="{$_('mindfuck.categories.available')}">
+                          <span
+                            class="subcategory-count"
+                            title={$_("mindfuck.categories.available")}
+                          >
                             {sub.total_count}
                           </span>
                         </div>
@@ -296,14 +302,23 @@
 
             <!-- Main Spectrum Bar -->
             {#if readingProfile.by_bias.reduce((sum, b) => sum + b.read_count, 0) > 0}
-              {@const totalBiasReads = readingProfile.by_bias.reduce((sum, b) => sum + b.read_count, 0)}
+              {@const totalBiasReads = readingProfile.by_bias.reduce(
+                (sum, b) => sum + b.read_count,
+                0,
+              )}
               <div class="spectrum-bar-container">
                 <div class="spectrum-bar">
                   {#each readingProfile.by_bias as bias (bias.bias_value)}
-                    {@const segmentClass = bias.bias_value <= -1.5 ? 'left-extreme' :
-                                           bias.bias_value <= -0.5 ? 'left-leaning' :
-                                           bias.bias_value <= 0.5 ? 'neutral' :
-                                           bias.bias_value <= 1.5 ? 'right-leaning' : 'right-extreme'}
+                    {@const segmentClass =
+                      bias.bias_value <= -1.5
+                        ? "left-extreme"
+                        : bias.bias_value <= -0.5
+                          ? "left-leaning"
+                          : bias.bias_value <= 0.5
+                            ? "neutral"
+                            : bias.bias_value <= 1.5
+                              ? "right-leaning"
+                              : "right-extreme"}
                     {#if bias.read_count > 0}
                       <div
                         class="spectrum-segment {segmentClass}"
@@ -344,10 +359,16 @@
               <!-- Detailed Breakdown -->
               <div class="spectrum-details">
                 {#each readingProfile.by_bias as bias (bias.bias_value)}
-                  {@const segmentClass = bias.bias_value <= -1.5 ? 'left-extreme' :
-                                         bias.bias_value <= -0.5 ? 'left-leaning' :
-                                         bias.bias_value <= 0.5 ? 'neutral' :
-                                         bias.bias_value <= 1.5 ? 'right-leaning' : 'right-extreme'}
+                  {@const segmentClass =
+                    bias.bias_value <= -1.5
+                      ? "left-extreme"
+                      : bias.bias_value <= -0.5
+                        ? "left-leaning"
+                        : bias.bias_value <= 0.5
+                          ? "neutral"
+                          : bias.bias_value <= 1.5
+                            ? "right-leaning"
+                            : "right-extreme"}
                   <div class="detail-item">
                     <span class="detail-dot {segmentClass}"></span>
                     <span class="detail-label">{bias.label}</span>
@@ -360,7 +381,10 @@
               <!-- Summary -->
               {#if readingProfile.avg_political_bias !== null}
                 <div class="spectrum-summary">
-                  <div class="summary-indicator" style="color: {getBiasColor(readingProfile.avg_political_bias)}">
+                  <div
+                    class="summary-indicator"
+                    style="color: {getBiasColor(readingProfile.avg_political_bias)}"
+                  >
                     <i class="fa-solid fa-compass"></i>
                     <span>{biasIndicator}</span>
                   </div>
@@ -385,21 +409,36 @@
           <div class="sachlichkeit-spectrum-card">
             <!-- Spectrum Header -->
             <div class="sachlichkeit-header">
-              <span class="sachlichkeit-label-header emotional">{$_("mindfuck.sachlichkeit.emotional")}</span>
-              <span class="sachlichkeit-label-header mixed">{$_("mindfuck.sachlichkeit.mixed")}</span>
-              <span class="sachlichkeit-label-header objective">{$_("mindfuck.sachlichkeit.objective")}</span>
+              <span class="sachlichkeit-label-header emotional"
+                >{$_("mindfuck.sachlichkeit.emotional")}</span
+              >
+              <span class="sachlichkeit-label-header mixed"
+                >{$_("mindfuck.sachlichkeit.mixed")}</span
+              >
+              <span class="sachlichkeit-label-header objective"
+                >{$_("mindfuck.sachlichkeit.objective")}</span
+              >
             </div>
 
             <!-- Main Spectrum Bar -->
             {#if readingProfile.by_sachlichkeit.reduce((sum, s) => sum + s.read_count, 0) > 0}
-              {@const totalSachReads = readingProfile.by_sachlichkeit.reduce((sum, s) => sum + s.read_count, 0)}
+              {@const totalSachReads = readingProfile.by_sachlichkeit.reduce(
+                (sum, s) => sum + s.read_count,
+                0,
+              )}
               <div class="sachlichkeit-bar-container">
                 <div class="sachlichkeit-spectrum-bar">
                   {#each readingProfile.by_sachlichkeit as sach (sach.sachlichkeit_value)}
-                    {@const segmentClass = sach.sachlichkeit_value <= 0.5 ? 'highly-emotional' :
-                                           sach.sachlichkeit_value <= 1.5 ? 'emotional' :
-                                           sach.sachlichkeit_value <= 2.5 ? 'mixed' :
-                                           sach.sachlichkeit_value <= 3.5 ? 'mostly-objective' : 'objective'}
+                    {@const segmentClass =
+                      sach.sachlichkeit_value <= 0.5
+                        ? "highly-emotional"
+                        : sach.sachlichkeit_value <= 1.5
+                          ? "emotional"
+                          : sach.sachlichkeit_value <= 2.5
+                            ? "mixed"
+                            : sach.sachlichkeit_value <= 3.5
+                              ? "mostly-objective"
+                              : "objective"}
                     {#if sach.read_count > 0}
                       <div
                         class="sachlichkeit-segment {segmentClass}"
@@ -427,10 +466,16 @@
               <!-- Detailed Breakdown -->
               <div class="sachlichkeit-details">
                 {#each readingProfile.by_sachlichkeit as sach (sach.sachlichkeit_value)}
-                  {@const segmentClass = sach.sachlichkeit_value <= 0.5 ? 'highly-emotional' :
-                                         sach.sachlichkeit_value <= 1.5 ? 'emotional' :
-                                         sach.sachlichkeit_value <= 2.5 ? 'mixed' :
-                                         sach.sachlichkeit_value <= 3.5 ? 'mostly-objective' : 'objective'}
+                  {@const segmentClass =
+                    sach.sachlichkeit_value <= 0.5
+                      ? "highly-emotional"
+                      : sach.sachlichkeit_value <= 1.5
+                        ? "emotional"
+                        : sach.sachlichkeit_value <= 2.5
+                          ? "mixed"
+                          : sach.sachlichkeit_value <= 3.5
+                            ? "mostly-objective"
+                            : "objective"}
                   <div class="detail-item">
                     <span class="detail-dot {segmentClass}"></span>
                     <span class="detail-label">{sach.label}</span>
@@ -460,7 +505,6 @@
           </div>
         </div>
       {/if}
-
     {:else if activeTab === "blindSpots"}
       {#if loadingBlindSpots}
         <div class="loading">{$_("fnordView.loading")}</div>
@@ -489,7 +533,10 @@
           <!-- Blind Spots Cards Grid -->
           <div class="blind-spots-grid">
             {#each blindSpots as spot (spot.name)}
-              {@const readPercentage = spot.available_count > 0 ? Math.round((spot.read_count / spot.available_count) * 100) : 0}
+              {@const readPercentage =
+                spot.available_count > 0
+                  ? Math.round((spot.read_count / spot.available_count) * 100)
+                  : 0}
               {@const severityColor = getSeverityColor(spot.severity)}
               {@const categoryColor = spot.main_category_color || severityColor}
               <div
@@ -503,7 +550,7 @@
                 <div class="blind-spot-card-header">
                   <div class="blind-spot-icon-wrapper">
                     {#if spot.icon}
-                      <i class="{spot.icon}"></i>
+                      <i class={spot.icon}></i>
                     {:else}
                       <i class="fa-solid fa-eye-slash"></i>
                     {/if}
@@ -517,7 +564,10 @@
                 <div class="blind-spot-title-section">
                   <h4 class="blind-spot-card-title">{spot.name}</h4>
                   {#if spot.main_category}
-                    <span class="blind-spot-category-tag" style="color: {categoryColor}; border-color: {categoryColor}">
+                    <span
+                      class="blind-spot-category-tag"
+                      style="color: {categoryColor}; border-color: {categoryColor}"
+                    >
                       <i class="fa-solid fa-folder-tree"></i>
                       {spot.main_category}
                     </span>
@@ -527,8 +577,14 @@
                 <!-- Progress visualization -->
                 <div class="blind-spot-progress-section">
                   <div class="blind-spot-progress-header">
-                    <span class="blind-spot-progress-label">{$_("mindfuck.blindSpots.readPercentage", { values: { percent: readPercentage } })}</span>
-                    <span class="blind-spot-progress-ratio">{spot.read_count} / {spot.available_count}</span>
+                    <span class="blind-spot-progress-label"
+                      >{$_("mindfuck.blindSpots.readPercentage", {
+                        values: { percent: readPercentage },
+                      })}</span
+                    >
+                    <span class="blind-spot-progress-ratio"
+                      >{spot.read_count} / {spot.available_count}</span
+                    >
                   </div>
                   <div class="blind-spot-progress-bar">
                     <div
@@ -552,8 +608,8 @@
                 <button
                   class="blind-spot-action-btn"
                   onclick={() => {
-                    const event = new CustomEvent('filter-by-category', {
-                      detail: { categoryName: spot.name }
+                    const event = new CustomEvent("filter-by-category", {
+                      detail: { categoryName: spot.name },
                     });
                     window.dispatchEvent(event);
                   }}
@@ -567,10 +623,8 @@
           </div>
         </div>
       {/if}
-
     {:else if activeTab === "recommendations"}
       <RecommendationList onArticleClick={handleReadArticle} />
-
     {:else if activeTab === "trends"}
       <div class="section">
         <h3>{$_("mindfuck.trends.title")}</h3>
@@ -616,11 +670,20 @@
                   <div class="trend-bar-wrapper">
                     <div
                       class="trend-bar"
-                      style="height: {Math.max(4, (trend.read_count / Math.max(...readingTrends.map(t => t.read_count))) * 100)}%"
+                      style="height: {Math.max(
+                        4,
+                        (trend.read_count / Math.max(...readingTrends.map((t) => t.read_count))) *
+                          100,
+                      )}%"
                       title="{trend.read_count} {$_('mindfuck.trends.articlesRead')}"
                     ></div>
                   </div>
-                  <span class="trend-date">{new Date(trend.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                  <span class="trend-date"
+                    >{new Date(trend.date).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    })}</span
+                  >
                 </div>
               {/each}
             </div>
@@ -634,10 +697,21 @@
                 <span class="trend-stat-label">{$_("mindfuck.trends.articlesRead")}</span>
               </div>
               <div class="trend-stat">
-                <span class="trend-stat-value" style="color: {getBiasColor(readingTrends.filter(t => t.avg_bias !== null).reduce((sum, t, _, arr) => sum + (t.avg_bias || 0) / arr.length, 0) || null)}">
-                  {getBiasLabel(readingTrends.filter(t => t.avg_bias !== null).length > 0
-                    ? readingTrends.filter(t => t.avg_bias !== null).reduce((sum, t, _, arr) => sum + (t.avg_bias || 0) / arr.length, 0)
-                    : null)}
+                <span
+                  class="trend-stat-value"
+                  style="color: {getBiasColor(
+                    readingTrends
+                      .filter((t) => t.avg_bias !== null)
+                      .reduce((sum, t, _, arr) => sum + (t.avg_bias || 0) / arr.length, 0) || null,
+                  )}"
+                >
+                  {getBiasLabel(
+                    readingTrends.filter((t) => t.avg_bias !== null).length > 0
+                      ? readingTrends
+                          .filter((t) => t.avg_bias !== null)
+                          .reduce((sum, t, _, arr) => sum + (t.avg_bias || 0) / arr.length, 0)
+                      : null,
+                  )}
                 </span>
                 <span class="trend-stat-label">{$_("mindfuck.trends.avgBiasOverTime")}</span>
               </div>
@@ -759,12 +833,19 @@
   /* Category colors are set via inline style using getCategoryColorVar() for theme-awareness */
 
   .category-card {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 25%, var(--bg-base)) 0%, color-mix(in srgb, var(--cat-color) 8%, var(--bg-base)) 100%);
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--cat-color) 25%, var(--bg-base)) 0%,
+      color-mix(in srgb, var(--cat-color) 8%, var(--bg-base)) 100%
+    );
     border: 1px solid color-mix(in srgb, var(--cat-color) 50%, transparent);
     border-left: 3px solid var(--cat-color);
     border-radius: 0.625rem;
     padding: 1rem;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      border-color 0.15s ease;
     cursor: pointer;
     text-align: left;
     width: 100%;
@@ -790,7 +871,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--cat-color), color-mix(in srgb, var(--cat-color) 70%, black));
+    background: linear-gradient(
+      135deg,
+      var(--cat-color),
+      color-mix(in srgb, var(--cat-color) 70%, black)
+    );
     border-radius: 0.5rem;
     color: white;
     font-size: 1rem;
@@ -839,7 +924,11 @@
 
   .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--cat-color), color-mix(in srgb, var(--cat-color) 80%, white));
+    background: linear-gradient(
+      90deg,
+      var(--cat-color),
+      color-mix(in srgb, var(--cat-color) 80%, white)
+    );
     border-radius: 3px;
     transition: width 0.3s ease;
   }
@@ -995,7 +1084,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: width 0.3s ease, opacity 0.2s ease;
+    transition:
+      width 0.3s ease,
+      opacity 0.2s ease;
     min-width: 2px;
     position: relative;
   }
@@ -1152,7 +1243,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: width 0.3s ease, opacity 0.2s ease;
+    transition:
+      width 0.3s ease,
+      opacity 0.2s ease;
     min-width: 2px;
     position: relative;
   }
@@ -1354,9 +1447,11 @@
     text-align: center;
     max-width: 400px;
     padding: 2.5rem 2rem;
-    background: linear-gradient(135deg,
+    background: linear-gradient(
+      135deg,
       color-mix(in srgb, var(--status-success) 15%, var(--bg-overlay)) 0%,
-      color-mix(in srgb, var(--status-success) 5%, var(--bg-overlay)) 100%);
+      color-mix(in srgb, var(--status-success) 5%, var(--bg-overlay)) 100%
+    );
     border: 1px solid color-mix(in srgb, var(--status-success) 30%, var(--border-default));
     border-radius: 1rem;
     box-shadow: 0 4px 24px color-mix(in srgb, var(--status-success) 10%, transparent);
@@ -1369,7 +1464,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--status-success), color-mix(in srgb, var(--status-success) 70%, var(--ctp-green)));
+    background: linear-gradient(
+      135deg,
+      var(--status-success),
+      color-mix(in srgb, var(--status-success) 70%, var(--ctp-green))
+    );
     border-radius: 50%;
     box-shadow: 0 8px 24px color-mix(in srgb, var(--status-success) 35%, transparent);
   }
@@ -1411,7 +1510,11 @@
   .balance-fill {
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, var(--status-success), color-mix(in srgb, var(--status-success) 80%, var(--ctp-green)));
+    background: linear-gradient(
+      90deg,
+      var(--status-success),
+      color-mix(in srgb, var(--status-success) 80%, var(--ctp-green))
+    );
     border-radius: 4px;
   }
 
@@ -1437,7 +1540,10 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease,
+      border-color 0.2s ease;
     overflow: hidden;
   }
 
@@ -1458,15 +1564,27 @@
   }
 
   .blind-spot-card.severity-high .severity-bar {
-    background: linear-gradient(90deg, var(--status-error), color-mix(in srgb, var(--status-error) 70%, var(--ctp-red)));
+    background: linear-gradient(
+      90deg,
+      var(--status-error),
+      color-mix(in srgb, var(--status-error) 70%, var(--ctp-red))
+    );
   }
 
   .blind-spot-card.severity-medium .severity-bar {
-    background: linear-gradient(90deg, var(--status-warning), color-mix(in srgb, var(--status-warning) 70%, var(--ctp-peach)));
+    background: linear-gradient(
+      90deg,
+      var(--status-warning),
+      color-mix(in srgb, var(--status-warning) 70%, var(--ctp-peach))
+    );
   }
 
   .blind-spot-card.severity-low .severity-bar {
-    background: linear-gradient(90deg, var(--ctp-yellow), color-mix(in srgb, var(--ctp-yellow) 70%, var(--ctp-rosewater)));
+    background: linear-gradient(
+      90deg,
+      var(--ctp-yellow),
+      color-mix(in srgb, var(--ctp-yellow) 70%, var(--ctp-rosewater))
+    );
   }
 
   /* Card Header */
@@ -1483,9 +1601,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg,
+    background: linear-gradient(
+      135deg,
       color-mix(in srgb, var(--severity-color) 25%, var(--bg-surface)),
-      color-mix(in srgb, var(--severity-color) 10%, var(--bg-surface)));
+      color-mix(in srgb, var(--severity-color) 10%, var(--bg-surface))
+    );
     border: 1px solid color-mix(in srgb, var(--severity-color) 30%, transparent);
     border-radius: 0.5rem;
     color: var(--severity-color);
@@ -1873,7 +1993,11 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, transparent 60%, color-mix(in srgb, var(--accent-primary) 5%, transparent));
+    background: linear-gradient(
+      135deg,
+      transparent 60%,
+      color-mix(in srgb, var(--accent-primary) 5%, transparent)
+    );
     pointer-events: none;
   }
 

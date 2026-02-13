@@ -11,8 +11,7 @@
 
   function handleScroll(event: Event) {
     const target = event.target as HTMLDivElement;
-    const scrollBottom =
-      target.scrollHeight - target.scrollTop - target.clientHeight;
+    const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
 
     // Load more when within 200px of bottom
     if (scrollBottom < 200 && appState.hasMoreFnords && !appState.loadingMore) {
@@ -51,7 +50,7 @@
       <h2 class="list-title">{$_("search.results")}</h2>
       <p class="list-count">
         {appState.searchResults.length}
-        {$_('articleList.results')}
+        {$_("articleList.results")}
         {#if appState.searchQuery}
           <span class="search-query">"{appState.searchQuery}"</span>
         {/if}
@@ -67,7 +66,7 @@
       <p class="list-count">
         {appState.fnords
           .length}{#if appState.totalFnordsCount > appState.fnords.length}/{appState.totalFnordsCount}{/if}
-        {$_('articleList.articles')}
+        {$_("articleList.articles")}
       </p>
     {/if}
   </div>
@@ -122,11 +121,11 @@
       {#if appState.loadingMore}
         <div class="loading-more">
           <i class="loading-spinner fa-solid fa-rotate fa-spin"></i>
-          {$_('articleList.loadingMore')}
+          {$_("articleList.loadingMore")}
         </div>
       {:else if appState.hasMoreFnords && appState.fnords.length > 0}
         <div class="load-more-hint">
-          {$_('articleList.scrollForMore')}
+          {$_("articleList.scrollForMore")}
         </div>
       {/if}
 

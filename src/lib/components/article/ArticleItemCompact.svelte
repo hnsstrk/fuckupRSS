@@ -59,11 +59,7 @@
 <button class="article-item-compact" class:active type="button" {onclick}>
   <div class="article-row">
     {#if showStatus}
-      <i
-        class="status-icon {getStatusIcon(status)} {getStatusColorClass(
-          status,
-        )}"
-      ></i>
+      <i class="status-icon {getStatusIcon(status)} {getStatusColorClass(status)}"></i>
     {/if}
     <div class="article-content">
       <h3 class="article-title" class:unread={isUnread}>{title}</h3>
@@ -76,9 +72,7 @@
         {#if changed_at}
           <span class="changed-date">{formatChangedDate(changed_at)}</span>
         {:else if published_at}
-          <span class="date"
-            >{formatRelativeDate(published_at, currentLocale)}</span
-          >
+          <span class="date">{formatRelativeDate(published_at, currentLocale)}</span>
         {/if}
         {#if revision_count > 0}
           <span class="revision-badge" title="Revisionen">
@@ -90,10 +84,7 @@
       {#if hasIndicators}
         <div class="article-indicators">
           {#if categories.length > 0}
-            <div
-              class="category-list"
-              title={categories.map((c) => c.name).join(", ")}
-            >
+            <div class="category-list" title={categories.map((c) => c.name).join(", ")}>
               {#each categories.slice(0, 3) as cat (cat.name)}
                 <span
                   class="category-dot"
@@ -107,9 +98,7 @@
           <div class="indicators-right">
             {#if quality_score}
               <span class="quality">
-                {#each Array(quality_score) as _, i (i)}<i
-                    class="fa-solid fa-star"
-                  ></i>{/each}
+                {#each Array(quality_score) as _, i (i)}<i class="fa-solid fa-star"></i>{/each}
               </span>
             {/if}
             {#if political_bias !== null && political_bias !== 0}

@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
-  import { invoke } from '@tauri-apps/api/core';
-  import Tooltip from '../Tooltip.svelte';
-  import KeywordContextTooltip from '../KeywordContextTooltip.svelte';
-  import KeywordTrendChart from '../KeywordTrendChart.svelte';
-  import type { Keyword, KeywordNeighbor, KeywordCategory } from '../../types';
-  import { SvelteSet } from 'svelte/reactivity';
-  import { tick } from 'svelte';
-  import { getCategoryColorVar, formatChangedDate } from '$lib/utils/articleFormat';
+  import { _ } from "svelte-i18n";
+  import { invoke } from "@tauri-apps/api/core";
+  import Tooltip from "../Tooltip.svelte";
+  import KeywordContextTooltip from "../KeywordContextTooltip.svelte";
+  import KeywordTrendChart from "../KeywordTrendChart.svelte";
+  import type { Keyword, KeywordNeighbor, KeywordCategory } from "../../types";
+  import { SvelteSet } from "svelte/reactivity";
+  import { tick } from "svelte";
+  import { getCategoryColorVar, formatChangedDate } from "$lib/utils/articleFormat";
 
   // Type for keyword articles
   interface KeywordArticle {
@@ -152,11 +152,11 @@
         // and transfers all relationships (articles, categories, etc.)
         // Tauri auto-converts camelCase to snake_case for Rust parameter names
         const result = await invoke<{ merged_pairs: number; affected_articles: number }>(
-          'merge_keyword_pair',
+          "merge_keyword_pair",
           {
             keepId,
             removeId,
-          }
+          },
         );
         successCount++;
         totalAffectedArticles += result.affected_articles;
@@ -170,13 +170,15 @@
     assigningSynonyms = false;
 
     if (errorCount > 0) {
-      synonymError = $_('network.synonymAssignedPartial', {
-        values: { success: successCount, failed: errorCount }
-      }) || `${successCount} merged, ${errorCount} failed`;
+      synonymError =
+        $_("network.synonymAssignedPartial", {
+          values: { success: successCount, failed: errorCount },
+        }) || `${successCount} merged, ${errorCount} failed`;
     } else {
-      synonymSuccess = $_('network.synonymsMerged', {
-        values: { count: successCount, articles: totalAffectedArticles }
-      }) || `${successCount} keyword(s) merged (${totalAffectedArticles} articles transferred)`;
+      synonymSuccess =
+        $_("network.synonymsMerged", {
+          values: { count: successCount, articles: totalAffectedArticles },
+        }) || `${successCount} keyword(s) merged (${totalAffectedArticles} articles transferred)`;
     }
 
     // Clear selection after successful merge
@@ -191,25 +193,29 @@
   }
 
   function getWeightClass(weight: number): string {
-    if (weight >= 0.7) return 'weight-high';
-    if (weight >= 0.4) return 'weight-medium';
-    return 'weight-low';
+    if (weight >= 0.7) return "weight-high";
+    if (weight >= 0.4) return "weight-medium";
+    return "weight-low";
   }
 
   function getStatusIconClass(status: string): string {
     switch (status) {
-      case 'concealed': return 'fa-solid fa-eye-slash';
-      case 'illuminated': return 'fa-solid fa-check';
-      case 'golden_apple': return 'fa-solid fa-apple-whole';
-      default: return '';
+      case "concealed":
+        return "fa-solid fa-eye-slash";
+      case "illuminated":
+        return "fa-solid fa-check";
+      case "golden_apple":
+        return "fa-solid fa-apple-whole";
+      default:
+        return "";
     }
   }
 
   function handleRenameKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault();
       onHandleRename();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       onCancelRename();
     }
   }
@@ -219,16 +225,19 @@
     if (keywordCategories.length === 0) return [];
 
     // Separate main categories (parent_id is null) from subcategories
-    const mainCats = keywordCategories.filter(c => c.parent_id === null);
-    const subCats = keywordCategories.filter(c => c.parent_id !== null);
+    const mainCats = keywordCategories.filter((c) => c.parent_id === null);
+    const subCats = keywordCategories.filter((c) => c.parent_id !== null);
 
     // Group subcategories by their parent
-    const subsByParent = subCats.reduce((acc, cat) => {
-      const key = cat.parent_name || 'Sonstige';
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(cat);
-      return acc;
-    }, {} as Record<string, typeof keywordCategories>);
+    const subsByParent = subCats.reduce(
+      (acc, cat) => {
+        const key = cat.parent_name || "Sonstige";
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(cat);
+        return acc;
+      },
+      {} as Record<string, typeof keywordCategories>,
+    );
 
     // Build result: main categories with their subcategories
     const result: Array<{
@@ -250,7 +259,7 @@
         icon: main.icon,
         color: main.color,
         weight: main.weight + subs.reduce((sum, s) => sum + s.weight, 0),
-        subcategories: subs
+        subcategories: subs,
       });
     }
 
@@ -263,14 +272,14 @@
         icon: firstSub.parent_icon,
         color: firstSub.color,
         weight: subs.reduce((sum, s) => sum + s.weight, 0),
-        subcategories: subs
+        subcategories: subs,
       });
     }
 
     return result.sort((a, b) => b.weight - a.weight);
   });
 
-  let maxWeight = $derived(Math.max(...groupedCategories.map(c => c.weight), 0.01));
+  let maxWeight = $derived(Math.max(...groupedCategories.map((c) => c.weight), 0.01));
 </script>
 
 <div class="detail-panel">
@@ -293,8 +302,8 @@
               class="rename-btn save"
               onclick={onHandleRename}
               disabled={renameLoading || !renameInput.trim()}
-              title={$_('common.save') || 'Speichern'}
-              aria-label={$_('common.save') || 'Speichern'}
+              title={$_("common.save") || "Speichern"}
+              aria-label={$_("common.save") || "Speichern"}
             >
               {#if renameLoading}
                 <i class="fa-solid fa-spinner fa-spin"></i>
@@ -306,8 +315,8 @@
               class="rename-btn cancel"
               onclick={onCancelRename}
               disabled={renameLoading}
-              title={$_('common.cancel') || 'Abbrechen'}
-              aria-label={$_('common.cancel') || 'Abbrechen'}
+              title={$_("common.cancel") || "Abbrechen"}
+              aria-label={$_("common.cancel") || "Abbrechen"}
             >
               <i class="fa-solid fa-times"></i>
             </button>
@@ -320,8 +329,8 @@
           <button
             class="edit-btn"
             onclick={onStartRename}
-            title={$_('network.renameKeyword') || 'Umbenennen'}
-            aria-label={$_('network.renameKeyword') || 'Umbenennen'}
+            title={$_("network.renameKeyword") || "Umbenennen"}
+            aria-label={$_("network.renameKeyword") || "Umbenennen"}
           >
             <i class="fa-solid fa-pen"></i>
           </button>
@@ -330,15 +339,15 @@
 
       <div class="detail-meta">
         <span class="meta-item">
-          <span class="meta-label">{$_('network.articleCount')}:</span>
+          <span class="meta-label">{$_("network.articleCount")}:</span>
           <span class="meta-value">{selectedKeyword.article_count}</span>
         </span>
         <span class="meta-item">
-          <span class="meta-label">{$_('network.firstSeen')}:</span>
+          <span class="meta-label">{$_("network.firstSeen")}:</span>
           <span class="meta-value">{formatChangedDate(selectedKeyword.first_seen)}</span>
         </span>
         <span class="meta-item">
-          <span class="meta-label">{$_('network.lastUsed')}:</span>
+          <span class="meta-label">{$_("network.lastUsed")}:</span>
           <span class="meta-value">{formatChangedDate(selectedKeyword.last_used)}</span>
         </span>
       </div>
@@ -348,16 +357,20 @@
         <details class="synonyms-section" bind:open={synonymSectionOpen}>
           <summary class="synonyms-summary">
             <i class="fa-solid fa-link summary-icon"></i>
-            <span>{$_('network.synonyms') || 'Ähnliche Keywords'}</span>
+            <span>{$_("network.synonyms") || "Ähnliche Keywords"}</span>
             <span class="synonym-count">({similarKeywords.length})</span>
-            <Tooltip content={$_('network.similarKeywordsHelp') || 'Keywords mit ähnlicher semantischer Bedeutung basierend auf Embeddings'}>
+            <Tooltip
+              content={$_("network.similarKeywordsHelp") ||
+                "Keywords mit ähnlicher semantischer Bedeutung basierend auf Embeddings"}
+            >
               <i class="fa-solid fa-circle-info help-icon"></i>
             </Tooltip>
             <i class="fa-solid fa-chevron-down chevron-icon" class:open={synonymSectionOpen}></i>
           </summary>
           <div class="synonyms-content">
             <p class="synonyms-help">
-              {$_('network.synonymsHelp') || 'Wähle semantisch ähnliche Keywords aus, um sie zusammenzuführen. Die Ähnlichkeit basiert auf Embedding-Vektoren, nicht auf lexikalischer Übereinstimmung.'}
+              {$_("network.synonymsHelp") ||
+                "Wähle semantisch ähnliche Keywords aus, um sie zusammenzuführen. Die Ähnlichkeit basiert auf Embedding-Vektoren, nicht auf lexikalischer Übereinstimmung."}
             </p>
 
             {#if synonymError}
@@ -377,19 +390,29 @@
             {#if similarKeywordsLoading}
               <div class="loading-similar">
                 <i class="fa-solid fa-spinner fa-spin"></i>
-                {$_('network.loading') || 'Laden...'}
+                {$_("network.loading") || "Laden..."}
               </div>
             {:else}
               <div class="synonyms-list">
                 {#each similarKeywords as simKw (simKw.id)}
                   {@const similarityPercent = Math.round(simKw.similarity * 100)}
                   {@const isSelected = selectedSynonymIds.has(simKw.id)}
-                  {@const similarityClass = simKw.is_true_synonym ? 'synonym' : similarityPercent >= 80 ? 'high' : similarityPercent >= 60 ? 'medium' : 'low'}
+                  {@const similarityClass = simKw.is_true_synonym
+                    ? "synonym"
+                    : similarityPercent >= 80
+                      ? "high"
+                      : similarityPercent >= 60
+                        ? "medium"
+                        : "low"}
                   <label
                     class="synonym-item"
                     class:selected={isSelected}
                     class:true-synonym={simKw.is_true_synonym}
-                    title="{simKw.is_true_synonym ? $_('network.trueSynonymHint') || 'Bereits zusammengefuehrtes Synonym' : simKw.cooccurrence > 0 ? simKw.cooccurrence + ' gemeinsame Artikel' : 'Semantisch aehnlich'}"
+                    title={simKw.is_true_synonym
+                      ? $_("network.trueSynonymHint") || "Bereits zusammengefuehrtes Synonym"
+                      : simKw.cooccurrence > 0
+                        ? simKw.cooccurrence + " gemeinsame Artikel"
+                        : "Semantisch aehnlich"}
                   >
                     {#if !simKw.is_true_synonym}
                       <input
@@ -407,11 +430,16 @@
                       <span class="synonym-name">{simKw.name}</span>
                     </KeywordContextTooltip>
                     <div class="synonym-bar-wrap">
-                      <div class="similarity-bar {similarityClass}" style="width: {similarityPercent}%"></div>
+                      <div
+                        class="similarity-bar {similarityClass}"
+                        style="width: {similarityPercent}%"
+                      ></div>
                     </div>
                     <span class="synonym-stats">
                       {#if simKw.is_true_synonym}
-                        <span class="similarity-pct synonym">{$_('network.merged') || 'Synonym'}</span>
+                        <span class="similarity-pct synonym"
+                          >{$_("network.merged") || "Synonym"}</span
+                        >
                       {:else}
                         <span class="similarity-pct {similarityClass}">{similarityPercent}%</span>
                         {#if simKw.cooccurrence > 0}
@@ -421,8 +449,12 @@
                     </span>
                     <button
                       class="synonym-view-btn"
-                      onclick={(e) => { e.preventDefault(); e.stopPropagation(); onKeywordSelect(simKw.id); }}
-                      title={$_('network.showInNetwork') || 'Im Netzwerk anzeigen'}
+                      onclick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onKeywordSelect(simKw.id);
+                      }}
+                      title={$_("network.showInNetwork") || "Im Netzwerk anzeigen"}
                     >
                       <i class="fa-solid fa-arrow-up-right-from-square"></i>
                     </button>
@@ -442,7 +474,7 @@
                 {:else}
                   <i class="fa-solid fa-link"></i>
                 {/if}
-                {$_('network.assignAsSynonyms') || 'Als Synonyme zuordnen'}
+                {$_("network.assignAsSynonyms") || "Als Synonyme zuordnen"}
                 {#if selectedSynonymIds.size > 0}
                   ({selectedSynonymIds.size})
                 {/if}
@@ -456,8 +488,8 @@
       {#if groupedCategories.length > 0}
         <div class="detail-section">
           <h4 class="section-title">
-            {$_('network.categories')}
-            <Tooltip content={$_('network.categoriesHelp')}>
+            {$_("network.categories")}
+            <Tooltip content={$_("network.categoriesHelp")}>
               <i class="fa-solid fa-circle-info help-icon"></i>
             </Tooltip>
           </h4>
@@ -467,13 +499,13 @@
               <div class="category-card" style="--cat-color: {getCategoryColorVar(group.id)}">
                 <div class="card-header">
                   <div class="card-icon-wrapper">
-                    <i class="{group.icon || 'fa-solid fa-folder'}"></i>
+                    <i class={group.icon || "fa-solid fa-folder"}></i>
                   </div>
                   <span class="card-title">{group.name}</span>
                 </div>
                 <div class="card-stats">
                   <div class="stat-row">
-                    <span class="stat-label">{$_('network.weight') || 'Gewicht'}</span>
+                    <span class="stat-label">{$_("network.weight") || "Gewicht"}</span>
                     <span class="stat-value">{(group.weight * 100).toFixed(0)}%</span>
                   </div>
                   <div class="progress-bar">
@@ -488,7 +520,9 @@
                           <i class="{cat.icon || 'fa-solid fa-folder'} subcategory-icon"></i>
                           <span class="subcategory-name">{cat.name}</span>
                         </div>
-                        <span class="subcategory-weight {getWeightClass(cat.weight)}">{(cat.weight * 100).toFixed(0)}%</span>
+                        <span class="subcategory-weight {getWeightClass(cat.weight)}"
+                          >{(cat.weight * 100).toFixed(0)}%</span
+                        >
                       </div>
                     {/each}
                   </div>
@@ -501,16 +535,16 @@
 
       <!-- Trend Chart with Co-occurring Keywords -->
       <div class="detail-section">
-        <h4 class="section-title">{$_('network.trendComparison')}</h4>
+        <h4 class="section-title">{$_("network.trendComparison")}</h4>
         <KeywordTrendChart
           keywordId={selectedKeyword.id}
           keywordName={selectedKeyword.name}
-          neighborIds={cooccurringKeywords.slice(0, 4).map(k => k.id)}
+          neighborIds={cooccurringKeywords.slice(0, 4).map((k) => k.id)}
           ondayschange={onDaysChange}
         />
         {#if cooccurringKeywords.length > 0}
           <div class="neighbor-legend">
-            <span class="legend-label">{$_('network.comparedWith')}:</span>
+            <span class="legend-label">{$_("network.comparedWith")}:</span>
             <!-- Top 4 with colors matching the chart -->
             <div class="colored-neighbors">
               {#each cooccurringKeywords.slice(0, 4) as coKw, idx (coKw.id)}
@@ -543,12 +577,15 @@
 
       <!-- Linked Articles -->
       <div class="detail-section">
-        <h4 class="section-title">{$_('network.linkedArticles') || 'Verlinkte Artikel'}</h4>
+        <h4 class="section-title">{$_("network.linkedArticles") || "Verlinkte Artikel"}</h4>
         {#if keywordArticles.length > 0}
           <div class="articles-list">
             {#each keywordArticles as article (article.id)}
               <button class="article-item" onclick={() => onOpenArticle(article.id)}>
-                <i class="article-status {getStatusIconClass(article.status)}" title={article.status}></i>
+                <i
+                  class="article-status {getStatusIconClass(article.status)}"
+                  title={article.status}
+                ></i>
                 <div class="article-info">
                   <span class="article-title">{article.title}</span>
                   <span class="article-meta">
@@ -569,22 +606,22 @@
                 disabled={articlesLoading}
               >
                 {#if articlesLoading}
-                  {$_('network.loading') || 'Laden...'}
+                  {$_("network.loading") || "Laden..."}
                 {:else}
-                  {$_('network.loadMore') || 'Mehr laden'}
+                  {$_("network.loadMore") || "Mehr laden"}
                 {/if}
               </button>
             {/if}
           </div>
         {:else if !loading}
-          <div class="no-articles">{$_('network.noArticles') || 'Keine Artikel gefunden'}</div>
+          <div class="no-articles">{$_("network.noArticles") || "Keine Artikel gefunden"}</div>
         {/if}
       </div>
     </div>
   {:else}
     <div class="no-selection">
       <i class="no-selection-icon fa-solid fa-link"></i>
-      <p>{$_('network.selectKeyword')}</p>
+      <p>{$_("network.selectKeyword")}</p>
     </div>
   {/if}
 </div>
@@ -743,7 +780,11 @@
   }
 
   .category-card {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 15%, var(--bg-base)) 0%, var(--bg-base) 100%);
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--cat-color) 15%, var(--bg-base)) 0%,
+      var(--bg-base) 100%
+    );
     border: 1px solid color-mix(in srgb, var(--cat-color) 30%, transparent);
     border-radius: 0.5rem;
     padding: 0.75rem;
@@ -762,7 +803,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--cat-color), color-mix(in srgb, var(--cat-color) 70%, black));
+    background: linear-gradient(
+      135deg,
+      var(--cat-color),
+      color-mix(in srgb, var(--cat-color) 70%, black)
+    );
     border-radius: 0.375rem;
     color: var(--text-on-accent);
     font-size: 0.8125rem;
@@ -811,7 +856,11 @@
 
   .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--cat-color), color-mix(in srgb, var(--cat-color) 80%, white));
+    background: linear-gradient(
+      90deg,
+      var(--cat-color),
+      color-mix(in srgb, var(--cat-color) 80%, white)
+    );
     border-radius: 2px;
     transition: width 0.3s ease;
   }

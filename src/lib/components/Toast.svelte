@@ -1,13 +1,17 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
-  import { toasts, type Toast, removeToast } from '../stores/state.svelte';
+  import { _ } from "svelte-i18n";
+  import { toasts, type Toast, removeToast } from "../stores/state.svelte";
 
-  function getIconClass(type: Toast['type']): string {
+  function getIconClass(type: Toast["type"]): string {
     switch (type) {
-      case 'success': return 'fa-solid fa-check';
-      case 'error': return 'fa-solid fa-xmark';
-      case 'info': return 'fa-solid fa-circle-info';
-      default: return '';
+      case "success":
+        return "fa-solid fa-check";
+      case "error":
+        return "fa-solid fa-xmark";
+      case "info":
+        return "fa-solid fa-circle-info";
+      default:
+        return "";
     }
   }
 </script>
@@ -21,7 +25,7 @@
         <button
           class="toast-close"
           onclick={() => removeToast(toast.id)}
-          aria-label={$_('actions.close')}
+          aria-label={$_("actions.close")}
         >
           <i class="fa-solid fa-xmark"></i>
         </button>
@@ -117,7 +121,9 @@
     border-radius: 0.25rem;
     font-size: 0.875rem;
     line-height: 1;
-    transition: background-color 0.15s, color 0.15s;
+    transition:
+      background-color 0.15s,
+      color 0.15s;
   }
 
   .toast-close:hover {

@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
-  import { invoke } from '@tauri-apps/api/core';
-  import { onMount, onDestroy } from 'svelte';
-  import { SvelteSet } from 'svelte/reactivity';
-  import KeywordContextTooltip from './KeywordContextTooltip.svelte';
+  import { _ } from "svelte-i18n";
+  import { invoke } from "@tauri-apps/api/core";
+  import { onMount, onDestroy } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
+  import KeywordContextTooltip from "./KeywordContextTooltip.svelte";
 
   // Type for compound preview item
   interface CompoundItem {
@@ -16,29 +16,29 @@
   }
 
   // Keyword types
-  type KeywordType = 'concept' | 'person' | 'organization' | 'location' | 'acronym';
+  type KeywordType = "concept" | "person" | "organization" | "location" | "acronym";
 
-  const keywordTypes: KeywordType[] = ['concept', 'person', 'organization', 'location', 'acronym'];
+  const keywordTypes: KeywordType[] = ["concept", "person", "organization", "location", "acronym"];
 
   const typeIcons: Record<KeywordType, string> = {
-    concept: 'fa-lightbulb',
-    person: 'fa-user-tie',
-    organization: 'fa-building',
-    location: 'fa-location-dot',
-    acronym: 'fa-font'
+    concept: "fa-lightbulb",
+    person: "fa-user-tie",
+    organization: "fa-building",
+    location: "fa-location-dot",
+    acronym: "fa-font",
   };
 
   const typeColors: Record<KeywordType, string> = {
-    concept: 'var(--text-muted)',
-    person: 'var(--accent-info)',
-    organization: 'var(--accent-primary)',
-    location: 'var(--accent-success)',
-    acronym: 'var(--accent-warning)'
+    concept: "var(--text-muted)",
+    person: "var(--accent-info)",
+    organization: "var(--accent-primary)",
+    location: "var(--accent-success)",
+    acronym: "var(--accent-warning)",
   };
 
   // Decision tracking - items that have been acted upon
   interface DecisionItem extends CompoundItem {
-    decision: 'preserved' | 'split';
+    decision: "preserved" | "split";
     decided_at: string;
   }
 
@@ -63,17 +63,17 @@
   let selectAll = $state(false);
 
   // Filter/View tabs
-  type FilterTab = 'pending' | 'preserved' | 'split' | 'all';
-  let activeFilter = $state<FilterTab>('pending');
+  type FilterTab = "pending" | "preserved" | "split" | "all";
+  let activeFilter = $state<FilterTab>("pending");
 
   // Search
-  let searchQuery = $state('');
+  let searchQuery = $state("");
 
   // Sorting
-  type SortColumn = 'original' | 'components' | 'articles' | 'type';
-  type SortDirection = 'asc' | 'desc';
-  let sortColumn = $state<SortColumn>('articles');
-  let sortDirection = $state<SortDirection>('desc');
+  type SortColumn = "original" | "components" | "articles" | "type";
+  type SortDirection = "asc" | "desc";
+  let sortColumn = $state<SortColumn>("articles");
+  let sortDirection = $state<SortDirection>("desc");
 
   // Pagination
   let currentPage = $state(1);
@@ -86,24 +86,25 @@
   let filteredList = $derived.by(() => {
     let result: CompoundItem[] = [];
 
-    if (activeFilter === 'pending') {
-      result = compoundList.filter(c => !c.is_preserved);
-    } else if (activeFilter === 'preserved') {
-      result = compoundList.filter(c => c.is_preserved);
-    } else if (activeFilter === 'split') {
+    if (activeFilter === "pending") {
+      result = compoundList.filter((c) => !c.is_preserved);
+    } else if (activeFilter === "preserved") {
+      result = compoundList.filter((c) => c.is_preserved);
+    } else if (activeFilter === "split") {
       // Items that were split are in decisionHistory
-      result = decisionHistory.filter(c => c.decision === 'split');
+      result = decisionHistory.filter((c) => c.decision === "split");
     } else {
       // 'all' - show everything including history
-      result = [...compoundList, ...decisionHistory.filter(c => c.decision === 'split')];
+      result = [...compoundList, ...decisionHistory.filter((c) => c.decision === "split")];
     }
 
     // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(c =>
-        c.original.toLowerCase().includes(query) ||
-        c.components.some(comp => comp.toLowerCase().includes(query))
+      result = result.filter(
+        (c) =>
+          c.original.toLowerCase().includes(query) ||
+          c.components.some((comp) => comp.toLowerCase().includes(query)),
       );
     }
 
@@ -111,20 +112,20 @@
     result.sort((a, b) => {
       let comparison = 0;
       switch (sortColumn) {
-        case 'original':
+        case "original":
           comparison = a.original.localeCompare(b.original);
           break;
-        case 'components':
-          comparison = a.components.join(' ').localeCompare(b.components.join(' '));
+        case "components":
+          comparison = a.components.join(" ").localeCompare(b.components.join(" "));
           break;
-        case 'articles':
+        case "articles":
           comparison = a.articles_affected - b.articles_affected;
           break;
-        case 'type':
-          comparison = (a.keyword_type || 'concept').localeCompare(b.keyword_type || 'concept');
+        case "type":
+          comparison = (a.keyword_type || "concept").localeCompare(b.keyword_type || "concept");
           break;
       }
-      return sortDirection === 'asc' ? comparison : -comparison;
+      return sortDirection === "asc" ? comparison : -comparison;
     });
 
     return result;
@@ -140,10 +141,12 @@
   let totalPages = $derived(Math.max(1, Math.ceil(filteredList.length / pageSize)));
 
   // Derived: counts for tabs
-  let pendingCount = $derived(compoundList.filter(c => !c.is_preserved).length);
-  let preservedCount = $derived(compoundList.filter(c => c.is_preserved).length);
-  let splitCount = $derived(decisionHistory.filter(c => c.decision === 'split').length);
-  let allCount = $derived(compoundList.length + decisionHistory.filter(c => c.decision === 'split').length);
+  let pendingCount = $derived(compoundList.filter((c) => !c.is_preserved).length);
+  let preservedCount = $derived(compoundList.filter((c) => c.is_preserved).length);
+  let splitCount = $derived(decisionHistory.filter((c) => c.decision === "split").length);
+  let allCount = $derived(
+    compoundList.length + decisionHistory.filter((c) => c.decision === "split").length,
+  );
 
   // Load compound keywords
   async function loadCompounds() {
@@ -168,17 +171,17 @@
   // Sort handler
   function handleSort(column: SortColumn) {
     if (sortColumn === column) {
-      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      sortDirection = sortDirection === "asc" ? "desc" : "asc";
     } else {
       sortColumn = column;
-      sortDirection = column === 'original' ? 'asc' : 'desc';
+      sortDirection = column === "original" ? "asc" : "desc";
     }
     currentPage = 1;
   }
 
   function getSortIcon(column: SortColumn): string {
-    if (sortColumn !== column) return 'fa-solid fa-sort';
-    return sortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
+    if (sortColumn !== column) return "fa-solid fa-sort";
+    return sortDirection === "asc" ? "fa-solid fa-sort-up" : "fa-solid fa-sort-down";
   }
 
   // Selection handlers
@@ -192,12 +195,12 @@
   }
 
   function updateSelectAllState() {
-    const selectableItems = paginatedList.filter(c => !c.is_preserved && !('decision' in c));
-    selectAll = selectableItems.length > 0 && selectableItems.every(c => selectedIds.has(c.id));
+    const selectableItems = paginatedList.filter((c) => !c.is_preserved && !("decision" in c));
+    selectAll = selectableItems.length > 0 && selectableItems.every((c) => selectedIds.has(c.id));
   }
 
   function toggleSelectAll() {
-    const selectableItems = paginatedList.filter(c => !c.is_preserved && !('decision' in c));
+    const selectableItems = paginatedList.filter((c) => !c.is_preserved && !("decision" in c));
     if (selectAll) {
       // Deselect all visible
       for (const item of selectableItems) {
@@ -222,15 +225,15 @@
       await invoke("preserve_compound_keyword", { keywordId: item.id });
 
       // Update in list
-      compoundList = compoundList.map(c =>
-        c.id === item.id ? { ...c, is_preserved: true } : c
-      );
+      compoundList = compoundList.map((c) => (c.id === item.id ? { ...c, is_preserved: true } : c));
 
       // Remove from selection
       selectedIds.delete(item.id);
       updateSelectAllState();
 
-      successMessage = $_('compound.preserved', { values: { name: item.original } }) || `"${item.original}" preserved`;
+      successMessage =
+        $_("compound.preserved", { values: { name: item.original } }) ||
+        `"${item.original}" preserved`;
     } catch (e) {
       error = String(e);
       console.error("Failed to preserve keyword:", e);
@@ -246,11 +249,13 @@
       await invoke("unpreserve_compound_keyword", { keywordId: item.id });
 
       // Update in list
-      compoundList = compoundList.map(c =>
-        c.id === item.id ? { ...c, is_preserved: false } : c
+      compoundList = compoundList.map((c) =>
+        c.id === item.id ? { ...c, is_preserved: false } : c,
       );
 
-      successMessage = $_('compound.unpreserved', { values: { name: item.original } }) || `"${item.original}" protection removed`;
+      successMessage =
+        $_("compound.unpreserved", { values: { name: item.original } }) ||
+        `"${item.original}" protection removed`;
     } catch (e) {
       error = String(e);
       console.error("Failed to unpreserve keyword:", e);
@@ -269,18 +274,20 @@
       // Add to decision history
       const decisionItem: DecisionItem = {
         ...item,
-        decision: 'split',
-        decided_at: new Date().toISOString()
+        decision: "split",
+        decided_at: new Date().toISOString(),
       };
       decisionHistory = [...decisionHistory, decisionItem];
 
       // Remove from active list
-      compoundList = compoundList.filter(c => c.id !== item.id);
+      compoundList = compoundList.filter((c) => c.id !== item.id);
       selectedIds.delete(item.id);
       updateSelectAllState();
 
-      successMessage = $_('compound.split', { values: { name: item.original, components: item.components.join(' + ') } }) ||
-        `"${item.original}" split into "${item.components.join('" + "')}"`;
+      successMessage =
+        $_("compound.split", {
+          values: { name: item.original, components: item.components.join(" + ") },
+        }) || `"${item.original}" split into "${item.components.join('" + "')}"`;
 
       if (loadKeywords) await loadKeywords();
     } catch (e) {
@@ -304,7 +311,7 @@
     let splitErrorCount = 0;
 
     for (const id of idsToSplit) {
-      const item = compoundList.find(c => c.id === id);
+      const item = compoundList.find((c) => c.id === id);
       if (!item) continue;
 
       try {
@@ -313,13 +320,13 @@
         // Add to decision history
         const decisionItem: DecisionItem = {
           ...item,
-          decision: 'split',
-          decided_at: new Date().toISOString()
+          decision: "split",
+          decided_at: new Date().toISOString(),
         };
         decisionHistory = [...decisionHistory, decisionItem];
 
         // Remove from active list
-        compoundList = compoundList.filter(c => c.id !== id);
+        compoundList = compoundList.filter((c) => c.id !== id);
         selectedIds.delete(id);
         splitSuccessCount++;
       } catch (e) {
@@ -332,13 +339,15 @@
     splitting = false;
 
     if (splitErrorCount > 0) {
-      successMessage = $_('compound.splitBatchPartial', {
-        values: { success: splitSuccessCount, failed: splitErrorCount }
-      }) || `${splitSuccessCount} split, ${splitErrorCount} failed`;
+      successMessage =
+        $_("compound.splitBatchPartial", {
+          values: { success: splitSuccessCount, failed: splitErrorCount },
+        }) || `${splitSuccessCount} split, ${splitErrorCount} failed`;
     } else {
-      successMessage = $_('compound.splitBatch', {
-        values: { count: splitSuccessCount }
-      }) || `${splitSuccessCount} keywords split`;
+      successMessage =
+        $_("compound.splitBatch", {
+          values: { count: splitSuccessCount },
+        }) || `${splitSuccessCount} keywords split`;
     }
 
     if (loadKeywords) await loadKeywords();
@@ -360,14 +369,12 @@
       // Use batch command if available
       await invoke("batch_set_compound_decisions", {
         keywordIds: idsToPreserve,
-        decision: 'preserve'
+        decision: "preserve",
       });
 
       // Update in list
       for (const id of idsToPreserve) {
-        compoundList = compoundList.map(c =>
-          c.id === id ? { ...c, is_preserved: true } : c
-        );
+        compoundList = compoundList.map((c) => (c.id === id ? { ...c, is_preserved: true } : c));
         selectedIds.delete(id);
         preserveSuccessCount++;
       }
@@ -376,9 +383,7 @@
       for (const id of idsToPreserve) {
         try {
           await invoke("preserve_compound_keyword", { keywordId: id });
-          compoundList = compoundList.map(c =>
-            c.id === id ? { ...c, is_preserved: true } : c
-          );
+          compoundList = compoundList.map((c) => (c.id === id ? { ...c, is_preserved: true } : c));
           selectedIds.delete(id);
           preserveSuccessCount++;
         } catch (innerError) {
@@ -392,13 +397,15 @@
     preserving = false;
 
     if (preserveErrorCount > 0) {
-      successMessage = $_('compound.preserveBatchPartial', {
-        values: { success: preserveSuccessCount, failed: preserveErrorCount }
-      }) || `${preserveSuccessCount} preserved, ${preserveErrorCount} failed`;
+      successMessage =
+        $_("compound.preserveBatchPartial", {
+          values: { success: preserveSuccessCount, failed: preserveErrorCount },
+        }) || `${preserveSuccessCount} preserved, ${preserveErrorCount} failed`;
     } else {
-      successMessage = $_('compound.preserveBatch', {
-        values: { count: preserveSuccessCount }
-      }) || `${preserveSuccessCount} keywords preserved`;
+      successMessage =
+        $_("compound.preserveBatch", {
+          values: { count: preserveSuccessCount },
+        }) || `${preserveSuccessCount} keywords preserved`;
     }
   }
 
@@ -415,20 +422,20 @@
     error = null;
 
     try {
-      await invoke('update_keyword_type', { keywordId: item.id, keywordType: newType });
+      await invoke("update_keyword_type", { keywordId: item.id, keywordType: newType });
 
       // Update in list
-      compoundList = compoundList.map(c =>
-        c.id === item.id ? { ...c, keyword_type: newType } : c
+      compoundList = compoundList.map((c) =>
+        c.id === item.id ? { ...c, keyword_type: newType } : c,
       );
 
       // Also update in decision history if present
-      decisionHistory = decisionHistory.map(c =>
-        c.id === item.id ? { ...c, keyword_type: newType } : c
+      decisionHistory = decisionHistory.map((c) =>
+        c.id === item.id ? { ...c, keyword_type: newType } : c,
       );
     } catch (e) {
       error = String(e);
-      console.error('Failed to update keyword type:', e);
+      console.error("Failed to update keyword type:", e);
     }
   }
 
@@ -450,9 +457,11 @@
 
   // Navigate to KeywordNetwork for this keyword
   function navigateToKeyword(keywordId: number) {
-    window.dispatchEvent(new CustomEvent('navigate-to-network', {
-      detail: { keywordId }
-    }));
+    window.dispatchEvent(
+      new CustomEvent("navigate-to-network", {
+        detail: { keywordId },
+      }),
+    );
   }
 
   // Clear messages after timeout
@@ -475,14 +484,14 @@
 
   // Load on mount
   onMount(() => {
-    window.addEventListener('batch-complete', handleBatchComplete);
-    window.addEventListener('keywords-changed', handleKeywordsChanged);
+    window.addEventListener("batch-complete", handleBatchComplete);
+    window.addEventListener("keywords-changed", handleKeywordsChanged);
     loadCompounds();
   });
 
   onDestroy(() => {
-    window.removeEventListener('batch-complete', handleBatchComplete);
-    window.removeEventListener('keywords-changed', handleKeywordsChanged);
+    window.removeEventListener("batch-complete", handleBatchComplete);
+    window.removeEventListener("keywords-changed", handleKeywordsChanged);
   });
 </script>
 
@@ -492,26 +501,22 @@
     <div class="header-title">
       <h2>
         <i class="fa-solid fa-scissors"></i>
-        {$_('compound.title') || 'Compound Keywords'}
+        {$_("compound.title") || "Compound Keywords"}
       </h2>
       <p class="header-description">
-        {$_('compound.description') || 'Manage compound keywords - split them into components or preserve them as-is.'}
+        {$_("compound.description") ||
+          "Manage compound keywords - split them into components or preserve them as-is."}
       </p>
     </div>
 
     <div class="header-actions">
-      <button
-        type="button"
-        class="btn-refresh"
-        onclick={loadCompounds}
-        disabled={loading}
-      >
+      <button type="button" class="btn-refresh" onclick={loadCompounds} disabled={loading}>
         {#if loading}
           <i class="fa-solid fa-spinner fa-spin"></i>
         {:else}
           <i class="fa-solid fa-rotate"></i>
         {/if}
-        {$_('compound.refresh') || 'Refresh'}
+        {$_("compound.refresh") || "Refresh"}
       </button>
     </div>
   </div>
@@ -521,7 +526,9 @@
     <div class="message error">
       <i class="fa-solid fa-triangle-exclamation"></i>
       {error}
-      <button class="dismiss-btn" onclick={() => error = null} aria-label="Dismiss"><i class="fa-solid fa-xmark"></i></button>
+      <button class="dismiss-btn" onclick={() => (error = null)} aria-label="Dismiss"
+        ><i class="fa-solid fa-xmark"></i></button
+      >
     </div>
   {/if}
 
@@ -529,7 +536,9 @@
     <div class="message success">
       <i class="fa-solid fa-check-circle"></i>
       {successMessage}
-      <button class="dismiss-btn" onclick={() => successMessage = null} aria-label="Dismiss"><i class="fa-solid fa-xmark"></i></button>
+      <button class="dismiss-btn" onclick={() => (successMessage = null)} aria-label="Dismiss"
+        ><i class="fa-solid fa-xmark"></i></button
+      >
     </div>
   {/if}
 
@@ -537,34 +546,34 @@
   <div class="filter-tabs">
     <button
       class="tab-btn {activeFilter === 'pending' ? 'active' : ''}"
-      onclick={() => setActiveFilter('pending')}
+      onclick={() => setActiveFilter("pending")}
     >
       <i class="fa-solid fa-clock"></i>
-      {$_('compound.tabPending') || 'Pending'}
+      {$_("compound.tabPending") || "Pending"}
       <span class="tab-count">{pendingCount}</span>
     </button>
     <button
       class="tab-btn {activeFilter === 'preserved' ? 'active' : ''}"
-      onclick={() => setActiveFilter('preserved')}
+      onclick={() => setActiveFilter("preserved")}
     >
       <i class="fa-solid fa-shield"></i>
-      {$_('compound.tabPreserved') || 'Preserved'}
+      {$_("compound.tabPreserved") || "Preserved"}
       <span class="tab-count">{preservedCount}</span>
     </button>
     <button
       class="tab-btn {activeFilter === 'split' ? 'active' : ''}"
-      onclick={() => setActiveFilter('split')}
+      onclick={() => setActiveFilter("split")}
     >
       <i class="fa-solid fa-scissors"></i>
-      {$_('compound.tabSplit') || 'Split'}
+      {$_("compound.tabSplit") || "Split"}
       <span class="tab-count">{splitCount}</span>
     </button>
     <button
       class="tab-btn {activeFilter === 'all' ? 'active' : ''}"
-      onclick={() => setActiveFilter('all')}
+      onclick={() => setActiveFilter("all")}
     >
       <i class="fa-solid fa-list"></i>
-      {$_('compound.tabAll') || 'All'}
+      {$_("compound.tabAll") || "All"}
       <span class="tab-count">{allCount}</span>
     </button>
   </div>
@@ -576,48 +585,49 @@
       <input
         type="text"
         bind:value={searchQuery}
-        placeholder={$_('compound.searchPlaceholder') || 'Search keywords...'}
+        placeholder={$_("compound.searchPlaceholder") || "Search keywords..."}
         class="search-input"
       />
       {#if searchQuery}
-        <button class="clear-btn" onclick={() => searchQuery = ''} aria-label="Clear search">
+        <button class="clear-btn" onclick={() => (searchQuery = "")} aria-label="Clear search">
           <i class="fa-solid fa-xmark"></i>
         </button>
       {/if}
     </div>
 
-    {#if activeFilter === 'pending' && pendingCount > 0}
+    {#if activeFilter === "pending" && pendingCount > 0}
       <div class="batch-actions">
         <span class="selection-info">
-          {selectedCount} {$_('compound.selected') || 'selected'}
+          {selectedCount}
+          {$_("compound.selected") || "selected"}
         </span>
         <button
           type="button"
           class="btn-batch-preserve"
           onclick={preserveSelected}
           disabled={selectedCount === 0 || preserving || splitting}
-          title={$_('compound.preserveSelectedTitle') || 'Preserve selected keywords (keep as-is)'}
+          title={$_("compound.preserveSelectedTitle") || "Preserve selected keywords (keep as-is)"}
         >
           {#if preserving}
             <i class="fa-solid fa-spinner fa-spin"></i>
           {:else}
             <i class="fa-solid fa-shield"></i>
           {/if}
-          {$_('compound.preserveSelected') || 'Preserve Selected'}
+          {$_("compound.preserveSelected") || "Preserve Selected"}
         </button>
         <button
           type="button"
           class="btn-batch-split"
           onclick={splitSelected}
           disabled={selectedCount === 0 || splitting || preserving}
-          title={$_('compound.splitSelectedTitle') || 'Split selected keywords into components'}
+          title={$_("compound.splitSelectedTitle") || "Split selected keywords into components"}
         >
           {#if splitting}
             <i class="fa-solid fa-spinner fa-spin"></i>
           {:else}
             <i class="fa-solid fa-scissors"></i>
           {/if}
-          {$_('compound.splitSelected') || 'Split Selected'}
+          {$_("compound.splitSelected") || "Split Selected"}
         </button>
       </div>
     {/if}
@@ -628,20 +638,20 @@
     {#if loading && compoundList.length === 0}
       <div class="loading-state">
         <i class="fa-solid fa-spinner fa-spin fa-2x"></i>
-        <span>{$_('compound.loading') || 'Loading compound keywords...'}</span>
+        <span>{$_("compound.loading") || "Loading compound keywords..."}</span>
       </div>
     {:else if filteredList.length === 0}
       <div class="empty-state">
         <i class="fa-solid fa-inbox fa-3x"></i>
         <span>
-          {#if activeFilter === 'pending'}
-            {$_('compound.noPending') || 'No pending compound keywords'}
-          {:else if activeFilter === 'preserved'}
-            {$_('compound.noPreserved') || 'No preserved keywords'}
-          {:else if activeFilter === 'split'}
-            {$_('compound.noSplit') || 'No split keywords yet'}
+          {#if activeFilter === "pending"}
+            {$_("compound.noPending") || "No pending compound keywords"}
+          {:else if activeFilter === "preserved"}
+            {$_("compound.noPreserved") || "No preserved keywords"}
+          {:else if activeFilter === "split"}
+            {$_("compound.noSplit") || "No split keywords yet"}
           {:else}
-            {$_('compound.noCompounds') || 'No compound keywords found'}
+            {$_("compound.noCompounds") || "No compound keywords found"}
           {/if}
         </span>
       </div>
@@ -649,48 +659,48 @@
       <table class="compound-table">
         <thead>
           <tr>
-            {#if activeFilter === 'pending'}
+            {#if activeFilter === "pending"}
               <th class="checkbox-col">
                 <input
                   type="checkbox"
                   checked={selectAll}
                   onchange={toggleSelectAll}
                   disabled={splitting}
-                  title={$_('compound.selectAll') || 'Select all'}
+                  title={$_("compound.selectAll") || "Select all"}
                 />
               </th>
             {/if}
-            <th class="sortable" onclick={() => handleSort('original')}>
-              <span>{$_('compound.colOriginal') || 'Original'}</span>
-              <i class={getSortIcon('original')}></i>
+            <th class="sortable" onclick={() => handleSort("original")}>
+              <span>{$_("compound.colOriginal") || "Original"}</span>
+              <i class={getSortIcon("original")}></i>
             </th>
-            <th class="sortable" onclick={() => handleSort('components')}>
-              <span>{$_('compound.colComponents') || 'Components'}</span>
-              <i class={getSortIcon('components')}></i>
+            <th class="sortable" onclick={() => handleSort("components")}>
+              <span>{$_("compound.colComponents") || "Components"}</span>
+              <i class={getSortIcon("components")}></i>
             </th>
-            <th class="sortable numeric" onclick={() => handleSort('articles')}>
-              <span>{$_('compound.colArticles') || 'Articles'}</span>
-              <i class={getSortIcon('articles')}></i>
+            <th class="sortable numeric" onclick={() => handleSort("articles")}>
+              <span>{$_("compound.colArticles") || "Articles"}</span>
+              <i class={getSortIcon("articles")}></i>
             </th>
-            <th class="sortable" onclick={() => handleSort('type')}>
-              <span>{$_('compound.colType') || 'Type'}</span>
-              <i class={getSortIcon('type')}></i>
+            <th class="sortable" onclick={() => handleSort("type")}>
+              <span>{$_("compound.colType") || "Type"}</span>
+              <i class={getSortIcon("type")}></i>
             </th>
             <th class="actions-col">
-              <span>{$_('compound.colActions') || 'Actions'}</span>
+              <span>{$_("compound.colActions") || "Actions"}</span>
             </th>
           </tr>
         </thead>
         <tbody>
           {#each paginatedList as item (item.id)}
-            {@const isDecision = 'decision' in item}
+            {@const isDecision = "decision" in item}
             {@const decision = isDecision ? (item as DecisionItem).decision : null}
             <tr
               class:preserved={item.is_preserved}
-              class:split={decision === 'split'}
+              class:split={decision === "split"}
               class:selected={selectedIds.has(item.id)}
             >
-              {#if activeFilter === 'pending'}
+              {#if activeFilter === "pending"}
                 <td class="checkbox-col">
                   {#if !item.is_preserved && !isDecision}
                     <input
@@ -711,12 +721,15 @@
                   <span class="original-name clickable">{item.original}</span>
                 </KeywordContextTooltip>
                 {#if item.is_preserved}
-                  <span class="status-badge preserved" title={$_('compound.statusPreserved') || 'Preserved'}>
+                  <span
+                    class="status-badge preserved"
+                    title={$_("compound.statusPreserved") || "Preserved"}
+                  >
                     <i class="fa-solid fa-shield-check"></i>
                   </span>
                 {/if}
-                {#if decision === 'split'}
-                  <span class="status-badge split" title={$_('compound.statusSplit') || 'Split'}>
+                {#if decision === "split"}
+                  <span class="status-badge split" title={$_("compound.statusSplit") || "Split"}>
                     <i class="fa-solid fa-check"></i>
                   </span>
                 {/if}
@@ -735,11 +748,11 @@
                 <span class="article-count">{item.articles_affected}</span>
               </td>
               <td class="type-col">
-                {#if !('decision' in item)}
+                {#if !("decision" in item)}
                   <div class="type-select-wrapper">
                     <select
                       class="type-select"
-                      value={item.keyword_type || 'concept'}
+                      value={item.keyword_type || "concept"}
                       onchange={(e) => handleTypeChange(e, item)}
                       style="color: {typeColors[(item.keyword_type || 'concept') as KeywordType]}"
                     >
@@ -749,12 +762,20 @@
                         </option>
                       {/each}
                     </select>
-                    <i class="fa-solid {typeIcons[(item.keyword_type || 'concept') as KeywordType]} type-icon" style="color: {typeColors[(item.keyword_type || 'concept') as KeywordType]}"></i>
+                    <i
+                      class="fa-solid {typeIcons[
+                        (item.keyword_type || 'concept') as KeywordType
+                      ]} type-icon"
+                      style="color: {typeColors[(item.keyword_type || 'concept') as KeywordType]}"
+                    ></i>
                   </div>
                 {:else}
                   <span class="type-badge {item.keyword_type || 'concept'}">
-                    <i class="fa-solid {typeIcons[(item.keyword_type || 'concept') as KeywordType]}"></i>
-                    {$_(`network.keywordType.${item.keyword_type || 'concept'}`) || item.keyword_type || 'concept'}
+                    <i class="fa-solid {typeIcons[(item.keyword_type || 'concept') as KeywordType]}"
+                    ></i>
+                    {$_(`network.keywordType.${item.keyword_type || "concept"}`) ||
+                      item.keyword_type ||
+                      "concept"}
                   </span>
                 {/if}
               </td>
@@ -766,7 +787,7 @@
                       <button
                         class="action-btn unpreserve"
                         onclick={() => unpreserveKeyword(item)}
-                        title={$_('compound.unpreserve') || 'Remove protection'}
+                        title={$_("compound.unpreserve") || "Remove protection"}
                         disabled={splitting}
                       >
                         <i class="fa-solid fa-shield-xmark"></i>
@@ -775,7 +796,7 @@
                       <button
                         class="action-btn preserve"
                         onclick={() => preserveKeyword(item)}
-                        title={$_('compound.preserve') || 'Preserve (keep as-is)'}
+                        title={$_("compound.preserve") || "Preserve (keep as-is)"}
                         disabled={splitting}
                       >
                         <i class="fa-solid fa-shield"></i>
@@ -787,7 +808,7 @@
                       <button
                         class="action-btn split"
                         onclick={() => splitKeyword(item)}
-                        title={$_('compound.split') || 'Split into components'}
+                        title={$_("compound.split") || "Split into components"}
                         disabled={splitting}
                       >
                         <i class="fa-solid fa-scissors"></i>
@@ -796,7 +817,7 @@
                   </div>
                 {:else}
                   <span class="decision-info">
-                    {$_('compound.alreadySplit') || 'Already split'}
+                    {$_("compound.alreadySplit") || "Already split"}
                   </span>
                 {/if}
               </td>
@@ -828,7 +849,7 @@
       </button>
 
       <span class="page-info">
-        {$_('compound.pageInfo', { values: { current: currentPage, total: totalPages } }) ||
+        {$_("compound.pageInfo", { values: { current: currentPage, total: totalPages } }) ||
           `Page ${currentPage} of ${totalPages}`}
       </span>
 
@@ -854,9 +875,10 @@
   <!-- Summary -->
   <div class="summary">
     <span class="summary-text">
-      {filteredList.length} {$_('compound.items') || 'items'}
+      {filteredList.length}
+      {$_("compound.items") || "items"}
       {#if searchQuery}
-        ({$_('compound.filtered') || 'filtered'})
+        ({$_("compound.filtered") || "filtered"})
       {/if}
     </span>
   </div>
@@ -1400,8 +1422,8 @@
   }
 
   .type-select-wrapper::after {
-    content: '\f078';
-    font-family: 'Font Awesome 6 Pro';
+    content: "\f078";
+    font-family: "Font Awesome 6 Pro";
     font-size: 0.5rem;
     font-weight: 900;
     position: absolute;

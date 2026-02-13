@@ -1,1 +1,1 @@
-export { default as CategoryCards } from './CategoryCards.svelte';
+export { default as CategoryCards } from "./CategoryCards.svelte";

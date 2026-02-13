@@ -15,8 +15,17 @@
   let activeTab = $state<string>("general");
 
   // Component references (using $state to satisfy Svelte 5 bind:this requirements)
-  let settingsGeneralRef = $state<{ init: () => void; closeAllDropdowns: () => void } | undefined>();
-  let settingsOllamaRef = $state<{ init: () => Promise<void>; closeAllDropdowns: () => void; getOllamaStatus: () => { available: boolean } | null } | undefined>();
+  let settingsGeneralRef = $state<
+    { init: () => void; closeAllDropdowns: () => void } | undefined
+  >();
+  let settingsOllamaRef = $state<
+    | {
+        init: () => Promise<void>;
+        closeAllDropdowns: () => void;
+        getOllamaStatus: () => { available: boolean } | null;
+      }
+    | undefined
+  >();
   let settingsPromptsRef = $state<{ init: () => Promise<void> } | undefined>();
   let settingsStopwordsRef = $state<{ init: () => Promise<void> } | undefined>();
   let settingsMaintenanceRef = $state<{ init: () => Promise<void> } | undefined>();
@@ -95,11 +104,11 @@
       <div class="settings-stats">
         <span class="stat-item">
           <span class="stat-value">{appState.pentacles.length}</span>
-          <span class="stat-label">{$_('settings.stats.feeds')}</span>
+          <span class="stat-label">{$_("settings.stats.feeds")}</span>
         </span>
         <span class="stat-item">
           <span class="stat-value">{settings.syncInterval}</span>
-          <span class="stat-label">{$_('settings.stats.syncInterval')}</span>
+          <span class="stat-label">{$_("settings.stats.syncInterval")}</span>
         </span>
         <span class="stat-item ollama-status" class:available={ollamaAvailable}>
           <span class="stat-value">

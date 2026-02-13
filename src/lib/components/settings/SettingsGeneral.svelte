@@ -202,10 +202,7 @@
     return localeOptions.find((o) => o.value === value)?.labelKey || "";
   }
 
-  function getThemeDisplayName<T extends string>(
-    value: T,
-    options: ThemeOption<T>[]
-  ): string {
+  function getThemeDisplayName<T extends string>(value: T, options: ThemeOption<T>[]): string {
     const option = options.find((o) => o.value === value);
     if (!option) return value;
 
@@ -318,7 +315,6 @@
       opmlExporting = false;
     }
   }
-
 </script>
 
 <!-- Language Dropdown -->
@@ -495,12 +491,7 @@
 </div>
 
 <div class="opml-section">
-  <button
-    type="button"
-    class="btn-action"
-    onclick={handleSelectOpmlFile}
-    disabled={opmlImporting}
-  >
+  <button type="button" class="btn-action" onclick={handleSelectOpmlFile} disabled={opmlImporting}>
     {$_("settings.opml.selectFile")}
   </button>
 
@@ -1051,5 +1042,4 @@
     opacity: 0.6;
     cursor: not-allowed;
   }
-
 </style>

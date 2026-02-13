@@ -1,119 +1,124 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { invoke } from '@tauri-apps/api/core';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
 
 // Mock invoke before importing the store
-vi.mock('@tauri-apps/api/core', () => ({
+vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
 // Since the store uses Svelte 5 runes ($state), we need to test differently
 // We'll test the pure logic functions and mock the Tauri calls
 
-describe('AppState', () => {
+describe("AppState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('invoke mocking', () => {
-    it('should mock invoke correctly', async () => {
-      const mockData = { test: 'data' };
+  describe("invoke mocking", () => {
+    it("should mock invoke correctly", async () => {
+      const mockData = { test: "data" };
       vi.mocked(invoke).mockResolvedValueOnce(mockData);
 
-      const result = await invoke('test_command');
+      const result = await invoke("test_command");
       expect(result).toEqual(mockData);
-      expect(invoke).toHaveBeenCalledWith('test_command');
+      expect(invoke).toHaveBeenCalledWith("test_command");
     });
 
-    it('should handle invoke errors', async () => {
-      vi.mocked(invoke).mockRejectedValueOnce(new Error('Test error'));
+    it("should handle invoke errors", async () => {
+      vi.mocked(invoke).mockRejectedValueOnce(new Error("Test error"));
 
-      await expect(invoke('failing_command')).rejects.toThrow('Test error');
+      await expect(invoke("failing_command")).rejects.toThrow("Test error");
     });
   });
 
-  describe('Pentacle operations', () => {
-    it('should mock get_pentacles', async () => {
+  describe("Pentacle operations", () => {
+    it("should mock get_pentacles", async () => {
       const mockPentacles = [
-        { id: 1, url: 'https://example.com/feed.xml', title: 'Test Feed', unread_count: 5 },
-        { id: 2, url: 'https://other.com/feed.xml', title: 'Other Feed', unread_count: 0 },
+        { id: 1, url: "https://example.com/feed.xml", title: "Test Feed", unread_count: 5 },
+        { id: 2, url: "https://other.com/feed.xml", title: "Other Feed", unread_count: 0 },
       ];
       vi.mocked(invoke).mockResolvedValueOnce(mockPentacles);
 
-      const result = await invoke('get_pentacles');
+      const result = await invoke("get_pentacles");
       expect(result).toEqual(mockPentacles);
       expect(result).toHaveLength(2);
     });
 
-    it('should mock add_pentacle', async () => {
-      const newPentacle = { id: 3, url: 'https://new.com/feed.xml', title: 'New Feed', unread_count: 0 };
+    it("should mock add_pentacle", async () => {
+      const newPentacle = {
+        id: 3,
+        url: "https://new.com/feed.xml",
+        title: "New Feed",
+        unread_count: 0,
+      };
       vi.mocked(invoke).mockResolvedValueOnce(newPentacle);
 
-      const result = await invoke('add_pentacle', { url: 'https://new.com/feed.xml' });
+      const result = await invoke("add_pentacle", { url: "https://new.com/feed.xml" });
       expect(result).toEqual(newPentacle);
     });
 
-    it('should mock delete_pentacle', async () => {
+    it("should mock delete_pentacle", async () => {
       vi.mocked(invoke).mockResolvedValueOnce(undefined);
 
-      await invoke('delete_pentacle', { id: 1 });
-      expect(invoke).toHaveBeenCalledWith('delete_pentacle', { id: 1 });
+      await invoke("delete_pentacle", { id: 1 });
+      expect(invoke).toHaveBeenCalledWith("delete_pentacle", { id: 1 });
     });
   });
 
-  describe('Fnord operations', () => {
-    it('should mock get_fnords with filter', async () => {
+  describe("Fnord operations", () => {
+    it("should mock get_fnords with filter", async () => {
       const mockFnords = [
-        { id: 1, title: 'Article 1', status: 'concealed' },
-        { id: 2, title: 'Article 2', status: 'illuminated' },
+        { id: 1, title: "Article 1", status: "concealed" },
+        { id: 2, title: "Article 2", status: "illuminated" },
       ];
       vi.mocked(invoke).mockResolvedValueOnce(mockFnords);
 
-      const result = await invoke('get_fnords', { filter: { pentacle_id: 1 } });
+      const result = await invoke("get_fnords", { filter: { pentacle_id: 1 } });
       expect(result).toEqual(mockFnords);
     });
 
-    it('should mock update_fnord_status', async () => {
+    it("should mock update_fnord_status", async () => {
       vi.mocked(invoke).mockResolvedValueOnce(undefined);
 
-      await invoke('update_fnord_status', { id: 1, status: 'illuminated' });
-      expect(invoke).toHaveBeenCalledWith('update_fnord_status', { id: 1, status: 'illuminated' });
+      await invoke("update_fnord_status", { id: 1, status: "illuminated" });
+      expect(invoke).toHaveBeenCalledWith("update_fnord_status", { id: 1, status: "illuminated" });
     });
   });
 
-  describe('Ollama operations', () => {
-    it('should mock check_ollama when available', async () => {
+  describe("Ollama operations", () => {
+    it("should mock check_ollama when available", async () => {
       const mockStatus = {
         available: true,
-        models: ['ministral-3:latest', 'nomic-embed-text'],
-        recommended_main: 'ministral-3:latest',
-        recommended_embedding: 'nomic-embed-text',
+        models: ["ministral-3:latest", "nomic-embed-text"],
+        recommended_main: "ministral-3:latest",
+        recommended_embedding: "nomic-embed-text",
         has_recommended_main: true,
         has_recommended_embedding: true,
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockStatus);
 
-      const result = await invoke('check_ollama');
+      const result = await invoke("check_ollama");
       expect(result).toEqual(mockStatus);
       expect(result.available).toBe(true);
     });
 
-    it('should mock check_ollama when unavailable', async () => {
+    it("should mock check_ollama when unavailable", async () => {
       const mockStatus = {
         available: false,
         models: [],
-        recommended_main: 'ministral-3:latest',
-        recommended_embedding: 'nomic-embed-text',
+        recommended_main: "ministral-3:latest",
+        recommended_embedding: "nomic-embed-text",
         has_recommended_main: false,
         has_recommended_embedding: false,
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockStatus);
 
-      const result = await invoke('check_ollama');
+      const result = await invoke("check_ollama");
       expect(result.available).toBe(false);
       expect(result.models).toHaveLength(0);
     });
 
-    it('should mock process_batch', async () => {
+    it("should mock process_batch", async () => {
       const mockResult = {
         processed: 10,
         succeeded: 8,
@@ -121,117 +126,138 @@ describe('AppState', () => {
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockResult);
 
-      const result = await invoke('process_batch', { model: 'ministral-3:latest', limit: 50 });
+      const result = await invoke("process_batch", { model: "ministral-3:latest", limit: 50 });
       expect(result).toEqual(mockResult);
     });
   });
 
-  describe('Sync operations', () => {
-    it('should mock sync_all_feeds', async () => {
+  describe("Sync operations", () => {
+    it("should mock sync_all_feeds", async () => {
       const mockResult = {
         success: true,
         total_new: 15,
         total_updated: 3,
         results: [
-          { pentacle_id: 1, pentacle_title: 'Feed 1', new_articles: 10, updated_articles: 2, full_text_fetched: 5, error: null },
-          { pentacle_id: 2, pentacle_title: 'Feed 2', new_articles: 5, updated_articles: 1, full_text_fetched: 3, error: null },
+          {
+            pentacle_id: 1,
+            pentacle_title: "Feed 1",
+            new_articles: 10,
+            updated_articles: 2,
+            full_text_fetched: 5,
+            error: null,
+          },
+          {
+            pentacle_id: 2,
+            pentacle_title: "Feed 2",
+            new_articles: 5,
+            updated_articles: 1,
+            full_text_fetched: 3,
+            error: null,
+          },
         ],
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockResult);
 
-      const result = await invoke('sync_all_feeds');
+      const result = await invoke("sync_all_feeds");
       expect(result.success).toBe(true);
       expect(result.total_new).toBe(15);
     });
 
-    it('should handle sync errors', async () => {
+    it("should handle sync errors", async () => {
       const mockResult = {
         success: true,
         total_new: 0,
         total_updated: 0,
         results: [
-          { pentacle_id: 1, pentacle_title: 'Feed 1', new_articles: 0, updated_articles: 0, full_text_fetched: 0, error: 'Connection timeout' },
+          {
+            pentacle_id: 1,
+            pentacle_title: "Feed 1",
+            new_articles: 0,
+            updated_articles: 0,
+            full_text_fetched: 0,
+            error: "Connection timeout",
+          },
         ],
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockResult);
 
-      const result = await invoke('sync_all_feeds');
-      expect(result.results[0].error).toBe('Connection timeout');
+      const result = await invoke("sync_all_feeds");
+      expect(result.results[0].error).toBe("Connection timeout");
     });
   });
 
-  describe('Settings operations', () => {
-    it('should mock get_settings', async () => {
+  describe("Settings operations", () => {
+    it("should mock get_settings", async () => {
       const mockSettings = {
-        locale: 'de',
-        theme: 'mocha',
+        locale: "de",
+        theme: "mocha",
         sync_interval: 30,
         show_terminology_tooltips: true,
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockSettings);
 
-      const result = await invoke('get_settings');
+      const result = await invoke("get_settings");
       expect(result).toEqual(mockSettings);
     });
 
-    it('should mock set_setting', async () => {
+    it("should mock set_setting", async () => {
       vi.mocked(invoke).mockResolvedValueOnce(undefined);
 
-      await invoke('set_setting', { key: 'theme', value: 'latte' });
-      expect(invoke).toHaveBeenCalledWith('set_setting', { key: 'theme', value: 'latte' });
+      await invoke("set_setting", { key: "theme", value: "latte" });
+      expect(invoke).toHaveBeenCalledWith("set_setting", { key: "theme", value: "latte" });
     });
   });
 });
 
-describe('Status types', () => {
-  it('should have correct Fnord status values', () => {
-    const validStatuses = ['concealed', 'illuminated', 'golden_apple'];
-    validStatuses.forEach(status => {
-      expect(typeof status).toBe('string');
+describe("Status types", () => {
+  it("should have correct Fnord status values", () => {
+    const validStatuses = ["concealed", "illuminated", "golden_apple"];
+    validStatuses.forEach((status) => {
+      expect(typeof status).toBe("string");
     });
   });
 
-  it('should have correct article types', () => {
-    const validTypes = ['news', 'opinion', 'analysis', 'satire', 'ad', 'unknown'];
-    validTypes.forEach(type => {
-      expect(typeof type).toBe('string');
+  it("should have correct article types", () => {
+    const validTypes = ["news", "opinion", "analysis", "satire", "ad", "unknown"];
+    validTypes.forEach((type) => {
+      expect(typeof type).toBe("string");
     });
   });
 });
 
-describe('Bias scales', () => {
-  it('should validate political_bias range', () => {
+describe("Bias scales", () => {
+  it("should validate political_bias range", () => {
     const validValues = [-2, -1, 0, 1, 2];
-    validValues.forEach(value => {
+    validValues.forEach((value) => {
       expect(value).toBeGreaterThanOrEqual(-2);
       expect(value).toBeLessThanOrEqual(2);
     });
   });
 
-  it('should validate sachlichkeit range', () => {
+  it("should validate sachlichkeit range", () => {
     const validValues = [0, 1, 2, 3, 4];
-    validValues.forEach(value => {
+    validValues.forEach((value) => {
       expect(value).toBeGreaterThanOrEqual(0);
       expect(value).toBeLessThanOrEqual(4);
     });
   });
 });
 
-describe('State update consistency', () => {
+describe("State update consistency", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('deletePentacle', () => {
-    it('should call get_unprocessed_count after deleting a feed', async () => {
+  describe("deletePentacle", () => {
+    it("should call get_unprocessed_count after deleting a feed", async () => {
       const callOrder: string[] = [];
 
       vi.mocked(invoke).mockImplementation(async (cmd: string) => {
         callOrder.push(cmd);
         switch (cmd) {
-          case 'delete_pentacle':
+          case "delete_pentacle":
             return undefined;
-          case 'get_unprocessed_count':
+          case "get_unprocessed_count":
             return { total: 0, with_content: 0 };
           default:
             return undefined;
@@ -239,26 +265,26 @@ describe('State update consistency', () => {
       });
 
       // Simulate delete feed flow
-      await invoke('delete_pentacle', { id: 1 });
-      await invoke('get_unprocessed_count');
+      await invoke("delete_pentacle", { id: 1 });
+      await invoke("get_unprocessed_count");
 
-      const deleteIndex = callOrder.indexOf('delete_pentacle');
-      const unprocessedIndex = callOrder.indexOf('get_unprocessed_count');
+      const deleteIndex = callOrder.indexOf("delete_pentacle");
+      const unprocessedIndex = callOrder.indexOf("get_unprocessed_count");
 
       expect(deleteIndex).toBeLessThan(unprocessedIndex);
     });
   });
 
-  describe('fetchFullContent', () => {
-    it('should call get_unprocessed_count after fetching full content', async () => {
+  describe("fetchFullContent", () => {
+    it("should call get_unprocessed_count after fetching full content", async () => {
       const callOrder: string[] = [];
 
       vi.mocked(invoke).mockImplementation(async (cmd: string) => {
         callOrder.push(cmd);
         switch (cmd) {
-          case 'fetch_full_content':
-            return { success: true, content: '<p>Full content</p>', fnord_id: 1 };
-          case 'get_unprocessed_count':
+          case "fetch_full_content":
+            return { success: true, content: "<p>Full content</p>", fnord_id: 1 };
+          case "get_unprocessed_count":
             return { total: 5, with_content: 5 };
           default:
             return undefined;
@@ -266,35 +292,35 @@ describe('State update consistency', () => {
       });
 
       // Simulate fetch flow
-      await invoke('fetch_full_content', { fnordId: 1 });
-      await invoke('get_unprocessed_count');
+      await invoke("fetch_full_content", { fnordId: 1 });
+      await invoke("get_unprocessed_count");
 
-      const fetchIndex = callOrder.indexOf('fetch_full_content');
-      const unprocessedIndex = callOrder.indexOf('get_unprocessed_count');
+      const fetchIndex = callOrder.indexOf("fetch_full_content");
+      const unprocessedIndex = callOrder.indexOf("get_unprocessed_count");
 
       expect(fetchIndex).toBeLessThan(unprocessedIndex);
     });
   });
 
-  describe('processArticleDiscordian', () => {
-    it('should call get_unprocessed_count after processing an article', async () => {
+  describe("processArticleDiscordian", () => {
+    it("should call get_unprocessed_count after processing an article", async () => {
       const callOrder: string[] = [];
 
       vi.mocked(invoke).mockImplementation(async (cmd: string) => {
         callOrder.push(cmd);
         switch (cmd) {
-          case 'process_article_discordian':
+          case "process_article_discordian":
             return {
               success: true,
               analysis: {
-                summary: 'Test summary',
+                summary: "Test summary",
                 political_bias: 0,
                 sachlichkeit: 3,
                 categories: [],
                 keywords: [],
               },
             };
-          case 'get_unprocessed_count':
+          case "get_unprocessed_count":
             return { total: 4, with_content: 4 };
           default:
             return undefined;
@@ -302,23 +328,23 @@ describe('State update consistency', () => {
       });
 
       // Simulate analysis flow
-      await invoke('process_article_discordian', { fnordId: 1, model: 'test-model' });
-      await invoke('get_unprocessed_count');
+      await invoke("process_article_discordian", { fnordId: 1, model: "test-model" });
+      await invoke("get_unprocessed_count");
 
-      const processIndex = callOrder.indexOf('process_article_discordian');
-      const unprocessedIndex = callOrder.indexOf('get_unprocessed_count');
+      const processIndex = callOrder.indexOf("process_article_discordian");
+      const unprocessedIndex = callOrder.indexOf("get_unprocessed_count");
 
       expect(processIndex).toBeLessThan(unprocessedIndex);
     });
   });
 });
 
-describe('Sync and Unprocessed Count integration', () => {
+describe("Sync and Unprocessed Count integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should call get_unprocessed_count after sync_all_feeds completes', async () => {
+  it("should call get_unprocessed_count after sync_all_feeds completes", async () => {
     // This test documents the expected behavior:
     // After sync_all_feeds returns, the app should also call get_unprocessed_count
     // to update the batch processing badge
@@ -328,13 +354,13 @@ describe('Sync and Unprocessed Count integration', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       callOrder.push(cmd);
       switch (cmd) {
-        case 'sync_all_feeds':
+        case "sync_all_feeds":
           return { success: true, total_new: 5, total_updated: 0, results: [] };
-        case 'get_pentacles':
+        case "get_pentacles":
           return [];
-        case 'get_fnords':
+        case "get_fnords":
           return [];
-        case 'get_unprocessed_count':
+        case "get_unprocessed_count":
           return { total: 5, with_content: 3 };
         default:
           return undefined;
@@ -342,32 +368,32 @@ describe('Sync and Unprocessed Count integration', () => {
     });
 
     // Simulate the sync flow by calling invoke in the expected order
-    await invoke('sync_all_feeds');
-    await invoke('get_pentacles');
-    await invoke('get_fnords');
-    await invoke('get_unprocessed_count');
+    await invoke("sync_all_feeds");
+    await invoke("get_pentacles");
+    await invoke("get_fnords");
+    await invoke("get_unprocessed_count");
 
     // Verify get_unprocessed_count was called after sync
-    const syncIndex = callOrder.indexOf('sync_all_feeds');
-    const unprocessedIndex = callOrder.indexOf('get_unprocessed_count');
+    const syncIndex = callOrder.indexOf("sync_all_feeds");
+    const unprocessedIndex = callOrder.indexOf("get_unprocessed_count");
 
     expect(syncIndex).toBeLessThan(unprocessedIndex);
-    expect(callOrder).toContain('get_unprocessed_count');
+    expect(callOrder).toContain("get_unprocessed_count");
   });
 
-  it('should call get_unprocessed_count after sync_feed completes', async () => {
+  it("should call get_unprocessed_count after sync_feed completes", async () => {
     const callOrder: string[] = [];
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       callOrder.push(cmd);
       switch (cmd) {
-        case 'sync_feed':
+        case "sync_feed":
           return undefined;
-        case 'get_pentacles':
+        case "get_pentacles":
           return [];
-        case 'get_fnords':
+        case "get_fnords":
           return [];
-        case 'get_unprocessed_count':
+        case "get_unprocessed_count":
           return { total: 2, with_content: 1 };
         default:
           return undefined;
@@ -375,27 +401,27 @@ describe('Sync and Unprocessed Count integration', () => {
     });
 
     // Simulate single feed sync flow
-    await invoke('sync_feed', { pentacleId: 1 });
-    await invoke('get_pentacles');
-    await invoke('get_fnords');
-    await invoke('get_unprocessed_count');
+    await invoke("sync_feed", { pentacleId: 1 });
+    await invoke("get_pentacles");
+    await invoke("get_fnords");
+    await invoke("get_unprocessed_count");
 
-    const syncIndex = callOrder.indexOf('sync_feed');
-    const unprocessedIndex = callOrder.indexOf('get_unprocessed_count');
+    const syncIndex = callOrder.indexOf("sync_feed");
+    const unprocessedIndex = callOrder.indexOf("get_unprocessed_count");
 
     expect(syncIndex).toBeLessThan(unprocessedIndex);
-    expect(callOrder).toContain('get_unprocessed_count');
+    expect(callOrder).toContain("get_unprocessed_count");
   });
 
-  it('should return correct unprocessed count structure', async () => {
+  it("should return correct unprocessed count structure", async () => {
     const mockCount = { total: 10, with_content: 7 };
     vi.mocked(invoke).mockResolvedValueOnce(mockCount);
 
-    const result = await invoke('get_unprocessed_count');
+    const result = await invoke("get_unprocessed_count");
 
     expect(result).toEqual(mockCount);
-    expect(result).toHaveProperty('total');
-    expect(result).toHaveProperty('with_content');
+    expect(result).toHaveProperty("total");
+    expect(result).toHaveProperty("with_content");
     expect(result.with_content).toBeLessThanOrEqual(result.total);
   });
 });

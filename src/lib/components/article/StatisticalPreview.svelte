@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
-  import { invoke } from '@tauri-apps/api/core';
-  import type { StatisticalAnalysis } from '$lib/types';
+  import { _ } from "svelte-i18n";
+  import { invoke } from "@tauri-apps/api/core";
+  import type { StatisticalAnalysis } from "$lib/types";
 
   interface Props {
     fnordId: number;
@@ -29,9 +29,9 @@
     loading = true;
     error = null;
     try {
-      analysis = await invoke<StatisticalAnalysis>('analyze_article_statistical', { fnordId });
+      analysis = await invoke<StatisticalAnalysis>("analyze_article_statistical", { fnordId });
     } catch (e) {
-      console.error('Failed to load statistical analysis:', e);
+      console.error("Failed to load statistical analysis:", e);
       error = e instanceof Error ? e.message : String(e);
     } finally {
       loading = false;
@@ -40,9 +40,9 @@
 
   // Get confidence color
   function getConfidenceColor(confidence: number): string {
-    if (confidence >= 0.7) return 'var(--accent-success)';
-    if (confidence >= 0.4) return 'var(--accent-warning)';
-    return 'var(--text-muted)';
+    if (confidence >= 0.7) return "var(--accent-success)";
+    if (confidence >= 0.4) return "var(--accent-warning)";
+    return "var(--text-muted)";
   }
 
   // Format score as percentage
@@ -53,18 +53,14 @@
 
 {#if hasContent && !isProcessed}
   <div class="statistical-preview">
-    <button
-      type="button"
-      class="preview-header"
-      onclick={() => collapsed = !collapsed}
-    >
+    <button type="button" class="preview-header" onclick={() => (collapsed = !collapsed)}>
       <div class="header-left">
         <i class="fa-solid fa-chart-simple"></i>
         <span class="header-title">
-          {$_('articleView.statisticalPreview') || 'Statistische Voranalyse'}
+          {$_("articleView.statisticalPreview") || "Statistische Voranalyse"}
         </span>
         <span class="preview-badge">
-          {$_('articleView.preview') || 'Vorschau'}
+          {$_("articleView.preview") || "Vorschau"}
         </span>
       </div>
       <i class="fa-solid fa-chevron-down chevron" class:collapsed></i>
@@ -75,7 +71,7 @@
         {#if loading}
           <div class="loading-state">
             <i class="fa-solid fa-spinner fa-spin"></i>
-            <span>{$_('articleView.analyzing') || 'Analysiere...'}</span>
+            <span>{$_("articleView.analyzing") || "Analysiere..."}</span>
           </div>
         {:else if error}
           <div class="error-state">
@@ -88,7 +84,7 @@
             <div class="preview-section">
               <h4 class="section-label">
                 <i class="fa-solid fa-tags"></i>
-                {$_('articleView.keywordCandidates') || 'Keyword-Kandidaten'}
+                {$_("articleView.keywordCandidates") || "Keyword-Kandidaten"}
                 <span class="count">({analysis.keyword_candidates.length})</span>
               </h4>
               <div class="keyword-chips">
@@ -117,7 +113,7 @@
             <div class="preview-section">
               <h4 class="section-label">
                 <i class="fa-solid fa-folder-tree"></i>
-                {$_('articleView.categoryScores') || 'Kategorie-Scores'}
+                {$_("articleView.categoryScores") || "Kategorie-Scores"}
                 <span class="count">({analysis.category_scores.length})</span>
               </h4>
               <div class="category-list">
@@ -135,7 +131,7 @@
                     {#if cat.matching_terms.length > 0}
                       <div class="matching-terms">
                         <span class="terms-label">
-                          {$_('articleView.matchingTerms') || 'Passende Begriffe'}:
+                          {$_("articleView.matchingTerms") || "Passende Begriffe"}:
                         </span>
                         {#each cat.matching_terms.slice(0, 5) as term}
                           <span class="term-tag">{term}</span>
@@ -154,14 +150,17 @@
           {#if analysis.keyword_candidates.length === 0 && analysis.category_scores.length === 0}
             <div class="empty-state">
               <i class="fa-solid fa-circle-info"></i>
-              <span>{$_('articleView.noStatisticalData') || 'Keine statistischen Daten gefunden'}</span>
+              <span
+                >{$_("articleView.noStatisticalData") || "Keine statistischen Daten gefunden"}</span
+              >
             </div>
           {/if}
 
           <div class="preview-note">
             <i class="fa-solid fa-circle-info"></i>
             <span>
-              {$_('articleView.statisticalNote') || 'Diese Vorschau zeigt die statistische Analyse vor der LLM-Validierung.'}
+              {$_("articleView.statisticalNote") ||
+                "Diese Vorschau zeigt die statistische Analyse vor der LLM-Validierung."}
             </span>
           </div>
         {/if}

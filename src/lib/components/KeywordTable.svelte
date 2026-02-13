@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
-  import { onMount, onDestroy } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
-  import type { Keyword, KeywordType } from '../types';
-  import KeywordContextTooltip from './KeywordContextTooltip.svelte';
-  import { formatChangedDate } from '$lib/utils/articleFormat';
+  import { _ } from "svelte-i18n";
+  import { onMount, onDestroy } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import type { Keyword, KeywordType } from "../types";
+  import KeywordContextTooltip from "./KeywordContextTooltip.svelte";
+  import { formatChangedDate } from "$lib/utils/articleFormat";
 
   // Props
   interface Props {
@@ -16,11 +16,11 @@
 
   // Type icons and colors (using theme CSS variables)
   const typeConfig: Record<KeywordType, { icon: string; color: string }> = {
-    concept: { icon: 'fa-solid fa-lightbulb', color: 'var(--text-muted)' },
-    person: { icon: 'fa-solid fa-user', color: 'var(--accent-info)' },
-    organization: { icon: 'fa-solid fa-building', color: 'var(--accent-primary)' },
-    location: { icon: 'fa-solid fa-location-dot', color: 'var(--accent-success)' },
-    acronym: { icon: 'fa-solid fa-a', color: 'var(--accent-warning)' },
+    concept: { icon: "fa-solid fa-lightbulb", color: "var(--text-muted)" },
+    person: { icon: "fa-solid fa-user", color: "var(--accent-info)" },
+    organization: { icon: "fa-solid fa-building", color: "var(--accent-primary)" },
+    location: { icon: "fa-solid fa-location-dot", color: "var(--accent-success)" },
+    acronym: { icon: "fa-solid fa-a", color: "var(--accent-warning)" },
   };
 
   // State
@@ -33,14 +33,14 @@
   let detectingTypes = $state(false);
 
   // Sorting
-  type SortColumn = 'name' | 'keyword_type' | 'article_count' | 'first_seen' | 'last_used';
-  type SortDirection = 'asc' | 'desc';
-  let sortColumn = $state<SortColumn>('article_count');
-  let sortDirection = $state<SortDirection>('desc');
+  type SortColumn = "name" | "keyword_type" | "article_count" | "first_seen" | "last_used";
+  type SortDirection = "asc" | "desc";
+  let sortColumn = $state<SortColumn>("article_count");
+  let sortDirection = $state<SortDirection>("desc");
 
   // Filtering
   let minArticleCount = $state(0);
-  let searchQuery = $state('');
+  let searchQuery = $state("");
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Pagination
@@ -54,36 +54,36 @@
 
     // Apply filters
     if (minArticleCount > 0) {
-      result = result.filter(k => k.article_count >= minArticleCount);
+      result = result.filter((k) => k.article_count >= minArticleCount);
     }
 
     // Sort
     result.sort((a, b) => {
       let comparison = 0;
       switch (sortColumn) {
-        case 'name':
+        case "name":
           comparison = a.name.localeCompare(b.name);
           break;
-        case 'keyword_type':
-          comparison = (a.keyword_type || 'concept').localeCompare(b.keyword_type || 'concept');
+        case "keyword_type":
+          comparison = (a.keyword_type || "concept").localeCompare(b.keyword_type || "concept");
           break;
-        case 'article_count':
+        case "article_count":
           comparison = a.article_count - b.article_count;
           break;
-        case 'first_seen':
+        case "first_seen":
           if (!a.first_seen && !b.first_seen) comparison = 0;
           else if (!a.first_seen) comparison = 1;
           else if (!b.first_seen) comparison = -1;
           else comparison = new Date(a.first_seen).getTime() - new Date(b.first_seen).getTime();
           break;
-        case 'last_used':
+        case "last_used":
           if (!a.last_used && !b.last_used) comparison = 0;
           else if (!a.last_used) comparison = 1;
           else if (!b.last_used) comparison = -1;
           else comparison = new Date(a.last_used).getTime() - new Date(b.last_used).getTime();
           break;
       }
-      return sortDirection === 'asc' ? comparison : -comparison;
+      return sortDirection === "asc" ? comparison : -comparison;
     });
 
     return result;
@@ -105,7 +105,7 @@
 
       if (searchQuery.trim()) {
         // Use search API when there's a query
-        newKeywords = await invoke<Keyword[]>('search_keywords', {
+        newKeywords = await invoke<Keyword[]>("search_keywords", {
           query: searchQuery,
           limit: limit,
         });
@@ -113,7 +113,7 @@
         hasMore = false;
       } else {
         // Use regular paginated API
-        newKeywords = await invoke<Keyword[]>('get_keywords', {
+        newKeywords = await invoke<Keyword[]>("get_keywords", {
           limit,
           offset,
         });
@@ -126,7 +126,7 @@
       keywords = reset ? newKeywords : [...keywords, ...newKeywords];
     } catch (e) {
       error = String(e);
-      console.error('Failed to load keywords:', e);
+      console.error("Failed to load keywords:", e);
     } finally {
       loading = false;
     }
@@ -142,22 +142,22 @@
 
   function clearSearch() {
     if (searchTimeout) clearTimeout(searchTimeout);
-    searchQuery = '';
+    searchQuery = "";
     loadKeywords(true);
   }
 
   function handleSort(column: SortColumn) {
     if (sortColumn === column) {
-      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      sortDirection = sortDirection === "asc" ? "desc" : "asc";
     } else {
       sortColumn = column;
-      sortDirection = column === 'name' ? 'asc' : 'desc';
+      sortDirection = column === "name" ? "asc" : "desc";
     }
   }
 
   function getSortIcon(column: SortColumn): string {
-    if (sortColumn !== column) return 'fa-solid fa-sort';
-    return sortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
+    if (sortColumn !== column) return "fa-solid fa-sort";
+    return sortDirection === "asc" ? "fa-solid fa-sort-up" : "fa-solid fa-sort-down";
   }
 
   function handleRowClick(keyword: Keyword) {
@@ -165,7 +165,7 @@
   }
 
   function handleKeydown(event: KeyboardEvent, keyword: Keyword) {
-    if (event.key === 'Enter' || event.key === ' ') {
+    if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       onKeywordSelect(keyword.id);
     }
@@ -184,7 +184,7 @@
   }
 
   function getTypeConfig(type: KeywordType | undefined) {
-    return typeConfig[type || 'concept'] || typeConfig.concept;
+    return typeConfig[type || "concept"] || typeConfig.concept;
   }
 
   function handleMinArticleChange(e: Event) {
@@ -194,9 +194,9 @@
 
   async function loadUntypedCount() {
     try {
-      untypedCount = await invoke<number>('count_untyped_keywords');
+      untypedCount = await invoke<number>("count_untyped_keywords");
     } catch (e) {
-      console.error('Failed to load untyped count:', e);
+      console.error("Failed to load untyped count:", e);
       untypedCount = 0;
     }
   }
@@ -206,11 +206,11 @@
     detectingTypes = true;
 
     try {
-      await invoke('update_untyped_keywords');
+      await invoke("update_untyped_keywords");
       await loadUntypedCount();
       await loadKeywords(true);
     } catch (e) {
-      console.error('Failed to detect keyword types:', e);
+      console.error("Failed to detect keyword types:", e);
     } finally {
       detectingTypes = false;
     }
@@ -227,15 +227,15 @@
   }
 
   onMount(() => {
-    window.addEventListener('batch-complete', handleBatchComplete);
-    window.addEventListener('keywords-changed', handleKeywordsChanged);
+    window.addEventListener("batch-complete", handleBatchComplete);
+    window.addEventListener("keywords-changed", handleKeywordsChanged);
     loadKeywords(true);
     loadUntypedCount();
   });
 
   onDestroy(() => {
-    window.removeEventListener('batch-complete', handleBatchComplete);
-    window.removeEventListener('keywords-changed', handleKeywordsChanged);
+    window.removeEventListener("batch-complete", handleBatchComplete);
+    window.removeEventListener("keywords-changed", handleKeywordsChanged);
   });
 </script>
 
@@ -249,7 +249,7 @@
           type="text"
           bind:value={searchQuery}
           oninput={handleSearch}
-          placeholder={$_('network.searchPlaceholder') || 'Stichwort suchen...'}
+          placeholder={$_("network.searchPlaceholder") || "Stichwort suchen..."}
           class="search-input"
         />
         {#if searchQuery}
@@ -262,7 +262,7 @@
 
     <div class="filter-group">
       <label class="filter-label">
-        <span>{$_('network.minArticles') || 'Min. Artikel'}:</span>
+        <span>{$_("network.minArticles") || "Min. Artikel"}:</span>
         <input
           type="number"
           min="0"
@@ -272,9 +272,9 @@
         />
       </label>
       {#if minArticleCount > 0}
-        <button onclick={() => minArticleCount = 0} class="clear-filter-btn">
+        <button onclick={() => (minArticleCount = 0)} class="clear-filter-btn">
           <i class="fa-solid fa-xmark"></i>
-          {$_('network.clearFilter') || 'Filter loeschen'}
+          {$_("network.clearFilter") || "Filter loeschen"}
         </button>
       {/if}
     </div>
@@ -286,14 +286,15 @@
           onclick={detectUntypedKeywords}
           disabled={detectingTypes}
           class="detect-types-btn"
-          title={$_('network.detectTypesTitle') || 'Erkennt Keyword-Typen fuer noch nicht klassifizierte Keywords'}
+          title={$_("network.detectTypesTitle") ||
+            "Erkennt Keyword-Typen fuer noch nicht klassifizierte Keywords"}
         >
           {#if detectingTypes}
             <i class="fa-solid fa-spinner fa-spin"></i>
           {:else}
             <i class="fa-solid fa-wand-magic-sparkles"></i>
           {/if}
-          <span>{$_('network.detectTypes') || 'Typen erkennen'}</span>
+          <span>{$_("network.detectTypes") || "Typen erkennen"}</span>
           <span class="untyped-badge">{untypedCount}</span>
         </button>
       </div>
@@ -311,28 +312,28 @@
       <table class="keyword-table">
         <thead>
           <tr>
-            <th class="sortable" onclick={() => handleSort('name')}>
-              <span>{$_('network.name') || 'Name'}</span>
-              <i class={getSortIcon('name')}></i>
+            <th class="sortable" onclick={() => handleSort("name")}>
+              <span>{$_("network.name") || "Name"}</span>
+              <i class={getSortIcon("name")}></i>
             </th>
-            <th class="sortable type-col" onclick={() => handleSort('keyword_type')}>
-              <span>{$_('network.type') || 'Typ'}</span>
-              <i class={getSortIcon('keyword_type')}></i>
+            <th class="sortable type-col" onclick={() => handleSort("keyword_type")}>
+              <span>{$_("network.type") || "Typ"}</span>
+              <i class={getSortIcon("keyword_type")}></i>
             </th>
-            <th class="sortable numeric" onclick={() => handleSort('article_count')}>
-              <span>{$_('network.articles') || 'Artikel'}</span>
-              <i class={getSortIcon('article_count')}></i>
+            <th class="sortable numeric" onclick={() => handleSort("article_count")}>
+              <span>{$_("network.articles") || "Artikel"}</span>
+              <i class={getSortIcon("article_count")}></i>
             </th>
-            <th class="sortable" onclick={() => handleSort('first_seen')}>
-              <span>{$_('network.firstSeen') || 'Erstmals'}</span>
-              <i class={getSortIcon('first_seen')}></i>
+            <th class="sortable" onclick={() => handleSort("first_seen")}>
+              <span>{$_("network.firstSeen") || "Erstmals"}</span>
+              <i class={getSortIcon("first_seen")}></i>
             </th>
-            <th class="sortable" onclick={() => handleSort('last_used')}>
-              <span>{$_('network.lastUsed') || 'Zuletzt'}</span>
-              <i class={getSortIcon('last_used')}></i>
+            <th class="sortable" onclick={() => handleSort("last_used")}>
+              <span>{$_("network.lastUsed") || "Zuletzt"}</span>
+              <i class={getSortIcon("last_used")}></i>
             </th>
             <th class="actions-col">
-              <span>{$_('network.actions') || 'Aktionen'}</span>
+              <span>{$_("network.actions") || "Aktionen"}</span>
             </th>
           </tr>
         </thead>
@@ -342,7 +343,7 @@
               <td colspan="6">
                 <div class="loading-indicator">
                   <i class="fa-solid fa-spinner fa-spin"></i>
-                  <span>{$_('network.loading') || 'Lade...'}</span>
+                  <span>{$_("network.loading") || "Lade..."}</span>
                 </div>
               </td>
             </tr>
@@ -351,7 +352,7 @@
               <td colspan="6">
                 <div class="empty-message">
                   <i class="fa-solid fa-inbox"></i>
-                  <span>{$_('network.noResults') || 'Keine Ergebnisse gefunden'}</span>
+                  <span>{$_("network.noResults") || "Keine Ergebnisse gefunden"}</span>
                 </div>
               </td>
             </tr>
@@ -363,13 +364,10 @@
                 onkeydown={(e) => handleKeydown(e, keyword)}
                 tabindex="0"
                 role="button"
-                aria-label={`${$_('network.selectKeyword') || 'Keyword auswaehlen'}: ${keyword.name}`}
+                aria-label={`${$_("network.selectKeyword") || "Keyword auswaehlen"}: ${keyword.name}`}
               >
                 <td class="name-cell">
-                  <KeywordContextTooltip
-                    keywordId={keyword.id}
-                    keywordName={keyword.name}
-                  >
+                  <KeywordContextTooltip keywordId={keyword.id} keywordName={keyword.name}>
                     <span class="keyword-name">{keyword.name}</span>
                   </KeywordContextTooltip>
                   {#if keyword.is_canonical === false}
@@ -379,7 +377,11 @@
                   {/if}
                 </td>
                 <td class="type-cell">
-                  <span class="type-badge" style="color: {getTypeConfig(keyword.keyword_type).color}" title={getTypeLabel(keyword.keyword_type || 'concept')}>
+                  <span
+                    class="type-badge"
+                    style="color: {getTypeConfig(keyword.keyword_type).color}"
+                    title={getTypeLabel(keyword.keyword_type || "concept")}
+                  >
                     <i class={getTypeConfig(keyword.keyword_type).icon}></i>
                   </span>
                 </td>
@@ -393,7 +395,7 @@
                     <button
                       class="action-btn"
                       onclick={(e) => handleShowArticles(e, keyword)}
-                      title={$_('network.showArticles') || 'Artikel anzeigen'}
+                      title={$_("network.showArticles") || "Artikel anzeigen"}
                     >
                       <i class="fa-solid fa-newspaper"></i>
                     </button>
@@ -412,7 +414,7 @@
     <div class="load-more-container">
       <button onclick={() => loadKeywords(false)} class="load-more-btn">
         <i class="fa-solid fa-plus"></i>
-        {$_('network.loadMore') || 'Weitere laden'}
+        {$_("network.loadMore") || "Weitere laden"}
       </button>
     </div>
   {/if}
@@ -420,7 +422,7 @@
   {#if loading && keywords.length > 0}
     <div class="loading-more">
       <i class="fa-solid fa-spinner fa-spin"></i>
-      <span>{$_('network.loading') || 'Lade...'}</span>
+      <span>{$_("network.loading") || "Lade..."}</span>
     </div>
   {/if}
 
@@ -429,9 +431,10 @@
     <span class="summary-text">
       {displayedKeywords.length}
       {#if minArticleCount > 0 || searchQuery}
-        {$_('network.searchResults') || 'gefiltert'} /
+        {$_("network.searchResults") || "gefiltert"} /
       {/if}
-      {keywords.length} {$_('network.keywords') || 'Stichworte'}
+      {keywords.length}
+      {$_("network.keywords") || "Stichworte"}
     </span>
   </div>
 </div>
@@ -656,12 +659,24 @@
   }
 
   /* Column widths */
-  .keyword-table th:nth-child(1) { width: 30%; }  /* Name */
-  .keyword-table th:nth-child(2) { width: 8%; }   /* Type */
-  .keyword-table th:nth-child(3) { width: 12%; }  /* Articles */
-  .keyword-table th:nth-child(4) { width: 18%; }  /* First seen */
-  .keyword-table th:nth-child(5) { width: 18%; }  /* Last used */
-  .keyword-table th:nth-child(6) { width: 14%; }  /* Actions */
+  .keyword-table th:nth-child(1) {
+    width: 30%;
+  } /* Name */
+  .keyword-table th:nth-child(2) {
+    width: 8%;
+  } /* Type */
+  .keyword-table th:nth-child(3) {
+    width: 12%;
+  } /* Articles */
+  .keyword-table th:nth-child(4) {
+    width: 18%;
+  } /* First seen */
+  .keyword-table th:nth-child(5) {
+    width: 18%;
+  } /* Last used */
+  .keyword-table th:nth-child(6) {
+    width: 14%;
+  } /* Actions */
 
   .type-col {
     text-align: center;

@@ -1,27 +1,27 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
-  import { onMount, onDestroy, untrack } from 'svelte';
-  import type { NetworkGraph as NetworkGraphType } from '../types';
-  import NetworkGraph from './NetworkGraph.svelte';
-  import KeywordTable from './KeywordTable.svelte';
-  import Tabs, { type Tab } from './Tabs.svelte';
-  import Tooltip from './Tooltip.svelte';
-  import KeywordNetworkDetail from './network/KeywordNetworkDetail.svelte';
-  import KeywordNetworkSynonyms from './network/KeywordNetworkSynonyms.svelte';
-  import CompoundKeywordManager from './CompoundKeywordManager.svelte';
-  import { networkStore } from '../stores/network.svelte';
+  import { _ } from "svelte-i18n";
+  import { onMount, onDestroy, untrack } from "svelte";
+  import type { NetworkGraph as NetworkGraphType } from "../types";
+  import NetworkGraph from "./NetworkGraph.svelte";
+  import KeywordTable from "./KeywordTable.svelte";
+  import Tabs, { type Tab } from "./Tabs.svelte";
+  import Tooltip from "./Tooltip.svelte";
+  import KeywordNetworkDetail from "./network/KeywordNetworkDetail.svelte";
+  import KeywordNetworkSynonyms from "./network/KeywordNetworkSynonyms.svelte";
+  import CompoundKeywordManager from "./CompoundKeywordManager.svelte";
+  import { networkStore } from "../stores/network.svelte";
 
-  let activeTab = $state<string>('list');
+  let activeTab = $state<string>("list");
 
   // Tabs definition
   let tabs = $derived<Tab[]>([
-    { id: 'list', label: $_('network.listTab') || 'Keywords' },
-    { id: 'table', label: $_('network.tableTab') || 'Tabelle' },
-    { id: 'graph', label: $_('network.graphTab') || 'Graph' },
-    { id: 'synonyms', label: $_('network.synonymsTab') || 'Synonyme' },
-    { id: 'compounds', label: $_('network.compoundsTab') || 'Compounds' },
+    { id: "list", label: $_("network.listTab") || "Keywords" },
+    { id: "table", label: $_("network.tableTab") || "Tabelle" },
+    { id: "graph", label: $_("network.graphTab") || "Graph" },
+    { id: "synonyms", label: $_("network.synonymsTab") || "Synonyme" },
+    { id: "compounds", label: $_("network.compoundsTab") || "Compounds" },
   ]);
-  let searchInput = $state('');
+  let searchInput = $state("");
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Manual merge search timeouts (kept local since they are UI-only)
@@ -36,7 +36,7 @@
   let graphMinWeight = $state(0.1);
 
   function openArticle(articleId: number) {
-    window.dispatchEvent(new CustomEvent('navigate-to-article', { detail: { articleId } }));
+    window.dispatchEvent(new CustomEvent("navigate-to-article", { detail: { articleId } }));
   }
 
   async function loadGraphDataAsync(forceRefresh = false) {
@@ -56,8 +56,8 @@
     // Only switch tab when the keyword actually changes to a new value
     if (kwId !== null && kwId !== untrack(() => prevSelectedKeywordId)) {
       untrack(() => {
-        if (activeTab !== 'list') {
-          activeTab = 'list';
+        if (activeTab !== "list") {
+          activeTab = "list";
         }
       });
     }
@@ -74,7 +74,7 @@
   });
 
   function handleTabChange(tabId: string) {
-    if (tabId === 'graph') {
+    if (tabId === "graph") {
       loadGraphDataAsync(true);
     }
   }
@@ -98,7 +98,7 @@
 
   function clearSearch() {
     if (searchTimeout) clearTimeout(searchTimeout);
-    searchInput = '';
+    searchInput = "";
     networkStore.clearSearch();
   }
 
@@ -142,7 +142,7 @@
 
   async function handleShowKeywordArticles(keywordId: number, _keywordName: string) {
     await networkStore.selectKeyword(keywordId);
-    activeTab = 'list';
+    activeTab = "list";
   }
 </script>
 
@@ -152,7 +152,7 @@
     <div class="header-top">
       <h2 class="view-title">
         <i class="fa-solid fa-circle-nodes nav-icon"></i>
-        {$_('network.title')}
+        {$_("network.title")}
         <Tooltip termKey="immanentize_network">
           <i class="fa-solid fa-circle-info info-icon"></i>
         </Tooltip>
@@ -161,15 +161,17 @@
         <div class="network-stats">
           <span class="stat-item">
             <span class="stat-value">{networkStore.networkStats.total_keywords}</span>
-            <span class="stat-label">{$_('network.keywords')}</span>
+            <span class="stat-label">{$_("network.keywords")}</span>
           </span>
           <span class="stat-item">
             <span class="stat-value">{networkStore.networkStats.total_connections}</span>
-            <span class="stat-label">{$_('network.connections')}</span>
+            <span class="stat-label">{$_("network.connections")}</span>
           </span>
           <span class="stat-item">
-            <span class="stat-value">{networkStore.networkStats.avg_neighbors_per_keyword.toFixed(1)}</span>
-            <span class="stat-label">{$_('network.avgNeighbors')}</span>
+            <span class="stat-value"
+              >{networkStore.networkStats.avg_neighbors_per_keyword.toFixed(1)}</span
+            >
+            <span class="stat-label">{$_("network.avgNeighbors")}</span>
           </span>
         </div>
       {/if}
@@ -180,268 +182,294 @@
   </div>
 
   <!-- Tab Content -->
-  {#if activeTab === 'list'}
-  <div class="network-content">
-    <!-- Left Panel: Search & Keywords List -->
-    <div class="keywords-panel">
-      <!-- Search -->
-      <div class="search-box">
-        <input
-          type="text"
-          bind:value={searchInput}
-          oninput={handleSearch}
-          placeholder={$_('network.searchPlaceholder')}
-          class="search-input"
-        />
-        {#if searchInput}
-          <button onclick={clearSearch} class="clear-btn">&times;</button>
-        {/if}
-      </div>
+  {#if activeTab === "list"}
+    <div class="network-content">
+      <!-- Left Panel: Search & Keywords List -->
+      <div class="keywords-panel">
+        <!-- Search -->
+        <div class="search-box">
+          <input
+            type="text"
+            bind:value={searchInput}
+            oninput={handleSearch}
+            placeholder={$_("network.searchPlaceholder")}
+            class="search-input"
+          />
+          {#if searchInput}
+            <button onclick={clearSearch} class="clear-btn">&times;</button>
+          {/if}
+        </div>
 
-      <!-- Search Results or Keywords List -->
-      <div class="keywords-list">
-        {#if searchInput && networkStore.searchResults.length > 0}
-          <div class="list-section">
-            <div class="section-label">{$_('network.searchResults')}</div>
-            {#each networkStore.searchResults as keyword (keyword.id)}
-              <button
-                class="keyword-item {networkStore.selectedKeyword?.id === keyword.id ? 'active' : ''}"
-                onclick={() => networkStore.selectKeyword(keyword.id)}
-              >
-                <span class="keyword-name">{keyword.name}</span>
-                <span class="keyword-count">{keyword.article_count}</span>
-              </button>
-            {/each}
-          </div>
-        {:else if searchInput && networkStore.searchResults.length === 0 && !networkStore.loading}
-          <div class="empty-search">{$_('network.noResults')}</div>
-        {:else}
-          <!-- Trending Keywords -->
-          {#if networkStore.trendingKeywords.length > 0}
+        <!-- Search Results or Keywords List -->
+        <div class="keywords-list">
+          {#if searchInput && networkStore.searchResults.length > 0}
             <div class="list-section">
-              <div class="section-label trending-header">
-                <span>{$_('network.trending')}</span>
-                <div class="trending-period-buttons">
-                  {#each [{days: 1, key: 'trendingPeriod24h'}, {days: 3, key: 'trendingPeriod3d'}, {days: 7, key: 'trendingPeriod7d'}, {days: 14, key: 'trendingPeriod14d'}] as period (period.days)}
-                    <button
-                      class="period-btn {networkStore.trendingPeriod === period.days ? 'active' : ''}"
-                      onclick={() => networkStore.setTrendingPeriod(period.days)}
-                    >
-                      {$_(`network.${period.key}`)}
-                    </button>
-                  {/each}
-                </div>
-                <div class="trending-sort-buttons">
-                  <Tooltip content={$_('network.sortScore')}>
-                    <button
-                      class="sort-btn {networkStore.trendingSortBy === 'score' ? 'active' : ''}"
-                      onclick={() => networkStore.setTrendingSort('score')}
-                      aria-label={$_('network.sortScore')}
-                    >
-                      <i class="fa-solid fa-fire"></i>
-                    </button>
-                  </Tooltip>
-                  <Tooltip content={$_('network.sortGrowth')}>
-                    <button
-                      class="sort-btn {networkStore.trendingSortBy === 'growth' ? 'active' : ''}"
-                      onclick={() => networkStore.setTrendingSort('growth')}
-                      aria-label={$_('network.sortGrowth')}
-                    >
-                      <i class="fa-solid fa-arrow-trend-up"></i>
-                    </button>
-                  </Tooltip>
-                  <Tooltip content={$_('network.sortCount')}>
-                    <button
-                      class="sort-btn {networkStore.trendingSortBy === 'count' ? 'active' : ''}"
-                      onclick={() => networkStore.setTrendingSort('count')}
-                      aria-label={$_('network.sortCount')}
-                    >
-                      <i class="fa-solid fa-hashtag"></i>
-                    </button>
-                  </Tooltip>
-                  <Tooltip content={$_('network.sortNew')}>
-                    <button
-                      class="sort-btn {networkStore.trendingSortBy === 'new' ? 'active' : ''}"
-                      onclick={() => networkStore.setTrendingSort('new')}
-                      aria-label={$_('network.sortNew')}
-                    >
-                      <i class="fa-solid fa-sparkles"></i>
-                    </button>
-                  </Tooltip>
-                </div>
-                <Tooltip content={$_('network.trendingTooltip', { values: { days: networkStore.trendingPeriod } })}>
-                  <i class="fa-solid fa-circle-info trending-info"></i>
-                </Tooltip>
-              </div>
-              {#each networkStore.trendingKeywords.slice(0, 10) as keyword (keyword.id)}
+              <div class="section-label">{$_("network.searchResults")}</div>
+              {#each networkStore.searchResults as keyword (keyword.id)}
                 <button
-                  class="keyword-item trending {networkStore.selectedKeyword?.id === keyword.id ? 'active' : ''}"
+                  class="keyword-item {networkStore.selectedKeyword?.id === keyword.id
+                    ? 'active'
+                    : ''}"
                   onclick={() => networkStore.selectKeyword(keyword.id)}
                 >
-                  <span class="keyword-name">
-                    {#if keyword.growth_rate > 0.2}
-                      <i class="trend-icon fa-solid fa-arrow-trend-up"></i>
-                    {:else if keyword.growth_rate > 0}
-                      <i class="trend-icon fa-solid fa-caret-up"></i>
-                    {:else if keyword.growth_rate === 0}
-                      <i class="trend-icon neutral fa-solid fa-minus"></i>
-                    {:else}
-                      <i class="trend-icon negative fa-solid fa-caret-down"></i>
-                    {/if}
-                    {keyword.name}
-                    {#if keyword.is_new}
-                      <span class="new-badge">NEU</span>
-                    {/if}
-                  </span>
-                  <span class="keyword-count">
-                    {#if keyword.growth_rate > 0}
-                      <span class="growth positive">+{Math.round(keyword.growth_rate * 100)}%</span>
-                    {:else if keyword.growth_rate < 0}
-                      <span class="growth negative">{Math.round(keyword.growth_rate * 100)}%</span>
-                    {/if}
-                    {keyword.recent_count}
-                  </span>
+                  <span class="keyword-name">{keyword.name}</span>
+                  <span class="keyword-count">{keyword.article_count}</span>
                 </button>
               {/each}
             </div>
+          {:else if searchInput && networkStore.searchResults.length === 0 && !networkStore.loading}
+            <div class="empty-search">{$_("network.noResults")}</div>
+          {:else}
+            <!-- Trending Keywords -->
+            {#if networkStore.trendingKeywords.length > 0}
+              <div class="list-section">
+                <div class="section-label trending-header">
+                  <span>{$_("network.trending")}</span>
+                  <div class="trending-period-buttons">
+                    {#each [{ days: 1, key: "trendingPeriod24h" }, { days: 3, key: "trendingPeriod3d" }, { days: 7, key: "trendingPeriod7d" }, { days: 14, key: "trendingPeriod14d" }] as period (period.days)}
+                      <button
+                        class="period-btn {networkStore.trendingPeriod === period.days
+                          ? 'active'
+                          : ''}"
+                        onclick={() => networkStore.setTrendingPeriod(period.days)}
+                      >
+                        {$_(`network.${period.key}`)}
+                      </button>
+                    {/each}
+                  </div>
+                  <div class="trending-sort-buttons">
+                    <Tooltip content={$_("network.sortScore")}>
+                      <button
+                        class="sort-btn {networkStore.trendingSortBy === 'score' ? 'active' : ''}"
+                        onclick={() => networkStore.setTrendingSort("score")}
+                        aria-label={$_("network.sortScore")}
+                      >
+                        <i class="fa-solid fa-fire"></i>
+                      </button>
+                    </Tooltip>
+                    <Tooltip content={$_("network.sortGrowth")}>
+                      <button
+                        class="sort-btn {networkStore.trendingSortBy === 'growth' ? 'active' : ''}"
+                        onclick={() => networkStore.setTrendingSort("growth")}
+                        aria-label={$_("network.sortGrowth")}
+                      >
+                        <i class="fa-solid fa-arrow-trend-up"></i>
+                      </button>
+                    </Tooltip>
+                    <Tooltip content={$_("network.sortCount")}>
+                      <button
+                        class="sort-btn {networkStore.trendingSortBy === 'count' ? 'active' : ''}"
+                        onclick={() => networkStore.setTrendingSort("count")}
+                        aria-label={$_("network.sortCount")}
+                      >
+                        <i class="fa-solid fa-hashtag"></i>
+                      </button>
+                    </Tooltip>
+                    <Tooltip content={$_("network.sortNew")}>
+                      <button
+                        class="sort-btn {networkStore.trendingSortBy === 'new' ? 'active' : ''}"
+                        onclick={() => networkStore.setTrendingSort("new")}
+                        aria-label={$_("network.sortNew")}
+                      >
+                        <i class="fa-solid fa-sparkles"></i>
+                      </button>
+                    </Tooltip>
+                  </div>
+                  <Tooltip
+                    content={$_("network.trendingTooltip", {
+                      values: { days: networkStore.trendingPeriod },
+                    })}
+                  >
+                    <i class="fa-solid fa-circle-info trending-info"></i>
+                  </Tooltip>
+                </div>
+                {#each networkStore.trendingKeywords.slice(0, 10) as keyword (keyword.id)}
+                  <button
+                    class="keyword-item trending {networkStore.selectedKeyword?.id === keyword.id
+                      ? 'active'
+                      : ''}"
+                    onclick={() => networkStore.selectKeyword(keyword.id)}
+                  >
+                    <span class="keyword-name">
+                      {#if keyword.growth_rate > 0.2}
+                        <i class="trend-icon fa-solid fa-arrow-trend-up"></i>
+                      {:else if keyword.growth_rate > 0}
+                        <i class="trend-icon fa-solid fa-caret-up"></i>
+                      {:else if keyword.growth_rate === 0}
+                        <i class="trend-icon neutral fa-solid fa-minus"></i>
+                      {:else}
+                        <i class="trend-icon negative fa-solid fa-caret-down"></i>
+                      {/if}
+                      {keyword.name}
+                      {#if keyword.is_new}
+                        <span class="new-badge">NEU</span>
+                      {/if}
+                    </span>
+                    <span class="keyword-count">
+                      {#if keyword.growth_rate > 0}
+                        <span class="growth positive"
+                          >+{Math.round(keyword.growth_rate * 100)}%</span
+                        >
+                      {:else if keyword.growth_rate < 0}
+                        <span class="growth negative">{Math.round(keyword.growth_rate * 100)}%</span
+                        >
+                      {/if}
+                      {keyword.recent_count}
+                    </span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+
+            <!-- All Keywords -->
+            <div class="list-section">
+              <div class="section-label">{$_("network.allKeywords")}</div>
+              {#each networkStore.keywords as keyword (keyword.id)}
+                <button
+                  class="keyword-item {networkStore.selectedKeyword?.id === keyword.id
+                    ? 'active'
+                    : ''}"
+                  onclick={() => networkStore.selectKeyword(keyword.id)}
+                >
+                  <span class="keyword-name">{keyword.name}</span>
+                  <span class="keyword-count">{keyword.article_count}</span>
+                </button>
+              {/each}
+
+              {#if networkStore.hasMore && !networkStore.loading}
+                <button onclick={() => networkStore.loadKeywords(false)} class="load-more">
+                  {$_("network.loadMore")}
+                </button>
+              {/if}
+            </div>
           {/if}
 
-          <!-- All Keywords -->
-          <div class="list-section">
-            <div class="section-label">{$_('network.allKeywords')}</div>
-            {#each networkStore.keywords as keyword (keyword.id)}
-              <button
-                class="keyword-item {networkStore.selectedKeyword?.id === keyword.id ? 'active' : ''}"
-                onclick={() => networkStore.selectKeyword(keyword.id)}
-              >
-                <span class="keyword-name">{keyword.name}</span>
-                <span class="keyword-count">{keyword.article_count}</span>
-              </button>
-            {/each}
+          {#if networkStore.loading}
+            <div class="loading-indicator">{$_("network.loading")}</div>
+          {/if}
 
-            {#if networkStore.hasMore && !networkStore.loading}
-              <button onclick={() => networkStore.loadKeywords(false)} class="load-more">
-                {$_('network.loadMore')}
-              </button>
-            {/if}
-          </div>
-        {/if}
+          {#if networkStore.error}
+            <div class="error-message">{networkStore.error}</div>
+          {/if}
+        </div>
+      </div>
 
-        {#if networkStore.loading}
-          <div class="loading-indicator">{$_('network.loading')}</div>
-        {/if}
-
-        {#if networkStore.error}
-          <div class="error-message">{networkStore.error}</div>
+      <!-- Right Panel: Keyword Details -->
+      <KeywordNetworkDetail
+        selectedKeyword={networkStore.selectedKeyword}
+        neighbors={networkStore.neighbors}
+        keywordCategories={networkStore.keywordCategories}
+        keywordArticles={networkStore.keywordArticles}
+        cooccurringKeywords={networkStore.cooccurringKeywords}
+        similarKeywords={networkStore.similarKeywords}
+        similarKeywordsLoading={networkStore.similarKeywordsLoading}
+        hasMoreArticles={networkStore.hasMoreArticles}
+        articlesLoading={networkStore.articlesLoading}
+        loading={networkStore.loading}
+        trendDays={networkStore.trendDays}
+        isRenaming={networkStore.isRenaming}
+        renameInput={networkStore.renameInput}
+        renameLoading={networkStore.renameLoading}
+        renameError={networkStore.renameError}
+        onKeywordSelect={(id) => networkStore.selectKeyword(id)}
+        onOpenArticle={openArticle}
+        onLoadMoreArticles={() => networkStore.loadMoreArticles()}
+        onDaysChange={(days) => networkStore.handleDaysChange(days)}
+        onStartRename={() => networkStore.startRename()}
+        onCancelRename={() => networkStore.cancelRename()}
+        onHandleRename={() => networkStore.handleRename()}
+        onRenameInputChange={handleRenameInputChange}
+        onSynonymAssigned={() => {
+          networkStore.loadKeywords(true);
+          networkStore.loadNetworkStats();
+          if (networkStore.selectedKeyword)
+            networkStore.loadSimilarKeywords(networkStore.selectedKeyword.id);
+        }}
+      />
+    </div>
+  {:else if activeTab === "table"}
+    <!-- Table View -->
+    <div class="table-view">
+      <KeywordTable
+        onKeywordSelect={(id) => networkStore.selectKeyword(id)}
+        onShowKeywordArticles={handleShowKeywordArticles}
+      />
+    </div>
+  {:else if activeTab === "graph"}
+    <!-- Graph View -->
+    <div class="graph-view">
+      <div class="graph-filters">
+        <label class="filter-item">
+          <span class="filter-label">{$_("network.minArticles") || "Min. Artikel"}:</span>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            bind:value={graphMinArticleCount}
+            onchange={() => loadGraphDataAsync(true)}
+          />
+          <span class="filter-value">{graphMinArticleCount}</span>
+        </label>
+        <label class="filter-item">
+          <span class="filter-label">{$_("network.minWeight") || "Min. Gewicht"}:</span>
+          <input
+            type="range"
+            min="0.05"
+            max="0.5"
+            step="0.05"
+            bind:value={graphMinWeight}
+            onchange={() => loadGraphDataAsync(true)}
+          />
+          <span class="filter-value">{graphMinWeight.toFixed(2)}</span>
+        </label>
+        {#if networkStore.graphData}
+          <span class="graph-info">
+            {networkStore.graphData.nodes.length}
+            {$_("network.nodes") || "Knoten"}, {networkStore.graphData.edges.length}
+            {$_("network.edges") || "Kanten"}
+          </span>
         {/if}
       </div>
+      <NetworkGraph
+        graphData={networkStore.graphData || emptyGraphData}
+        onNodeClick={handleGraphNodeClick}
+        loading={networkStore.graphLoading}
+      />
     </div>
-
-    <!-- Right Panel: Keyword Details -->
-    <KeywordNetworkDetail
-      selectedKeyword={networkStore.selectedKeyword}
-      neighbors={networkStore.neighbors}
-      keywordCategories={networkStore.keywordCategories}
-      keywordArticles={networkStore.keywordArticles}
-      cooccurringKeywords={networkStore.cooccurringKeywords}
-      similarKeywords={networkStore.similarKeywords}
-      similarKeywordsLoading={networkStore.similarKeywordsLoading}
-      hasMoreArticles={networkStore.hasMoreArticles}
-      articlesLoading={networkStore.articlesLoading}
-      loading={networkStore.loading}
-      trendDays={networkStore.trendDays}
-      isRenaming={networkStore.isRenaming}
-      renameInput={networkStore.renameInput}
-      renameLoading={networkStore.renameLoading}
-      renameError={networkStore.renameError}
-      onKeywordSelect={(id) => networkStore.selectKeyword(id)}
-      onOpenArticle={openArticle}
-      onLoadMoreArticles={() => networkStore.loadMoreArticles()}
-      onDaysChange={(days) => networkStore.handleDaysChange(days)}
-      onStartRename={() => networkStore.startRename()}
-      onCancelRename={() => networkStore.cancelRename()}
-      onHandleRename={() => networkStore.handleRename()}
-      onRenameInputChange={handleRenameInputChange}
-      onSynonymAssigned={() => { networkStore.loadKeywords(true); networkStore.loadNetworkStats(); if (networkStore.selectedKeyword) networkStore.loadSimilarKeywords(networkStore.selectedKeyword.id); }}
+  {:else if activeTab === "synonyms"}
+    <!-- Synonyms View -->
+    <KeywordNetworkSynonyms
+      synonymCandidates={networkStore.synonymCandidates}
+      synonymsLoading={networkStore.synonymsLoading}
+      synonymsError={networkStore.synonymsError}
+      synonymSuccess={networkStore.synonymSuccess}
+      keepSearchInput={networkStore.keepSearchInput}
+      keepSearchResults={networkStore.keepSearchResults}
+      selectedKeepKeyword={networkStore.selectedKeepKeyword}
+      removeSearchInput={networkStore.removeSearchInput}
+      removeSearchResults={networkStore.removeSearchResults}
+      selectedRemoveKeyword={networkStore.selectedRemoveKeyword}
+      newKeywordInput={networkStore.newKeywordInput}
+      createKeywordLoading={networkStore.createKeywordLoading}
+      createKeywordSuccess={networkStore.createKeywordSuccess}
+      createKeywordError={networkStore.createKeywordError}
+      onFindSynonyms={() => networkStore.findSynonymCandidates()}
+      onMergeKeywords={(keepId, removeId, keepName, removeName) =>
+        networkStore.mergeKeywords(keepId, removeId, keepName, removeName)}
+      onDismissSynonymPair={(a, b) => networkStore.dismissSynonymPair(a, b)}
+      onKeepSearchInput={handleKeepSearch}
+      onSelectKeepKeyword={(kw) => networkStore.selectKeepKeyword(kw)}
+      onClearKeepSearch={() => networkStore.clearKeepSearch()}
+      onRemoveSearchInput={handleRemoveSearch}
+      onSelectRemoveKeyword={(kw) => networkStore.selectRemoveKeyword(kw)}
+      onClearRemoveSearch={() => networkStore.clearRemoveSearch()}
+      onExecuteManualMerge={() => networkStore.executeManualMerge()}
+      onNewKeywordInput={handleNewKeywordInput}
+      onCreateNewKeyword={() => networkStore.createNewKeyword()}
     />
-  </div>
-  {:else if activeTab === 'table'}
-  <!-- Table View -->
-  <div class="table-view">
-    <KeywordTable onKeywordSelect={(id) => networkStore.selectKeyword(id)} onShowKeywordArticles={handleShowKeywordArticles} />
-  </div>
-  {:else if activeTab === 'graph'}
-  <!-- Graph View -->
-  <div class="graph-view">
-    <div class="graph-filters">
-      <label class="filter-item">
-        <span class="filter-label">{$_('network.minArticles') || 'Min. Artikel'}:</span>
-        <input
-          type="range"
-          min="1"
-          max="10"
-          bind:value={graphMinArticleCount}
-          onchange={() => loadGraphDataAsync(true)}
-        />
-        <span class="filter-value">{graphMinArticleCount}</span>
-      </label>
-      <label class="filter-item">
-        <span class="filter-label">{$_('network.minWeight') || 'Min. Gewicht'}:</span>
-        <input
-          type="range"
-          min="0.05"
-          max="0.5"
-          step="0.05"
-          bind:value={graphMinWeight}
-          onchange={() => loadGraphDataAsync(true)}
-        />
-        <span class="filter-value">{graphMinWeight.toFixed(2)}</span>
-      </label>
-      {#if networkStore.graphData}
-        <span class="graph-info">
-          {networkStore.graphData.nodes.length} {$_('network.nodes') || 'Knoten'}, {networkStore.graphData.edges.length} {$_('network.edges') || 'Kanten'}
-        </span>
-      {/if}
-    </div>
-    <NetworkGraph
-      graphData={networkStore.graphData || emptyGraphData}
-      onNodeClick={handleGraphNodeClick}
-      loading={networkStore.graphLoading}
-    />
-  </div>
-  {:else if activeTab === 'synonyms'}
-  <!-- Synonyms View -->
-  <KeywordNetworkSynonyms
-    synonymCandidates={networkStore.synonymCandidates}
-    synonymsLoading={networkStore.synonymsLoading}
-    synonymsError={networkStore.synonymsError}
-    synonymSuccess={networkStore.synonymSuccess}
-    keepSearchInput={networkStore.keepSearchInput}
-    keepSearchResults={networkStore.keepSearchResults}
-    selectedKeepKeyword={networkStore.selectedKeepKeyword}
-    removeSearchInput={networkStore.removeSearchInput}
-    removeSearchResults={networkStore.removeSearchResults}
-    selectedRemoveKeyword={networkStore.selectedRemoveKeyword}
-    newKeywordInput={networkStore.newKeywordInput}
-    createKeywordLoading={networkStore.createKeywordLoading}
-    createKeywordSuccess={networkStore.createKeywordSuccess}
-    createKeywordError={networkStore.createKeywordError}
-    onFindSynonyms={() => networkStore.findSynonymCandidates()}
-    onMergeKeywords={(keepId, removeId, keepName, removeName) => networkStore.mergeKeywords(keepId, removeId, keepName, removeName)}
-    onDismissSynonymPair={(a, b) => networkStore.dismissSynonymPair(a, b)}
-    onKeepSearchInput={handleKeepSearch}
-    onSelectKeepKeyword={(kw) => networkStore.selectKeepKeyword(kw)}
-    onClearKeepSearch={() => networkStore.clearKeepSearch()}
-    onRemoveSearchInput={handleRemoveSearch}
-    onSelectRemoveKeyword={(kw) => networkStore.selectRemoveKeyword(kw)}
-    onClearRemoveSearch={() => networkStore.clearRemoveSearch()}
-    onExecuteManualMerge={() => networkStore.executeManualMerge()}
-    onNewKeywordInput={handleNewKeywordInput}
-    onCreateNewKeyword={() => networkStore.createNewKeyword()}
-  />
-  {:else if activeTab === 'compounds'}
-  <!-- Compound Keywords View -->
-  <CompoundKeywordManager loadKeywords={() => networkStore.loadKeywords(true)} />
+  {:else if activeTab === "compounds"}
+    <!-- Compound Keywords View -->
+    <CompoundKeywordManager loadKeywords={() => networkStore.loadKeywords(true)} />
   {/if}
 </div>
 

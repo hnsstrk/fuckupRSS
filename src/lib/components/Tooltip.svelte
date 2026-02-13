@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
-  import { settings } from '../stores/settings.svelte';
+  import { _ } from "svelte-i18n";
+  import { settings } from "../stores/settings.svelte";
 
   interface Props {
     /** For terminology tooltips - shows term + description from i18n */

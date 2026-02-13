@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
-  import { getCategoryColorVar } from '$lib/utils/articleFormat';
+  import { _ } from "svelte-i18n";
+  import { getCategoryColorVar } from "$lib/utils/articleFormat";
 
   // Generic category structure that all variants can map to
   interface CategoryData {
@@ -42,16 +42,16 @@
 
   let {
     categories,
-    title = '',
+    title = "",
     tooltipKey,
     expandable = true,
     expandedId = null,
     loadingExpanded = false,
     emptyMessage,
-    onExpand
+    onExpand,
   }: Props = $props();
 
-  const maxPrimary = $derived(Math.max(...categories.map(c => c.primaryValue), 1));
+  const maxPrimary = $derived(Math.max(...categories.map((c) => c.primaryValue), 1));
 
   function handleExpand(id: number) {
     if (expandable && onExpand) {
@@ -60,12 +60,11 @@
   }
 
   function getWeightClass(weight: number | undefined): string {
-    if (!weight) return 'weight-low';
-    if (weight >= 0.7) return 'weight-high';
-    if (weight >= 0.4) return 'weight-medium';
-    return 'weight-low';
+    if (!weight) return "weight-low";
+    if (weight >= 0.7) return "weight-high";
+    if (weight >= 0.4) return "weight-medium";
+    return "weight-low";
   }
-
 </script>
 
 {#if title}
@@ -93,7 +92,7 @@
     >
       <div class="card-header">
         <div class="card-icon-wrapper">
-          <i class="{cat.icon || 'fa-solid fa-folder'}"></i>
+          <i class={cat.icon || "fa-solid fa-folder"}></i>
         </div>
         <span class="card-title">{cat.name}</span>
         {#if expandable}
@@ -103,7 +102,12 @@
       <div class="card-stats">
         <div class="stat-row">
           <span class="stat-label">{cat.primaryLabel}</span>
-          <span class="stat-value">{cat.primaryValue}{typeof cat.primaryValue === 'number' && cat.primaryLabel.includes('%') ? '' : ''}</span>
+          <span class="stat-value"
+            >{cat.primaryValue}{typeof cat.primaryValue === "number" &&
+            cat.primaryLabel.includes("%")
+              ? ""
+              : ""}</span
+          >
         </div>
         <div class="progress-bar">
           <div class="progress-fill" style="width: {barWidth}%"></div>
@@ -132,12 +136,17 @@
                   {/if}
                   <span class="subcategory-name">{sub.name}</span>
                   {#if sub.showWarning}
-                    <span class="warning-badge" title={$_('mindfuck.blindSpots.lowReadRate') || 'Niedrige Leserate'}>!</span>
+                    <span
+                      class="warning-badge"
+                      title={$_("mindfuck.blindSpots.lowReadRate") || "Niedrige Leserate"}>!</span
+                    >
                   {/if}
                 </div>
                 <div class="subcategory-stats">
                   {#if sub.weight !== undefined}
-                    <span class="subcategory-weight {getWeightClass(sub.weight)}">{(sub.weight * 100).toFixed(0)}%</span>
+                    <span class="subcategory-weight {getWeightClass(sub.weight)}"
+                      >{(sub.weight * 100).toFixed(0)}%</span
+                    >
                   {:else}
                     <span class="subcategory-count">{sub.primaryValue}</span>
                     {#if sub.secondaryValue !== undefined}
@@ -150,7 +159,7 @@
             {/each}
           {:else}
             <div class="subcategory-empty">
-              {emptyMessage || $_('fnordView.noSubcategories') || 'Keine Unterkategorien'}
+              {emptyMessage || $_("fnordView.noSubcategories") || "Keine Unterkategorien"}
             </div>
           {/if}
         </div>
@@ -159,7 +168,7 @@
   {:else}
     <div class="empty-cards">
       <i class="fa-light fa-chart-bar empty-icon"></i>
-      <p>{emptyMessage || $_('fnordView.noData') || 'Keine Daten'}</p>
+      <p>{emptyMessage || $_("fnordView.noData") || "Keine Daten"}</p>
     </div>
   {/each}
 </div>
@@ -189,12 +198,19 @@
   /* Category colors are set via inline style using getCategoryColorVar() for theme-awareness */
 
   .category-card {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 25%, var(--bg-base)) 0%, color-mix(in srgb, var(--cat-color) 8%, var(--bg-base)) 100%);
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--cat-color) 25%, var(--bg-base)) 0%,
+      color-mix(in srgb, var(--cat-color) 8%, var(--bg-base)) 100%
+    );
     border: 1px solid color-mix(in srgb, var(--cat-color) 50%, transparent);
     border-left: 3px solid var(--cat-color);
     border-radius: 0.625rem;
     padding: 1rem;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      border-color 0.15s ease;
     text-align: left;
     width: 100%;
     color: inherit;
@@ -233,7 +249,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--cat-color), color-mix(in srgb, var(--cat-color) 70%, black));
+    background: linear-gradient(
+      135deg,
+      var(--cat-color),
+      color-mix(in srgb, var(--cat-color) 70%, black)
+    );
     border-radius: 0.5rem;
     color: white;
     font-size: 1rem;
@@ -305,7 +325,11 @@
 
   .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--cat-color), color-mix(in srgb, var(--cat-color) 80%, white));
+    background: linear-gradient(
+      90deg,
+      var(--cat-color),
+      color-mix(in srgb, var(--cat-color) 80%, white)
+    );
     border-radius: 3px;
     transition: width 0.3s ease;
   }
@@ -341,7 +365,9 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .subcategory-item {

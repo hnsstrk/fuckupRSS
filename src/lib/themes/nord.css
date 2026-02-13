@@ -36,18 +36,18 @@ html.nord {
   --text-on-accent: #2e3440;
 
   /* Category Colors */
-  --category-1: #88c0d0;  /* Frost 3 - Wissen & Technologie */
-  --category-2: #bf616a;  /* Aurora Red - Politik & Gesellschaft */
-  --category-3: #ebcb8b;  /* Aurora Yellow - Wirtschaft */
-  --category-4: #a3be8c;  /* Aurora Green - Umwelt & Gesundheit */
-  --category-5: #d08770;  /* Aurora Orange - Sicherheit */
-  --category-6: #b48ead;  /* Aurora Purple - Kultur & Leben */
+  --category-1: #88c0d0; /* Frost 3 - Wissen & Technologie */
+  --category-2: #bf616a; /* Aurora Red - Politik & Gesellschaft */
+  --category-3: #ebcb8b; /* Aurora Yellow - Wirtschaft */
+  --category-4: #a3be8c; /* Aurora Green - Umwelt & Gesundheit */
+  --category-5: #d08770; /* Aurora Orange - Sicherheit */
+  --category-6: #b48ead; /* Aurora Purple - Kultur & Leben */
 
   /* Bias Colors */
-  --bias-strong-left: #5e81ac;  /* Frost 4 */
-  --bias-lean-left: #81a1c1;    /* Frost 2 */
-  --bias-center: #a3be8c;       /* Green */
-  --bias-lean-right: #d08770;   /* Orange */
+  --bias-strong-left: #5e81ac; /* Frost 4 */
+  --bias-lean-left: #81a1c1; /* Frost 2 */
+  --bias-center: #a3be8c; /* Green */
+  --bias-lean-right: #d08770; /* Orange */
   --bias-strong-right: #bf616a; /* Red */
 
   --sach-emotional: #d08770;
@@ -56,7 +56,7 @@ html.nord {
 
   /* Diff Colors */
   --diff-deleted-bg: rgba(191, 97, 106, 0.25);
-  --diff-added-bg: rgba(163, 190, 140, 0.30);
+  --diff-added-bg: rgba(163, 190, 140, 0.3);
   --diff-modified-old-bg: rgba(235, 203, 139, 0.15);
   --diff-modified-new-bg: rgba(235, 203, 139, 0.35);
 }

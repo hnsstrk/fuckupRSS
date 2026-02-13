@@ -19,11 +19,13 @@
   let maintenanceResult = $state<string | null>(null);
 
   // Confirmation dialog state
-  let confirmAction = $state<"prune" | "reset" | "deleteOrphansAll" | "deleteOrphansKeepFavorites" | null>(null);
+  let confirmAction = $state<
+    "prune" | "reset" | "deleteOrphansAll" | "deleteOrphansKeepFavorites" | null
+  >(null);
 
   // Orphaned articles state
   let orphanScanning = $state(false);
-  let orphanStats = $state<{total: number, favorites: number} | null>(null);
+  let orphanStats = $state<{ total: number; favorites: number } | null>(null);
   let orphanDeleteResult = $state<number | null>(null);
 
   // Keyword statistics state
@@ -156,9 +158,7 @@
         }>("get_keywords", { limit: 1000, offset: 0 }),
       ]);
 
-      const withEmbeddings = allKeywords.keywords.filter(
-        (k) => k.has_embedding,
-      ).length;
+      const withEmbeddings = allKeywords.keywords.filter((k) => k.has_embedding).length;
       const qualityScores = allKeywords.keywords
         .filter((k) => k.quality_score !== null)
         .map((k) => k.quality_score!);
@@ -186,12 +186,9 @@
 
     try {
       // Set up progress listener
-      qualityUnlisten = await listen<QualityScoreProgress>(
-        "quality-score-progress",
-        (event) => {
-          qualityProgress = { ...event.payload };
-        },
-      );
+      qualityUnlisten = await listen<QualityScoreProgress>("quality-score-progress", (event) => {
+        qualityProgress = { ...event.payload };
+      });
 
       const result = await invoke<{
         updated_count: number;
@@ -256,12 +253,9 @@
         error: null,
       };
 
-      statisticalUnlisten = await listen<BatchProgress>(
-        "statistical-progress",
-        (event) => {
-          statisticalProgress = { ...event.payload };
-        },
-      );
+      statisticalUnlisten = await listen<BatchProgress>("statistical-progress", (event) => {
+        statisticalProgress = { ...event.payload };
+      });
 
       const result = await invoke<{
         processed: number;
@@ -331,12 +325,9 @@
     _reanalyzeResult = null;
 
     try {
-      const resetResult = await invoke<{ reset_count: number }>(
-        "reset_articles_for_reprocessing",
-        {
-          only_with_content: true,
-        },
-      );
+      const resetResult = await invoke<{ reset_count: number }>("reset_articles_for_reprocessing", {
+        only_with_content: true,
+      });
 
       if (resetResult.reset_count === 0) {
         maintenanceResult = $_("settings.maintenance.noArticlesToReset");
@@ -366,12 +357,9 @@
         error: null,
       };
 
-      progressUnlisten = await listen<BatchProgress>(
-        "batch-progress",
-        (event) => {
-          reanalyzeProgress = { ...event.payload };
-        },
-      );
+      progressUnlisten = await listen<BatchProgress>("batch-progress", (event) => {
+        reanalyzeProgress = { ...event.payload };
+      });
 
       const batchResult = await invoke<BatchResult>("process_batch", {
         model,
@@ -418,9 +406,9 @@
     orphanStats = null;
     orphanDeleteResult = null;
     try {
-      orphanStats = await invoke('find_orphaned_articles');
+      orphanStats = await invoke("find_orphaned_articles");
     } catch (e) {
-      console.error('Failed to scan orphans:', e);
+      console.error("Failed to scan orphans:", e);
     } finally {
       orphanScanning = false;
     }
@@ -429,14 +417,14 @@
   async function handleDeleteOrphans(includeFavorites: boolean) {
     confirmAction = null;
     try {
-      const count: number = await invoke('delete_orphaned_articles', { includeFavorites });
+      const count: number = await invoke("delete_orphaned_articles", { includeFavorites });
       orphanDeleteResult = count;
       orphanStats = null;
       // Refresh article counts
       await appState.loadFnords();
       await appState.loadPentacles();
     } catch (e) {
-      console.error('Failed to delete orphans:', e);
+      console.error("Failed to delete orphans:", e);
     }
   }
 
@@ -451,15 +439,12 @@
       }>("generate_keyword_type_prototypes");
 
       if (result.errors > 0) {
-        maintenanceResult = $_(
-          "settings.maintenance.prototypesGeneratedWithErrors",
-          {
-            values: {
-              count: result.generated,
-              errors: result.errors,
-            },
+        maintenanceResult = $_("settings.maintenance.prototypesGeneratedWithErrors", {
+          values: {
+            count: result.generated,
+            errors: result.errors,
           },
-        );
+        });
       } else {
         maintenanceResult = $_("settings.maintenance.prototypesGenerated", {
           values: { count: result.generated },
@@ -498,20 +483,17 @@
         };
       }>("update_keyword_types_hybrid");
 
-      maintenanceResult = $_(
-        "settings.maintenance.keywordTypesUpdatedSemantic",
-        {
-          values: {
-            total: result.processed,
-            concept: result.by_type.concept,
-            person: result.by_type.person,
-            organization: result.by_type.organization,
-            location: result.by_type.location,
-            acronym: result.by_type.acronym,
-            lowConfidence: result.errors,
-          },
+      maintenanceResult = $_("settings.maintenance.keywordTypesUpdatedSemantic", {
+        values: {
+          total: result.processed,
+          concept: result.by_type.concept,
+          person: result.by_type.person,
+          organization: result.by_type.organization,
+          location: result.by_type.location,
+          acronym: result.by_type.acronym,
+          lowConfidence: result.errors,
         },
-      );
+      });
     } catch (e) {
       maintenanceResult = `Error: ${e}`;
     } finally {
@@ -547,12 +529,9 @@
 
     try {
       // Set up progress listener
-      shortContentUnlisten = await listen<RefetchProgress>(
-        "refetch-progress",
-        (event) => {
-          shortContentProgress = { ...event.payload };
-        },
-      );
+      shortContentUnlisten = await listen<RefetchProgress>("refetch-progress", (event) => {
+        shortContentProgress = { ...event.payload };
+      });
 
       const result = await invoke<RefetchResponse>("refetch_short_articles", {
         min_content_length: 500,
@@ -583,21 +562,15 @@
 
     try {
       // Set up progress listener
-      shortContentUnlisten = await listen<RefetchProgress>(
-        "refetch-progress",
-        (event) => {
-          shortContentProgress = { ...event.payload };
-        },
-      );
+      shortContentUnlisten = await listen<RefetchProgress>("refetch-progress", (event) => {
+        shortContentProgress = { ...event.payload };
+      });
 
-      const result = await invoke<RefetchResponse>(
-        "refetch_feed_short_articles",
-        {
-          pentacle_id: pentacleId,
-          min_content_length: 500,
-          limit: 50,
-        },
-      );
+      const result = await invoke<RefetchResponse>("refetch_feed_short_articles", {
+        pentacle_id: pentacleId,
+        min_content_length: 500,
+        limit: 50,
+      });
       shortContentRefetchResult = result;
       // Refresh stats after refetch
       const stats = await invoke<ShortContentStats>("get_short_content_stats");
@@ -619,9 +592,7 @@
     shortContentError = null;
 
     try {
-      const result = await invoke<{ deleted_count: number }>(
-        "delete_null_content_articles",
-      );
+      const result = await invoke<{ deleted_count: number }>("delete_null_content_articles");
       maintenanceResult = $_("settings.maintenance.shortContent.deleted", {
         values: { count: result.deleted_count },
       });
@@ -676,9 +647,7 @@
     maintenanceRunning = "fixCategories";
     maintenanceResult = null;
     try {
-      const result = await invoke<CategoryFixResult>(
-        "fix_category_assignments",
-      );
+      const result = await invoke<CategoryFixResult>("fix_category_assignments");
       if (result.fixed_count > 0) {
         const categories = Object.keys(result.categories_added).length;
         maintenanceResult = $_("settings.maintenance.fixCategoriesResult", {
@@ -711,20 +680,16 @@
           {$_("settings.maintenance.confirmReset")}
         {:else if confirmAction === "deleteOrphansAll"}
           {$_("settings.maintenance.orphanedArticles.confirmDeleteAll", {
-            values: { count: orphanStats?.total ?? 0, favorites: orphanStats?.favorites ?? 0 }
+            values: { count: orphanStats?.total ?? 0, favorites: orphanStats?.favorites ?? 0 },
           })}
         {:else if confirmAction === "deleteOrphansKeepFavorites"}
           {$_("settings.maintenance.orphanedArticles.confirmDelete", {
-            values: { count: (orphanStats?.total ?? 0) - (orphanStats?.favorites ?? 0) }
+            values: { count: (orphanStats?.total ?? 0) - (orphanStats?.favorites ?? 0) },
           })}
         {/if}
       </p>
       <div class="confirm-actions">
-        <button
-          type="button"
-          class="btn-secondary"
-          onclick={cancelConfirmation}
-        >
+        <button type="button" class="btn-secondary" onclick={cancelConfirmation}>
           {$_("confirm.no")}
         </button>
         <button
@@ -752,15 +717,11 @@
     <div class="stats-grid">
       <div class="stat-item">
         <span class="stat-value">{keywordStats.total}</span>
-        <span class="stat-label"
-          >{$_("settings.maintenance.totalKeywords")}</span
-        >
+        <span class="stat-label">{$_("settings.maintenance.totalKeywords")}</span>
       </div>
       <div class="stat-item">
         <span class="stat-value">{keywordStats.with_embeddings}</span>
-        <span class="stat-label"
-          >{$_("settings.maintenance.withEmbeddings")}</span
-        >
+        <span class="stat-label">{$_("settings.maintenance.withEmbeddings")}</span>
       </div>
       <div class="stat-item">
         <span class="stat-value">{keywordStats.avg_quality.toFixed(2)}</span>
@@ -787,9 +748,7 @@
 <div class="maintenance-actions">
   <div class="maintenance-action">
     <div class="action-info">
-      <span class="action-title"
-        >{$_("settings.maintenance.calculateScores")}</span
-      >
+      <span class="action-title">{$_("settings.maintenance.calculateScores")}</span>
       <p class="action-desc">
         {$_("settings.maintenance.calculateScoresDesc")}
       </p>
@@ -825,9 +784,7 @@
 
   <div class="maintenance-action">
     <div class="action-info">
-      <span class="action-title"
-        >{$_("settings.maintenance.generateEmbeddings")}</span
-      >
+      <span class="action-title">{$_("settings.maintenance.generateEmbeddings")}</span>
       <p class="action-desc">
         {$_("settings.maintenance.generateEmbeddingsDesc")}
       </p>
@@ -854,9 +811,7 @@
 
   <div class="maintenance-action">
     <div class="action-info">
-      <span class="action-title"
-        >{$_("settings.maintenance.statisticalAnalysis")}</span
-      >
+      <span class="action-title">{$_("settings.maintenance.statisticalAnalysis")}</span>
       <p class="action-desc">
         {$_("settings.maintenance.statisticalAnalysisDesc")}
       </p>
@@ -887,9 +842,7 @@
 
   <div class="maintenance-action">
     <div class="action-info">
-      <span class="action-title"
-        >{$_("settings.maintenance.fixCategories")}</span
-      >
+      <span class="action-title">{$_("settings.maintenance.fixCategories")}</span>
       <p class="action-desc">{$_("settings.maintenance.fixCategoriesDesc")}</p>
     </div>
     {#if maintenanceRunning !== "fixCategories"}
@@ -914,9 +867,7 @@
 
   <div class="maintenance-action">
     <div class="action-info">
-      <span class="action-title"
-        >{$_("settings.maintenance.pruneLowQuality")}</span
-      >
+      <span class="action-title">{$_("settings.maintenance.pruneLowQuality")}</span>
       <p class="action-desc">
         {$_("settings.maintenance.pruneLowQualityDesc")}
       </p>
@@ -944,9 +895,7 @@
   <!-- Compound Keywords - Link to Network Tab -->
   <div class="maintenance-action compound-link">
     <div class="action-info">
-      <span class="action-title"
-        >{$_("settings.maintenance.compoundKeywords")}</span
-      >
+      <span class="action-title">{$_("settings.maintenance.compoundKeywords")}</span>
       <p class="action-desc">
         {$_("settings.maintenance.compoundKeywordsLinkDesc")}
       </p>
@@ -961,9 +910,7 @@
   {#if prototypeStatus}
     <div class="prototype-status" class:incomplete={!prototypeStatus.complete}>
       <div class="prototype-header">
-        <span class="prototype-title"
-          >{$_("settings.maintenance.prototypeStatus")}</span
-        >
+        <span class="prototype-title">{$_("settings.maintenance.prototypeStatus")}</span>
         {#if prototypeStatus.complete}
           <span class="prototype-badge complete">
             <i class="fa-solid fa-check"></i>
@@ -978,9 +925,8 @@
       </div>
       <div class="prototype-info">
         <span
-          >{$_("settings.maintenance.typesConfigured")}: {Object.keys(
-            prototypeStatus.by_type,
-          ).length}</span
+          >{$_("settings.maintenance.typesConfigured")}: {Object.keys(prototypeStatus.by_type)
+            .length}</span
         >
       </div>
       {#if !prototypeStatus.complete || !generatingPrototypes}
@@ -988,9 +934,7 @@
           type="button"
           class="btn-action btn-small"
           onclick={handleGeneratePrototypes}
-          disabled={generatingPrototypes ||
-            maintenanceRunning !== null ||
-            !ollamaAvailable}
+          disabled={generatingPrototypes || maintenanceRunning !== null || !ollamaAvailable}
         >
           {#if generatingPrototypes}
             <i class="fa-solid fa-spinner fa-spin"></i>
@@ -1007,9 +951,7 @@
 
   <div class="maintenance-action">
     <div class="action-info">
-      <span class="action-title"
-        >{$_("settings.maintenance.updateKeywordTypes")}</span
-      >
+      <span class="action-title">{$_("settings.maintenance.updateKeywordTypes")}</span>
       <p class="action-desc">
         {$_("settings.maintenance.updateKeywordTypesDescSemantic")}
       </p>
@@ -1042,9 +984,7 @@
 <div class="maintenance-actions">
   <div class="maintenance-action">
     <div class="action-info">
-      <span class="action-title"
-        >{$_("settings.maintenance.resetForReprocessing")}</span
-      >
+      <span class="action-title">{$_("settings.maintenance.resetForReprocessing")}</span>
       <p class="action-desc">
         {$_("settings.maintenance.resetForReprocessingDesc")}
       </p>
@@ -1123,14 +1063,14 @@
           <p class="orphan-message">
             <i class="fa-solid fa-triangle-exclamation"></i>
             {$_("settings.maintenance.orphanedArticles.foundWithFavorites", {
-              values: { count: orphanStats.total, favorites: orphanStats.favorites }
+              values: { count: orphanStats.total, favorites: orphanStats.favorites },
             })}
           </p>
           <div class="action-buttons">
             <button
               type="button"
               class="btn-action btn-danger btn-small"
-              onclick={() => confirmAction = "deleteOrphansAll"}
+              onclick={() => (confirmAction = "deleteOrphansAll")}
             >
               <i class="fa-solid fa-trash"></i>
               {$_("settings.maintenance.orphanedArticles.deleteAll")}
@@ -1138,7 +1078,7 @@
             <button
               type="button"
               class="btn-action btn-small"
-              onclick={() => confirmAction = "deleteOrphansKeepFavorites"}
+              onclick={() => (confirmAction = "deleteOrphansKeepFavorites")}
             >
               <i class="fa-solid fa-trash-can"></i>
               {$_("settings.maintenance.orphanedArticles.deleteExceptFavorites")}
@@ -1148,14 +1088,14 @@
           <p class="orphan-message">
             <i class="fa-solid fa-triangle-exclamation"></i>
             {$_("settings.maintenance.orphanedArticles.found", {
-              values: { count: orphanStats.total }
+              values: { count: orphanStats.total },
             })}
           </p>
           <div class="action-buttons">
             <button
               type="button"
               class="btn-action btn-danger btn-small"
-              onclick={() => confirmAction = "deleteOrphansAll"}
+              onclick={() => (confirmAction = "deleteOrphansAll")}
             >
               <i class="fa-solid fa-trash"></i>
               {$_("settings.maintenance.orphanedArticles.deleteAll")}
@@ -1169,7 +1109,9 @@
   {#if orphanDeleteResult !== null}
     <div class="orphan-result success">
       <i class="fa-solid fa-check-circle"></i>
-      {$_("settings.maintenance.orphanedArticles.deleted", { values: { count: orphanDeleteResult } })}
+      {$_("settings.maintenance.orphanedArticles.deleted", {
+        values: { count: orphanDeleteResult },
+      })}
     </div>
   {/if}
 </div>
@@ -1189,18 +1131,10 @@
         })}
       </p>
       <div class="confirm-actions">
-        <button
-          type="button"
-          class="btn-secondary"
-          onclick={cancelDeleteNullConfirmation}
-        >
+        <button type="button" class="btn-secondary" onclick={cancelDeleteNullConfirmation}>
           {$_("confirm.no")}
         </button>
-        <button
-          type="button"
-          class="btn-danger-solid"
-          onclick={handleDeleteNullArticles}
-        >
+        <button type="button" class="btn-danger-solid" onclick={handleDeleteNullArticles}>
           {$_("confirm.yes")}
         </button>
       </div>
@@ -1211,9 +1145,7 @@
 <div class="maintenance-actions">
   <div class="maintenance-action">
     <div class="action-info">
-      <span class="action-title"
-        >{$_("settings.maintenance.shortContent.analyze")}</span
-      >
+      <span class="action-title">{$_("settings.maintenance.shortContent.analyze")}</span>
       <p class="action-desc">
         {$_("settings.maintenance.shortContent.analyzeDesc")}
       </p>
@@ -1254,33 +1186,25 @@
           <span class="short-stat-label"
             >{$_("settings.maintenance.shortContent.breakdown.nullEmpty")}</span
           >
-          <span class="short-stat-value"
-            >{shortContentStats.content_null_or_empty}</span
-          >
+          <span class="short-stat-value">{shortContentStats.content_null_or_empty}</span>
         </div>
         <div class="short-stat-item very-short">
           <span class="short-stat-label"
             >{$_("settings.maintenance.shortContent.breakdown.veryShort")}</span
           >
-          <span class="short-stat-value"
-            >{shortContentStats.content_under_200}</span
-          >
+          <span class="short-stat-value">{shortContentStats.content_under_200}</span>
         </div>
         <div class="short-stat-item short">
           <span class="short-stat-label"
             >{$_("settings.maintenance.shortContent.breakdown.short")}</span
           >
-          <span class="short-stat-value"
-            >{shortContentStats.content_200_to_500}</span
-          >
+          <span class="short-stat-value">{shortContentStats.content_200_to_500}</span>
         </div>
         <div class="short-stat-item ok">
           <span class="short-stat-label"
             >{$_("settings.maintenance.shortContent.breakdown.ok")}</span
           >
-          <span class="short-stat-value"
-            >{shortContentStats.content_over_500}</span
-          >
+          <span class="short-stat-value">{shortContentStats.content_over_500}</span>
         </div>
       </div>
 
@@ -1323,28 +1247,17 @@
           {#if shortContentRefetchResult}
             <div class="refetch-result-detailed">
               <div class="result-item improved">
-                <span class="result-count"
-                  >{shortContentRefetchResult.improved}</span
-                >
-                <span class="result-label"
-                  >{$_("settings.maintenance.shortContent.improved")}</span
-                >
+                <span class="result-count">{shortContentRefetchResult.improved}</span>
+                <span class="result-label">{$_("settings.maintenance.shortContent.improved")}</span>
               </div>
               <div class="result-item unchanged">
-                <span class="result-count"
-                  >{shortContentRefetchResult.unchanged}</span
-                >
-                <span class="result-label"
-                  >{$_("settings.maintenance.shortContent.unchanged")}</span
+                <span class="result-count">{shortContentRefetchResult.unchanged}</span>
+                <span class="result-label">{$_("settings.maintenance.shortContent.unchanged")}</span
                 >
               </div>
               <div class="result-item failed">
-                <span class="result-count"
-                  >{shortContentRefetchResult.failed}</span
-                >
-                <span class="result-label"
-                  >{$_("settings.maintenance.shortContent.failed")}</span
-                >
+                <span class="result-count">{shortContentRefetchResult.failed}</span>
+                <span class="result-label">{$_("settings.maintenance.shortContent.failed")}</span>
               </div>
             </div>
           {/if}
@@ -1353,18 +1266,10 @@
         <!-- Feed-specific Statistics -->
         {#if shortContentStats.by_feed.length > 0}
           <div class="feed-stats-section">
-            <button
-              type="button"
-              class="feed-toggle-btn"
-              onclick={toggleFeedList}
-            >
-              <i
-                class="fa-solid {feedListExpanded
-                  ? 'fa-chevron-down'
-                  : 'fa-chevron-right'}"
-              ></i>
-              {$_("settings.maintenance.shortContent.feedsWithShort")} ({shortContentStats
-                .by_feed.length})
+            <button type="button" class="feed-toggle-btn" onclick={toggleFeedList}>
+              <i class="fa-solid {feedListExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}"></i>
+              {$_("settings.maintenance.shortContent.feedsWithShort")} ({shortContentStats.by_feed
+                .length})
             </button>
 
             {#if feedListExpanded}
@@ -1389,14 +1294,11 @@
                         <button
                           type="button"
                           class="btn-feed-refetch"
-                          onclick={() =>
-                            handleRefetchFeedShortContent(feed.pentacle_id)}
+                          onclick={() => handleRefetchFeedShortContent(feed.pentacle_id)}
                           disabled={shortContentRefetching ||
                             refetchingFeed !== null ||
                             maintenanceRunning !== null}
-                          title={$_(
-                            "settings.maintenance.shortContent.refetchFeed",
-                          )}
+                          title={$_("settings.maintenance.shortContent.refetchFeed")}
                         >
                           <i class="fa-solid fa-rotate"></i>
                         </button>
@@ -1585,11 +1487,7 @@
   /* Compound Keywords Link */
   .compound-link {
     border-color: var(--accent-primary);
-    background: linear-gradient(
-      90deg,
-      var(--bg-overlay),
-      rgba(137, 180, 250, 0.05)
-    );
+    background: linear-gradient(90deg, var(--bg-overlay), rgba(137, 180, 250, 0.05));
   }
 
   .link-hint {

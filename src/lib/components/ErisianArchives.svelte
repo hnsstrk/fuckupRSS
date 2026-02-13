@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { _ } from 'svelte-i18n';
-  import { invoke } from '@tauri-apps/api/core';
-  import { appState, type Fnord } from '../stores/state.svelte';
-  import Tabs, { type Tab } from './Tabs.svelte';
-  import Tooltip from './Tooltip.svelte';
-  import { ArticleItemCompact } from './article';
-  import ArticleView from './ArticleView.svelte';
+  import { onMount, onDestroy } from "svelte";
+  import { _ } from "svelte-i18n";
+  import { invoke } from "@tauri-apps/api/core";
+  import { appState, type Fnord } from "../stores/state.svelte";
+  import Tabs, { type Tab } from "./Tabs.svelte";
+  import Tooltip from "./Tooltip.svelte";
+  import { ArticleItemCompact } from "./article";
+  import ArticleView from "./ArticleView.svelte";
 
   // Type for analysis status articles from backend
   interface AnalysisStatusArticle {
@@ -31,7 +31,7 @@
 
   // State
   let loading = $state(false);
-  let activeTab = $state<string>('articles');
+  let activeTab = $state<string>("articles");
 
   // Special articles for failed/hopeless tabs (loaded separately)
   let specialArticles = $state<Fnord[]>([]);
@@ -49,10 +49,10 @@
   // Derived: Current source/category name for header display
   let currentSourceName = $derived.by(() => {
     if (appState.selectedPentacleId !== null) {
-      return appState.selectedPentacle?.title || 'Feed';
+      return appState.selectedPentacle?.title || "Feed";
     }
     if (appState.selectedSephirothId !== null) {
-      return appState.selectedSephirothCategory?.name || 'Kategorie';
+      return appState.selectedSephirothCategory?.name || "Kategorie";
     }
     return null; // "Alle Artikel"
   });
@@ -60,7 +60,7 @@
   // Derived: Filter appState.fnords by active tab status
   let archiveArticles = $derived.by(() => {
     // For failed/hopeless tabs, use specialArticles
-    if (activeTab === 'failed' || activeTab === 'hopeless') {
+    if (activeTab === "failed" || activeTab === "hopeless") {
       return specialArticles;
     }
 
@@ -77,17 +77,17 @@
 
   // Tabs definition (no badges as per user request)
   let tabs = $derived<Tab[]>([
-    { id: 'articles', label: $_('erisianArchives.tabs.articles') || 'Artikel' },
-    { id: 'unread', label: $_('erisianArchives.tabs.unread') || 'Ungelesen' },
-    { id: 'goldenApple', label: $_('erisianArchives.tabs.goldenApple') || 'Golden Apple' },
-    { id: 'failed', label: $_('erisianArchives.tabs.failed') || 'Fehlgeschlagen' },
-    { id: 'hopeless', label: $_('erisianArchives.tabs.hopeless') || 'Hoffnungslos' },
+    { id: "articles", label: $_("erisianArchives.tabs.articles") || "Artikel" },
+    { id: "unread", label: $_("erisianArchives.tabs.unread") || "Ungelesen" },
+    { id: "goldenApple", label: $_("erisianArchives.tabs.goldenApple") || "Golden Apple" },
+    { id: "failed", label: $_("erisianArchives.tabs.failed") || "Fehlgeschlagen" },
+    { id: "hopeless", label: $_("erisianArchives.tabs.hopeless") || "Hoffnungslos" },
   ]);
 
   onMount(async () => {
     await loadStats();
     // Load special tabs if needed
-    if (activeTab === 'failed' || activeTab === 'hopeless') {
+    if (activeTab === "failed" || activeTab === "hopeless") {
       await loadSpecialArticles();
     }
   });
@@ -95,18 +95,20 @@
   async function loadStats() {
     try {
       // Get total count
-      totalCount = await invoke<number>('get_fnords_count', { filter: null });
+      totalCount = await invoke<number>("get_fnords_count", { filter: null });
 
       // Get unread count
-      unreadCount = await invoke<number>('get_fnords_count', { filter: { status: 'concealed' } });
+      unreadCount = await invoke<number>("get_fnords_count", { filter: { status: "concealed" } });
 
       // Get favorites count
-      favoritesCount = await invoke<number>('get_fnords_count', { filter: { status: 'golden_apple' } });
+      favoritesCount = await invoke<number>("get_fnords_count", {
+        filter: { status: "golden_apple" },
+      });
 
       // Note: failed/hopeless counts are available via get_failed_count/get_hopeless_count
       // but not loaded here since badges were removed per user request
     } catch (e) {
-      console.error('[ErisianArchives] Error loading stats:', e);
+      console.error("[ErisianArchives] Error loading stats:", e);
     }
   }
 
@@ -116,8 +118,8 @@
       id: a.id,
       pentacle_id: a.pentacle_id,
       pentacle_title: a.pentacle_title,
-      guid: '',
-      url: '',
+      guid: "",
+      url: "",
       title: a.title,
       author: null,
       content_raw: null,
@@ -139,7 +141,7 @@
 
   // Load special articles for failed/hopeless tabs (not available in appState.fnords)
   async function loadSpecialArticles() {
-    if (activeTab !== 'failed' && activeTab !== 'hopeless') {
+    if (activeTab !== "failed" && activeTab !== "hopeless") {
       specialArticles = [];
       totalSpecialCount = 0;
       return;
@@ -147,24 +149,27 @@
 
     loading = true;
     try {
-      if (activeTab === 'failed') {
+      if (activeTab === "failed") {
         // Load count and first batch in parallel
         const [articles, countResult] = await Promise.all([
-          invoke<AnalysisStatusArticle[]>('get_failed_articles', { limit: BATCH_SIZE, offset: 0 }),
-          invoke<CountResponse>('get_failed_count')
+          invoke<AnalysisStatusArticle[]>("get_failed_articles", { limit: BATCH_SIZE, offset: 0 }),
+          invoke<CountResponse>("get_failed_count"),
         ]);
         specialArticles = articles.map(mapToFnord);
         totalSpecialCount = countResult.count;
-      } else if (activeTab === 'hopeless') {
+      } else if (activeTab === "hopeless") {
         const [articles, countResult] = await Promise.all([
-          invoke<AnalysisStatusArticle[]>('get_hopeless_articles', { limit: BATCH_SIZE, offset: 0 }),
-          invoke<CountResponse>('get_hopeless_count')
+          invoke<AnalysisStatusArticle[]>("get_hopeless_articles", {
+            limit: BATCH_SIZE,
+            offset: 0,
+          }),
+          invoke<CountResponse>("get_hopeless_count"),
         ]);
         specialArticles = articles.map(mapToFnord);
         totalSpecialCount = countResult.count;
       }
     } catch (e) {
-      console.error('[ErisianArchives] Error loading special articles:', e);
+      console.error("[ErisianArchives] Error loading special articles:", e);
       specialArticles = [];
       totalSpecialCount = 0;
     } finally {
@@ -175,22 +180,22 @@
   // Load more special articles (lazy loading)
   async function loadMoreSpecialArticles() {
     if (loadingMoreSpecial || !hasMoreSpecial) return;
-    if (activeTab !== 'failed' && activeTab !== 'hopeless') return;
+    if (activeTab !== "failed" && activeTab !== "hopeless") return;
 
     loadingMoreSpecial = true;
     try {
       const offset = specialArticles.length;
       let moreArticles: AnalysisStatusArticle[] = [];
 
-      if (activeTab === 'failed') {
-        moreArticles = await invoke<AnalysisStatusArticle[]>('get_failed_articles', {
+      if (activeTab === "failed") {
+        moreArticles = await invoke<AnalysisStatusArticle[]>("get_failed_articles", {
           limit: BATCH_SIZE,
-          offset
+          offset,
         });
-      } else if (activeTab === 'hopeless') {
-        moreArticles = await invoke<AnalysisStatusArticle[]>('get_hopeless_articles', {
+      } else if (activeTab === "hopeless") {
+        moreArticles = await invoke<AnalysisStatusArticle[]>("get_hopeless_articles", {
           limit: BATCH_SIZE,
-          offset
+          offset,
         });
       }
 
@@ -198,7 +203,7 @@
         specialArticles = [...specialArticles, ...moreArticles.map(mapToFnord)];
       }
     } catch (e) {
-      console.error('[ErisianArchives] Error loading more special articles:', e);
+      console.error("[ErisianArchives] Error loading more special articles:", e);
     } finally {
       loadingMoreSpecial = false;
     }
@@ -211,7 +216,7 @@
 
     // Load more when within 200px of bottom
     if (scrollBottom < 200) {
-      if (activeTab === 'failed' || activeTab === 'hopeless') {
+      if (activeTab === "failed" || activeTab === "hopeless") {
         // Special tabs use their own pagination
         if (hasMoreSpecial && !loadingMoreSpecial) {
           loadMoreSpecialArticles();
@@ -229,18 +234,18 @@
     activeTab = tabId;
     // Reset selection when changing tabs to avoid stale state
     appState.selectedFnordId = null;
-    
+
     // Reset special articles state
     specialArticles = [];
     totalSpecialCount = 0;
 
     // Load data based on tab
-    if (tabId === 'failed' || tabId === 'hopeless') {
+    if (tabId === "failed" || tabId === "hopeless") {
       await loadSpecialArticles();
     } else {
       // For standard tabs, fetch from backend with filter
       let filter = {};
-      
+
       // If we have a pentacle or category selected, preserve that filter
       if (appState.selectedPentacleId !== null) {
         filter = { ...filter, pentacle_id: appState.selectedPentacleId };
@@ -253,13 +258,13 @@
       }
 
       // Add status filter based on tab
-      if (tabId === 'unread') {
-        filter = { ...filter, status: 'concealed' };
-      } else if (tabId === 'goldenApple') {
-        filter = { ...filter, status: 'golden_apple' };
+      if (tabId === "unread") {
+        filter = { ...filter, status: "concealed" };
+      } else if (tabId === "goldenApple") {
+        filter = { ...filter, status: "golden_apple" };
       }
       // 'articles' tab has no status filter (shows all)
-      
+
       await appState.loadFnords(filter);
     }
   }
@@ -272,8 +277,8 @@
     // Mark previous article as read if requested and it was unread
     if (markPreviousAsRead && previousId !== null && previousId !== id) {
       const previousFnord = appState.selectedFnord;
-      if (previousFnord && previousFnord.status === 'concealed') {
-        await appState.updateFnordStatus(previousId, 'illuminated');
+      if (previousFnord && previousFnord.status === "concealed") {
+        await appState.updateFnordStatus(previousId, "illuminated");
         // archiveArticles is derived and will auto-update when appState.fnords changes
         // Refresh stats to update badge counts
         loadStats();
@@ -293,20 +298,20 @@
       return;
     }
 
-    if (e.key === 'j') {
+    if (e.key === "j") {
       e.preventDefault();
       selectNextArticle();
-    } else if (e.key === 'k') {
+    } else if (e.key === "k") {
       e.preventDefault();
       selectPrevArticle();
-    } else if (e.key === 's' && selectedId) {
+    } else if (e.key === "s" && selectedId) {
       e.preventDefault();
       appState.toggleGoldenApple(selectedId);
     }
   }
 
   function selectNextArticle() {
-    const currentIndex = archiveArticles.findIndex(a => a.id === selectedId);
+    const currentIndex = archiveArticles.findIndex((a) => a.id === selectedId);
     if (currentIndex < archiveArticles.length - 1) {
       // Mark previous as read when navigating to next
       selectArticle(archiveArticles[currentIndex + 1].id, true);
@@ -316,7 +321,7 @@
   }
 
   function selectPrevArticle() {
-    const currentIndex = archiveArticles.findIndex(a => a.id === selectedId);
+    const currentIndex = archiveArticles.findIndex((a) => a.id === selectedId);
     if (currentIndex > 0) {
       // Mark previous as read when navigating
       selectArticle(archiveArticles[currentIndex - 1].id, true);
@@ -328,28 +333,34 @@
 
   onDestroy(() => {
     if (unlistenNavigate) {
-      window.removeEventListener('navigate-to-article', unlistenNavigate as EventListener);
+      window.removeEventListener("navigate-to-article", unlistenNavigate as EventListener);
     }
   });
 
   // Empty state messages based on active tab
   let emptyMessage = $derived.by(() => {
     switch (activeTab) {
-      case 'articles':
-        return $_('erisianArchives.noArticles') || 'Keine Artikel vorhanden';
-      case 'unread':
-        return $_('erisianArchives.noUnread') || 'Alle Artikel wurden gelesen - Erleuchtung erreicht!';
-      case 'goldenApple':
-        return $_('erisianArchives.noFavorites') || 'Keine Golden Apples - markiere Artikel als Favorit!';
-      case 'failed':
-        return $_('erisianArchives.noFailed') || 'Keine fehlgeschlagenen Analysen';
-      case 'hopeless':
-        return $_('erisianArchives.noHopeless') || 'Keine hoffnungslosen Faelle - die KI hat alles gemeistert!';
+      case "articles":
+        return $_("erisianArchives.noArticles") || "Keine Artikel vorhanden";
+      case "unread":
+        return (
+          $_("erisianArchives.noUnread") || "Alle Artikel wurden gelesen - Erleuchtung erreicht!"
+        );
+      case "goldenApple":
+        return (
+          $_("erisianArchives.noFavorites") || "Keine Golden Apples - markiere Artikel als Favorit!"
+        );
+      case "failed":
+        return $_("erisianArchives.noFailed") || "Keine fehlgeschlagenen Analysen";
+      case "hopeless":
+        return (
+          $_("erisianArchives.noHopeless") ||
+          "Keine hoffnungslosen Faelle - die KI hat alles gemeistert!"
+        );
       default:
-        return '';
+        return "";
     }
   });
-
 </script>
 
 <!-- Global keyboard handler for j/k/s navigation -->
@@ -362,7 +373,7 @@
       <div class="header-title-group">
         <h2 class="view-title">
           <i class="fa-solid fa-newspaper nav-icon"></i>
-          {$_('erisianArchives.title') || 'Erisian Archives'}
+          {$_("erisianArchives.title") || "Erisian Archives"}
           <Tooltip termKey="erisian_archives">
             <i class="fa-solid fa-circle-info info-icon"></i>
           </Tooltip>
@@ -374,8 +385,8 @@
             <button
               type="button"
               class="clear-filter-btn"
-              onclick={() => appState.selectView('all')}
-              title={$_('erisianArchives.clearFilter') || 'Filter entfernen'}
+              onclick={() => appState.selectView("all")}
+              title={$_("erisianArchives.clearFilter") || "Filter entfernen"}
             >
               <i class="fa-solid fa-xmark"></i>
             </button>
@@ -385,15 +396,15 @@
       <div class="erisian-summary">
         <span class="summary-item">
           <span class="summary-value">{totalCount}</span>
-          <span class="summary-label">{$_('erisianArchives.stats.total') || 'Gesamt'}</span>
+          <span class="summary-label">{$_("erisianArchives.stats.total") || "Gesamt"}</span>
         </span>
         <span class="summary-item">
           <span class="summary-value">{unreadCount}</span>
-          <span class="summary-label">{$_('erisianArchives.stats.unread') || 'Ungelesen'}</span>
+          <span class="summary-label">{$_("erisianArchives.stats.unread") || "Ungelesen"}</span>
         </span>
         <span class="summary-item">
           <span class="summary-value">{favoritesCount}</span>
-          <span class="summary-label">{$_('erisianArchives.stats.favorites') || 'Favoriten'}</span>
+          <span class="summary-label">{$_("erisianArchives.stats.favorites") || "Favoriten"}</span>
         </span>
       </div>
     </div>
@@ -409,7 +420,7 @@
       {#if loading}
         <div class="loading-state">
           <div class="spinner"></div>
-          <span>{$_('fnordView.loading') || 'Laden...'}</span>
+          <span>{$_("fnordView.loading") || "Laden..."}</span>
         </div>
       {:else if archiveArticles.length === 0}
         <div class="empty-state">
@@ -435,15 +446,17 @@
           {/each}
 
           <!-- Loading indicator for lazy loading -->
-          {#if (activeTab === 'failed' || activeTab === 'hopeless') ? loadingMoreSpecial : appState.loadingMore}
+          {#if activeTab === "failed" || activeTab === "hopeless" ? loadingMoreSpecial : appState.loadingMore}
             <div class="loading-more">
               <div class="spinner small"></div>
-              <span>{$_('fnordView.loadingMore') || 'Lade mehr...'}</span>
+              <span>{$_("fnordView.loadingMore") || "Lade mehr..."}</span>
             </div>
-          {:else if (activeTab === 'failed' || activeTab === 'hopeless') ? hasMoreSpecial : appState.hasMoreFnords}
+          {:else if activeTab === "failed" || activeTab === "hopeless" ? hasMoreSpecial : appState.hasMoreFnords}
             <div class="scroll-hint">
               <span class="loaded-count">
-                {archiveArticles.length}/{(activeTab === 'failed' || activeTab === 'hopeless') ? totalSpecialCount : appState.totalFnordsCount}
+                {archiveArticles.length}/{activeTab === "failed" || activeTab === "hopeless"
+                  ? totalSpecialCount
+                  : appState.totalFnordsCount}
               </span>
             </div>
           {/if}
@@ -613,7 +626,9 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .articles-list {

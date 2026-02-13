@@ -1,20 +1,25 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { _ } from 'svelte-i18n';
-  import { invoke } from '@tauri-apps/api/core';
-  import { appState, type Fnord, type FnordStats, type CategoryRevisionStats } from '../stores/state.svelte';
-  import { getCategoryColorVar, getBiasColor } from '$lib/utils/articleFormat';
+  import { onMount, onDestroy } from "svelte";
+  import { _ } from "svelte-i18n";
+  import { invoke } from "@tauri-apps/api/core";
+  import {
+    appState,
+    type Fnord,
+    type FnordStats,
+    type CategoryRevisionStats,
+  } from "../stores/state.svelte";
+  import { getCategoryColorVar, getBiasColor } from "$lib/utils/articleFormat";
   import type {
     ArticleTimeline,
     GreyfaceIndex,
     KeywordStats,
     FeedActivity,
     BiasHeatmapEntry,
-    KeywordCloudEntry
-  } from '../types';
-  import Tooltip from './Tooltip.svelte';
-  import Tabs, { type Tab } from './Tabs.svelte';
-  import { ArticleItemCompact } from './article';
+    KeywordCloudEntry,
+  } from "../types";
+  import Tooltip from "./Tooltip.svelte";
+  import Tabs, { type Tab } from "./Tabs.svelte";
+  import { ArticleItemCompact } from "./article";
 
   // State
   let stats = $state<FnordStats | null>(null);
@@ -38,7 +43,7 @@
   let selectedPeriod = $state<7 | 30 | 90>(7);
 
   // Tab state
-  let activeTab = $state<string>('stats');
+  let activeTab = $state<string>("stats");
 
   // Expanded category state
   let expandedCategoryId = $state<number | null>(null);
@@ -50,8 +55,12 @@
 
   // Tabs definition
   let tabs = $derived<Tab[]>([
-    { id: 'stats', label: $_('fnordView.statsTab') || 'Statistiken' },
-    { id: 'articles', label: $_('fnordView.articlesTab') || 'Geänderte Artikel', badge: changedFnords.length || undefined }
+    { id: "stats", label: $_("fnordView.statsTab") || "Statistiken" },
+    {
+      id: "articles",
+      label: $_("fnordView.articlesTab") || "Geänderte Artikel",
+      badge: changedFnords.length || undefined,
+    },
   ]);
 
   async function handleBatchComplete() {
@@ -63,14 +72,14 @@
   }
 
   onMount(async () => {
-    window.addEventListener('batch-complete', handleBatchComplete);
-    window.addEventListener('keywords-changed', handleKeywordsChanged);
+    window.addEventListener("batch-complete", handleBatchComplete);
+    window.addEventListener("keywords-changed", handleKeywordsChanged);
     await loadData();
   });
 
   onDestroy(() => {
-    window.removeEventListener('batch-complete', handleBatchComplete);
-    window.removeEventListener('keywords-changed', handleKeywordsChanged);
+    window.removeEventListener("batch-complete", handleBatchComplete);
+    window.removeEventListener("keywords-changed", handleKeywordsChanged);
   });
 
   async function loadData() {
@@ -86,7 +95,7 @@
       // Load extended statistics
       await loadExtendedStats();
     } catch (e) {
-      console.error('[FnordView] Error loading data:', e);
+      console.error("[FnordView] Error loading data:", e);
     } finally {
       loading = false;
     }
@@ -96,14 +105,15 @@
     extendedStatsLoading = true;
     extendedStatsError = null;
     try {
-      const [timelineData, greyfaceData, keywordsData, feedData, heatmapData, cloudData] = await Promise.all([
-        invoke<ArticleTimeline>('get_article_timeline', { days: selectedPeriod }),
-        invoke<GreyfaceIndex>('get_greyface_index'),
-        invoke<KeywordStats[]>('get_top_keywords_stats', { days: selectedPeriod, limit: 5 }),
-        invoke<FeedActivity[]>('get_feed_activity', { days: selectedPeriod, limit: 5 }),
-        invoke<BiasHeatmapEntry[]>('get_bias_heatmap'),
-        invoke<KeywordCloudEntry[]>('get_keyword_cloud', { days: selectedPeriod, limit: 50 })
-      ]);
+      const [timelineData, greyfaceData, keywordsData, feedData, heatmapData, cloudData] =
+        await Promise.all([
+          invoke<ArticleTimeline>("get_article_timeline", { days: selectedPeriod }),
+          invoke<GreyfaceIndex>("get_greyface_index"),
+          invoke<KeywordStats[]>("get_top_keywords_stats", { days: selectedPeriod, limit: 5 }),
+          invoke<FeedActivity[]>("get_feed_activity", { days: selectedPeriod, limit: 5 }),
+          invoke<BiasHeatmapEntry[]>("get_bias_heatmap"),
+          invoke<KeywordCloudEntry[]>("get_keyword_cloud", { days: selectedPeriod, limit: 50 }),
+        ]);
 
       timeline = timelineData;
       greyfaceIndex = greyfaceData;
@@ -113,11 +123,11 @@
       keywordCloud = cloudData;
 
       // Easter egg: Check if selectedPeriod is 23 (user must manually enter 23 via browser console)
-      if (selectedPeriod === 23 as any) {
+      if (selectedPeriod === (23 as any)) {
         show23EasterEgg = true;
       }
     } catch (e) {
-      console.error('[FnordView] Error loading extended stats:', e);
+      console.error("[FnordView] Error loading extended stats:", e);
       extendedStatsError = e instanceof Error ? e.message : String(e);
     } finally {
       extendedStatsLoading = false;
@@ -132,7 +142,7 @@
   function selectFnord(id: number) {
     selectedFnordId = id;
     appState.selectFnord(id);
-    window.dispatchEvent(new CustomEvent('navigate-to-article', { detail: { articleId: id } }));
+    window.dispatchEvent(new CustomEvent("navigate-to-article", { detail: { articleId: id } }));
   }
 
   async function toggleCategory(categoryId: number) {
@@ -143,11 +153,11 @@
       expandedCategoryId = categoryId;
       loadingSubcategories = true;
       try {
-        subcategories = await invoke<CategoryRevisionStats[]>('get_subcategory_stats', {
+        subcategories = await invoke<CategoryRevisionStats[]>("get_subcategory_stats", {
           mainCategoryId: categoryId,
         });
       } catch (e) {
-        console.error('Failed to load subcategories:', e);
+        console.error("Failed to load subcategories:", e);
         subcategories = [];
       } finally {
         loadingSubcategories = false;
@@ -156,50 +166,55 @@
   }
 
   function getTrendIcon(trend: number): string {
-    if (trend > 10) return 'fa-solid fa-arrow-trend-up';
-    if (trend < -10) return 'fa-solid fa-arrow-trend-down';
-    if (trend === 100) return 'fa-solid fa-sparkles';
-    return 'fa-solid fa-minus';
+    if (trend > 10) return "fa-solid fa-arrow-trend-up";
+    if (trend < -10) return "fa-solid fa-arrow-trend-down";
+    if (trend === 100) return "fa-solid fa-sparkles";
+    return "fa-solid fa-minus";
   }
 
   function getTrendClass(trend: number): string {
-    if (trend > 10) return 'trend-up';
-    if (trend < -10) return 'trend-down';
-    if (trend === 100) return 'trend-new';
-    return 'trend-stable';
+    if (trend > 10) return "trend-up";
+    if (trend < -10) return "trend-down";
+    if (trend === 100) return "trend-new";
+    return "trend-stable";
   }
 
   function getGreyfaceLevel(index: number): string {
-    if (index < 20) return 'excellent';
-    if (index < 40) return 'good';
-    if (index < 60) return 'moderate';
-    if (index < 80) return 'concerning';
-    return 'critical';
+    if (index < 20) return "excellent";
+    if (index < 40) return "good";
+    if (index < 60) return "moderate";
+    if (index < 80) return "concerning";
+    return "critical";
   }
 
   // Keyword type color mapping
   function getKeywordTypeColor(type: string | null): string {
     switch (type) {
-      case 'person': return 'var(--category-2)';
-      case 'organization': return 'var(--category-3)';
-      case 'location': return 'var(--category-4)';
-      case 'acronym': return 'var(--category-5)';
-      default: return 'var(--category-1)';
+      case "person":
+        return "var(--category-2)";
+      case "organization":
+        return "var(--category-3)";
+      case "location":
+        return "var(--category-4)";
+      case "acronym":
+        return "var(--category-5)";
+      default:
+        return "var(--category-1)";
     }
   }
 
   // Check if timeline has any meaningful data (not all zeros)
   function hasTimelineData(data: ArticleTimeline | null): boolean {
     if (!data || data.data.length === 0) return false;
-    return data.data.some(d => d.articles > 0 || d.revisions > 0);
+    return data.data.some((d) => d.articles > 0 || d.revisions > 0);
   }
 
   // Check if we have any trend data at all
   let hasTrendData = $derived(
     hasTimelineData(timeline) ||
-    topKeywords.length > 0 ||
-    feedActivity.length > 0 ||
-    keywordCloud.length > 0
+      topKeywords.length > 0 ||
+      feedActivity.length > 0 ||
+      keywordCloud.length > 0,
   );
 </script>
 
@@ -209,7 +224,7 @@
     <div class="header-top">
       <h2 class="view-title">
         <i class="fa-solid fa-clipboard-list nav-icon"></i>
-        {$_('fnordView.title') || 'Fnord-Statistiken'}
+        {$_("fnordView.title") || "Fnord-Statistiken"}
         <Tooltip termKey="fnord_stats">
           <i class="fa-solid fa-circle-info info-icon"></i>
         </Tooltip>
@@ -218,11 +233,13 @@
         <div class="fnord-summary">
           <span class="summary-item">
             <span class="summary-value">{stats.total_revisions}</span>
-            <span class="summary-label">{$_('fnordView.totalRevisions') || 'Revisionen'}</span>
+            <span class="summary-label">{$_("fnordView.totalRevisions") || "Revisionen"}</span>
           </span>
           <span class="summary-item">
             <span class="summary-value">{stats.articles_with_changes}</span>
-            <span class="summary-label">{$_('fnordView.articlesWithChanges') || 'Geänderte Artikel'}</span>
+            <span class="summary-label"
+              >{$_("fnordView.articlesWithChanges") || "Geänderte Artikel"}</span
+            >
           </span>
         </div>
       {/if}
@@ -237,15 +254,15 @@
     {#if loading}
       <div class="loading-state">
         <div class="spinner"></div>
-        <span>{$_('fnordView.loading') || 'Laden...'}</span>
+        <span>{$_("fnordView.loading") || "Laden..."}</span>
       </div>
-    {:else if activeTab === 'stats' && stats}
+    {:else if activeTab === "stats" && stats}
       <div class="stats-view">
         <!-- GESAMT-ÜBERSICHT (ohne Zeitfilter) -->
         <div class="stats-section-header">
           <h3 class="section-header-title">
             <i class="fa-solid fa-chart-pie"></i>
-            {$_('fnordView.overallStats') || 'Gesamt-Übersicht'}
+            {$_("fnordView.overallStats") || "Gesamt-Übersicht"}
           </h3>
         </div>
 
@@ -256,8 +273,11 @@
             <div class="stats-card greyface-card">
               <h3 class="card-title">
                 <i class="fa-solid fa-triangle-exclamation"></i>
-                {$_('fnordView.greyface.title') || 'Greyface-Index'}
-                <Tooltip content={$_('fnordView.greyface.help') || 'Misst die durchschnittliche politische Tendenz und Sachlichkeit deiner gelesenen Artikel.'}>
+                {$_("fnordView.greyface.title") || "Greyface-Index"}
+                <Tooltip
+                  content={$_("fnordView.greyface.help") ||
+                    "Misst die durchschnittliche politische Tendenz und Sachlichkeit deiner gelesenen Artikel."}
+                >
                   <i class="fa-solid fa-circle-info help-icon"></i>
                 </Tooltip>
               </h3>
@@ -271,59 +291,83 @@
                 </div>
                 <div class="greyface-details">
                   <div class="detail-row">
-                    <span class="detail-label">{$_('fnordView.greyface.avgBias')}</span>
-                    <span class="detail-value" style="color: {getBiasColor(greyfaceIndex.avg_political_bias)}">
+                    <span class="detail-label">{$_("fnordView.greyface.avgBias")}</span>
+                    <span
+                      class="detail-value"
+                      style="color: {getBiasColor(greyfaceIndex.avg_political_bias)}"
+                    >
                       {greyfaceIndex.avg_political_bias.toFixed(2)}
                     </span>
                   </div>
                   <div class="detail-row">
-                    <span class="detail-label">{$_('fnordView.greyface.avgSachlichkeit')}</span>
+                    <span class="detail-label">{$_("fnordView.greyface.avgSachlichkeit")}</span>
                     <span class="detail-value">{greyfaceIndex.avg_sachlichkeit.toFixed(2)}</span>
                   </div>
                   <div class="detail-row">
-                    <span class="detail-label">{$_('fnordView.greyface.articlesWithBias') || 'Mit Bias-Daten'}</span>
-                    <span class="detail-value">{greyfaceIndex.articles_with_bias} / {greyfaceIndex.total_articles}</span>
+                    <span class="detail-label"
+                      >{$_("fnordView.greyface.articlesWithBias") || "Mit Bias-Daten"}</span
+                    >
+                    <span class="detail-value"
+                      >{greyfaceIndex.articles_with_bias} / {greyfaceIndex.total_articles}</span
+                    >
                   </div>
                 </div>
                 <!-- Bias Distribution Bar -->
                 <div class="bias-distribution">
-                  <div class="distribution-label">{$_('fnordView.greyface.distribution') || 'Bias-Verteilung'}</div>
+                  <div class="distribution-label">
+                    {$_("fnordView.greyface.distribution") || "Bias-Verteilung"}
+                  </div>
                   <div class="distribution-bar">
                     {#if greyfaceIndex.articles_with_bias > 0}
                       {@const total = greyfaceIndex.articles_with_bias}
                       <div
                         class="dist-segment left-extreme"
-                        style="width: {(greyfaceIndex.bias_distribution.left_extreme / total) * 100}%"
-                        title="{$_('fnordView.greyface.leftExtreme')}: {greyfaceIndex.bias_distribution.left_extreme}"
+                        style="width: {(greyfaceIndex.bias_distribution.left_extreme / total) *
+                          100}%"
+                        title="{$_('fnordView.greyface.leftExtreme')}: {greyfaceIndex
+                          .bias_distribution.left_extreme}"
                       ></div>
                       <div
                         class="dist-segment left-leaning"
-                        style="width: {(greyfaceIndex.bias_distribution.left_leaning / total) * 100}%"
-                        title="{$_('fnordView.greyface.leftLeaning')}: {greyfaceIndex.bias_distribution.left_leaning}"
+                        style="width: {(greyfaceIndex.bias_distribution.left_leaning / total) *
+                          100}%"
+                        title="{$_('fnordView.greyface.leftLeaning')}: {greyfaceIndex
+                          .bias_distribution.left_leaning}"
                       ></div>
                       <div
                         class="dist-segment neutral"
                         style="width: {(greyfaceIndex.bias_distribution.neutral / total) * 100}%"
-                        title="{$_('fnordView.greyface.neutral')}: {greyfaceIndex.bias_distribution.neutral}"
+                        title="{$_('fnordView.greyface.neutral')}: {greyfaceIndex.bias_distribution
+                          .neutral}"
                       ></div>
                       <div
                         class="dist-segment right-leaning"
-                        style="width: {(greyfaceIndex.bias_distribution.right_leaning / total) * 100}%"
-                        title="{$_('fnordView.greyface.rightLeaning')}: {greyfaceIndex.bias_distribution.right_leaning}"
+                        style="width: {(greyfaceIndex.bias_distribution.right_leaning / total) *
+                          100}%"
+                        title="{$_('fnordView.greyface.rightLeaning')}: {greyfaceIndex
+                          .bias_distribution.right_leaning}"
                       ></div>
                       <div
                         class="dist-segment right-extreme"
-                        style="width: {(greyfaceIndex.bias_distribution.right_extreme / total) * 100}%"
-                        title="{$_('fnordView.greyface.rightExtreme')}: {greyfaceIndex.bias_distribution.right_extreme}"
+                        style="width: {(greyfaceIndex.bias_distribution.right_extreme / total) *
+                          100}%"
+                        title="{$_('fnordView.greyface.rightExtreme')}: {greyfaceIndex
+                          .bias_distribution.right_extreme}"
                       ></div>
                     {/if}
                   </div>
                   <div class="distribution-legend">
-                    <span class="legend-item"><span class="legend-dot left-extreme"></span> -2</span>
-                    <span class="legend-item"><span class="legend-dot left-leaning"></span> -1</span>
+                    <span class="legend-item"><span class="legend-dot left-extreme"></span> -2</span
+                    >
+                    <span class="legend-item"><span class="legend-dot left-leaning"></span> -1</span
+                    >
                     <span class="legend-item"><span class="legend-dot neutral"></span> 0</span>
-                    <span class="legend-item"><span class="legend-dot right-leaning"></span> +1</span>
-                    <span class="legend-item"><span class="legend-dot right-extreme"></span> +2</span>
+                    <span class="legend-item"
+                      ><span class="legend-dot right-leaning"></span> +1</span
+                    >
+                    <span class="legend-item"
+                      ><span class="legend-dot right-extreme"></span> +2</span
+                    >
                   </div>
                 </div>
               </div>
@@ -333,27 +377,39 @@
             <div class="stats-card greyface-card greyface-empty">
               <h3 class="card-title">
                 <i class="fa-solid fa-triangle-exclamation"></i>
-                {$_('fnordView.greyface.title') || 'Greyface-Index'}
-                <Tooltip content={$_('fnordView.greyface.help') || 'Misst die durchschnittliche politische Tendenz und Sachlichkeit deiner gelesenen Artikel.'}>
+                {$_("fnordView.greyface.title") || "Greyface-Index"}
+                <Tooltip
+                  content={$_("fnordView.greyface.help") ||
+                    "Misst die durchschnittliche politische Tendenz und Sachlichkeit deiner gelesenen Artikel."}
+                >
                   <i class="fa-solid fa-circle-info help-icon"></i>
                 </Tooltip>
               </h3>
               <div class="empty-placeholder">
                 <i class="fa-solid fa-chart-pie empty-icon"></i>
-                <p>{$_('fnordView.greyface.noData') || 'Keine Bias-Daten vorhanden'}</p>
-                <span class="empty-hint">{$_('fnordView.greyface.noDataHint') || 'Führe die KI-Analyse durch, um Bias-Werte zu erhalten.'}</span>
+                <p>{$_("fnordView.greyface.noData") || "Keine Bias-Daten vorhanden"}</p>
+                <span class="empty-hint"
+                  >{$_("fnordView.greyface.noDataHint") ||
+                    "Führe die KI-Analyse durch, um Bias-Werte zu erhalten."}</span
+                >
               </div>
             </div>
           {/if}
 
           <!-- By Source Card (Restored) -->
           {#if stats.by_source.length > 0}
-            {@const maxSourceRevisions = Math.max(...stats.by_source.map(s => s.revision_count), 1)}
+            {@const maxSourceRevisions = Math.max(
+              ...stats.by_source.map((s) => s.revision_count),
+              1,
+            )}
             <div class="stats-card source-card">
               <h3 class="card-title">
                 <i class="fa-solid fa-rss"></i>
-                {$_('fnordView.bySource') || 'Nach Quelle'}
-                <Tooltip content={$_('fnordView.bySource.help') || 'Zeigt die Anzahl der Revisionen und Artikel pro Feed-Quelle.'}>
+                {$_("fnordView.bySource") || "Nach Quelle"}
+                <Tooltip
+                  content={$_("fnordView.bySource.help") ||
+                    "Zeigt die Anzahl der Revisionen und Artikel pro Feed-Quelle."}
+                >
                   <i class="fa-solid fa-circle-info help-icon"></i>
                 </Tooltip>
               </h3>
@@ -361,7 +417,9 @@
                 {#each stats.by_source.slice(0, 6) as source (source.pentacle_id)}
                   {@const barWidth = (source.revision_count / maxSourceRevisions) * 100}
                   <div class="source-item">
-                    <span class="source-name" title={source.title}>{source.title || `Feed #${source.pentacle_id}`}</span>
+                    <span class="source-name" title={source.title}
+                      >{source.title || `Feed #${source.pentacle_id}`}</span
+                    >
                     <div class="source-bar-wrapper">
                       <div class="source-progress">
                         <div class="source-progress-fill" style="width: {barWidth}%"></div>
@@ -375,7 +433,8 @@
                 {/each}
                 {#if stats.by_source.length > 6}
                   <div class="source-more">
-                    +{stats.by_source.length - 6} {$_('fnordView.moreSources') || 'weitere'}
+                    +{stats.by_source.length - 6}
+                    {$_("fnordView.moreSources") || "weitere"}
                   </div>
                 {/if}
               </div>
@@ -388,40 +447,52 @@
           <div class="stats-card full-width">
             <h3 class="card-title">
               <i class="fa-solid fa-table-cells"></i>
-              {$_('fnordView.biasHeatmap') || 'Bias-Heatmap'}
+              {$_("fnordView.biasHeatmap") || "Bias-Heatmap"}
             </h3>
             <div class="heatmap-container">
               <table class="heatmap-table">
                 <thead>
                   <tr>
-                    <th>{$_('fnordView.source') || 'Quelle'}</th>
+                    <th>{$_("fnordView.source") || "Quelle"}</th>
                     <th class="bias-col">-2</th>
                     <th class="bias-col">-1</th>
                     <th class="bias-col">0</th>
                     <th class="bias-col">+1</th>
                     <th class="bias-col">+2</th>
-                    <th>{$_('fnordView.avgBias') || 'Avg'}</th>
+                    <th>{$_("fnordView.avgBias") || "Avg"}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {#each biasHeatmap.slice(0, 10) as entry (entry.pentacle_id)}
-                    {@const maxCell = Math.max(entry.bias_minus_2, entry.bias_minus_1, entry.bias_0, entry.bias_plus_1, entry.bias_plus_2, 1)}
+                    {@const maxCell = Math.max(
+                      entry.bias_minus_2,
+                      entry.bias_minus_1,
+                      entry.bias_0,
+                      entry.bias_plus_1,
+                      entry.bias_plus_2,
+                      1,
+                    )}
                     <tr>
-                      <td class="source-cell">{entry.pentacle_title || `Feed #${entry.pentacle_id}`}</td>
+                      <td class="source-cell"
+                        >{entry.pentacle_title || `Feed #${entry.pentacle_id}`}</td
+                      >
                       <td class="heatmap-cell" style="--intensity: {entry.bias_minus_2 / maxCell}">
-                        {entry.bias_minus_2 || ''}
+                        {entry.bias_minus_2 || ""}
                       </td>
                       <td class="heatmap-cell" style="--intensity: {entry.bias_minus_1 / maxCell}">
-                        {entry.bias_minus_1 || ''}
+                        {entry.bias_minus_1 || ""}
                       </td>
-                      <td class="heatmap-cell neutral-cell" style="--intensity: {entry.bias_0 / maxCell}">
-                        {entry.bias_0 || ''}
+                      <td
+                        class="heatmap-cell neutral-cell"
+                        style="--intensity: {entry.bias_0 / maxCell}"
+                      >
+                        {entry.bias_0 || ""}
                       </td>
                       <td class="heatmap-cell" style="--intensity: {entry.bias_plus_1 / maxCell}">
-                        {entry.bias_plus_1 || ''}
+                        {entry.bias_plus_1 || ""}
                       </td>
                       <td class="heatmap-cell" style="--intensity: {entry.bias_plus_2 / maxCell}">
-                        {entry.bias_plus_2 || ''}
+                        {entry.bias_plus_2 || ""}
                       </td>
                       <td class="avg-cell" style="color: {getBiasColor(entry.avg_bias)}">
                         {entry.avg_bias.toFixed(2)}
@@ -436,11 +507,14 @@
 
         <!-- By Category (Gesamt) -->
         {#if stats.by_category.length > 0}
-          {@const maxRevisions = Math.max(...stats.by_category.map(c => c.revision_count), 1)}
+          {@const maxRevisions = Math.max(...stats.by_category.map((c) => c.revision_count), 1)}
           <div class="stats-section">
             <h3 class="section-title">
-              {$_('fnordView.byCategory') || 'Nach Kategorie'}
-              <Tooltip content={$_('fnordView.byCategory.help') || 'Verteilung der Revisionen nach Themengebiet. Klicke auf eine Kategorie um Unterkategorien zu sehen.'}>
+              {$_("fnordView.byCategory") || "Nach Kategorie"}
+              <Tooltip
+                content={$_("fnordView.byCategory.help") ||
+                  "Verteilung der Revisionen nach Themengebiet. Klicke auf eine Kategorie um Unterkategorien zu sehen."}
+              >
                 <i class="fa-solid fa-circle-info help-icon"></i>
               </Tooltip>
             </h3>
@@ -457,24 +531,25 @@
                   <div class="card-header">
                     <div class="card-icon-wrapper">
                       {#if cat.icon}
-                        <i class="{cat.icon}"></i>
+                        <i class={cat.icon}></i>
                       {:else}
                         <i class="fa-solid fa-folder"></i>
                       {/if}
                     </div>
                     <span class="card-title-text">{cat.name}</span>
-                    <i class="fa-solid fa-chevron-down expand-icon {isExpanded ? 'rotated' : ''}"></i>
+                    <i class="fa-solid fa-chevron-down expand-icon {isExpanded ? 'rotated' : ''}"
+                    ></i>
                   </div>
                   <div class="card-stats">
                     <div class="stat-row">
-                      <span class="stat-label">{$_('fnordView.revisions') || 'Revisionen'}</span>
+                      <span class="stat-label">{$_("fnordView.revisions") || "Revisionen"}</span>
                       <span class="stat-value">{cat.revision_count}</span>
                     </div>
                     <div class="progress-bar">
                       <div class="progress-fill" style="width: {barWidth}%"></div>
                     </div>
                     <div class="stat-row secondary">
-                      <span class="stat-label">{$_('fnordView.articles') || 'Artikel'}</span>
+                      <span class="stat-label">{$_("fnordView.articles") || "Artikel"}</span>
                       <span class="stat-value">{cat.article_count}</span>
                     </div>
                   </div>
@@ -503,7 +578,7 @@
                         {/each}
                       {:else}
                         <div class="subcategory-empty">
-                          {$_('fnordView.noSubcategories') || 'Keine Unterkategorien'}
+                          {$_("fnordView.noSubcategories") || "Keine Unterkategorien"}
                         </div>
                       {/if}
                     </div>
@@ -518,10 +593,10 @@
         <div class="stats-section-header trends-header">
           <h3 class="section-header-title">
             <i class="fa-solid fa-chart-line"></i>
-            {$_('fnordView.trendsAndActivity') || 'Trends & Aktivität'}
+            {$_("fnordView.trendsAndActivity") || "Trends & Aktivität"}
           </h3>
           <div class="period-selector">
-            <span class="period-label">{$_('fnordView.period') || 'Zeitraum'}:</span>
+            <span class="period-label">{$_("fnordView.period") || "Zeitraum"}:</span>
             <div class="period-buttons">
               <button
                 class="period-btn"
@@ -529,7 +604,7 @@
                 onclick={() => changePeriod(7)}
                 disabled={extendedStatsLoading}
               >
-                {$_('fnordView.days7') || '7 Tage'}
+                {$_("fnordView.days7") || "7 Tage"}
               </button>
               <button
                 class="period-btn"
@@ -537,7 +612,7 @@
                 onclick={() => changePeriod(30)}
                 disabled={extendedStatsLoading}
               >
-                {$_('fnordView.days30') || '30 Tage'}
+                {$_("fnordView.days30") || "30 Tage"}
               </button>
               <button
                 class="period-btn"
@@ -545,7 +620,7 @@
                 onclick={() => changePeriod(90)}
                 disabled={extendedStatsLoading}
               >
-                {$_('fnordView.days90') || '90 Tage'}
+                {$_("fnordView.days90") || "90 Tage"}
               </button>
             </div>
           </div>
@@ -555,160 +630,171 @@
         {#if extendedStatsLoading}
           <div class="trends-loading-state">
             <div class="spinner"></div>
-            <span>{$_('fnordView.loadingTrends') || 'Trend-Daten werden geladen...'}</span>
+            <span>{$_("fnordView.loadingTrends") || "Trend-Daten werden geladen..."}</span>
           </div>
         {:else if extendedStatsError}
           <!-- Error state for trends section -->
           <div class="trends-error-state">
             <i class="fa-solid fa-exclamation-triangle error-icon"></i>
-            <p>{$_('fnordView.trendsError') || 'Fehler beim Laden der Trend-Daten'}</p>
+            <p>{$_("fnordView.trendsError") || "Fehler beim Laden der Trend-Daten"}</p>
             <span class="error-message">{extendedStatsError}</span>
             <button class="retry-btn" onclick={() => loadExtendedStats()}>
               <i class="fa-solid fa-refresh"></i>
-              {$_('fnordView.retry') || 'Erneut versuchen'}
+              {$_("fnordView.retry") || "Erneut versuchen"}
             </button>
           </div>
         {:else if !hasTrendData}
           <!-- Empty state when no trend data available -->
           <div class="trends-empty-state">
             <i class="fa-solid fa-chart-line-down empty-icon"></i>
-            <p>{$_('fnordView.noTrendData') || 'Keine Trend-Daten vorhanden'}</p>
-            <span class="empty-hint">{$_('fnordView.noTrendDataHint') || 'Trend-Daten werden verfügbar, sobald Artikel synchronisiert und analysiert wurden.'}</span>
+            <p>{$_("fnordView.noTrendData") || "Keine Trend-Daten vorhanden"}</p>
+            <span class="empty-hint"
+              >{$_("fnordView.noTrendDataHint") ||
+                "Trend-Daten werden verfügbar, sobald Artikel synchronisiert und analysiert wurden."}</span
+            >
           </div>
         {:else}
-        <!-- Timeline Card -->
-        {#if timeline && hasTimelineData(timeline)}
-          {@const timelineData = timeline.data}
-          {@const maxArticles = Math.max(...timelineData.map(d => d.articles), 1)}
-          {@const maxRevisions = Math.max(...timelineData.map(d => d.revisions), 1)}
-          {@const maxVal = Math.max(maxArticles, maxRevisions)}
-          <div class="stats-card full-width timeline-card">
-            <h3 class="card-title">
-              <i class="fa-solid fa-chart-area"></i>
-              {$_('fnordView.timeline') || 'Eris-Chronik'}
-            </h3>
-            <div class="timeline-chart">
-              <div class="chart-bars">
-                {#each timelineData as day, i (day.date)}
-                  <div class="chart-day" title="{day.date}">
-                    <div class="bar-container">
-                      <div
-                        class="bar articles-bar"
-                        style="height: {(day.articles / maxVal) * 100}%"
-                        title="{$_('fnordView.articles')}: {day.articles}"
-                      ></div>
-                      <div
-                        class="bar revisions-bar"
-                        style="height: {(day.revisions / maxVal) * 100}%"
-                        title="{$_('fnordView.revisions')}: {day.revisions}"
-                      ></div>
-                    </div>
-                    {#if i === 0 || i === timelineData.length - 1 || i === Math.floor(timelineData.length / 2)}
-                      <span class="day-label">{day.date.slice(5)}</span>
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-              <div class="chart-legend">
-                <span class="legend-item"><span class="legend-bar articles"></span> {$_('fnordView.articles')}</span>
-                <span class="legend-item"><span class="legend-bar revisions"></span> {$_('fnordView.revisions')}</span>
-              </div>
-            </div>
-          </div>
-        {/if}
-
-        <!-- Keywords + Feed Activity Row -->
-        <div class="stats-row">
-          <!-- Top Keywords (im Zeitraum) -->
-          {#if topKeywords.length > 0}
-            <div class="stats-card">
+          <!-- Timeline Card -->
+          {#if timeline && hasTimelineData(timeline)}
+            {@const timelineData = timeline.data}
+            {@const maxArticles = Math.max(...timelineData.map((d) => d.articles), 1)}
+            {@const maxRevisions = Math.max(...timelineData.map((d) => d.revisions), 1)}
+            {@const maxVal = Math.max(maxArticles, maxRevisions)}
+            <div class="stats-card full-width timeline-card">
               <h3 class="card-title">
-                <i class="fa-solid fa-hashtag"></i>
-                {$_('fnordView.topKeywords') || 'Top Keywords'}
+                <i class="fa-solid fa-chart-area"></i>
+                {$_("fnordView.timeline") || "Eris-Chronik"}
               </h3>
-              <div class="keyword-list">
-                {#each topKeywords as kw, i (kw.id)}
-                  <div class="keyword-item">
-                    <span class="keyword-rank">#{i + 1}</span>
-                    <span
-                      class="keyword-name"
-                      style="border-left: 3px solid {getKeywordTypeColor(kw.keyword_type)}; padding-left: 0.5rem;"
-                    >
-                      {kw.name}
-                    </span>
-                    <span class="keyword-count">{kw.count}</span>
-                    <span class="keyword-trend {getTrendClass(kw.trend)}">
-                      <i class="{getTrendIcon(kw.trend)}"></i>
-                      {#if kw.trend !== 0 && kw.trend !== 100}
-                        {Math.abs(kw.trend).toFixed(0)}%
+              <div class="timeline-chart">
+                <div class="chart-bars">
+                  {#each timelineData as day, i (day.date)}
+                    <div class="chart-day" title={day.date}>
+                      <div class="bar-container">
+                        <div
+                          class="bar articles-bar"
+                          style="height: {(day.articles / maxVal) * 100}%"
+                          title="{$_('fnordView.articles')}: {day.articles}"
+                        ></div>
+                        <div
+                          class="bar revisions-bar"
+                          style="height: {(day.revisions / maxVal) * 100}%"
+                          title="{$_('fnordView.revisions')}: {day.revisions}"
+                        ></div>
+                      </div>
+                      {#if i === 0 || i === timelineData.length - 1 || i === Math.floor(timelineData.length / 2)}
+                        <span class="day-label">{day.date.slice(5)}</span>
                       {/if}
-                    </span>
-                  </div>
-                {/each}
+                    </div>
+                  {/each}
+                </div>
+                <div class="chart-legend">
+                  <span class="legend-item"
+                    ><span class="legend-bar articles"></span> {$_("fnordView.articles")}</span
+                  >
+                  <span class="legend-item"
+                    ><span class="legend-bar revisions"></span> {$_("fnordView.revisions")}</span
+                  >
+                </div>
               </div>
             </div>
           {/if}
 
-          <!-- Feed Activity (im Zeitraum) -->
-          {#if feedActivity.length > 0}
-            <div class="stats-card">
-              <h3 class="card-title">
-                <i class="fa-solid fa-bolt"></i>
-                {$_('fnordView.feedActivity') || 'Feed-Aktivität'}
-              </h3>
-              <div class="feed-list">
-                {#each feedActivity as feed (feed.pentacle_id)}
-                  <div class="feed-item">
-                    <span class="feed-name">{feed.title || `Feed #${feed.pentacle_id}`}</span>
-                    <div class="feed-stats">
-                      <span class="feed-stat" title="{$_('fnordView.articlesInPeriod')}">
-                        <i class="fa-solid fa-newspaper"></i> {feed.articles_period}
+          <!-- Keywords + Feed Activity Row -->
+          <div class="stats-row">
+            <!-- Top Keywords (im Zeitraum) -->
+            {#if topKeywords.length > 0}
+              <div class="stats-card">
+                <h3 class="card-title">
+                  <i class="fa-solid fa-hashtag"></i>
+                  {$_("fnordView.topKeywords") || "Top Keywords"}
+                </h3>
+                <div class="keyword-list">
+                  {#each topKeywords as kw, i (kw.id)}
+                    <div class="keyword-item">
+                      <span class="keyword-rank">#{i + 1}</span>
+                      <span
+                        class="keyword-name"
+                        style="border-left: 3px solid {getKeywordTypeColor(
+                          kw.keyword_type,
+                        )}; padding-left: 0.5rem;"
+                      >
+                        {kw.name}
                       </span>
-                      <span class="feed-stat" title="{$_('fnordView.revisions')}">
-                        <i class="fa-solid fa-code-compare"></i> {feed.revisions_period}
+                      <span class="keyword-count">{kw.count}</span>
+                      <span class="keyword-trend {getTrendClass(kw.trend)}">
+                        <i class={getTrendIcon(kw.trend)}></i>
+                        {#if kw.trend !== 0 && kw.trend !== 100}
+                          {Math.abs(kw.trend).toFixed(0)}%
+                        {/if}
                       </span>
                     </div>
-                  </div>
-                {/each}
+                  {/each}
+                </div>
               </div>
-            </div>
-          {/if}
-        </div>
+            {/if}
 
-        <!-- Keyword Cloud (im Zeitraum) -->
-        {#if keywordCloud.length > 0}
-          <div class="stats-card full-width">
-            <h3 class="card-title">
-              <i class="fa-solid fa-cloud"></i>
-              {$_('fnordView.keywordCloud') || 'Keyword-Wolke'}
-            </h3>
-            <div class="keyword-cloud">
-              {#each keywordCloud as kw (kw.id)}
-                <span
-                  class="cloud-word"
-                  style="
+            <!-- Feed Activity (im Zeitraum) -->
+            {#if feedActivity.length > 0}
+              <div class="stats-card">
+                <h3 class="card-title">
+                  <i class="fa-solid fa-bolt"></i>
+                  {$_("fnordView.feedActivity") || "Feed-Aktivität"}
+                </h3>
+                <div class="feed-list">
+                  {#each feedActivity as feed (feed.pentacle_id)}
+                    <div class="feed-item">
+                      <span class="feed-name">{feed.title || `Feed #${feed.pentacle_id}`}</span>
+                      <div class="feed-stats">
+                        <span class="feed-stat" title={$_("fnordView.articlesInPeriod")}>
+                          <i class="fa-solid fa-newspaper"></i>
+                          {feed.articles_period}
+                        </span>
+                        <span class="feed-stat" title={$_("fnordView.revisions")}>
+                          <i class="fa-solid fa-code-compare"></i>
+                          {feed.revisions_period}
+                        </span>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          </div>
+
+          <!-- Keyword Cloud (im Zeitraum) -->
+          {#if keywordCloud.length > 0}
+            <div class="stats-card full-width">
+              <h3 class="card-title">
+                <i class="fa-solid fa-cloud"></i>
+                {$_("fnordView.keywordCloud") || "Keyword-Wolke"}
+              </h3>
+              <div class="keyword-cloud">
+                {#each keywordCloud as kw (kw.id)}
+                  <span
+                    class="cloud-word"
+                    style="
                     font-size: {0.75 + kw.weight * 1.25}rem;
                     opacity: {0.5 + kw.weight * 0.5};
                     color: {getKeywordTypeColor(kw.keyword_type)};
                   "
-                  title="{kw.name}: {kw.count} {$_('fnordView.articles')}"
-                >
-                  {kw.name}
-                </span>
-              {/each}
-              <!-- Hidden fnord Easter Egg -->
-              <span class="cloud-word fnord-hidden" title="fnord">fnord</span>
+                    title="{kw.name}: {kw.count} {$_('fnordView.articles')}"
+                  >
+                    {kw.name}
+                  </span>
+                {/each}
+                <!-- Hidden fnord Easter Egg -->
+                <span class="cloud-word fnord-hidden" title="fnord">fnord</span>
+              </div>
             </div>
-          </div>
-        {/if}
+          {/if}
         {/if}
       </div>
-    {:else if activeTab === 'articles'}
+    {:else if activeTab === "articles"}
       <div class="articles-view">
         {#if changedFnords.length === 0}
           <div class="empty-state">
             <i class="empty-icon fa-solid fa-check"></i>
-            <p>{$_('fnordView.noChangedArticles') || 'Keine geänderten Artikel'}</p>
+            <p>{$_("fnordView.noChangedArticles") || "Keine geänderten Artikel"}</p>
           </div>
         {:else}
           <div class="articles-list">
@@ -735,7 +821,7 @@
   <!-- Easter Egg -->
   {#if show23EasterEgg}
     <div class="easter-egg-23">
-      <span>{$_('fnordView.easterEgg23') || 'Du hast das Geheimnis der 23 entdeckt!'}</span>
+      <span>{$_("fnordView.easterEgg23") || "Du hast das Geheimnis der 23 entdeckt!"}</span>
     </div>
   {/if}
 </div>
@@ -899,7 +985,9 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   /* Stats View */
@@ -1068,7 +1156,8 @@
   .greyface-gauge {
     position: relative;
     height: 1rem;
-    background: linear-gradient(90deg,
+    background: linear-gradient(
+      90deg,
       var(--category-4) 0%,
       var(--category-3) 40%,
       var(--category-5) 70%,
@@ -1097,7 +1186,7 @@
     font-size: 0.75rem;
     font-weight: 700;
     color: white;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   }
 
   .greyface-details {
@@ -1146,11 +1235,21 @@
     transition: width 0.3s ease;
   }
 
-  .dist-segment.left-extreme { background: var(--category-2); }
-  .dist-segment.left-leaning { background: color-mix(in srgb, var(--category-2) 60%, var(--bg-surface)); }
-  .dist-segment.neutral { background: var(--text-muted); }
-  .dist-segment.right-leaning { background: color-mix(in srgb, var(--category-5) 60%, var(--bg-surface)); }
-  .dist-segment.right-extreme { background: var(--category-5); }
+  .dist-segment.left-extreme {
+    background: var(--category-2);
+  }
+  .dist-segment.left-leaning {
+    background: color-mix(in srgb, var(--category-2) 60%, var(--bg-surface));
+  }
+  .dist-segment.neutral {
+    background: var(--text-muted);
+  }
+  .dist-segment.right-leaning {
+    background: color-mix(in srgb, var(--category-5) 60%, var(--bg-surface));
+  }
+  .dist-segment.right-extreme {
+    background: var(--category-5);
+  }
 
   .distribution-legend {
     display: flex;
@@ -1172,11 +1271,21 @@
     border-radius: 50%;
   }
 
-  .legend-dot.left-extreme { background: var(--category-2); }
-  .legend-dot.left-leaning { background: color-mix(in srgb, var(--category-2) 60%, var(--bg-surface)); }
-  .legend-dot.neutral { background: var(--text-muted); }
-  .legend-dot.right-leaning { background: color-mix(in srgb, var(--category-5) 60%, var(--bg-surface)); }
-  .legend-dot.right-extreme { background: var(--category-5); }
+  .legend-dot.left-extreme {
+    background: var(--category-2);
+  }
+  .legend-dot.left-leaning {
+    background: color-mix(in srgb, var(--category-2) 60%, var(--bg-surface));
+  }
+  .legend-dot.neutral {
+    background: var(--text-muted);
+  }
+  .legend-dot.right-leaning {
+    background: color-mix(in srgb, var(--category-5) 60%, var(--bg-surface));
+  }
+  .legend-dot.right-extreme {
+    background: var(--category-5);
+  }
 
   /* Timeline Chart */
   .timeline-chart {
@@ -1250,8 +1359,12 @@
     margin-right: 0.25rem;
   }
 
-  .legend-bar.articles { background: var(--accent-primary); }
-  .legend-bar.revisions { background: var(--category-5); }
+  .legend-bar.articles {
+    background: var(--accent-primary);
+  }
+  .legend-bar.revisions {
+    background: var(--category-5);
+  }
 
   /* Keyword List */
   .keyword-list {
@@ -1471,12 +1584,19 @@
   /* Category colors are set via inline style using getCategoryColorVar() for theme-awareness */
 
   .category-card {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 25%, var(--bg-base)) 0%, color-mix(in srgb, var(--cat-color) 8%, var(--bg-base)) 100%);
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--cat-color) 25%, var(--bg-base)) 0%,
+      color-mix(in srgb, var(--cat-color) 8%, var(--bg-base)) 100%
+    );
     border: 1px solid color-mix(in srgb, var(--cat-color) 50%, transparent);
     border-left: 3px solid var(--cat-color);
     border-radius: 0.625rem;
     padding: 1rem;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      border-color 0.15s ease;
     cursor: pointer;
     text-align: left;
     width: 100%;
@@ -1506,7 +1626,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--cat-color), color-mix(in srgb, var(--cat-color) 70%, black));
+    background: linear-gradient(
+      135deg,
+      var(--cat-color),
+      color-mix(in srgb, var(--cat-color) 70%, black)
+    );
     border-radius: 0.5rem;
     color: white;
     font-size: 1rem;
@@ -1575,7 +1699,11 @@
 
   .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--cat-color), color-mix(in srgb, var(--cat-color) 80%, white));
+    background: linear-gradient(
+      90deg,
+      var(--cat-color),
+      color-mix(in srgb, var(--cat-color) 80%, white)
+    );
     border-radius: 3px;
     transition: width 0.3s ease;
   }
@@ -1750,7 +1878,12 @@
   }
 
   @keyframes pulse {
-    0%, 100% { transform: translateX(-50%) scale(1); }
-    50% { transform: translateX(-50%) scale(1.05); }
+    0%,
+    100% {
+      transform: translateX(-50%) scale(1);
+    }
+    50% {
+      transform: translateX(-50%) scale(1.05);
+    }
   }
 </style>

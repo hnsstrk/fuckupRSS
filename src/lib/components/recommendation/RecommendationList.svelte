@@ -1,14 +1,14 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
-  import { onMount, onDestroy } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
+  import { _ } from "svelte-i18n";
+  import { onMount, onDestroy } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import type {
     Recommendation,
     RecommendationStats,
     RecommendationLoadState,
-    RecommendationPhase
-  } from '../../types';
-  import RecommendationCard from './RecommendationCard.svelte';
+    RecommendationPhase,
+  } from "../../types";
+  import RecommendationCard from "./RecommendationCard.svelte";
 
   // Configuration
   const TIMEOUT_MS = 30000; // 30 second timeout
@@ -21,7 +21,7 @@
   let { onArticleClick }: Props = $props();
 
   // State machine
-  let loadState = $state<RecommendationLoadState>({ status: 'idle' });
+  let loadState = $state<RecommendationLoadState>({ status: "idle" });
   let recommendations = $state<Recommendation[]>([]);
   let stats = $state<RecommendationStats | null>(null);
 
@@ -36,11 +36,11 @@
 
   // Phase progression (simulated for UX)
   const phases: RecommendationPhase[] = [
-    'init',
-    'loading_profile',
-    'generating_candidates',
-    'scoring',
-    'finalizing'
+    "init",
+    "loading_profile",
+    "generating_candidates",
+    "scoring",
+    "finalizing",
   ];
 
   function generateRequestId(): string {
@@ -78,19 +78,19 @@
 
     // Start loading state
     loadState = {
-      status: 'loading',
+      status: "loading",
       phase: phases[0],
-      startedAt: startTime
+      startedAt: startTime,
     };
 
     // Setup phase progression
     phaseHandle = setInterval(() => {
-      if (loadState.status === 'loading' && currentPhaseIndex < phases.length - 1) {
+      if (loadState.status === "loading" && currentPhaseIndex < phases.length - 1) {
         currentPhaseIndex++;
         loadState = {
-          status: 'loading',
+          status: "loading",
           phase: phases[currentPhaseIndex],
-          startedAt: startTime
+          startedAt: startTime,
         };
       }
     }, PHASE_INTERVAL_MS);
@@ -98,15 +98,15 @@
     // Setup timeout
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => {
-        reject(new Error('TIMEOUT'));
+        reject(new Error("TIMEOUT"));
       }, TIMEOUT_MS);
     });
 
     try {
       // Race between request and timeout
       const result = await Promise.race([
-        invoke<Recommendation[]>('get_recommendations', { limit: 10 }),
-        timeoutPromise
+        invoke<Recommendation[]>("get_recommendations", { limit: 10 }),
+        timeoutPromise,
       ]);
 
       cleanup();
@@ -116,16 +116,16 @@
         // Load stats for empty state
         await loadStats();
         loadState = {
-          status: 'empty',
+          status: "empty",
           stats,
-          reason: getEmptyReason(stats)
+          reason: getEmptyReason(stats),
         };
       } else {
         recommendations = result;
         loadState = {
-          status: 'success',
+          status: "success",
           recommendations: result,
-          loadedAt: Date.now()
+          loadedAt: Date.now(),
         };
         // Load stats in background
         loadStats();
@@ -133,29 +133,28 @@
 
       console.log(`[${reqId}] Recommendations loaded in ${loadTimingMs}ms:`, {
         count: result.length,
-        phase: 'complete'
+        phase: "complete",
       });
-
     } catch (e) {
       cleanup();
       loadTimingMs = Date.now() - startTime;
 
       const errorMessage = e instanceof Error ? e.message : String(e);
 
-      if (errorMessage === 'TIMEOUT') {
+      if (errorMessage === "TIMEOUT") {
         loadState = {
-          status: 'timeout',
-          elapsedMs: TIMEOUT_MS
+          status: "timeout",
+          elapsedMs: TIMEOUT_MS,
         };
         console.error(`[${reqId}] Recommendation request timed out after ${TIMEOUT_MS}ms`);
       } else {
         // Parse error for specific codes
         const { code, retryable } = parseError(errorMessage);
         loadState = {
-          status: 'error',
+          status: "error",
           code,
           message: errorMessage,
-          retryable
+          retryable,
         };
         console.error(`[${reqId}] Failed to load recommendations:`, e);
       }
@@ -163,37 +162,37 @@
   }
 
   function parseError(message: string): { code: string; retryable: boolean } {
-    if (message.includes('database is locked')) {
-      return { code: 'DB_LOCKED', retryable: true };
+    if (message.includes("database is locked")) {
+      return { code: "DB_LOCKED", retryable: true };
     }
-    if (message.includes('no such table')) {
-      return { code: 'SCHEMA_ERROR', retryable: false };
+    if (message.includes("no such table")) {
+      return { code: "SCHEMA_ERROR", retryable: false };
     }
-    if (message.includes('connection')) {
-      return { code: 'CONNECTION_ERROR', retryable: true };
+    if (message.includes("connection")) {
+      return { code: "CONNECTION_ERROR", retryable: true };
     }
-    return { code: 'UNKNOWN', retryable: true };
+    return { code: "UNKNOWN", retryable: true };
   }
 
   function getEmptyReason(stats: RecommendationStats | null): string {
-    if (!stats) return 'no_stats';
-    if (stats.articles_read < 5) return 'not_enough_articles';
-    if (stats.articles_with_embedding === 0) return 'no_embeddings';
-    if (stats.candidate_pool_size === 0) return 'no_candidates';
-    return 'no_matches';
+    if (!stats) return "no_stats";
+    if (stats.articles_read < 5) return "not_enough_articles";
+    if (stats.articles_with_embedding === 0) return "no_embeddings";
+    if (stats.candidate_pool_size === 0) return "no_candidates";
+    return "no_matches";
   }
 
   async function loadStats() {
     try {
-      stats = await invoke<RecommendationStats>('get_recommendation_stats');
+      stats = await invoke<RecommendationStats>("get_recommendation_stats");
     } catch (e) {
-      console.error('Failed to load recommendation stats:', e);
+      console.error("Failed to load recommendation stats:", e);
     }
   }
 
   function handleCancel() {
     cleanup();
-    loadState = { status: 'cancelled' };
+    loadState = { status: "cancelled" };
     console.log(`[${requestId}] Request cancelled by user`);
   }
 
@@ -203,25 +202,25 @@
 
   async function handleSave(fnordId: number) {
     try {
-      await invoke('save_article', { fnordId });
-      recommendations = recommendations.map(r =>
-        r.fnord_id === fnordId ? { ...r, is_saved: true } : r
+      await invoke("save_article", { fnordId });
+      recommendations = recommendations.map((r) =>
+        r.fnord_id === fnordId ? { ...r, is_saved: true } : r,
       );
       loadStats();
     } catch (e) {
-      console.error('Failed to save article:', e);
+      console.error("Failed to save article:", e);
     }
   }
 
   async function handleUnsave(fnordId: number) {
     try {
-      await invoke('unsave_article', { fnordId });
-      recommendations = recommendations.map(r =>
-        r.fnord_id === fnordId ? { ...r, is_saved: false } : r
+      await invoke("unsave_article", { fnordId });
+      recommendations = recommendations.map((r) =>
+        r.fnord_id === fnordId ? { ...r, is_saved: false } : r,
       );
       loadStats();
     } catch (e) {
-      console.error('Failed to unsave article:', e);
+      console.error("Failed to unsave article:", e);
     }
   }
 
@@ -232,36 +231,43 @@
   // Phase display text
   function getPhaseText(phase: RecommendationPhase): string {
     const phaseTexts: Record<RecommendationPhase, string> = {
-      'init': $_('recommendations.phase.init') || 'Initialisiere...',
-      'loading_profile': $_('recommendations.phase.loading_profile') || 'Lade Leseprofil...',
-      'generating_candidates': $_('recommendations.phase.generating_candidates') || 'Ermittle Kandidaten...',
-      'scoring': $_('recommendations.phase.scoring') || 'Berechne Relevanz...',
-      'finalizing': $_('recommendations.phase.finalizing') || 'Bereite Empfehlungen auf...'
+      init: $_("recommendations.phase.init") || "Initialisiere...",
+      loading_profile: $_("recommendations.phase.loading_profile") || "Lade Leseprofil...",
+      generating_candidates:
+        $_("recommendations.phase.generating_candidates") || "Ermittle Kandidaten...",
+      scoring: $_("recommendations.phase.scoring") || "Berechne Relevanz...",
+      finalizing: $_("recommendations.phase.finalizing") || "Bereite Empfehlungen auf...",
     };
     return phaseTexts[phase];
   }
 
   function getEmptyReasonText(reason: string): string {
     const reasons: Record<string, string> = {
-      'not_enough_articles': $_('recommendations.empty.reason_not_enough') || 'Du hast noch nicht genug Artikel gelesen.',
-      'no_embeddings': $_('recommendations.empty.reason_no_embeddings') || 'Artikel-Embeddings werden noch generiert.',
-      'no_candidates': $_('recommendations.empty.reason_no_candidates') || 'Alle verfügbaren Artikel wurden bereits gelesen oder ausgeblendet.',
-      'no_matches': $_('recommendations.empty.reason_no_matches') || 'Keine passenden Empfehlungen gefunden.',
-      'no_stats': $_('recommendations.empty.reason_no_stats') || 'Statistiken konnten nicht geladen werden.'
+      not_enough_articles:
+        $_("recommendations.empty.reason_not_enough") ||
+        "Du hast noch nicht genug Artikel gelesen.",
+      no_embeddings:
+        $_("recommendations.empty.reason_no_embeddings") ||
+        "Artikel-Embeddings werden noch generiert.",
+      no_candidates:
+        $_("recommendations.empty.reason_no_candidates") ||
+        "Alle verfügbaren Artikel wurden bereits gelesen oder ausgeblendet.",
+      no_matches:
+        $_("recommendations.empty.reason_no_matches") || "Keine passenden Empfehlungen gefunden.",
+      no_stats:
+        $_("recommendations.empty.reason_no_stats") || "Statistiken konnten nicht geladen werden.",
     };
-    return reasons[reason] || reasons['no_matches'];
+    return reasons[reason] || reasons["no_matches"];
   }
 
   // Elapsed time during loading
   let elapsedSeconds = $derived(
-    loadState.status === 'loading'
-      ? Math.floor((Date.now() - loadState.startedAt) / 1000)
-      : 0
+    loadState.status === "loading" ? Math.floor((Date.now() - loadState.startedAt) / 1000) : 0,
   );
 </script>
 
 <div class="recommendation-list">
-  {#if loadState.status === 'loading'}
+  {#if loadState.status === "loading"}
     <!-- Loading with Progress -->
     <div class="loading-container">
       <div class="loading-spinner">
@@ -282,78 +288,78 @@
       </div>
       <button type="button" class="cancel-btn" onclick={handleCancel}>
         <i class="fa-solid fa-xmark"></i>
-        {$_('common.cancel') || 'Abbrechen'}
+        {$_("common.cancel") || "Abbrechen"}
       </button>
     </div>
-
-  {:else if loadState.status === 'error'}
+  {:else if loadState.status === "error"}
     <!-- Error State -->
     <div class="error-container">
       <i class="fa-solid fa-exclamation-triangle"></i>
-      <p class="error-title">{$_('recommendations.error.title') || 'Fehler beim Laden'}</p>
+      <p class="error-title">{$_("recommendations.error.title") || "Fehler beim Laden"}</p>
       <p class="error-message">{loadState.message}</p>
       <code class="error-code">{loadState.code}</code>
       {#if loadState.retryable}
         <button type="button" class="retry-btn" onclick={handleRetry}>
           <i class="fa-solid fa-arrows-rotate"></i>
-          {$_('common.retry') || 'Erneut versuchen'}
+          {$_("common.retry") || "Erneut versuchen"}
         </button>
       {/if}
-      <button type="button" class="diagnose-btn" onclick={() => showDiagnostics = !showDiagnostics}>
+      <button
+        type="button"
+        class="diagnose-btn"
+        onclick={() => (showDiagnostics = !showDiagnostics)}
+      >
         <i class="fa-solid fa-bug"></i>
-        {$_('recommendations.show_diagnostics') || 'Diagnose anzeigen'}
+        {$_("recommendations.show_diagnostics") || "Diagnose anzeigen"}
       </button>
     </div>
-
-  {:else if loadState.status === 'timeout'}
+  {:else if loadState.status === "timeout"}
     <!-- Timeout State -->
     <div class="timeout-container">
       <i class="fa-solid fa-clock"></i>
-      <p class="timeout-title">{$_('recommendations.timeout.title') || 'Zeitüberschreitung'}</p>
+      <p class="timeout-title">{$_("recommendations.timeout.title") || "Zeitüberschreitung"}</p>
       <p class="timeout-message">
-        {$_('recommendations.timeout.message') || 'Die Anfrage hat zu lange gedauert.'}
+        {$_("recommendations.timeout.message") || "Die Anfrage hat zu lange gedauert."}
         ({(loadState.elapsedMs / 1000).toFixed(1)}s)
       </p>
       <button type="button" class="retry-btn" onclick={handleRetry}>
         <i class="fa-solid fa-arrows-rotate"></i>
-        {$_('common.retry') || 'Erneut versuchen'}
+        {$_("common.retry") || "Erneut versuchen"}
       </button>
     </div>
-
-  {:else if loadState.status === 'cancelled'}
+  {:else if loadState.status === "cancelled"}
     <!-- Cancelled State -->
     <div class="cancelled-container">
       <i class="fa-solid fa-ban"></i>
-      <p>{$_('recommendations.cancelled') || 'Anfrage abgebrochen'}</p>
+      <p>{$_("recommendations.cancelled") || "Anfrage abgebrochen"}</p>
       <button type="button" class="retry-btn" onclick={handleRetry}>
         <i class="fa-solid fa-arrows-rotate"></i>
-        {$_('recommendations.try_again') || 'Nochmal versuchen'}
+        {$_("recommendations.try_again") || "Nochmal versuchen"}
       </button>
     </div>
-
-  {:else if loadState.status === 'empty'}
+  {:else if loadState.status === "empty"}
     <!-- Empty State -->
     <div class="empty-state">
       <div class="empty-icon">
         <i class="fa-duotone fa-wand-magic-sparkles"></i>
       </div>
-      <h3>{$_('recommendations.empty.title') || 'Noch keine Empfehlungen'}</h3>
+      <h3>{$_("recommendations.empty.title") || "Noch keine Empfehlungen"}</h3>
       <p class="empty-reason">{getEmptyReasonText(loadState.reason)}</p>
 
       <div class="empty-tips">
-        <h4>{$_('recommendations.empty.tips_title') || 'So bekommst du Empfehlungen:'}</h4>
+        <h4>{$_("recommendations.empty.tips_title") || "So bekommst du Empfehlungen:"}</h4>
         <ul>
           <li>
             <i class="fa-solid fa-book-open"></i>
-            {$_('recommendations.empty.tip_read') || 'Lies mindestens 5-10 Artikel'}
+            {$_("recommendations.empty.tip_read") || "Lies mindestens 5-10 Artikel"}
           </li>
           <li>
             <i class="fa-solid fa-rss"></i>
-            {$_('recommendations.empty.tip_feeds') || 'Füge mehr Feeds hinzu'}
+            {$_("recommendations.empty.tip_feeds") || "Füge mehr Feeds hinzu"}
           </li>
           <li>
             <i class="fa-solid fa-robot"></i>
-            {$_('recommendations.empty.tip_ollama') || 'Aktiviere Ollama für KI-Analyse'}
+            {$_("recommendations.empty.tip_ollama") || "Aktiviere Ollama für KI-Analyse"}
           </li>
         </ul>
       </div>
@@ -361,11 +367,15 @@
       {#if loadState.stats}
         <div class="empty-progress">
           <div class="progress-item">
-            <span class="progress-label">{$_('recommendations.stats.articles_read') || 'Gelesene Artikel'}</span>
+            <span class="progress-label"
+              >{$_("recommendations.stats.articles_read") || "Gelesene Artikel"}</span
+            >
             <span class="progress-value">{loadState.stats.articles_read}</span>
           </div>
           <div class="progress-item">
-            <span class="progress-label">{$_('recommendations.stats.profile_strength') || 'Profilstärke'}</span>
+            <span class="progress-label"
+              >{$_("recommendations.stats.profile_strength") || "Profilstärke"}</span
+            >
             <span class="progress-value profile-{loadState.stats.profile_strength.toLowerCase()}">
               {loadState.stats.profile_strength}
             </span>
@@ -373,8 +383,7 @@
         </div>
       {/if}
     </div>
-
-  {:else if loadState.status === 'success' || recommendations.length > 0}
+  {:else if loadState.status === "success" || recommendations.length > 0}
     <!-- Success State -->
 
     <!-- Stats Bar -->
@@ -382,7 +391,9 @@
       <div class="stats-bar">
         <div class="stat-item">
           <i class="fa-solid fa-bookmark"></i>
-          <span>{stats.total_saved} {$_('recommendations.stats.articles_saved') || 'gespeichert'}</span>
+          <span
+            >{stats.total_saved} {$_("recommendations.stats.articles_saved") || "gespeichert"}</span
+          >
         </div>
         <div class="stat-item">
           <span class="profile-badge profile-{stats.profile_strength.toLowerCase()}">
@@ -412,13 +423,13 @@
 
     <button type="button" class="refresh-btn" onclick={handleRetry}>
       <i class="fa-solid fa-arrows-rotate"></i>
-      {$_('recommendations.refresh') || 'Aktualisieren'}
+      {$_("recommendations.refresh") || "Aktualisieren"}
     </button>
   {:else}
     <!-- Idle State -->
     <div class="idle-container">
       <button type="button" onclick={handleRetry}>
-        {$_('recommendations.load') || 'Empfehlungen laden'}
+        {$_("recommendations.load") || "Empfehlungen laden"}
       </button>
     </div>
   {/if}
@@ -429,19 +440,19 @@
       <h4>
         <i class="fa-solid fa-bug"></i>
         Diagnose
-        <button type="button" class="close-btn" onclick={() => showDiagnostics = false}>
+        <button type="button" class="close-btn" onclick={() => (showDiagnostics = false)}>
           <i class="fa-solid fa-xmark"></i>
         </button>
       </h4>
       <dl>
         <dt>Request ID</dt>
-        <dd><code>{requestId || 'none'}</code></dd>
+        <dd><code>{requestId || "none"}</code></dd>
 
         <dt>Status</dt>
         <dd><code>{loadState.status}</code></dd>
 
         <dt>Load Time</dt>
-        <dd>{loadTimingMs ? `${loadTimingMs}ms` : 'N/A'}</dd>
+        <dd>{loadTimingMs ? `${loadTimingMs}ms` : "N/A"}</dd>
 
         {#if stats}
           <dt>Articles Read</dt>
@@ -456,7 +467,10 @@
           <dt>Top Keywords</dt>
           <dd>
             {#if stats.top_keywords.length > 0}
-              {stats.top_keywords.slice(0, 5).map(k => k.name).join(', ')}
+              {stats.top_keywords
+                .slice(0, 5)
+                .map((k) => k.name)
+                .join(", ")}
             {:else}
               none
             {/if}
@@ -535,8 +549,13 @@
   }
 
   @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
 
   .loading-time {

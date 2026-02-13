@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
-  import { invoke } from '@tauri-apps/api/core';
-  import { formatChangedDate } from '$lib/utils/articleFormat';
+  import { _ } from "svelte-i18n";
+  import { invoke } from "@tauri-apps/api/core";
+  import { formatChangedDate } from "$lib/utils/articleFormat";
 
   // Type for keyword context from backend
   interface KeywordContext {
@@ -42,16 +42,16 @@
     loadError = null;
 
     try {
-      const result = await invoke<KeywordContext | null>('get_keyword_context', { keywordId });
+      const result = await invoke<KeywordContext | null>("get_keyword_context", { keywordId });
       if (result) {
         context = result;
         contextCache.set(keywordId, result);
       } else {
-        loadError = $_('compound.noContextAvailable') || 'No context available';
+        loadError = $_("compound.noContextAvailable") || "No context available";
       }
     } catch (e) {
-      console.error('Failed to load keyword context:', e);
-      loadError = $_('compound.contextLoadError') || 'Failed to load context';
+      console.error("Failed to load keyword context:", e);
+      loadError = $_("compound.contextLoadError") || "Failed to load context";
     } finally {
       loading = false;
     }
@@ -110,7 +110,7 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') {
+    if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       handleClick();
     }
@@ -121,7 +121,7 @@
 <span
   class="keyword-context-trigger"
   class:clickable={!!onclick}
-  role={onclick ? 'button' : 'note'}
+  role={onclick ? "button" : "note"}
   tabindex={onclick ? 0 : -1}
   onmouseenter={handleMouseEnter}
   onmousemove={handleMouseMove}
@@ -147,7 +147,7 @@
     {#if loading}
       <div class="tooltip-loading">
         <i class="fa-solid fa-spinner fa-spin"></i>
-        {$_('network.loading') || 'Loading...'}
+        {$_("network.loading") || "Loading..."}
       </div>
     {:else if loadError}
       <div class="tooltip-error">
@@ -160,7 +160,7 @@
       {:else}
         <div class="tooltip-no-sentence">
           <i class="fa-solid fa-quote-left"></i>
-          <em>{$_('compound.noSentenceAvailable') || 'No sentence context available'}</em>
+          <em>{$_("compound.noSentenceAvailable") || "No sentence context available"}</em>
         </div>
       {/if}
       <div class="tooltip-meta">
@@ -177,14 +177,14 @@
       </div>
     {:else}
       <div class="tooltip-empty">
-        {$_('compound.noContextAvailable') || 'No context available'}
+        {$_("compound.noContextAvailable") || "No context available"}
       </div>
     {/if}
 
     {#if onclick}
       <div class="tooltip-hint">
         <i class="fa-solid fa-arrow-up-right-from-square"></i>
-        {$_('compound.clickToOpenNetwork') || 'Click to open in Network'}
+        {$_("compound.clickToOpenNetwork") || "Click to open in Network"}
       </div>
     {/if}
   </div>

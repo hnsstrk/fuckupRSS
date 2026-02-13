@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { _ } from 'svelte-i18n';
-  import { invoke } from '@tauri-apps/api/core';
-  import { SvelteSet } from 'svelte/reactivity';
-  import Tooltip from '../Tooltip.svelte';
-  import type { Keyword, TrueSynonymCandidate, SynonymVerificationResult } from '../../types';
+  import { onMount, onDestroy } from "svelte";
+  import { _ } from "svelte-i18n";
+  import { invoke } from "@tauri-apps/api/core";
+  import { SvelteSet } from "svelte/reactivity";
+  import Tooltip from "../Tooltip.svelte";
+  import type { Keyword, TrueSynonymCandidate, SynonymVerificationResult } from "../../types";
 
   // Type for synonym candidate
   interface SynonymCandidate {
@@ -44,7 +44,12 @@
     createKeywordError: string | null;
     // Callbacks
     onFindSynonyms: () => void;
-    onMergeKeywords: (keepId: number, removeId: number, keepName: string, removeName: string) => void;
+    onMergeKeywords: (
+      keepId: number,
+      removeId: number,
+      keepName: string,
+      removeName: string,
+    ) => void;
     onDismissSynonymPair: (keywordAId: number, keywordBId: number) => void;
     onKeepSearchInput: (value: string) => void;
     onSelectKeepKeyword: (keyword: Keyword) => void;
@@ -114,16 +119,16 @@
   }
 
   onMount(() => {
-    window.addEventListener('keywords-changed', handleKeywordsChanged);
+    window.addEventListener("keywords-changed", handleKeywordsChanged);
   });
 
   onDestroy(() => {
-    window.removeEventListener('keywords-changed', handleKeywordsChanged);
+    window.removeEventListener("keywords-changed", handleKeywordsChanged);
   });
 
   // Get verification key for a pair
   function getVerificationKey(nameA: string, nameB: string): string {
-    return [nameA, nameB].sort().join('|');
+    return [nameA, nameB].sort().join("|");
   }
 
   // Load true synonym candidates
@@ -131,14 +136,14 @@
     trueSynonymsLoading = true;
     trueSynonymsError = null;
     try {
-      trueSynonymCandidates = await invoke<TrueSynonymCandidate[]>('find_true_synonyms', {
+      trueSynonymCandidates = await invoke<TrueSynonymCandidate[]>("find_true_synonyms", {
         stringThreshold: 0.6,
         embeddingThreshold: 0.7,
-        limit: 50
+        limit: 50,
       });
     } catch (e) {
       trueSynonymsError = String(e);
-      console.error('Failed to load true synonyms:', e);
+      console.error("Failed to load true synonyms:", e);
     } finally {
       trueSynonymsLoading = false;
     }
@@ -150,21 +155,27 @@
     verifyingPairs.add(key);
 
     try {
-      const result = await invoke<SynonymVerificationResult>('verify_synonym_pair', {
+      const result = await invoke<SynonymVerificationResult>("verify_synonym_pair", {
         keywordA,
-        keywordB
+        keywordB,
       });
       verificationResults = new Map([...verificationResults, [key, result]]);
     } catch (e) {
-      console.error('Failed to verify synonym pair:', e);
+      console.error("Failed to verify synonym pair:", e);
       // Store failed result
-      verificationResults = new Map([...verificationResults, [key, {
-        keyword_a: keywordA,
-        keyword_b: keywordB,
-        is_synonym: false,
-        confidence: 0,
-        explanation: $_('network.verificationFailed') || 'Verification failed'
-      }]]);
+      verificationResults = new Map([
+        ...verificationResults,
+        [
+          key,
+          {
+            keyword_a: keywordA,
+            keyword_b: keywordB,
+            is_synonym: false,
+            confidence: 0,
+            explanation: $_("network.verificationFailed") || "Verification failed",
+          },
+        ],
+      ]);
     } finally {
       verifyingPairs.delete(key);
     }
@@ -176,12 +187,15 @@
   }
 
   // Get verification result for a pair
-  function getVerificationResult(nameA: string, nameB: string): SynonymVerificationResult | undefined {
+  function getVerificationResult(
+    nameA: string,
+    nameB: string,
+  ): SynonymVerificationResult | undefined {
     return verificationResults.get(getVerificationKey(nameA, nameB));
   }
 
   function handleNewKeywordKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault();
       onCreateNewKeyword();
     }
@@ -211,7 +225,7 @@
   function toggleSelectAllCompounds() {
     selectedCompoundIds.clear();
     if (selectAllCompounds) {
-      const ids = compoundPreview?.filter(c => !c.is_preserved).map(c => c.id) || [];
+      const ids = compoundPreview?.filter((c) => !c.is_preserved).map((c) => c.id) || [];
       for (const id of ids) {
         selectedCompoundIds.add(id);
       }
@@ -225,7 +239,7 @@
     for (const id of ids) {
       try {
         await invoke("split_single_compound", { keywordId: id });
-        compoundPreview = compoundPreview?.filter(c => c.id !== id) || null;
+        compoundPreview = compoundPreview?.filter((c) => c.id !== id) || null;
         selectedCompoundIds.delete(id);
       } catch (e) {
         console.error(`Failed to split ${id}:`, e);
@@ -244,9 +258,10 @@
       } else {
         await invoke("preserve_compound_keyword", { keywordId: item.id });
       }
-      compoundPreview = compoundPreview?.map(c =>
-        c.id === item.id ? {...c, is_preserved: !c.is_preserved} : c
-      ) || null;
+      compoundPreview =
+        compoundPreview?.map((c) =>
+          c.id === item.id ? { ...c, is_preserved: !c.is_preserved } : c,
+        ) || null;
       if (!item.is_preserved) {
         selectedCompoundIds.delete(item.id);
       }
@@ -259,15 +274,18 @@
 <div class="synonyms-view">
   <!-- Manual Merge - Full Width at Top -->
   <div class="synonyms-section full-width">
-    <h3 class="section-heading">{$_('network.manualMerge') || 'Manuelles Zusammenfuehren'}</h3>
-    <p class="section-description">{$_('network.manualMergeDescription') || 'Waehle zwei Keywords aus: Das erste bleibt erhalten, das zweite wird geloescht und alle Verknuepfungen werden uebertragen.'}</p>
+    <h3 class="section-heading">{$_("network.manualMerge") || "Manuelles Zusammenfuehren"}</h3>
+    <p class="section-description">
+      {$_("network.manualMergeDescription") ||
+        "Waehle zwei Keywords aus: Das erste bleibt erhalten, das zweite wird geloescht und alle Verknuepfungen werden uebertragen."}
+    </p>
 
     <div class="merge-form">
       <!-- Keep Keyword (Target) -->
       <div class="merge-field">
         <label class="merge-label" for="keep-keyword-search">
           <i class="fa-solid fa-check merge-label-icon keep"></i>
-          {$_('network.keepKeyword') || 'Behalten'}
+          {$_("network.keepKeyword") || "Behalten"}
         </label>
         <div class="merge-search-box">
           <input
@@ -275,19 +293,18 @@
             id="keep-keyword-search"
             value={keepSearchInput}
             oninput={(e) => onKeepSearchInput(e.currentTarget.value)}
-            placeholder={$_('network.searchKeywordPlaceholder') || 'Keyword suchen...'}
+            placeholder={$_("network.searchKeywordPlaceholder") || "Keyword suchen..."}
             class="merge-search-input"
           />
           {#if keepSearchInput}
-            <button onclick={onClearKeepSearch} class="clear-btn" aria-label="Clear"><i class="fa-solid fa-xmark"></i></button>
+            <button onclick={onClearKeepSearch} class="clear-btn" aria-label="Clear"
+              ><i class="fa-solid fa-xmark"></i></button
+            >
           {/if}
           {#if keepSearchResults.length > 0 && !selectedKeepKeyword}
             <div class="merge-search-results">
               {#each keepSearchResults as keyword (keyword.id)}
-                <button
-                  class="merge-search-item"
-                  onclick={() => onSelectKeepKeyword(keyword)}
-                >
+                <button class="merge-search-item" onclick={() => onSelectKeepKeyword(keyword)}>
                   <span class="item-name">{keyword.name}</span>
                   <span class="item-count">{keyword.article_count}</span>
                 </button>
@@ -307,14 +324,14 @@
       <!-- Visual Arrow -->
       <div class="merge-arrow">
         <i class="fa-solid fa-arrow-right"></i>
-        <span class="arrow-label">{$_('network.replacesLabel') || 'ersetzt'}</span>
+        <span class="arrow-label">{$_("network.replacesLabel") || "ersetzt"}</span>
       </div>
 
       <!-- Remove Keyword (Source) -->
       <div class="merge-field">
         <label class="merge-label" for="remove-keyword-search">
           <i class="fa-solid fa-trash merge-label-icon remove"></i>
-          {$_('network.removeKeyword') || 'Loeschen'}
+          {$_("network.removeKeyword") || "Loeschen"}
         </label>
         <div class="merge-search-box">
           <input
@@ -322,20 +339,19 @@
             id="remove-keyword-search"
             value={removeSearchInput}
             oninput={(e) => onRemoveSearchInput(e.currentTarget.value)}
-            placeholder={$_('network.searchKeywordPlaceholder') || 'Keyword suchen...'}
+            placeholder={$_("network.searchKeywordPlaceholder") || "Keyword suchen..."}
             class="merge-search-input"
           />
           {#if removeSearchInput}
-            <button onclick={onClearRemoveSearch} class="clear-btn" aria-label="Clear"><i class="fa-solid fa-xmark"></i></button>
+            <button onclick={onClearRemoveSearch} class="clear-btn" aria-label="Clear"
+              ><i class="fa-solid fa-xmark"></i></button
+            >
           {/if}
           {#if removeSearchResults.length > 0 && !selectedRemoveKeyword}
             <div class="merge-search-results">
               {#each removeSearchResults as keyword (keyword.id)}
                 {#if keyword.id !== selectedKeepKeyword?.id}
-                  <button
-                    class="merge-search-item"
-                    onclick={() => onSelectRemoveKeyword(keyword)}
-                  >
+                  <button class="merge-search-item" onclick={() => onSelectRemoveKeyword(keyword)}>
                     <span class="item-name">{keyword.name}</span>
                     <span class="item-count">{keyword.article_count}</span>
                   </button>
@@ -360,8 +376,8 @@
         <div class="preview-text">
           <i class="fa-solid fa-circle-info"></i>
           <span>
-            <strong>"{selectedRemoveKeyword.name}"</strong> wird geloescht.
-            Alle {selectedRemoveKeyword.article_count} Artikel werden zu <strong>"{selectedKeepKeyword.name}"</strong> uebertragen.
+            <strong>"{selectedRemoveKeyword.name}"</strong> wird geloescht. Alle {selectedRemoveKeyword.article_count}
+            Artikel werden zu <strong>"{selectedKeepKeyword.name}"</strong> uebertragen.
           </span>
         </div>
         <button
@@ -374,20 +390,20 @@
           {:else}
             <i class="fa-solid fa-code-merge"></i>
           {/if}
-          {$_('network.executeMerge') || 'Zusammenfuehren'}
+          {$_("network.executeMerge") || "Zusammenfuehren"}
         </button>
       </div>
     {:else}
       <div class="merge-hint">
         <i class="fa-solid fa-hand-pointer"></i>
-        {$_('network.selectBothKeywords') || 'Waehle beide Keywords aus, um sie zusammenzufuehren.'}
+        {$_("network.selectBothKeywords") || "Waehle beide Keywords aus, um sie zusammenzufuehren."}
       </div>
     {/if}
 
     {#if selectedKeepKeyword && selectedRemoveKeyword && selectedKeepKeyword.id === selectedRemoveKeyword.id}
       <div class="merge-error">
         <i class="fa-solid fa-triangle-exclamation"></i>
-        {$_('network.sameKeywordError') || 'Die beiden Keywords muessen unterschiedlich sein.'}
+        {$_("network.sameKeywordError") || "Die beiden Keywords muessen unterschiedlich sein."}
       </div>
     {/if}
   </div>
@@ -396,19 +412,18 @@
   <div class="synonyms-columns">
     <!-- Semantically Similar Keywords (Embedding-based) -->
     <div class="synonyms-section">
-      <h3 class="section-heading">{$_('network.synonymCandidates') || 'Semantisch ähnliche Keywords'}</h3>
+      <h3 class="section-heading">
+        {$_("network.synonymCandidates") || "Semantisch ähnliche Keywords"}
+      </h3>
       <p class="section-hint">
-        {$_('network.synonymCandidatesHint') || 'Diese Vorschläge basieren auf Embedding-Ähnlichkeit (semantische Nähe), nicht auf lexikalischer Übereinstimmung.'}
+        {$_("network.synonymCandidatesHint") ||
+          "Diese Vorschläge basieren auf Embedding-Ähnlichkeit (semantische Nähe), nicht auf lexikalischer Übereinstimmung."}
       </p>
-      <button
-        class="action-btn primary"
-        onclick={onFindSynonyms}
-        disabled={synonymsLoading}
-      >
+      <button class="action-btn primary" onclick={onFindSynonyms} disabled={synonymsLoading}>
         {#if synonymsLoading}
-          {$_('network.loading') || 'Lade...'}
+          {$_("network.loading") || "Lade..."}
         {:else}
-          {$_('network.findSynonyms') || 'Synonyme finden'}
+          {$_("network.findSynonyms") || "Synonyme finden"}
         {/if}
       </button>
 
@@ -421,7 +436,7 @@
 
       {#if synonymCandidates.length > 0}
         <div class="synonym-list">
-          {#each synonymCandidates as candidate (candidate.keyword_a_id + '-' + candidate.keyword_b_id)}
+          {#each synonymCandidates as candidate (candidate.keyword_a_id + "-" + candidate.keyword_b_id)}
             <div class="synonym-item">
               <div class="synonym-pair">
                 <span class="synonym-keyword">{candidate.keyword_a_name}</span>
@@ -431,7 +446,13 @@
               <div class="synonym-actions">
                 <button
                   class="merge-btn left"
-                  onclick={() => onMergeKeywords(candidate.keyword_a_id, candidate.keyword_b_id, candidate.keyword_a_name, candidate.keyword_b_name)}
+                  onclick={() =>
+                    onMergeKeywords(
+                      candidate.keyword_a_id,
+                      candidate.keyword_b_id,
+                      candidate.keyword_a_name,
+                      candidate.keyword_b_name,
+                    )}
                   title="{candidate.keyword_b_name} -> {candidate.keyword_a_name}"
                   disabled={synonymsLoading}
                 >
@@ -439,7 +460,13 @@
                 </button>
                 <button
                   class="merge-btn right"
-                  onclick={() => onMergeKeywords(candidate.keyword_b_id, candidate.keyword_a_id, candidate.keyword_b_name, candidate.keyword_a_name)}
+                  onclick={() =>
+                    onMergeKeywords(
+                      candidate.keyword_b_id,
+                      candidate.keyword_a_id,
+                      candidate.keyword_b_name,
+                      candidate.keyword_a_name,
+                    )}
                   title="{candidate.keyword_a_name} -> {candidate.keyword_b_name}"
                   disabled={synonymsLoading}
                 >
@@ -447,8 +474,9 @@
                 </button>
                 <button
                   class="dismiss-btn"
-                  onclick={() => onDismissSynonymPair(candidate.keyword_a_id, candidate.keyword_b_id)}
-                  title={$_('network.dismissSynonym') || 'Ignorieren'}
+                  onclick={() =>
+                    onDismissSynonymPair(candidate.keyword_a_id, candidate.keyword_b_id)}
+                  title={$_("network.dismissSynonym") || "Ignorieren"}
                 >
                   <i class="fa-solid fa-xmark"></i>
                 </button>
@@ -457,19 +485,22 @@
           {/each}
         </div>
       {:else if !synonymsLoading && synonymCandidates.length === 0}
-        <div class="empty-hint">{$_('network.clickFindSynonyms') || 'Klicke auf "Synonyme finden" um KI-Vorschlaege zu laden'}</div>
+        <div class="empty-hint">
+          {$_("network.clickFindSynonyms") ||
+            'Klicke auf "Synonyme finden" um KI-Vorschlaege zu laden'}
+        </div>
       {/if}
     </div>
 
     <!-- Create New Keyword -->
     <div class="synonyms-section">
-      <h3 class="section-heading">{$_('network.createKeyword') || 'Neues Keyword erstellen'}</h3>
+      <h3 class="section-heading">{$_("network.createKeyword") || "Neues Keyword erstellen"}</h3>
       <div class="create-keyword-form">
         <input
           type="text"
           value={newKeywordInput}
           oninput={(e) => onNewKeywordInput(e.currentTarget.value)}
-          placeholder={$_('network.newKeywordPlaceholder') || 'Keyword eingeben...'}
+          placeholder={$_("network.newKeywordPlaceholder") || "Keyword eingeben..."}
           class="create-keyword-input"
           onkeydown={handleNewKeywordKeydown}
         />
@@ -479,9 +510,9 @@
           disabled={createKeywordLoading || !newKeywordInput.trim()}
         >
           {#if createKeywordLoading}
-            {$_('network.loading') || 'Lade...'}
+            {$_("network.loading") || "Lade..."}
           {:else}
-            {$_('network.create') || 'Erstellen'}
+            {$_("network.create") || "Erstellen"}
           {/if}
         </button>
       </div>
@@ -498,23 +529,20 @@
   <div class="synonyms-section full-width true-synonyms-section">
     <h3 class="section-heading">
       <i class="fa-solid fa-equals"></i>
-      {$_('network.trueSynonyms') || 'Echte Synonyme'}
+      {$_("network.trueSynonyms") || "Echte Synonyme"}
     </h3>
     <p class="section-hint">
-      {$_('network.trueSynonymsHint') || 'Diese Paare sind wahrscheinlich echte Synonyme (Abkürzungen, alternative Namen) basierend auf String-Ähnlichkeit.'}
+      {$_("network.trueSynonymsHint") ||
+        "Diese Paare sind wahrscheinlich echte Synonyme (Abkürzungen, alternative Namen) basierend auf String-Ähnlichkeit."}
     </p>
 
-    <button
-      class="action-btn primary"
-      onclick={loadTrueSynonyms}
-      disabled={trueSynonymsLoading}
-    >
+    <button class="action-btn primary" onclick={loadTrueSynonyms} disabled={trueSynonymsLoading}>
       {#if trueSynonymsLoading}
         <i class="fa-solid fa-spinner fa-spin"></i>
-        {$_('network.loading') || 'Lade...'}
+        {$_("network.loading") || "Lade..."}
       {:else}
         <i class="fa-solid fa-magnifying-glass"></i>
-        {$_('network.findTrueSynonyms') || 'Echte Synonyme finden'}
+        {$_("network.findTrueSynonyms") || "Echte Synonyme finden"}
       {/if}
     </button>
 
@@ -524,10 +552,17 @@
 
     {#if trueSynonymCandidates.length > 0}
       <div class="true-synonym-list">
-        {#each trueSynonymCandidates as candidate (candidate.keyword_a_id + '-' + candidate.keyword_b_id)}
-          {@const verificationResult = getVerificationResult(candidate.keyword_a_name, candidate.keyword_b_name)}
+        {#each trueSynonymCandidates as candidate (candidate.keyword_a_id + "-" + candidate.keyword_b_id)}
+          {@const verificationResult = getVerificationResult(
+            candidate.keyword_a_name,
+            candidate.keyword_b_name,
+          )}
           {@const isVerifyingPair = isVerifying(candidate.keyword_a_name, candidate.keyword_b_name)}
-          <div class="true-synonym-item" class:verified-synonym={verificationResult?.is_synonym} class:verified-not-synonym={verificationResult && !verificationResult.is_synonym}>
+          <div
+            class="true-synonym-item"
+            class:verified-synonym={verificationResult?.is_synonym}
+            class:verified-not-synonym={verificationResult && !verificationResult.is_synonym}
+          >
             <div class="true-synonym-pair">
               <span class="true-synonym-keyword">{candidate.keyword_a_name}</span>
               <i class="fa-solid fa-arrows-left-right pair-arrow"></i>
@@ -536,22 +571,35 @@
 
             <div class="true-synonym-badges">
               {#if candidate.is_abbreviation}
-                <span class="badge badge-abbreviation" title={$_('network.abbreviation') || 'Abkürzung'}>
+                <span
+                  class="badge badge-abbreviation"
+                  title={$_("network.abbreviation") || "Abkürzung"}
+                >
                   <i class="fa-solid fa-text-width"></i>
-                  {$_('network.abbreviation') || 'Abkürzung'}
+                  {$_("network.abbreviation") || "Abkürzung"}
                 </span>
               {/if}
               {#if candidate.is_name_variant}
-                <span class="badge badge-name-variant" title={$_('network.nameVariant') || 'Namensform'}>
+                <span
+                  class="badge badge-name-variant"
+                  title={$_("network.nameVariant") || "Namensform"}
+                >
                   <i class="fa-solid fa-user-tag"></i>
-                  {$_('network.nameVariant') || 'Namensform'}
+                  {$_("network.nameVariant") || "Namensform"}
                 </span>
               {/if}
-              <span class="badge badge-string" title={$_('network.stringSimLabel') || 'String'}>
-                {$_('network.stringSimLabel') || 'Str'}: {(candidate.string_similarity * 100).toFixed(0)}%
+              <span class="badge badge-string" title={$_("network.stringSimLabel") || "String"}>
+                {$_("network.stringSimLabel") || "Str"}: {(
+                  candidate.string_similarity * 100
+                ).toFixed(0)}%
               </span>
-              <span class="badge badge-embedding" title={$_('network.embeddingSimLabel') || 'Embedding'}>
-                {$_('network.embeddingSimLabel') || 'Emb'}: {(candidate.embedding_similarity * 100).toFixed(0)}%
+              <span
+                class="badge badge-embedding"
+                title={$_("network.embeddingSimLabel") || "Embedding"}
+              >
+                {$_("network.embeddingSimLabel") || "Emb"}: {(
+                  candidate.embedding_similarity * 100
+                ).toFixed(0)}%
               </span>
               <span class="badge badge-combined">
                 {(candidate.combined_score * 100).toFixed(0)}%
@@ -561,8 +609,17 @@
             <div class="true-synonym-actions">
               <!-- AI Verification Button -->
               {#if verificationResult}
-                <Tooltip content={verificationResult.explanation || (verificationResult.is_synonym ? $_('network.verifiedAsSynonym') : $_('network.verifiedAsNotSynonym'))}>
-                  <span class="verification-result" class:is-synonym={verificationResult.is_synonym} class:not-synonym={!verificationResult.is_synonym}>
+                <Tooltip
+                  content={verificationResult.explanation ||
+                    (verificationResult.is_synonym
+                      ? $_("network.verifiedAsSynonym")
+                      : $_("network.verifiedAsNotSynonym"))}
+                >
+                  <span
+                    class="verification-result"
+                    class:is-synonym={verificationResult.is_synonym}
+                    class:not-synonym={!verificationResult.is_synonym}
+                  >
                     {#if verificationResult.is_synonym}
                       <i class="fa-solid fa-check-circle"></i>
                     {:else}
@@ -573,9 +630,10 @@
               {:else}
                 <button
                   class="verify-btn"
-                  onclick={() => verifySynonymPair(candidate.keyword_a_name, candidate.keyword_b_name)}
+                  onclick={() =>
+                    verifySynonymPair(candidate.keyword_a_name, candidate.keyword_b_name)}
                   disabled={isVerifyingPair || synonymsLoading}
-                  title={$_('network.verifyWithAI') || 'Mit KI verifizieren'}
+                  title={$_("network.verifyWithAI") || "Mit KI verifizieren"}
                 >
                   {#if isVerifyingPair}
                     <i class="fa-solid fa-spinner fa-spin"></i>
@@ -588,7 +646,13 @@
               <!-- Merge buttons -->
               <button
                 class="merge-btn left"
-                onclick={() => onMergeKeywords(candidate.keyword_a_id, candidate.keyword_b_id, candidate.keyword_a_name, candidate.keyword_b_name)}
+                onclick={() =>
+                  onMergeKeywords(
+                    candidate.keyword_a_id,
+                    candidate.keyword_b_id,
+                    candidate.keyword_a_name,
+                    candidate.keyword_b_name,
+                  )}
                 title="{candidate.keyword_b_name} -> {candidate.keyword_a_name}"
                 disabled={synonymsLoading}
               >
@@ -596,7 +660,13 @@
               </button>
               <button
                 class="merge-btn right"
-                onclick={() => onMergeKeywords(candidate.keyword_b_id, candidate.keyword_a_id, candidate.keyword_b_name, candidate.keyword_a_name)}
+                onclick={() =>
+                  onMergeKeywords(
+                    candidate.keyword_b_id,
+                    candidate.keyword_a_id,
+                    candidate.keyword_b_name,
+                    candidate.keyword_a_name,
+                  )}
                 title="{candidate.keyword_a_name} -> {candidate.keyword_b_name}"
                 disabled={synonymsLoading}
               >
@@ -606,11 +676,15 @@
                 class="dismiss-btn"
                 onclick={() => {
                   onDismissSynonymPair(candidate.keyword_a_id, candidate.keyword_b_id);
-                  trueSynonymCandidates = trueSynonymCandidates.filter(c =>
-                    !(c.keyword_a_id === candidate.keyword_a_id && c.keyword_b_id === candidate.keyword_b_id)
+                  trueSynonymCandidates = trueSynonymCandidates.filter(
+                    (c) =>
+                      !(
+                        c.keyword_a_id === candidate.keyword_a_id &&
+                        c.keyword_b_id === candidate.keyword_b_id
+                      ),
                   );
                 }}
-                title={$_('network.dismissSynonym') || 'Ignorieren'}
+                title={$_("network.dismissSynonym") || "Ignorieren"}
               >
                 <i class="fa-solid fa-xmark"></i>
               </button>
@@ -619,7 +693,10 @@
         {/each}
       </div>
     {:else if !trueSynonymsLoading && trueSynonymCandidates.length === 0}
-      <div class="empty-hint">{$_('network.clickFindSynonyms') || 'Klicke auf "Echte Synonyme finden" um Vorschläge zu laden'}</div>
+      <div class="empty-hint">
+        {$_("network.clickFindSynonyms") ||
+          'Klicke auf "Echte Synonyme finden" um Vorschläge zu laden'}
+      </div>
     {/if}
   </div>
 
@@ -649,7 +726,9 @@
 
     {#if compoundPreview !== null}
       {#if compoundPreview.length === 0}
-        <p class="preview-empty">{$_("network.noCompounds") ?? "Keine Compound-Keywords gefunden"}</p>
+        <p class="preview-empty">
+          {$_("network.noCompounds") ?? "Keine Compound-Keywords gefunden"}
+        </p>
       {:else}
         <div class="compound-controls">
           <label class="select-all-label">
@@ -658,7 +737,9 @@
               bind:checked={selectAllCompounds}
               onchange={toggleSelectAllCompounds}
             />
-            {$_("network.selectAll") ?? "Alle"} ({selectedCompoundCount}/{compoundPreview.filter(c => !c.is_preserved).length})
+            {$_("network.selectAll") ?? "Alle"} ({selectedCompoundCount}/{compoundPreview.filter(
+              (c) => !c.is_preserved,
+            ).length})
           </label>
           <button
             type="button"
@@ -691,7 +772,9 @@
               <button
                 class="preserve-btn"
                 onclick={() => togglePreserveCompound(item)}
-                title={item.is_preserved ? ($_("network.removeProtection") ?? "Schutz aufheben") : ($_("network.preserve") ?? "Erhalten")}
+                title={item.is_preserved
+                  ? ($_("network.removeProtection") ?? "Schutz aufheben")
+                  : ($_("network.preserve") ?? "Erhalten")}
               >
                 <i class="fa-solid {item.is_preserved ? 'fa-shield-check' : 'fa-shield'}"></i>
               </button>

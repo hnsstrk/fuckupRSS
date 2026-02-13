@@ -36,18 +36,18 @@ html.dracula {
   --text-on-accent: #282a36;
 
   /* Category Colors */
-  --category-1: #8be9fd;  /* Cyan - Wissen & Technologie */
-  --category-2: #ff5555;  /* Red - Politik & Gesellschaft */
-  --category-3: #f1fa8c;  /* Yellow - Wirtschaft */
-  --category-4: #50fa7b;  /* Green - Umwelt & Gesundheit */
-  --category-5: #ffb86c;  /* Orange - Sicherheit */
-  --category-6: #ff79c6;  /* Pink - Kultur & Leben */
+  --category-1: #8be9fd; /* Cyan - Wissen & Technologie */
+  --category-2: #ff5555; /* Red - Politik & Gesellschaft */
+  --category-3: #f1fa8c; /* Yellow - Wirtschaft */
+  --category-4: #50fa7b; /* Green - Umwelt & Gesundheit */
+  --category-5: #ffb86c; /* Orange - Sicherheit */
+  --category-6: #ff79c6; /* Pink - Kultur & Leben */
 
   /* Bias Colors */
-  --bias-strong-left: #8be9fd;  /* Cyan */
-  --bias-lean-left: #bd93f9;    /* Purple */
-  --bias-center: #50fa7b;       /* Green */
-  --bias-lean-right: #ffb86c;   /* Orange */
+  --bias-strong-left: #8be9fd; /* Cyan */
+  --bias-lean-left: #bd93f9; /* Purple */
+  --bias-center: #50fa7b; /* Green */
+  --bias-lean-right: #ffb86c; /* Orange */
   --bias-strong-right: #ff5555; /* Red */
 
   --sach-emotional: #ffb86c;
@@ -56,7 +56,7 @@ html.dracula {
 
   /* Diff Colors */
   --diff-deleted-bg: rgba(255, 85, 85, 0.25);
-  --diff-added-bg: rgba(80, 250, 123, 0.30);
+  --diff-added-bg: rgba(80, 250, 123, 0.3);
   --diff-modified-old-bg: rgba(255, 184, 108, 0.15);
   --diff-modified-new-bg: rgba(255, 184, 108, 0.35);
 }

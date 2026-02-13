@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock svelte-i18n
-vi.mock('svelte-i18n', () => ({
+vi.mock("svelte-i18n", () => ({
   _: {
     subscribe: vi.fn((cb) => {
       cb((key: string) => key);
@@ -11,82 +11,82 @@ vi.mock('svelte-i18n', () => ({
 }));
 
 // Mock @tauri-apps/api/core
-vi.mock('@tauri-apps/api/core', () => ({
+vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "@tauri-apps/api/core";
 
-describe('KeywordContextTooltip Component Logic', () => {
+describe("KeywordContextTooltip Component Logic", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('Context Loading', () => {
-    it('loads context from backend when keyword id is provided', async () => {
+  describe("Context Loading", () => {
+    it("loads context from backend when keyword id is provided", async () => {
       const mockContext = {
-        sentence: 'This is a test sentence with the keyword.',
-        article_title: 'Test Article',
-        article_date: '2025-01-15T10:00:00Z',
+        sentence: "This is a test sentence with the keyword.",
+        article_title: "Test Article",
+        article_date: "2025-01-15T10:00:00Z",
         article_id: 42,
       };
 
       vi.mocked(invoke).mockResolvedValueOnce(mockContext);
 
-      const result = await invoke('get_keyword_context', { keywordId: 123 });
+      const result = await invoke("get_keyword_context", { keywordId: 123 });
 
-      expect(invoke).toHaveBeenCalledWith('get_keyword_context', { keywordId: 123 });
+      expect(invoke).toHaveBeenCalledWith("get_keyword_context", { keywordId: 123 });
       expect(result).toEqual(mockContext);
     });
 
-    it('handles null response from backend', async () => {
+    it("handles null response from backend", async () => {
       vi.mocked(invoke).mockResolvedValueOnce(null);
 
-      const result = await invoke('get_keyword_context', { keywordId: 999 });
+      const result = await invoke("get_keyword_context", { keywordId: 999 });
 
       expect(result).toBeNull();
     });
 
-    it('handles error from backend', async () => {
-      vi.mocked(invoke).mockRejectedValueOnce(new Error('Database error'));
+    it("handles error from backend", async () => {
+      vi.mocked(invoke).mockRejectedValueOnce(new Error("Database error"));
 
-      await expect(invoke('get_keyword_context', { keywordId: 123 })).rejects.toThrow(
-        'Database error'
+      await expect(invoke("get_keyword_context", { keywordId: 123 })).rejects.toThrow(
+        "Database error",
       );
     });
   });
 
-  describe('Sentence Display Logic', () => {
-    it('identifies when sentence is available', () => {
+  describe("Sentence Display Logic", () => {
+    it("identifies when sentence is available", () => {
       const hasSentence = (sentence: string | null | undefined): boolean => {
         return Boolean(sentence && sentence.trim().length > 0);
       };
 
-      expect(hasSentence('This is a valid sentence.')).toBe(true);
-      expect(hasSentence('')).toBe(false);
+      expect(hasSentence("This is a valid sentence.")).toBe(true);
+      expect(hasSentence("")).toBe(false);
       expect(hasSentence(null)).toBe(false);
       expect(hasSentence(undefined)).toBe(false);
-      expect(hasSentence('   ')).toBe(false);
+      expect(hasSentence("   ")).toBe(false);
     });
 
-    it('formats date correctly', () => {
+    it("formats date correctly", () => {
       const formatDate = (dateStr: string | null): string => {
-        if (!dateStr) return '';
+        if (!dateStr) return "";
         const date = new Date(dateStr);
-        return date.toLocaleDateString('de-DE', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
+        return date.toLocaleDateString("de-DE", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
         });
       };
 
-      expect(formatDate('2025-01-15T10:00:00Z')).toBe('15.01.2025');
-      expect(formatDate(null)).toBe('');
+      expect(formatDate("2025-01-15T10:00:00Z")).toBe("15.01.2025");
+      expect(formatDate(null)).toBe("");
     });
   });
 
-  describe('Tooltip Positioning', () => {
-    it('calculates tooltip position from mouse event', () => {
+  describe("Tooltip Positioning", () => {
+    it("calculates tooltip position from mouse event", () => {
       const updatePosition = (clientX: number, clientY: number) => {
         return {
           x: clientX + 10,
@@ -99,12 +99,12 @@ describe('KeywordContextTooltip Component Logic', () => {
       expect(pos.y).toBe(210);
     });
 
-    it('adjusts position when tooltip would overflow right edge', () => {
+    it("adjusts position when tooltip would overflow right edge", () => {
       const adjustForOverflow = (
         x: number,
         tooltipWidth: number,
         windowWidth: number,
-        clientX: number
+        clientX: number,
       ) => {
         if (x + tooltipWidth > windowWidth) {
           return clientX - tooltipWidth - 10;
@@ -118,12 +118,12 @@ describe('KeywordContextTooltip Component Logic', () => {
       expect(adjustForOverflow(950, 200, 1000, 940)).toBe(730);
     });
 
-    it('adjusts position when tooltip would overflow bottom edge', () => {
+    it("adjusts position when tooltip would overflow bottom edge", () => {
       const adjustForBottomOverflow = (
         y: number,
         tooltipHeight: number,
         windowHeight: number,
-        clientY: number
+        clientY: number,
       ) => {
         if (y + tooltipHeight > windowHeight) {
           return clientY - tooltipHeight - 10;
@@ -138,8 +138,8 @@ describe('KeywordContextTooltip Component Logic', () => {
     });
   });
 
-  describe('Hover Behavior', () => {
-    it('delays tooltip show by 300ms', () => {
+  describe("Hover Behavior", () => {
+    it("delays tooltip show by 300ms", () => {
       vi.useFakeTimers();
 
       let tooltipShown = false;
@@ -164,7 +164,7 @@ describe('KeywordContextTooltip Component Logic', () => {
       vi.useRealTimers();
     });
 
-    it('cancels tooltip on mouse leave before delay', () => {
+    it("cancels tooltip on mouse leave before delay", () => {
       vi.useFakeTimers();
 
       let tooltipShown = false;
@@ -194,13 +194,13 @@ describe('KeywordContextTooltip Component Logic', () => {
     });
   });
 
-  describe('Cache Behavior', () => {
-    it('caches loaded context', () => {
+  describe("Cache Behavior", () => {
+    it("caches loaded context", () => {
       const cache = new Map<number, { sentence: string; article_title: string }>();
 
       const mockContext = {
-        sentence: 'Cached sentence',
-        article_title: 'Cached Article',
+        sentence: "Cached sentence",
+        article_title: "Cached Article",
       };
 
       // First load - not in cache
@@ -214,12 +214,12 @@ describe('KeywordContextTooltip Component Logic', () => {
       expect(cache.get(123)).toEqual(mockContext);
     });
 
-    it('retrieves from cache without backend call', async () => {
+    it("retrieves from cache without backend call", async () => {
       const cache = new Map<number, { sentence: string; article_title: string }>();
 
       const mockContext = {
-        sentence: 'Cached sentence',
-        article_title: 'Cached Article',
+        sentence: "Cached sentence",
+        article_title: "Cached Article",
       };
 
       cache.set(123, mockContext);
@@ -229,7 +229,7 @@ describe('KeywordContextTooltip Component Logic', () => {
           return cache.get(keywordId);
         }
         // This would normally call invoke
-        return await invoke('get_keyword_context', { keywordId });
+        return await invoke("get_keyword_context", { keywordId });
       };
 
       const result = await loadContext(123);
@@ -240,8 +240,8 @@ describe('KeywordContextTooltip Component Logic', () => {
     });
   });
 
-  describe('Click Handler', () => {
-    it('calls onclick callback when provided', () => {
+  describe("Click Handler", () => {
+    it("calls onclick callback when provided", () => {
       const onclick = vi.fn();
 
       const handleClick = (callback: (() => void) | undefined) => {
@@ -254,7 +254,7 @@ describe('KeywordContextTooltip Component Logic', () => {
       expect(onclick).toHaveBeenCalled();
     });
 
-    it('does nothing when onclick is undefined', () => {
+    it("does nothing when onclick is undefined", () => {
       const handleClick = (callback: (() => void) | undefined) => {
         if (callback) {
           callback();
@@ -266,59 +266,59 @@ describe('KeywordContextTooltip Component Logic', () => {
     });
   });
 
-  describe('Keyboard Accessibility', () => {
-    it('handles Enter key for activation', () => {
+  describe("Keyboard Accessibility", () => {
+    it("handles Enter key for activation", () => {
       const onclick = vi.fn();
 
       const handleKeydown = (key: string, callback: (() => void) | undefined) => {
-        if ((key === 'Enter' || key === ' ') && callback) {
+        if ((key === "Enter" || key === " ") && callback) {
           callback();
           return true;
         }
         return false;
       };
 
-      const handled = handleKeydown('Enter', onclick);
+      const handled = handleKeydown("Enter", onclick);
       expect(handled).toBe(true);
       expect(onclick).toHaveBeenCalled();
     });
 
-    it('handles Space key for activation', () => {
+    it("handles Space key for activation", () => {
       const onclick = vi.fn();
 
       const handleKeydown = (key: string, callback: (() => void) | undefined) => {
-        if ((key === 'Enter' || key === ' ') && callback) {
+        if ((key === "Enter" || key === " ") && callback) {
           callback();
           return true;
         }
         return false;
       };
 
-      const handled = handleKeydown(' ', onclick);
+      const handled = handleKeydown(" ", onclick);
       expect(handled).toBe(true);
       expect(onclick).toHaveBeenCalled();
     });
 
-    it('ignores other keys', () => {
+    it("ignores other keys", () => {
       const onclick = vi.fn();
 
       const handleKeydown = (key: string, callback: (() => void) | undefined) => {
-        if ((key === 'Enter' || key === ' ') && callback) {
+        if ((key === "Enter" || key === " ") && callback) {
           callback();
           return true;
         }
         return false;
       };
 
-      const handled = handleKeydown('Escape', onclick);
+      const handled = handleKeydown("Escape", onclick);
       expect(handled).toBe(false);
       expect(onclick).not.toHaveBeenCalled();
     });
   });
 });
 
-describe('KeywordContextTooltip Data Structures', () => {
-  describe('KeywordContext Interface', () => {
+describe("KeywordContextTooltip Data Structures", () => {
+  describe("KeywordContext Interface", () => {
     interface KeywordContext {
       sentence: string;
       article_title: string;
@@ -326,24 +326,24 @@ describe('KeywordContextTooltip Data Structures', () => {
       article_id: number;
     }
 
-    it('creates valid context object', () => {
+    it("creates valid context object", () => {
       const context: KeywordContext = {
-        sentence: 'The keyword appears in this sentence.',
-        article_title: 'Technology News',
-        article_date: '2025-01-15T10:00:00Z',
+        sentence: "The keyword appears in this sentence.",
+        article_title: "Technology News",
+        article_date: "2025-01-15T10:00:00Z",
         article_id: 123,
       };
 
-      expect(context.sentence).toBe('The keyword appears in this sentence.');
-      expect(context.article_title).toBe('Technology News');
-      expect(context.article_date).toBe('2025-01-15T10:00:00Z');
+      expect(context.sentence).toBe("The keyword appears in this sentence.");
+      expect(context.article_title).toBe("Technology News");
+      expect(context.article_date).toBe("2025-01-15T10:00:00Z");
       expect(context.article_id).toBe(123);
     });
 
-    it('handles null date', () => {
+    it("handles null date", () => {
       const context: KeywordContext = {
-        sentence: 'Test sentence',
-        article_title: 'Article without date',
+        sentence: "Test sentence",
+        article_title: "Article without date",
         article_date: null,
         article_id: 456,
       };
@@ -352,30 +352,30 @@ describe('KeywordContextTooltip Data Structures', () => {
     });
   });
 
-  describe('Props Interface', () => {
+  describe("Props Interface", () => {
     interface Props {
       keywordId: number;
       keywordName: string;
       onclick?: () => void;
     }
 
-    it('creates valid props object', () => {
+    it("creates valid props object", () => {
       const onclick = vi.fn();
       const props: Props = {
         keywordId: 42,
-        keywordName: 'JavaScript',
+        keywordName: "JavaScript",
         onclick,
       };
 
       expect(props.keywordId).toBe(42);
-      expect(props.keywordName).toBe('JavaScript');
+      expect(props.keywordName).toBe("JavaScript");
       expect(props.onclick).toBe(onclick);
     });
 
-    it('handles optional onclick', () => {
+    it("handles optional onclick", () => {
       const props: Props = {
         keywordId: 42,
-        keywordName: 'TypeScript',
+        keywordName: "TypeScript",
       };
 
       expect(props.onclick).toBeUndefined();
@@ -383,63 +383,63 @@ describe('KeywordContextTooltip Data Structures', () => {
   });
 });
 
-describe('KeywordContextTooltip Display States', () => {
-  describe('Loading State', () => {
-    it('identifies loading state correctly', () => {
+describe("KeywordContextTooltip Display States", () => {
+  describe("Loading State", () => {
+    it("identifies loading state correctly", () => {
       const isLoading = (loading: boolean, context: unknown, error: string | null) => {
         return loading && !context && !error;
       };
 
       expect(isLoading(true, null, null)).toBe(true);
       expect(isLoading(false, null, null)).toBe(false);
-      expect(isLoading(true, { sentence: 'test' }, null)).toBe(false);
+      expect(isLoading(true, { sentence: "test" }, null)).toBe(false);
     });
   });
 
-  describe('Error State', () => {
-    it('identifies error state correctly', () => {
+  describe("Error State", () => {
+    it("identifies error state correctly", () => {
       const hasError = (error: string | null) => {
         return error !== null && error.length > 0;
       };
 
-      expect(hasError('Failed to load')).toBe(true);
-      expect(hasError('')).toBe(false);
+      expect(hasError("Failed to load")).toBe(true);
+      expect(hasError("")).toBe(false);
       expect(hasError(null)).toBe(false);
     });
   });
 
-  describe('Empty Context State', () => {
-    it('identifies empty context correctly', () => {
+  describe("Empty Context State", () => {
+    it("identifies empty context correctly", () => {
       const isEmptyContext = (
         loading: boolean,
         error: string | null,
-        context: { sentence: string } | null
+        context: { sentence: string } | null,
       ) => {
         return !loading && !error && (!context || !context.sentence);
       };
 
       expect(isEmptyContext(false, null, null)).toBe(true);
-      expect(isEmptyContext(false, null, { sentence: '' })).toBe(true);
-      expect(isEmptyContext(false, null, { sentence: 'Test' })).toBe(false);
+      expect(isEmptyContext(false, null, { sentence: "" })).toBe(true);
+      expect(isEmptyContext(false, null, { sentence: "Test" })).toBe(false);
       expect(isEmptyContext(true, null, null)).toBe(false);
     });
   });
 
-  describe('Content Visible State', () => {
-    it('identifies when content should be visible', () => {
+  describe("Content Visible State", () => {
+    it("identifies when content should be visible", () => {
       const shouldShowContent = (
         loading: boolean,
         error: string | null,
-        context: { sentence: string } | null
+        context: { sentence: string } | null,
       ) => {
         return !loading && !error && context !== null && context.sentence.length > 0;
       };
 
-      expect(shouldShowContent(false, null, { sentence: 'Test sentence' })).toBe(true);
-      expect(shouldShowContent(true, null, { sentence: 'Test sentence' })).toBe(false);
-      expect(shouldShowContent(false, 'Error', { sentence: 'Test sentence' })).toBe(false);
+      expect(shouldShowContent(false, null, { sentence: "Test sentence" })).toBe(true);
+      expect(shouldShowContent(true, null, { sentence: "Test sentence" })).toBe(false);
+      expect(shouldShowContent(false, "Error", { sentence: "Test sentence" })).toBe(false);
       expect(shouldShowContent(false, null, null)).toBe(false);
-      expect(shouldShowContent(false, null, { sentence: '' })).toBe(false);
+      expect(shouldShowContent(false, null, { sentence: "" })).toBe(false);
     });
   });
 });

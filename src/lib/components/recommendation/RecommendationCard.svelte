@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { _ } from 'svelte-i18n';
-  import { locale } from 'svelte-i18n';
-  import type { Recommendation } from '../../types';
-  import { formatRelativeDate, getCategoryColorVar, getBiasColor } from '../../utils/articleFormat';
-  import Tooltip from '../Tooltip.svelte';
+  import { _ } from "svelte-i18n";
+  import { locale } from "svelte-i18n";
+  import type { Recommendation } from "../../types";
+  import { formatRelativeDate, getCategoryColorVar, getBiasColor } from "../../utils/articleFormat";
+  import Tooltip from "../Tooltip.svelte";
 
   interface Props {
     recommendation: Recommendation;
@@ -20,12 +20,12 @@
     compact = false,
     onsave,
     onunsave,
-    onclick
+    onclick,
   }: Props = $props();
 
   let isSaving = $state(false);
 
-  const currentLocale = $derived($locale || 'de');
+  const currentLocale = $derived($locale || "de");
 
   async function handleSave(e: MouseEvent) {
     e.stopPropagation();
@@ -46,7 +46,7 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') {
+    if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       onclick?.(recommendation.fnord_id);
     }
@@ -60,19 +60,10 @@
   aria-label={recommendation.title}
 >
   <!-- Clickable content area -->
-  <button
-    type="button"
-    class="card-content"
-    onclick={handleClick}
-    onkeydown={handleKeydown}
-  >
+  <button type="button" class="card-content" onclick={handleClick} onkeydown={handleKeydown}>
     {#if recommendation.image_url && !compact}
       <div class="card-image">
-        <img
-          src={recommendation.image_url}
-          alt=""
-          loading="lazy"
-        />
+        <img src={recommendation.image_url} alt="" loading="lazy" />
       </div>
     {/if}
 
@@ -81,15 +72,11 @@
 
       <div class="card-meta">
         {#if recommendation.pentacle_icon}
-          <img
-            src={recommendation.pentacle_icon}
-            alt=""
-            class="source-icon"
-          />
+          <img src={recommendation.pentacle_icon} alt="" class="source-icon" />
         {/if}
-        <span class="source-name">{recommendation.pentacle_title || 'Unbekannt'}</span>
+        <span class="source-name">{recommendation.pentacle_title || "Unbekannt"}</span>
         <span class="separator">·</span>
-        <time datetime={recommendation.published_at || ''}>
+        <time datetime={recommendation.published_at || ""}>
           {formatRelativeDate(recommendation.published_at, currentLocale)}
         </time>
       </div>
@@ -129,18 +116,29 @@
     </div>
 
     <div class="card-actions">
-      <Tooltip content={recommendation.is_saved ? $_('recommendations.unsave') : $_('recommendations.save')}>
+      <Tooltip
+        content={recommendation.is_saved
+          ? $_("recommendations.unsave")
+          : $_("recommendations.save")}
+      >
         <button
           type="button"
           class="action-btn save-btn"
           class:saved={recommendation.is_saved}
           onclick={handleSave}
           disabled={isSaving}
-          aria-label={recommendation.is_saved ? $_('recommendations.unsave') : $_('recommendations.save')}
+          aria-label={recommendation.is_saved
+            ? $_("recommendations.unsave")
+            : $_("recommendations.save")}
         >
-          <i class={recommendation.is_saved ? 'fa-solid fa-bookmark' : 'fa-regular fa-bookmark'}></i>
+          <i class={recommendation.is_saved ? "fa-solid fa-bookmark" : "fa-regular fa-bookmark"}
+          ></i>
           {#if !compact}
-            <span>{recommendation.is_saved ? $_('recommendations.saved') : $_('recommendations.save')}</span>
+            <span
+              >{recommendation.is_saved
+                ? $_("recommendations.saved")
+                : $_("recommendations.save")}</span
+            >
           {/if}
         </button>
       </Tooltip>

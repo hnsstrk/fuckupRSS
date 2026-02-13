@@ -62,10 +62,10 @@ class ImmanentizeNetworkStore {
   keywordCategories = $state<KeywordCategory[]>([]);
   trendingKeywords = $state<TrendingKeyword[]>([]);
   trendingPeriod = $state(7);
-  trendingSortBy = $state<'score' | 'growth' | 'count' | 'new'>('score');
+  trendingSortBy = $state<"score" | "growth" | "count" | "new">("score");
   networkStats = $state<NetworkStats | null>(null);
   searchResults = $state<Keyword[]>([]);
-  searchQuery = $state('');
+  searchQuery = $state("");
   loading = $state(false);
   error = $state<string | null>(null);
   graphData = $state<NetworkGraph | null>(null);
@@ -87,7 +87,7 @@ class ImmanentizeNetworkStore {
 
   // Rename state
   isRenaming = $state(false);
-  renameInput = $state('');
+  renameInput = $state("");
   renameLoading = $state(false);
   renameError = $state<string | null>(null);
 
@@ -98,15 +98,15 @@ class ImmanentizeNetworkStore {
   synonymSuccess = $state<string | null>(null);
 
   // Manual merge state
-  keepSearchInput = $state('');
+  keepSearchInput = $state("");
   keepSearchResults = $state<Keyword[]>([]);
   selectedKeepKeyword = $state<Keyword | null>(null);
-  removeSearchInput = $state('');
+  removeSearchInput = $state("");
   removeSearchResults = $state<Keyword[]>([]);
   selectedRemoveKeyword = $state<Keyword | null>(null);
 
   // Create keyword state
-  newKeywordInput = $state('');
+  newKeywordInput = $state("");
   createKeywordLoading = $state(false);
   createKeywordSuccess = $state<string | null>(null);
   createKeywordError = $state<string | null>(null);
@@ -179,8 +179,16 @@ class ImmanentizeNetworkStore {
         invoke<Keyword | null>("get_keyword", { id }),
         invoke<KeywordNeighbor[]>("get_keyword_neighbors", { id, limit: 10 }),
         invoke<KeywordCategory[]>("get_keyword_categories", { id }),
-        invoke<KeywordArticle[]>("get_keyword_articles", { id, limit: this.articlesLimit, offset: 0 }),
-        invoke<CooccurringKeyword[]>("get_cooccurring_keywords", { keywordId: id, days: this.trendDays, limit: 20 }),
+        invoke<KeywordArticle[]>("get_keyword_articles", {
+          id,
+          limit: this.articlesLimit,
+          offset: 0,
+        }),
+        invoke<CooccurringKeyword[]>("get_cooccurring_keywords", {
+          keywordId: id,
+          days: this.trendDays,
+          limit: 20,
+        }),
       ]);
 
       this.selectedKeyword = keyword;
@@ -203,13 +211,13 @@ class ImmanentizeNetworkStore {
   async loadSimilarKeywords(keywordId: number): Promise<void> {
     this.similarKeywordsLoading = true;
     try {
-      const similar = await invoke<SimilarKeywordEntry[]>(
-        'get_similar_keywords',
-        { keywordId, limit: 8 }
-      );
+      const similar = await invoke<SimilarKeywordEntry[]>("get_similar_keywords", {
+        keywordId,
+        limit: 8,
+      });
       this.similarKeywords = similar;
     } catch (e) {
-      console.error('Failed to load similar keywords:', e);
+      console.error("Failed to load similar keywords:", e);
       this.similarKeywords = [];
     } finally {
       this.similarKeywordsLoading = false;
@@ -220,7 +228,7 @@ class ImmanentizeNetworkStore {
     if (!this.selectedKeyword || this.articlesLoading || !this.hasMoreArticles) return;
     this.articlesLoading = true;
     try {
-      const articles = await invoke<KeywordArticle[]>('get_keyword_articles', {
+      const articles = await invoke<KeywordArticle[]>("get_keyword_articles", {
         id: this.selectedKeyword.id,
         limit: this.articlesLimit,
         offset: this.articlesOffset,
@@ -229,7 +237,7 @@ class ImmanentizeNetworkStore {
       this.articlesOffset += articles.length;
       this.hasMoreArticles = articles.length >= this.articlesLimit;
     } catch (e) {
-      console.error('Failed to load more articles:', e);
+      console.error("Failed to load more articles:", e);
     } finally {
       this.articlesLoading = false;
     }
@@ -237,13 +245,13 @@ class ImmanentizeNetworkStore {
 
   async loadCooccurringKeywords(keywordId: number, days: number): Promise<void> {
     try {
-      this.cooccurringKeywords = await invoke<CooccurringKeyword[]>('get_cooccurring_keywords', {
+      this.cooccurringKeywords = await invoke<CooccurringKeyword[]>("get_cooccurring_keywords", {
         keywordId,
         days,
         limit: 20,
       });
     } catch (e) {
-      console.error('Failed to load co-occurring keywords:', e);
+      console.error("Failed to load co-occurring keywords:", e);
       this.cooccurringKeywords = [];
     }
   }
@@ -296,7 +304,7 @@ class ImmanentizeNetworkStore {
     await this.loadTrendingKeywords(days);
   }
 
-  async setTrendingSort(sort: 'score' | 'growth' | 'count' | 'new'): Promise<void> {
+  async setTrendingSort(sort: "score" | "growth" | "count" | "new"): Promise<void> {
     this.trendingSortBy = sort;
     await this.loadTrendingKeywords();
   }
@@ -345,7 +353,7 @@ class ImmanentizeNetworkStore {
   }
 
   clearSearch(): void {
-    this.searchQuery = '';
+    this.searchQuery = "";
     this.searchResults = [];
   }
 
@@ -361,7 +369,7 @@ class ImmanentizeNetworkStore {
 
   cancelRename(): void {
     this.isRenaming = false;
-    this.renameInput = '';
+    this.renameInput = "";
     this.renameError = null;
   }
 
@@ -376,26 +384,26 @@ class ImmanentizeNetworkStore {
     this.renameError = null;
 
     try {
-      const newName = await invoke<string>('rename_keyword', {
+      const newName = await invoke<string>("rename_keyword", {
         id: this.selectedKeyword.id,
         newName: this.renameInput.trim(),
       });
 
       // Update local state
       this.selectedKeyword = { ...this.selectedKeyword, name: newName };
-      this.keywords = this.keywords.map(k =>
-        k.id === this.selectedKeyword!.id ? { ...k, name: newName } : k
+      this.keywords = this.keywords.map((k) =>
+        k.id === this.selectedKeyword!.id ? { ...k, name: newName } : k,
       );
-      this.trendingKeywords = this.trendingKeywords.map(k =>
-        k.id === this.selectedKeyword!.id ? { ...k, name: newName } : k
+      this.trendingKeywords = this.trendingKeywords.map((k) =>
+        k.id === this.selectedKeyword!.id ? { ...k, name: newName } : k,
       );
 
       this.isRenaming = false;
-      this.renameInput = '';
-      window.dispatchEvent(new CustomEvent('keywords-changed'));
+      this.renameInput = "";
+      window.dispatchEvent(new CustomEvent("keywords-changed"));
     } catch (e) {
       this.renameError = String(e);
-      console.error('Failed to rename keyword:', e);
+      console.error("Failed to rename keyword:", e);
     } finally {
       this.renameLoading = false;
     }
@@ -409,25 +417,30 @@ class ImmanentizeNetworkStore {
     this.synonymSuccess = null;
 
     try {
-      this.synonymCandidates = await invoke<SynonymCandidate[]>('find_synonym_candidates', {
+      this.synonymCandidates = await invoke<SynonymCandidate[]>("find_synonym_candidates", {
         threshold: 0.85,
         limit: 20,
       });
     } catch (e) {
       this.synonymsError = String(e);
-      console.error('Failed to find synonym candidates:', e);
+      console.error("Failed to find synonym candidates:", e);
     } finally {
       this.synonymsLoading = false;
     }
   }
 
-  async mergeKeywords(keepId: number, removeId: number, keepName: string, removeName: string): Promise<void> {
+  async mergeKeywords(
+    keepId: number,
+    removeId: number,
+    keepName: string,
+    removeName: string,
+  ): Promise<void> {
     this.synonymsLoading = true;
     this.synonymsError = null;
     this.synonymSuccess = null;
 
     try {
-      const result = await invoke<MergeSynonymsResult>('merge_keyword_pair', {
+      const result = await invoke<MergeSynonymsResult>("merge_keyword_pair", {
         keepId,
         removeId,
       });
@@ -437,14 +450,14 @@ class ImmanentizeNetworkStore {
           !(
             (c.keyword_a_id === keepId && c.keyword_b_id === removeId) ||
             (c.keyword_a_id === removeId && c.keyword_b_id === keepId)
-          )
+          ),
       );
       await this.loadKeywords(true);
       await this.loadNetworkStats();
-      window.dispatchEvent(new CustomEvent('keywords-changed'));
+      window.dispatchEvent(new CustomEvent("keywords-changed"));
     } catch (e) {
       this.synonymsError = String(e);
-      console.error('Failed to merge keywords:', e);
+      console.error("Failed to merge keywords:", e);
     } finally {
       this.synonymsLoading = false;
     }
@@ -455,19 +468,19 @@ class ImmanentizeNetworkStore {
     this.synonymSuccess = null;
 
     try {
-      await invoke('dismiss_synonym_pair', { keywordAId, keywordBId });
+      await invoke("dismiss_synonym_pair", { keywordAId, keywordBId });
       this.synonymCandidates = this.synonymCandidates.filter(
         (c) =>
           !(
             (c.keyword_a_id === keywordAId && c.keyword_b_id === keywordBId) ||
             (c.keyword_a_id === keywordBId && c.keyword_b_id === keywordAId)
-          )
+          ),
       );
-      this.synonymSuccess = 'Synonym-Vorschlag ignoriert';
-      window.dispatchEvent(new CustomEvent('keywords-changed'));
+      this.synonymSuccess = "Synonym-Vorschlag ignoriert";
+      window.dispatchEvent(new CustomEvent("keywords-changed"));
     } catch (e) {
       this.synonymsError = String(e);
-      console.error('Failed to dismiss synonym pair:', e);
+      console.error("Failed to dismiss synonym pair:", e);
     }
   }
 
@@ -479,12 +492,12 @@ class ImmanentizeNetworkStore {
       return;
     }
     try {
-      this.keepSearchResults = await invoke<Keyword[]>('search_keywords', {
+      this.keepSearchResults = await invoke<Keyword[]>("search_keywords", {
         query,
         limit: 10,
       });
     } catch (e) {
-      console.error('Failed to search keywords:', e);
+      console.error("Failed to search keywords:", e);
     }
   }
 
@@ -495,7 +508,7 @@ class ImmanentizeNetworkStore {
   }
 
   clearKeepSearch(): void {
-    this.keepSearchInput = '';
+    this.keepSearchInput = "";
     this.keepSearchResults = [];
     this.selectedKeepKeyword = null;
   }
@@ -507,12 +520,12 @@ class ImmanentizeNetworkStore {
       return;
     }
     try {
-      this.removeSearchResults = await invoke<Keyword[]>('search_keywords', {
+      this.removeSearchResults = await invoke<Keyword[]>("search_keywords", {
         query,
         limit: 10,
       });
     } catch (e) {
-      console.error('Failed to search keywords:', e);
+      console.error("Failed to search keywords:", e);
     }
   }
 
@@ -523,7 +536,7 @@ class ImmanentizeNetworkStore {
   }
 
   clearRemoveSearch(): void {
-    this.removeSearchInput = '';
+    this.removeSearchInput = "";
     this.removeSearchResults = [];
     this.selectedRemoveKeyword = null;
   }
@@ -536,7 +549,7 @@ class ImmanentizeNetworkStore {
       this.selectedKeepKeyword.id,
       this.selectedRemoveKeyword.id,
       this.selectedKeepKeyword.name,
-      this.selectedRemoveKeyword.name
+      this.selectedRemoveKeyword.name,
     );
 
     this.clearKeepSearch();
@@ -552,7 +565,7 @@ class ImmanentizeNetworkStore {
     this.createKeywordSuccess = null;
 
     try {
-      const result = await invoke<CreateKeywordResult>('create_keyword', {
+      const result = await invoke<CreateKeywordResult>("create_keyword", {
         name: this.newKeywordInput.trim(),
       });
 
@@ -561,13 +574,13 @@ class ImmanentizeNetworkStore {
       } else {
         this.createKeywordSuccess = `"${result.name}" existiert bereits`;
       }
-      this.newKeywordInput = '';
+      this.newKeywordInput = "";
       await this.loadKeywords(true);
       await this.loadNetworkStats();
-      window.dispatchEvent(new CustomEvent('keywords-changed'));
+      window.dispatchEvent(new CustomEvent("keywords-changed"));
     } catch (e) {
       this.createKeywordError = String(e);
-      console.error('Failed to create keyword:', e);
+      console.error("Failed to create keyword:", e);
     } finally {
       this.createKeywordLoading = false;
     }
@@ -585,16 +598,18 @@ class ImmanentizeNetworkStore {
 
   setupEventListeners(): void {
     if (this._listenersActive) return;
-    this._boundRefreshAll = () => { this.refreshAll(); };
-    window.addEventListener('batch-complete', this._boundRefreshAll);
-    window.addEventListener('keywords-changed', this._boundRefreshAll);
+    this._boundRefreshAll = () => {
+      this.refreshAll();
+    };
+    window.addEventListener("batch-complete", this._boundRefreshAll);
+    window.addEventListener("keywords-changed", this._boundRefreshAll);
     this._listenersActive = true;
   }
 
   teardownEventListeners(): void {
     if (!this._listenersActive || !this._boundRefreshAll) return;
-    window.removeEventListener('batch-complete', this._boundRefreshAll);
-    window.removeEventListener('keywords-changed', this._boundRefreshAll);
+    window.removeEventListener("batch-complete", this._boundRefreshAll);
+    window.removeEventListener("keywords-changed", this._boundRefreshAll);
     this._boundRefreshAll = null;
     this._listenersActive = false;
   }
@@ -606,7 +621,7 @@ class ImmanentizeNetworkStore {
     this.keywordCategories = [];
     this.trendingKeywords = [];
     this.searchResults = [];
-    this.searchQuery = '';
+    this.searchQuery = "";
     this.graphData = null;
     this.graphLoading = false;
     this.offset = 0;

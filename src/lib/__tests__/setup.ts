@@ -1,18 +1,18 @@
-import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import "@testing-library/jest-dom";
+import { vi } from "vitest";
 
 // Mock Tauri API
-vi.mock('@tauri-apps/api/core', () => ({
+vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('@tauri-apps/api/event', () => ({
+vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn().mockResolvedValue(() => {}),
   emit: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock svelte-i18n
-vi.mock('svelte-i18n', () => ({
+vi.mock("svelte-i18n", () => ({
   _: {
     subscribe: vi.fn((callback: (value: (key: string) => string) => void) => {
       callback((key: string) => key);
@@ -21,13 +21,13 @@ vi.mock('svelte-i18n', () => ({
   },
   locale: {
     subscribe: vi.fn((callback: (value: string) => void) => {
-      callback('de');
+      callback("de");
       return () => {};
     }),
     set: vi.fn(),
   },
   init: vi.fn(),
-  getLocaleFromNavigator: vi.fn(() => 'de'),
+  getLocaleFromNavigator: vi.fn(() => "de"),
   addMessages: vi.fn(),
 }));
 

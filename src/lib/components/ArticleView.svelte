@@ -1,15 +1,28 @@
 <script lang="ts">
-  import { _, locale } from 'svelte-i18n';
-  import { onMount, onDestroy } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
-  import { open } from '@tauri-apps/plugin-shell';
-  import { appState, toasts, type FnordRevision, type ArticleCategory, type Tag, type SimilarArticle } from "../stores/state.svelte";
-  import type { ArticleKeyword, ArticleCategoryDetailed } from '$lib/types';
+  import { _, locale } from "svelte-i18n";
+  import { onMount, onDestroy } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import { open } from "@tauri-apps/plugin-shell";
+  import {
+    appState,
+    toasts,
+    type FnordRevision,
+    type ArticleCategory,
+    type Tag,
+    type SimilarArticle,
+  } from "../stores/state.svelte";
+  import type { ArticleKeyword, ArticleCategoryDetailed } from "$lib/types";
   import RevisionView from "./RevisionView.svelte";
   import { ArticleCard, ArticleKeywords, ArticleCategories } from "./article";
   import StatisticalPreview from "./article/StatisticalPreview.svelte";
-  import { sanitizeArticleContent } from '$lib/utils/sanitizer';
-  import { getCategoryColorVar, getBiasColor, getSachlichkeitColor, getSachlichkeitIcon, formatFullDate } from '$lib/utils/articleFormat';
+  import { sanitizeArticleContent } from "$lib/utils/sanitizer";
+  import {
+    getCategoryColorVar,
+    getBiasColor,
+    getSachlichkeitColor,
+    getSachlichkeitIcon,
+    formatFullDate,
+  } from "$lib/utils/articleFormat";
 
   // Track component mount state to prevent state updates after unmount
   let mounted = $state(true);
@@ -69,8 +82,8 @@
       const [cats, tgs, kwds, catsDetailed] = await Promise.all([
         appState.getArticleCategories(fnordId),
         appState.getArticleTags(fnordId),
-        invoke<ArticleKeyword[]>('get_article_keywords', { fnordId }),
-        invoke<ArticleCategoryDetailed[]>('get_article_categories_detailed', { fnordId })
+        invoke<ArticleKeyword[]>("get_article_keywords", { fnordId }),
+        invoke<ArticleCategoryDetailed[]>("get_article_categories_detailed", { fnordId }),
       ]);
       // Check if still mounted and same article before updating state
       if (!mounted || appState.selectedFnord?.id !== fnordId) return;
@@ -157,7 +170,7 @@
       const [cats, tgs, similar] = await Promise.all([
         appState.getArticleCategories(fnordId),
         appState.getArticleTags(fnordId),
-        appState.findSimilarArticles(fnordId, 5)
+        appState.findSimilarArticles(fnordId, 5),
       ]);
       // Check if still mounted and same article before updating state
       if (!mounted || appState.selectedFnord?.id !== fnordId) return;
@@ -198,49 +211,61 @@
   }
 
   onMount(() => {
-    window.addEventListener('batch-complete', handleBatchComplete);
+    window.addEventListener("batch-complete", handleBatchComplete);
   });
 
   onDestroy(() => {
-    window.removeEventListener('batch-complete', handleBatchComplete);
+    window.removeEventListener("batch-complete", handleBatchComplete);
   });
 
   function stripHtml(html: string): string {
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.innerHTML = html;
-    return div.textContent || div.innerText || '';
+    return div.textContent || div.innerText || "";
   }
 
   function getBiasLabel(bias: number | null): string {
-    if (bias === null) return $_('articleView.notRated');
+    if (bias === null) return $_("articleView.notRated");
     switch (bias) {
-      case -2: return $_('articleView.biasStrongLeft');
-      case -1: return $_('articleView.biasLeanLeft');
-      case 0: return $_('articleView.greyface.biasCenter');
-      case 1: return $_('articleView.biasLeanRight');
-      case 2: return $_('articleView.biasStrongRight');
-      default: return $_('articleView.unknown');
+      case -2:
+        return $_("articleView.biasStrongLeft");
+      case -1:
+        return $_("articleView.biasLeanLeft");
+      case 0:
+        return $_("articleView.greyface.biasCenter");
+      case 1:
+        return $_("articleView.biasLeanRight");
+      case 2:
+        return $_("articleView.biasStrongRight");
+      default:
+        return $_("articleView.unknown");
     }
   }
 
   function getSachlichkeitLabel(s: number | null): string {
-    if (s === null) return $_('articleView.notRated');
+    if (s === null) return $_("articleView.notRated");
     switch (s) {
-      case 0: return $_('articleView.sachHighlyEmotional');
-      case 1: return $_('articleView.sachEmotional');
-      case 2: return $_('articleView.sachMixed');
-      case 3: return $_('articleView.sachMostlyObjective');
-      case 4: return $_('articleView.sachObjective');
-      default: return $_('articleView.unknown');
+      case 0:
+        return $_("articleView.sachHighlyEmotional");
+      case 1:
+        return $_("articleView.sachEmotional");
+      case 2:
+        return $_("articleView.sachMixed");
+      case 3:
+        return $_("articleView.sachMostlyObjective");
+      case 4:
+        return $_("articleView.sachObjective");
+      default:
+        return $_("articleView.unknown");
     }
   }
 
   // Compact Greyface helpers
   function getBiasIcon(bias: number | null): string {
-    if (bias === null) return 'fa-scale-balanced';
-    if (bias < 0) return 'fa-scale-unbalanced';
-    if (bias > 0) return 'fa-scale-unbalanced-flip';
-    return 'fa-scale-balanced';
+    if (bias === null) return "fa-scale-balanced";
+    if (bias < 0) return "fa-scale-unbalanced";
+    if (bias > 0) return "fa-scale-unbalanced-flip";
+    return "fa-scale-balanced";
   }
 
   async function openInBrowser() {
@@ -253,28 +278,32 @@
   function getSpecificFetchError(error: string): string {
     const errorLower = error.toLowerCase();
     // Check for specific HTTP status codes
-    if (errorLower.includes('404') || errorLower.includes('not found')) {
-      return $_('toast.fetchErrorNotFound');
+    if (errorLower.includes("404") || errorLower.includes("not found")) {
+      return $_("toast.fetchErrorNotFound");
     }
-    if (errorLower.includes('403') || errorLower.includes('forbidden')) {
-      return $_('toast.fetchErrorBlocked');
+    if (errorLower.includes("403") || errorLower.includes("forbidden")) {
+      return $_("toast.fetchErrorBlocked");
     }
-    if (errorLower.includes('timeout') || errorLower.includes('timed out')) {
-      return $_('toast.fetchErrorTimeout');
+    if (errorLower.includes("timeout") || errorLower.includes("timed out")) {
+      return $_("toast.fetchErrorTimeout");
     }
-    if (errorLower.includes('network') || errorLower.includes('connection') || errorLower.includes('unreachable')) {
-      return $_('toast.fetchErrorNetwork');
+    if (
+      errorLower.includes("network") ||
+      errorLower.includes("connection") ||
+      errorLower.includes("unreachable")
+    ) {
+      return $_("toast.fetchErrorNetwork");
     }
-    if (errorLower.includes('paywall') || errorLower.includes('subscription')) {
-      return $_('toast.fetchErrorPaywall');
+    if (errorLower.includes("paywall") || errorLower.includes("subscription")) {
+      return $_("toast.fetchErrorPaywall");
     }
     // Check for 5xx server errors
     const serverErrorMatch = error.match(/5\d{2}/);
     if (serverErrorMatch) {
-      return $_('toast.fetchErrorServerError', { values: { code: serverErrorMatch[0] }});
+      return $_("toast.fetchErrorServerError", { values: { code: serverErrorMatch[0] } });
     }
     // Fallback to generic error
-    return $_('toast.fetchError', { values: { error }});
+    return $_("toast.fetchError", { values: { error } });
   }
 
   async function fetchFullContent() {
@@ -289,14 +318,14 @@
       if (!mounted) return;
 
       if (result?.success) {
-        toasts.success($_('toast.fetchSuccess'));
+        toasts.success($_("toast.fetchSuccess"));
       } else if (result?.error) {
         toasts.error(getSpecificFetchError(result.error));
       } else if (appState.error) {
         toasts.error(getSpecificFetchError(appState.error));
       }
     } catch (e) {
-      console.error('Fetch full content failed:', e);
+      console.error("Fetch full content failed:", e);
       if (mounted) {
         toasts.error(getSpecificFetchError(String(e)));
       }
@@ -309,7 +338,11 @@
 
     // Check if a model is selected (required for analysis)
     if (!appState.selectedModel) {
-      toasts.error($_('toast.analyzeError', { values: { error: 'No AI model selected. Please configure a model in Settings.' }}));
+      toasts.error(
+        $_("toast.analyzeError", {
+          values: { error: "No AI model selected. Please configure a model in Settings." },
+        }),
+      );
       return;
     }
 
@@ -329,7 +362,7 @@
         const [cats, tgs, similar] = await Promise.all([
           appState.getArticleCategories(fnordId),
           appState.getArticleTags(fnordId),
-          appState.findSimilarArticles(fnordId, 5)
+          appState.findSimilarArticles(fnordId, 5),
         ]);
 
         // Check again after Promise.all
@@ -338,19 +371,24 @@
         categories = cats;
         tags = tgs;
         similarArticles = similar;
-        toasts.success($_('toast.analyzeSuccess'));
+        toasts.success($_("toast.analyzeSuccess"));
       } else if (result?.error) {
-        if (mounted) toasts.error($_('toast.analyzeError', { values: { error: result.error }}));
+        if (mounted) toasts.error($_("toast.analyzeError", { values: { error: result.error } }));
       } else if (result === null) {
         // processArticleDiscordian returned null - this shouldn't happen if checks above passed
-        if (mounted) toasts.error($_('toast.analyzeError', { values: { error: 'Analysis failed to start. Please try again.' }}));
+        if (mounted)
+          toasts.error(
+            $_("toast.analyzeError", {
+              values: { error: "Analysis failed to start. Please try again." },
+            }),
+          );
       } else if (appState.error) {
-        if (mounted) toasts.error($_('toast.analyzeError', { values: { error: appState.error }}));
+        if (mounted) toasts.error($_("toast.analyzeError", { values: { error: appState.error } }));
       }
     } catch (e) {
-      console.error('AI analysis failed:', e);
+      console.error("AI analysis failed:", e);
       if (mounted) {
-        toasts.error($_('toast.analyzeError', { values: { error: String(e) }}));
+        toasts.error($_("toast.analyzeError", { values: { error: String(e) } }));
       }
     }
   }
@@ -368,16 +406,18 @@
   }
 
   function navigateToKeyword(tagId: number) {
-    window.dispatchEvent(new CustomEvent('navigate-to-network', { detail: { keywordId: tagId } }));
+    window.dispatchEvent(new CustomEvent("navigate-to-network", { detail: { keywordId: tagId } }));
   }
 
   function navigateToSimilarArticle(fnordId: number) {
     // Use navigate event to ensure article is loaded even if not in current filter
-    window.dispatchEvent(new CustomEvent('navigate-to-article', { detail: { articleId: fnordId } }));
+    window.dispatchEvent(
+      new CustomEvent("navigate-to-article", { detail: { articleId: fnordId } }),
+    );
     // Scroll to top of article view
-    const articleView = document.querySelector('.article-view');
+    const articleView = document.querySelector(".article-view");
     if (articleView) {
-      articleView.scrollTo({ top: 0, behavior: 'smooth' });
+      articleView.scrollTo({ top: 0, behavior: "smooth" });
     }
   }
 
@@ -389,26 +429,29 @@
   }
 
   // Determine content status for badge display
-  type ContentStatus = 'full' | 'rss' | 'missing';
+  type ContentStatus = "full" | "rss" | "missing";
   function getContentStatus(fnord: typeof appState.selectedFnord): ContentStatus {
-    if (!fnord) return 'missing';
+    if (!fnord) return "missing";
     // Full text: content_full exists and is > 500 characters
     if (fnord.content_full && fnord.content_full.length > 500) {
-      return 'full';
+      return "full";
     }
     // RSS only: has content_raw but no or short content_full
     if (fnord.content_raw) {
-      return 'rss';
+      return "rss";
     }
     // Missing: neither content_full nor content_raw
-    return 'missing';
+    return "missing";
   }
 
   function getContentStatusLabel(status: ContentStatus): string {
     switch (status) {
-      case 'full': return $_('articleView.contentStatus.full');
-      case 'rss': return $_('articleView.contentStatus.rss');
-      case 'missing': return $_('articleView.contentStatus.missing');
+      case "full":
+        return $_("articleView.contentStatus.full");
+      case "rss":
+        return $_("articleView.contentStatus.rss");
+      case "missing":
+        return $_("articleView.contentStatus.missing");
     }
   }
 </script>
@@ -425,10 +468,10 @@
         <div class="article-meta">
           <span class="source">{fnord.pentacle_title || "Unknown Source"}</span>
           <span class="separator">·</span>
-          <span>{formatFullDate(fnord.published_at, $locale || 'de')}</span>
+          <span>{formatFullDate(fnord.published_at, $locale || "de")}</span>
           {#if fnord.author}
             <span class="separator">·</span>
-            <span>{$_('articleView.by')} {fnord.author}</span>
+            <span>{$_("articleView.by")} {fnord.author}</span>
           {/if}
           <span class="separator">·</span>
           <span class="content-status-badge content-status-{getContentStatus(fnord)}">
@@ -443,8 +486,16 @@
             onclick={() => appState.toggleGoldenApple(fnord.id)}
             class="btn {fnord.status === 'golden_apple' ? 'btn-golden' : 'btn-default'}"
           >
-            <i class="btn-icon {fnord.status === 'golden_apple' ? 'fa-solid fa-apple-whole' : 'fa-regular fa-star'}"></i>
-            <span>{fnord.status === "golden_apple" ? $_('terminology.golden_apple.term') : $_('actions.favorite')}</span>
+            <i
+              class="btn-icon {fnord.status === 'golden_apple'
+                ? 'fa-solid fa-apple-whole'
+                : 'fa-regular fa-star'}"
+            ></i>
+            <span
+              >{fnord.status === "golden_apple"
+                ? $_("terminology.golden_apple.term")
+                : $_("actions.favorite")}</span
+            >
           </button>
           {#if !fnord.content_full}
             {@const hasFetchError = fnord.full_text_fetch_error}
@@ -453,24 +504,24 @@
               <button
                 class="btn btn-default retrieving"
                 disabled
-                title={$_('articleView.fetchFetching')}
+                title={$_("articleView.fetchFetching")}
               >
                 <i class="spinner fa-solid fa-rotate fa-spin"></i>
-                <span>{$_('articleView.fetchFetching')}</span>
+                <span>{$_("articleView.fetchFetching")}</span>
               </button>
             {:else if hasFetchError}
               <!-- Error state -->
               <div class="fetch-error-container">
                 <span class="btn btn-error" title={hasFetchError}>
                   <i class="fa-solid fa-triangle-exclamation"></i>
-                  <span>{$_('articleView.fetchError')}</span>
+                  <span>{$_("articleView.fetchError")}</span>
                 </span>
                 <button
                   onclick={fetchFullContent}
                   class="btn-retry"
-                  title={$_('articleView.fetchFullText')}
+                  title={$_("articleView.fetchFullText")}
                 >
-                  {$_('articleView.fetchRetry')}
+                  {$_("articleView.fetchRetry")}
                 </button>
               </div>
             {:else}
@@ -480,7 +531,7 @@
                 class="btn btn-default"
                 title="{$_('articleView.fetchFullText')} (r)"
               >
-                <span>{$_('articleView.fullText')}</span>
+                <span>{$_("articleView.fullText")}</span>
               </button>
             {/if}
           {/if}
@@ -490,20 +541,27 @@
             {@const isDisabled = appState.analyzing || !canAnalyze || !hasModel}
             <button
               onclick={analyzeWithAI}
-              class="btn btn-default {appState.analyzing ? 'retrieving' : ''} {!canAnalyze || !hasModel ? 'btn-disabled-info' : ''}"
+              class="btn btn-default {appState.analyzing ? 'retrieving' : ''} {!canAnalyze ||
+              !hasModel
+                ? 'btn-disabled-info'
+                : ''}"
               disabled={isDisabled}
-              title={!hasModel ? $_('articleView.analyzeNoModel') : (canAnalyze ? $_('articleView.aiAnalysis') : $_('articleView.analyzeRequiresFulltext'))}
+              title={!hasModel
+                ? $_("articleView.analyzeNoModel")
+                : canAnalyze
+                  ? $_("articleView.aiAnalysis")
+                  : $_("articleView.analyzeRequiresFulltext")}
             >
               {#if appState.analyzing}
                 <i class="spinner fa-solid fa-rotate fa-spin"></i>
               {:else if !canAnalyze || !hasModel}
                 <i class="fa-solid fa-circle-info btn-info-icon"></i>
               {/if}
-              <span>{fnord.summary ? $_('articleView.reanalyze') : $_('articleView.analyze')}</span>
+              <span>{fnord.summary ? $_("articleView.reanalyze") : $_("articleView.analyze")}</span>
             </button>
           {/if}
           <button onclick={openInBrowser} class="btn btn-default">
-            {$_('actions.openInBrowser')}
+            {$_("actions.openInBrowser")}
           </button>
         </div>
       </div>
@@ -514,16 +572,17 @@
       <div class="revision-section">
         <div class="section-content">
           <button class="revision-header" onclick={toggleRevisions}>
-            <i class="revision-icon fa-solid {showRevisions ? 'fa-caret-down' : 'fa-caret-right'}"></i>
+            <i class="revision-icon fa-solid {showRevisions ? 'fa-caret-down' : 'fa-caret-right'}"
+            ></i>
             <span class="revision-title">
-              {$_('articleView.changes.revisions')} ({fnord.revision_count})
+              {$_("articleView.changes.revisions")} ({fnord.revision_count})
             </span>
           </button>
 
           {#if showRevisions}
             <div class="revision-detail">
               {#if loadingRevisions}
-                <div class="revision-loading">{$_('articleList.loading')}</div>
+                <div class="revision-loading">{$_("articleList.loading")}</div>
               {:else}
                 <RevisionView {fnord} {revisions} />
               {/if}
@@ -539,24 +598,35 @@
         <div class="section-content">
           <div class="greyface-row">
             <div class="greyface-label">
-              {$_('articleView.greyface.title')}
+              {$_("articleView.greyface.title")}
             </div>
             <div class="greyface-indicators">
               {#if fnord.political_bias !== null}
-                <span class="indicator bias-{getBiasColor(fnord.political_bias, 'class')}" title="{$_('articleView.greyface.bias')}: {getBiasLabel(fnord.political_bias)}">
+                <span
+                  class="indicator bias-{getBiasColor(fnord.political_bias, 'class')}"
+                  title="{$_('articleView.greyface.bias')}: {getBiasLabel(fnord.political_bias)}"
+                >
                   <i class="fa-solid {getBiasIcon(fnord.political_bias)}"></i>
                   <span class="indicator-text">{getBiasLabel(fnord.political_bias)}</span>
                 </span>
               {/if}
               {#if fnord.sachlichkeit !== null}
-                <span class="indicator sach-{getSachlichkeitColor(fnord.sachlichkeit)}" title="{$_('articleView.greyface.sachlichkeit')}: {getSachlichkeitLabel(fnord.sachlichkeit)}">
+                <span
+                  class="indicator sach-{getSachlichkeitColor(fnord.sachlichkeit)}"
+                  title="{$_('articleView.greyface.sachlichkeit')}: {getSachlichkeitLabel(
+                    fnord.sachlichkeit,
+                  )}"
+                >
                   <i class="fa-solid {getSachlichkeitIcon(fnord.sachlichkeit)}"></i>
                   <span class="indicator-text">{getSachlichkeitLabel(fnord.sachlichkeit)}</span>
                 </span>
               {/if}
               {#if fnord.quality_score !== null}
-                <span class="indicator quality" title="{$_('articleView.greyface.quality')}">
-                  {#each Array(fnord.quality_score) as _, i (i)}<i class="fa-solid fa-star"></i>{/each}{#each Array(5 - fnord.quality_score) as _, i (i)}<i class="fa-regular fa-star"></i>{/each}
+                <span class="indicator quality" title={$_("articleView.greyface.quality")}>
+                  {#each Array(fnord.quality_score) as _, i (i)}<i class="fa-solid fa-star"
+                    ></i>{/each}{#each Array(5 - fnord.quality_score) as _, i (i)}<i
+                      class="fa-regular fa-star"
+                    ></i>{/each}
                 </span>
               {/if}
             </div>
@@ -570,7 +640,7 @@
       <div class="summary-section">
         <div class="section-content">
           <div class="section-header">
-            {$_('terminology.discordian.term')}
+            {$_("terminology.discordian.term")}
           </div>
           <p class="summary-text">{stripHtml(fnord.summary)}</p>
         </div>
@@ -588,86 +658,96 @@
 
     <!-- Sephiroth (Categories) & Immanentize (Keywords) - always show for category editing -->
     <div class="meta-section">
-        <div class="section-content">
-          <!-- Categories - always show to allow adding when none exist -->
+      <div class="section-content">
+        <!-- Categories - always show to allow adding when none exist -->
+        <div class="meta-row">
+          <div class="meta-label">
+            {$_("articleView.categories")}
+          </div>
+          <div class="meta-content">
+            {#if articleCategoriesDetailed.length > 0}
+              <ArticleCategories
+                fnordId={fnord.id}
+                categories={articleCategoriesDetailed}
+                editing={editingCategories}
+                onUpdate={handleCategoriesUpdate}
+              />
+            {:else if categories.length > 0}
+              <!-- Fallback to old display for articles not yet loaded with detailed info -->
+              <div class="category-badges">
+                {#each categories as cat (cat.sephiroth_id)}
+                  <span
+                    class="category-badge"
+                    style="background-color: {getCategoryColorVar(
+                      cat.sephiroth_id,
+                      'var(--bg-overlay)',
+                    )}; color: white"
+                  >
+                    {#if cat.icon}<i class="{cat.icon} badge-icon"></i>{/if}
+                    {cat.name}
+                  </span>
+                {/each}
+              </div>
+            {:else}
+              <!-- No categories - show add option in edit mode -->
+              <ArticleCategories
+                fnordId={fnord.id}
+                categories={[]}
+                editing={editingCategories}
+                onUpdate={handleCategoriesUpdate}
+              />
+            {/if}
+            <button
+              class="edit-toggle"
+              onclick={() => (editingCategories = !editingCategories)}
+              title="Edit categories"
+              aria-label={editingCategories ? "Done editing categories" : "Edit categories"}
+            >
+              <i class="fa-solid {editingCategories ? 'fa-check' : 'fa-pen'}"></i>
+            </button>
+          </div>
+        </div>
+
+        {#if articleKeywords.length > 0 || tags.length > 0}
           <div class="meta-row">
             <div class="meta-label">
-              {$_('articleView.categories')}
+              {$_("articleView.keywords")}
             </div>
             <div class="meta-content">
-              {#if articleCategoriesDetailed.length > 0}
-                <ArticleCategories
+              {#if articleKeywords.length > 0}
+                <ArticleKeywords
                   fnordId={fnord.id}
-                  categories={articleCategoriesDetailed}
-                  editing={editingCategories}
-                  onUpdate={handleCategoriesUpdate}
+                  keywords={articleKeywords}
+                  editing={editingKeywords}
+                  onUpdate={handleKeywordsUpdate}
                 />
-              {:else if categories.length > 0}
-                <!-- Fallback to old display for articles not yet loaded with detailed info -->
-                <div class="category-badges">
-                  {#each categories as cat (cat.sephiroth_id)}
-                    <span class="category-badge" style="background-color: {getCategoryColorVar(cat.sephiroth_id, 'var(--bg-overlay)')}; color: white">
-                      {#if cat.icon}<i class="{cat.icon} badge-icon"></i>{/if}
-                      {cat.name}
-                    </span>
+              {:else}
+                <!-- Fallback to old display -->
+                <div class="tag-list">
+                  {#each tags as tag (tag.id)}
+                    <button
+                      class="tag-badge clickable"
+                      onclick={() => navigateToKeyword(tag.id)}
+                      title={$_("network.title")}
+                    >
+                      {tag.name}
+                    </button>
                   {/each}
                 </div>
-              {:else}
-                <!-- No categories - show add option in edit mode -->
-                <ArticleCategories
-                  fnordId={fnord.id}
-                  categories={[]}
-                  editing={editingCategories}
-                  onUpdate={handleCategoriesUpdate}
-                />
               {/if}
               <button
                 class="edit-toggle"
-                onclick={() => editingCategories = !editingCategories}
-                title="Edit categories"
-                aria-label={editingCategories ? 'Done editing categories' : 'Edit categories'}
+                onclick={() => (editingKeywords = !editingKeywords)}
+                title="Edit keywords"
+                aria-label={editingKeywords ? "Done editing keywords" : "Edit keywords"}
               >
-                <i class="fa-solid {editingCategories ? 'fa-check' : 'fa-pen'}"></i>
+                <i class="fa-solid {editingKeywords ? 'fa-check' : 'fa-pen'}"></i>
               </button>
             </div>
           </div>
-
-          {#if articleKeywords.length > 0 || tags.length > 0}
-            <div class="meta-row">
-              <div class="meta-label">
-                {$_('articleView.keywords')}
-              </div>
-              <div class="meta-content">
-                {#if articleKeywords.length > 0}
-                  <ArticleKeywords
-                    fnordId={fnord.id}
-                    keywords={articleKeywords}
-                    editing={editingKeywords}
-                    onUpdate={handleKeywordsUpdate}
-                  />
-                {:else}
-                  <!-- Fallback to old display -->
-                  <div class="tag-list">
-                    {#each tags as tag (tag.id)}
-                      <button class="tag-badge clickable" onclick={() => navigateToKeyword(tag.id)} title={$_('network.title')}>
-                        {tag.name}
-                      </button>
-                    {/each}
-                  </div>
-                {/if}
-                <button
-                  class="edit-toggle"
-                  onclick={() => editingKeywords = !editingKeywords}
-                  title="Edit keywords"
-                  aria-label={editingKeywords ? 'Done editing keywords' : 'Edit keywords'}
-                >
-                  <i class="fa-solid {editingKeywords ? 'fa-check' : 'fa-pen'}"></i>
-                </button>
-              </div>
-            </div>
-          {/if}
-        </div>
+        {/if}
       </div>
+    </div>
 
     <!-- Content -->
     <div class="content-section">
@@ -679,7 +759,7 @@
             {@html sanitizeArticleContent(fnord.content_raw)}
           {:else}
             <p class="no-content">
-              {$_('articleView.noContent')}
+              {$_("articleView.noContent")}
             </p>
           {/if}
         </article>
@@ -690,9 +770,9 @@
     {#if similarArticles.length > 0 || loadingSimilar}
       <div class="similar-section">
         <div class="section-content">
-          <div class="section-header">{$_('articleView.similarArticles')}</div>
+          <div class="section-header">{$_("articleView.similarArticles")}</div>
           {#if loadingSimilar}
-            <div class="similar-loading">{$_('articleList.loading')}</div>
+            <div class="similar-loading">{$_("articleList.loading")}</div>
           {:else}
             <div class="similar-list">
               {#each similarArticles as article (article.fnord_id)}
@@ -720,13 +800,16 @@
     <div class="empty-state">
       <i class="empty-icon fa-solid fa-eye"></i>
       <h2 class="empty-title">
-        {$_('articleView.noSelection')}
+        {$_("articleView.noSelection")}
       </h2>
       <p class="empty-text">
-        {$_('articleView.selectArticle')}<br />
-        {$_('articleView.useKeys')} <kbd>j</kbd> {$_('articleView.and')}
-        <kbd>k</kbd> {$_('articleView.toNavigate')}<br />
-        <kbd>s</kbd> {$_('articleView.favoriteHint')}
+        {$_("articleView.selectArticle")}<br />
+        {$_("articleView.useKeys")} <kbd>j</kbd>
+        {$_("articleView.and")}
+        <kbd>k</kbd>
+        {$_("articleView.toNavigate")}<br />
+        <kbd>s</kbd>
+        {$_("articleView.favoriteHint")}
       </p>
     </div>
   {/if}
@@ -910,8 +993,12 @@
   }
 
   @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .revision-section {
@@ -1021,18 +1108,38 @@
   }
 
   /* Bias colors (Theme-aware via CSS variables) */
-  .indicator.bias-strong-left { color: var(--bias-strong-left); }
-  .indicator.bias-lean-left { color: var(--bias-lean-left); }
-  .indicator.bias-center { color: var(--bias-center); }
-  .indicator.bias-lean-right { color: var(--bias-lean-right); }
-  .indicator.bias-strong-right { color: var(--bias-strong-right); }
-  .indicator.bias-neutral { color: var(--text-muted); }
+  .indicator.bias-strong-left {
+    color: var(--bias-strong-left);
+  }
+  .indicator.bias-lean-left {
+    color: var(--bias-lean-left);
+  }
+  .indicator.bias-center {
+    color: var(--bias-center);
+  }
+  .indicator.bias-lean-right {
+    color: var(--bias-lean-right);
+  }
+  .indicator.bias-strong-right {
+    color: var(--bias-strong-right);
+  }
+  .indicator.bias-neutral {
+    color: var(--text-muted);
+  }
 
   /* Sachlichkeit colors (Theme-aware via CSS variables) */
-  .indicator.sach-emotional { color: var(--sach-emotional); }
-  .indicator.sach-mixed { color: var(--sach-mixed); }
-  .indicator.sach-objective { color: var(--sach-objective); }
-  .indicator.sach-neutral { color: var(--text-muted); }
+  .indicator.sach-emotional {
+    color: var(--sach-emotional);
+  }
+  .indicator.sach-mixed {
+    color: var(--sach-mixed);
+  }
+  .indicator.sach-objective {
+    color: var(--sach-objective);
+  }
+  .indicator.sach-neutral {
+    color: var(--text-muted);
+  }
 
   /* Quality stars */
   .indicator.quality {
@@ -1476,7 +1583,7 @@
      Code - Inline and Blocks
      =========================================== */
   .article-body :global(code) {
-    font-family: 'SF Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
+    font-family: "SF Mono", "Fira Code", "Consolas", "Monaco", monospace;
     font-size: 0.875em;
     background-color: var(--bg-overlay);
     color: var(--accent-warning);
@@ -1505,7 +1612,7 @@
   }
 
   .article-body :global(kbd) {
-    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
     font-size: 0.8125em;
     background-color: var(--bg-overlay);
     border: 1px solid var(--border-default);
@@ -1515,13 +1622,13 @@
   }
 
   .article-body :global(samp) {
-    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
     font-size: 0.875em;
     color: var(--accent-success);
   }
 
   .article-body :global(var) {
-    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
     font-style: italic;
     color: var(--accent-info);
   }

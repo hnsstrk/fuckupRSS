@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { _ } from 'svelte-i18n';
-  import { invoke } from '@tauri-apps/api/core';
-  import { Chart, registerables } from 'chart.js';
+  import { onMount, onDestroy } from "svelte";
+  import { _ } from "svelte-i18n";
+  import { invoke } from "@tauri-apps/api/core";
+  import { Chart, registerables } from "chart.js";
 
   // Register all Chart.js components
   Chart.register(...registerables);
@@ -24,7 +24,7 @@
 
   // Track previous values to prevent unnecessary re-renders
   let prevKeywordId: number | null = null;
-  let prevNeighborIdsKey = '';
+  let prevNeighborIdsKey = "";
   let mounted = false;
   let themeObserver: MutationObserver | null = null;
 
@@ -39,7 +39,7 @@
     const style = getComputedStyle(document.documentElement);
 
     // Main keyword uses accent-primary
-    const accentPrimary = style.getPropertyValue('--accent-primary').trim();
+    const accentPrimary = style.getPropertyValue("--accent-primary").trim();
 
     // Category colors for the 4 co-occurring keywords (indices 1-4)
     // Generate bg color dynamically from border color
@@ -51,10 +51,7 @@
       }
     }
 
-    return [
-      { border: accentPrimary, bg: hexToRgba(accentPrimary, 0.3) },
-      ...categoryColors
-    ];
+    return [{ border: accentPrimary, bg: hexToRgba(accentPrimary, 0.3) }, ...categoryColors];
   }
 
   // Helper to convert hex to rgba (no hardcoded fallback)
@@ -74,11 +71,11 @@
   function getChartThemeStyles() {
     const style = getComputedStyle(document.documentElement);
     return {
-      textColor: style.getPropertyValue('--text-muted').trim(),
-      gridColor: style.getPropertyValue('--border-default').trim(),
-      tooltipBg: style.getPropertyValue('--bg-surface').trim(),
-      tooltipText: style.getPropertyValue('--text-primary').trim(),
-      tooltipBorder: style.getPropertyValue('--border-default').trim(),
+      textColor: style.getPropertyValue("--text-muted").trim(),
+      gridColor: style.getPropertyValue("--border-default").trim(),
+      tooltipBg: style.getPropertyValue("--bg-surface").trim(),
+      tooltipText: style.getPropertyValue("--text-primary").trim(),
+      tooltipBorder: style.getPropertyValue("--border-default").trim(),
     };
   }
 
@@ -95,7 +92,7 @@
       const response = await invoke<{
         keywords: { id: number; name: string; counts: number[] }[];
         dates: string[];
-      }>('get_trending_comparison', {
+      }>("get_trending_comparison", {
         ids: allIds,
         days,
       });
@@ -103,7 +100,7 @@
       updateChart(response);
     } catch (e) {
       error = String(e);
-      console.error('Failed to load trend data:', e);
+      console.error("Failed to load trend data:", e);
     } finally {
       loading = false;
     }
@@ -128,9 +125,9 @@
     const themeStyles = getChartThemeStyles();
 
     // Format dates for display
-    const labels = data.dates.map(d => {
+    const labels = data.dates.map((d) => {
       const date = new Date(d);
-      return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+      return date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
     });
 
     // Build datasets - main keyword gets filled area, neighbors get lines only
@@ -153,7 +150,7 @@
     });
 
     chart = new Chart(canvas, {
-      type: 'line',
+      type: "line",
       data: {
         labels,
         datasets,
@@ -162,21 +159,21 @@
         responsive: true,
         maintainAspectRatio: false,
         interaction: {
-          mode: 'index',
+          mode: "index",
           intersect: false,
         },
         plugins: {
           legend: {
             display: true,
-            position: 'top',
-            align: 'start',
+            position: "top",
+            align: "start",
             labels: {
               color: themeStyles.textColor,
               font: {
                 size: 11,
               },
               usePointStyle: true,
-              pointStyle: 'line',
+              pointStyle: "line",
               padding: 15,
             },
           },
@@ -193,7 +190,7 @@
                   const idx = items[0].dataIndex;
                   return data.dates[idx];
                 }
-                return '';
+                return "";
               },
               label: (item) => {
                 return `${item.dataset.label}: ${item.parsed.y} Artikel`;
@@ -229,7 +226,7 @@
             },
             title: {
               display: true,
-              text: $_('network.articleCount') || 'Artikel',
+              text: $_("network.articleCount") || "Artikel",
               color: themeStyles.textColor,
               font: {
                 size: 11,
@@ -251,14 +248,14 @@
     mounted = true;
     // Initialize tracking values
     prevKeywordId = keywordId;
-    prevNeighborIdsKey = neighborIds.join(',');
+    prevNeighborIdsKey = neighborIds.join(",");
     ondayschange?.(days);
     loadTrendData();
 
     // Watch for theme changes on html element
     themeObserver = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+        if (mutation.type === "attributes" && mutation.attributeName === "class") {
           // Theme changed, reload chart with new colors
           if (chart && canvas) {
             loadTrendData();
@@ -269,7 +266,7 @@
 
     themeObserver.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['class']
+      attributeFilter: ["class"],
     });
   });
 
@@ -291,7 +288,7 @@
     if (!mounted) return;
 
     // Create a stable key for neighbor comparison
-    const currentNeighborIdsKey = neighborIds.join(',');
+    const currentNeighborIdsKey = neighborIds.join(",");
 
     // Only reload if something actually changed
     if (keywordId && canvas) {
@@ -307,23 +304,14 @@
 <div class="trend-chart-container">
   <div class="trend-header">
     <div class="time-range-selector">
-      <button
-        class:active={days === 7}
-        onclick={() => handleDaysChange(7)}
-      >
-        7 {$_('network.days') || 'Tage'}
+      <button class:active={days === 7} onclick={() => handleDaysChange(7)}>
+        7 {$_("network.days") || "Tage"}
       </button>
-      <button
-        class:active={days === 30}
-        onclick={() => handleDaysChange(30)}
-      >
-        30 {$_('network.days') || 'Tage'}
+      <button class:active={days === 30} onclick={() => handleDaysChange(30)}>
+        30 {$_("network.days") || "Tage"}
       </button>
-      <button
-        class:active={days === 90}
-        onclick={() => handleDaysChange(90)}
-      >
-        90 {$_('network.days') || 'Tage'}
+      <button class:active={days === 90} onclick={() => handleDaysChange(90)}>
+        90 {$_("network.days") || "Tage"}
       </button>
     </div>
   </div>
@@ -429,6 +417,8 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

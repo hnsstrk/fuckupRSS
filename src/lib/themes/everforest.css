@@ -36,18 +36,18 @@ html.everforest {
   --text-on-accent: #2d353b;
 
   /* Category Colors */
-  --category-1: #7fbbb3;  /* Aqua - Wissen & Technologie */
-  --category-2: #e67e80;  /* Red - Politik & Gesellschaft */
-  --category-3: #dbbc7f;  /* Yellow - Wirtschaft */
-  --category-4: #a7c080;  /* Green - Umwelt & Gesundheit */
-  --category-5: #e69875;  /* Orange - Sicherheit */
-  --category-6: #d699b6;  /* Purple - Kultur & Leben */
+  --category-1: #7fbbb3; /* Aqua - Wissen & Technologie */
+  --category-2: #e67e80; /* Red - Politik & Gesellschaft */
+  --category-3: #dbbc7f; /* Yellow - Wirtschaft */
+  --category-4: #a7c080; /* Green - Umwelt & Gesundheit */
+  --category-5: #e69875; /* Orange - Sicherheit */
+  --category-6: #d699b6; /* Purple - Kultur & Leben */
 
   /* Bias Colors */
-  --bias-strong-left: #7fbbb3;  /* Aqua */
-  --bias-lean-left: #83c092;    /* Teal */
-  --bias-center: #a7c080;       /* Green */
-  --bias-lean-right: #e69875;   /* Orange */
+  --bias-strong-left: #7fbbb3; /* Aqua */
+  --bias-lean-left: #83c092; /* Teal */
+  --bias-center: #a7c080; /* Green */
+  --bias-lean-right: #e69875; /* Orange */
   --bias-strong-right: #e67e80; /* Red */
 
   --sach-emotional: #e69875;
@@ -56,7 +56,7 @@ html.everforest {
 
   /* Diff Colors */
   --diff-deleted-bg: rgba(230, 126, 128, 0.25);
-  --diff-added-bg: rgba(167, 192, 128, 0.30);
+  --diff-added-bg: rgba(167, 192, 128, 0.3);
   --diff-modified-old-bg: rgba(219, 188, 127, 0.15);
   --diff-modified-new-bg: rgba(219, 188, 127, 0.35);
 }

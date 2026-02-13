@@ -1,12 +1,18 @@
 <script lang="ts">
-  import { _, locale } from 'svelte-i18n';
-  import type { Fnord, FnordRevision } from '../stores/state.svelte';
-  import { computeWordDiff, diffToHtml, getDiffStats, detectModifications, type DiffSegment } from '../utils/textDiff';
-  import { sanitizeArticleContent } from '$lib/utils/sanitizer';
-  import { formatDateTimeShort } from '$lib/utils/articleFormat';
+  import { _, locale } from "svelte-i18n";
+  import type { Fnord, FnordRevision } from "../stores/state.svelte";
+  import {
+    computeWordDiff,
+    diffToHtml,
+    getDiffStats,
+    detectModifications,
+    type DiffSegment,
+  } from "../utils/textDiff";
+  import { sanitizeArticleContent } from "$lib/utils/sanitizer";
+  import { formatDateTimeShort } from "$lib/utils/articleFormat";
 
   // Browser check for Tauri app (not using SvelteKit's $app/environment)
-  const browser = typeof window !== 'undefined';
+  const browser = typeof window !== "undefined";
 
   interface Props {
     fnord: Fnord;
@@ -21,24 +27,24 @@
 
   // Whitespace visualization preference (persisted to localStorage)
   let showWhitespace = $state(
-    browser ? localStorage.getItem('fuckup.showWhitespace') === 'true' : false
+    browser ? localStorage.getItem("fuckup.showWhitespace") === "true" : false,
   );
 
   // Persist whitespace preference to localStorage
   $effect(() => {
     if (browser) {
-      localStorage.setItem('fuckup.showWhitespace', String(showWhitespace));
+      localStorage.setItem("fuckup.showWhitespace", String(showWhitespace));
     }
   });
 
   // Get content for the current article
   function getCurrentContent(): string {
-    return fnord.content_full || fnord.content_raw || '';
+    return fnord.content_full || fnord.content_raw || "";
   }
 
   // Get content for a revision
   function getRevisionContent(rev: FnordRevision): string {
-    return rev.content_full || rev.content_raw || '';
+    return rev.content_full || rev.content_raw || "";
   }
 
   // Get the "newer" content to compare against (what this version changed into)
@@ -85,7 +91,7 @@
 
 <div class="revision-view">
   <!-- Revision Tabs -->
-  <div class="revision-tabs" role="tablist" aria-label={$_('revisions.title') || 'Revisionen'}>
+  <div class="revision-tabs" role="tablist" aria-label={$_("revisions.title") || "Revisionen"}>
     <button
       role="tab"
       aria-selected={selectedRevisionIndex === null}
@@ -93,7 +99,7 @@
       class="revision-tab {selectedRevisionIndex === null ? 'active' : ''}"
       onclick={() => selectRevision(null)}
     >
-      {$_('revisions.current') || 'Aktuell'}
+      {$_("revisions.current") || "Aktuell"}
     </button>
     {#each revisions as rev, i (rev.id)}
       <button
@@ -116,9 +122,9 @@
         <input
           type="checkbox"
           bind:checked={showDiff}
-          aria-label={$_('revisions.showChanges') || 'Änderungen anzeigen'}
+          aria-label={$_("revisions.showChanges") || "Änderungen anzeigen"}
         />
-        <span>{$_('revisions.showChanges') || 'Änderungen anzeigen'}</span>
+        <span>{$_("revisions.showChanges") || "Änderungen anzeigen"}</span>
       </label>
 
       {#if showDiff}
@@ -126,22 +132,26 @@
           <input
             type="checkbox"
             bind:checked={showWhitespace}
-            aria-label={$_('revisions.showWhitespace') || 'Leerzeichen anzeigen'}
+            aria-label={$_("revisions.showWhitespace") || "Leerzeichen anzeigen"}
           />
-          <span>{$_('revisions.showWhitespace') || 'Leerzeichen anzeigen'}</span>
+          <span>{$_("revisions.showWhitespace") || "Leerzeichen anzeigen"}</span>
         </label>
       {/if}
 
       {#if showDiff && (stats.addedWords > 0 || stats.removedWords > 0 || stats.modifiedSegments > 0)}
         <div class="diff-stats">
           {#if stats.addedWords > 0}
-            <span class="stat-added">+{stats.addedWords} {$_('revisions.words') || 'Wörter'}</span>
+            <span class="stat-added">+{stats.addedWords} {$_("revisions.words") || "Wörter"}</span>
           {/if}
           {#if stats.removedWords > 0}
-            <span class="stat-removed">-{stats.removedWords} {$_('revisions.words') || 'Wörter'}</span>
+            <span class="stat-removed"
+              >-{stats.removedWords} {$_("revisions.words") || "Wörter"}</span
+            >
           {/if}
           {#if stats.modifiedSegments > 0}
-            <span class="stat-modified">~{stats.modifiedSegments} {$_('revisions.modified') || 'geändert'}</span>
+            <span class="stat-modified"
+              >~{stats.modifiedSegments} {$_("revisions.modified") || "geändert"}</span
+            >
           {/if}
         </div>
       {/if}
@@ -153,13 +163,17 @@
   {/if}
 
   <!-- Content -->
-  <div class="revision-content" role="tabpanel" aria-label={$_('revisions.contentPanel') || 'Revisionsinhalt'}>
+  <div
+    class="revision-content"
+    role="tabpanel"
+    aria-label={$_("revisions.contentPanel") || "Revisionsinhalt"}
+  >
     {#if selectedRevisionIndex === null}
       <!-- Current version -->
       {#if fnord.content_full || fnord.content_raw}
-        {@html sanitizeArticleContent(fnord.content_full || fnord.content_raw || '')}
+        {@html sanitizeArticleContent(fnord.content_full || fnord.content_raw || "")}
       {:else}
-        <p class="no-content">{$_('revisions.noContent') || 'Kein Inhalt verfügbar'}</p>
+        <p class="no-content">{$_("revisions.noContent") || "Kein Inhalt verfügbar"}</p>
       {/if}
     {:else}
       <!-- Revision with optional diff -->
@@ -170,9 +184,15 @@
       {:else}
         <!-- Plain revision content -->
         {#if revisions[selectedRevisionIndex].content_full || revisions[selectedRevisionIndex].content_raw}
-          {@html sanitizeArticleContent(revisions[selectedRevisionIndex].content_full || revisions[selectedRevisionIndex].content_raw || '')}
+          {@html sanitizeArticleContent(
+            revisions[selectedRevisionIndex].content_full ||
+              revisions[selectedRevisionIndex].content_raw ||
+              "",
+          )}
         {:else}
-          <p class="no-content">{$_('revisions.noContent') || 'Kein Volltext für diese Revision verfügbar'}</p>
+          <p class="no-content">
+            {$_("revisions.noContent") || "Kein Volltext für diese Revision verfügbar"}
+          </p>
         {/if}
       {/if}
     {/if}
@@ -181,10 +201,11 @@
   <!-- Title comparison (if changed) -->
   {#if selectedRevisionIndex !== null}
     {@const rev = revisions[selectedRevisionIndex]}
-    {@const newerTitle = selectedRevisionIndex === 0 ? fnord.title : revisions[selectedRevisionIndex - 1].title}
+    {@const newerTitle =
+      selectedRevisionIndex === 0 ? fnord.title : revisions[selectedRevisionIndex - 1].title}
     {#if rev.title !== newerTitle}
       <div class="title-change">
-        <span class="title-label">{$_('revisions.titleChanged') || 'Titel geändert'}:</span>
+        <span class="title-label">{$_("revisions.titleChanged") || "Titel geändert"}:</span>
         <div class="title-old"><span class="diff-removed">{rev.title}</span></div>
         <div class="title-new"><span class="diff-added">{newerTitle}</span></div>
       </div>

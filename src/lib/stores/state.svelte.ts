@@ -100,10 +100,10 @@ class AppState {
   ollamaStatus = $state<OllamaStatus>({
     available: false,
     models: [],
-    recommended_main: '',
-    recommended_embedding: '',
+    recommended_main: "",
+    recommended_embedding: "",
     has_recommended_main: false,
-    has_recommended_embedding: false
+    has_recommended_embedding: false,
   });
   selectedModel = $state<string | null>(null);
   selectedEmbeddingModel = $state<string | null>(null);
@@ -222,7 +222,7 @@ class AppState {
       // Load count and first batch in parallel
       const [fnords, count] = await Promise.all([
         invoke<Fnord[]>("get_fnords", { filter: { ...filter, limit: 50, offset: 0 } }),
-        invoke<number>("get_fnords_count", { filter })
+        invoke<number>("get_fnords_count", { filter }),
       ]);
 
       this.fnords = fnords;
@@ -246,8 +246,8 @@ class AppState {
         filter: {
           ...this.currentFilter,
           limit: 50,
-          offset: this.fnords.length
-        }
+          offset: this.fnords.length,
+        },
       });
 
       this.fnords = [...this.fnords, ...moreFnords];
@@ -298,7 +298,7 @@ class AppState {
 
   async updateFnordStatus(
     id: number,
-    status: "concealed" | "illuminated" | "golden_apple"
+    status: "concealed" | "illuminated" | "golden_apple",
   ): Promise<void> {
     try {
       await invoke("update_fnord_status", { id, status });
@@ -341,7 +341,7 @@ class AppState {
 
     if (id !== null) {
       // Check if this is a main category (level 0) or subcategory (level 1)
-      const category = this.sephiroth.find(s => s.id === id);
+      const category = this.sephiroth.find((s) => s.id === id);
       if (category && category.level === 0) {
         // Main category - filter by all its subcategories
         void this.loadFnords({ main_sephiroth_id: id, status }); // Fire-and-forget: UI updates reactively via $state
@@ -390,22 +390,16 @@ class AppState {
   selectNextFnord(): void {
     if (this.fnords.length === 0) return;
 
-    const currentIndex = this.fnords.findIndex(
-      (f) => f.id === this.selectedFnordId
-    );
-    const nextIndex =
-      currentIndex < this.fnords.length - 1 ? currentIndex + 1 : 0;
+    const currentIndex = this.fnords.findIndex((f) => f.id === this.selectedFnordId);
+    const nextIndex = currentIndex < this.fnords.length - 1 ? currentIndex + 1 : 0;
     this.selectFnord(this.fnords[nextIndex].id);
   }
 
   selectPrevFnord(): void {
     if (this.fnords.length === 0) return;
 
-    const currentIndex = this.fnords.findIndex(
-      (f) => f.id === this.selectedFnordId
-    );
-    const prevIndex =
-      currentIndex > 0 ? currentIndex - 1 : this.fnords.length - 1;
+    const currentIndex = this.fnords.findIndex((f) => f.id === this.selectedFnordId);
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : this.fnords.length - 1;
     this.selectFnord(this.fnords[prevIndex].id);
   }
 
@@ -413,8 +407,7 @@ class AppState {
     const fnord = this.fnords.find((f) => f.id === id);
     if (!fnord) return;
 
-    const newStatus =
-      fnord.status === "golden_apple" ? "illuminated" : "golden_apple";
+    const newStatus = fnord.status === "golden_apple" ? "illuminated" : "golden_apple";
     void this.updateFnordStatus(id, newStatus); // Fire-and-forget: UI updates reactively via $state
   }
 
@@ -432,7 +425,7 @@ class AppState {
       // Reload data after sync
       await this.loadPentacles();
       await this.loadFnords(
-        this.selectedPentacleId ? { pentacle_id: this.selectedPentacleId } : undefined
+        this.selectedPentacleId ? { pentacle_id: this.selectedPentacleId } : undefined,
       );
       // Update unprocessed count for batch processing button
       await this.loadUnprocessedCount();
@@ -459,7 +452,7 @@ class AppState {
       await this.loadPentacles();
       if (this.selectedPentacleId === pentacleId || this.selectedPentacleId === null) {
         await this.loadFnords(
-          this.selectedPentacleId ? { pentacle_id: this.selectedPentacleId } : undefined
+          this.selectedPentacleId ? { pentacle_id: this.selectedPentacleId } : undefined,
         );
       }
       // Update unprocessed count for batch processing button
@@ -579,7 +572,9 @@ class AppState {
 
         // Also load/set embedding model
         try {
-          const savedEmbedding = await invoke<string | null>("get_setting", { key: "embedding_model" });
+          const savedEmbedding = await invoke<string | null>("get_setting", {
+            key: "embedding_model",
+          });
           if (savedEmbedding) {
             this.selectedEmbeddingModel = savedEmbedding;
             log.debug("Loaded saved embedding model:", this.selectedEmbeddingModel);
@@ -602,17 +597,20 @@ class AppState {
       this.ollamaStatus = {
         available: false,
         models: [],
-        recommended_main: '',
-        recommended_embedding: '',
+        recommended_main: "",
+        recommended_embedding: "",
         has_recommended_main: false,
-        has_recommended_embedding: false
+        has_recommended_embedding: false,
       };
       return this.ollamaStatus;
     }
   }
 
   // Save model settings to DB
-  private async saveModelSettings(mainModel: string | null, embeddingModel: string | null): Promise<void> {
+  private async saveModelSettings(
+    mainModel: string | null,
+    embeddingModel: string | null,
+  ): Promise<void> {
     try {
       if (mainModel) {
         await invoke("set_setting", { key: "main_model", value: mainModel });
@@ -823,8 +821,8 @@ class AppState {
       await this.loadUnprocessedCount();
 
       // Notify components that batch processing is complete (for refreshing similar articles etc.)
-      window.dispatchEvent(new CustomEvent('batch-complete'));
-      window.dispatchEvent(new CustomEvent('keywords-changed'));
+      window.dispatchEvent(new CustomEvent("batch-complete"));
+      window.dispatchEvent(new CustomEvent("keywords-changed"));
 
       return result;
     } catch (e) {
@@ -838,7 +836,7 @@ class AppState {
   }
 
   updateBatchProgress(progress: BatchProgress): void {
-    this.batchProgress = { ...progress };  // Create new object to ensure reactivity
+    this.batchProgress = { ...progress }; // Create new object to ensure reactivity
   }
 
   updateEmbeddingProgress(progress: EmbeddingProgress): void {

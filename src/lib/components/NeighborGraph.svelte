@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { _ } from 'svelte-i18n';
-  import cytoscape from 'cytoscape';
-  import type { KeywordNeighbor } from '../stores/state.svelte';
+  import { onMount, onDestroy } from "svelte";
+  import { _ } from "svelte-i18n";
+  import cytoscape from "cytoscape";
+  import type { KeywordNeighbor } from "../stores/state.svelte";
 
   interface Props {
     centerId: number;
@@ -20,21 +20,21 @@
   // Get CSS variable values for Cytoscape (which doesn't support CSS vars)
   // No hardcoded fallbacks - themes must define all variables
   function getCssVar(name: string): string {
-    if (typeof document === 'undefined') return '';
+    if (typeof document === "undefined") return "";
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
 
   function getThemeColors() {
     return {
-      centerNode: getCssVar('--golden-apple-color'),
-      centerBorder: getCssVar('--accent-warning'),
-      neighborNode: getCssVar('--accent-primary'),
-      neighborHover: getCssVar('--accent-secondary'),
-      selectedNode: getCssVar('--accent-success'),
-      selectedBorder: getCssVar('--accent-info'),
-      text: getCssVar('--text-primary'),
-      textOutline: getCssVar('--bg-base'),
-      edge: getCssVar('--bg-highlight'),
+      centerNode: getCssVar("--golden-apple-color"),
+      centerBorder: getCssVar("--accent-warning"),
+      neighborNode: getCssVar("--accent-primary"),
+      neighborHover: getCssVar("--accent-secondary"),
+      selectedNode: getCssVar("--accent-success"),
+      selectedBorder: getCssVar("--accent-info"),
+      text: getCssVar("--text-primary"),
+      textOutline: getCssVar("--bg-base"),
+      edge: getCssVar("--bg-highlight"),
     };
   }
 
@@ -43,7 +43,7 @@
 
     // Add center node (larger, different color)
     elements.push({
-      group: 'nodes',
+      group: "nodes",
       data: {
         id: String(centerId),
         label: centerName,
@@ -53,13 +53,13 @@
     });
 
     // Find max weight for scaling
-    const maxWeight = Math.max(...neighbors.map(n => n.combined_weight), 0.1);
+    const maxWeight = Math.max(...neighbors.map((n) => n.combined_weight), 0.1);
 
     // Add neighbor nodes
     for (const neighbor of neighbors) {
       const size = 20 + (neighbor.combined_weight / maxWeight) * 25;
       elements.push({
-        group: 'nodes',
+        group: "nodes",
         data: {
           id: String(neighbor.id),
           label: neighbor.name,
@@ -73,7 +73,7 @@
       // Add edge
       const width = 1 + (neighbor.combined_weight / maxWeight) * 4;
       elements.push({
-        group: 'edges',
+        group: "edges",
         data: {
           id: `${centerId}-${neighbor.id}`,
           source: String(centerId),
@@ -104,60 +104,60 @@
       elements: buildGraphData(),
       style: [
         {
-          selector: 'node[?isCenter]',
+          selector: "node[?isCenter]",
           style: {
-            'background-color': colors.centerNode,
-            'label': 'data(label)',
-            'width': 'data(size)',
-            'height': 'data(size)',
-            'font-size': '12px',
-            'font-weight': 'bold',
-            'color': colors.text,
-            'text-outline-color': colors.textOutline,
-            'text-outline-width': 2,
-            'text-valign': 'center',
-            'text-halign': 'center',
-            'border-width': 3,
-            'border-color': colors.centerBorder,
+            "background-color": colors.centerNode,
+            label: "data(label)",
+            width: "data(size)",
+            height: "data(size)",
+            "font-size": "12px",
+            "font-weight": "bold",
+            color: colors.text,
+            "text-outline-color": colors.textOutline,
+            "text-outline-width": 2,
+            "text-valign": "center",
+            "text-halign": "center",
+            "border-width": 3,
+            "border-color": colors.centerBorder,
           },
         },
         {
-          selector: 'node[!isCenter]',
+          selector: "node[!isCenter]",
           style: {
-            'background-color': colors.neighborNode,
-            'label': 'data(label)',
-            'width': 'data(size)',
-            'height': 'data(size)',
-            'font-size': '10px',
-            'color': colors.text,
-            'text-outline-color': colors.textOutline,
-            'text-outline-width': 2,
-            'text-valign': 'bottom',
-            'text-margin-y': 5,
+            "background-color": colors.neighborNode,
+            label: "data(label)",
+            width: "data(size)",
+            height: "data(size)",
+            "font-size": "10px",
+            color: colors.text,
+            "text-outline-color": colors.textOutline,
+            "text-outline-width": 2,
+            "text-valign": "bottom",
+            "text-margin-y": 5,
           },
         },
         {
-          selector: 'node:selected',
+          selector: "node:selected",
           style: {
-            'background-color': colors.selectedNode,
-            'border-width': 2,
-            'border-color': colors.selectedBorder,
+            "background-color": colors.selectedNode,
+            "border-width": 2,
+            "border-color": colors.selectedBorder,
           },
         },
         {
-          selector: 'edge',
+          selector: "edge",
           style: {
-            'width': 'data(width)',
-            'line-color': colors.edge,
-            'curve-style': 'bezier',
-            'opacity': 0.7,
+            width: "data(width)",
+            "line-color": colors.edge,
+            "curve-style": "bezier",
+            opacity: 0.7,
           },
         },
       ],
       layout: {
-        name: 'concentric',
+        name: "concentric",
         concentric: (node: cytoscape.NodeSingular) => {
-          return node.data('isCenter') ? 2 : 1;
+          return node.data("isCenter") ? 2 : 1;
         },
         levelWidth: () => 1,
         minNodeSpacing: 50,
@@ -173,26 +173,26 @@
     });
 
     // Node click handler (only for non-center nodes)
-    cy.on('tap', 'node[!isCenter]', (evt: cytoscape.EventObject) => {
+    cy.on("tap", "node[!isCenter]", (evt: cytoscape.EventObject) => {
       const nodeId = parseInt(evt.target.id(), 10);
       onNodeClick?.(nodeId);
     });
 
     // Hover effects
-    cy.on('mouseover', 'node[!isCenter]', (evt: cytoscape.EventObject) => {
-      evt.target.style('background-color', colors.neighborHover);
-      container.style.cursor = 'pointer';
+    cy.on("mouseover", "node[!isCenter]", (evt: cytoscape.EventObject) => {
+      evt.target.style("background-color", colors.neighborHover);
+      container.style.cursor = "pointer";
     });
 
-    cy.on('mouseout', 'node[!isCenter]', (evt: cytoscape.EventObject) => {
+    cy.on("mouseout", "node[!isCenter]", (evt: cytoscape.EventObject) => {
       if (!evt.target.selected()) {
-        evt.target.style('background-color', colors.neighborNode);
+        evt.target.style("background-color", colors.neighborNode);
       }
-      container.style.cursor = 'default';
+      container.style.cursor = "default";
     });
 
     // Fit to view after layout
-    cy.on('layoutstop', () => {
+    cy.on("layoutstop", () => {
       cy?.fit(undefined, 20);
     });
   }
@@ -219,7 +219,7 @@
 <div class="neighbor-graph-container">
   {#if neighbors.length === 0}
     <div class="graph-empty">
-      <span>{$_('network.noNeighbors') || 'No related keywords found'}</span>
+      <span>{$_("network.noNeighbors") || "No related keywords found"}</span>
     </div>
   {:else}
     <div bind:this={container} class="graph-canvas"></div>

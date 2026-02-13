@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { isLoading } from 'svelte-i18n';
+  import { onMount, onDestroy } from "svelte";
+  import { isLoading } from "svelte-i18n";
   import Sidebar from "./lib/components/Sidebar.svelte";
   import ErisianArchives from "./lib/components/ErisianArchives.svelte";
   import KeywordNetwork from "./lib/components/KeywordNetwork.svelte";
@@ -14,11 +14,13 @@
   import { initLocaleFromDb } from "./lib/i18n";
   import { networkStore, appState } from "./lib/stores/state.svelte";
 
-  let mainView = $state<'erisianArchives' | 'network' | 'fnord' | 'mindfuck' | 'settings'>('erisianArchives');
+  let mainView = $state<"erisianArchives" | "network" | "fnord" | "mindfuck" | "settings">(
+    "erisianArchives",
+  );
 
   // Listen for navigation events from other components
   function handleNavigateToNetwork(event: CustomEvent<{ keywordId?: number }>) {
-    mainView = 'network';
+    mainView = "network";
     if (event.detail?.keywordId !== undefined) {
       networkStore.selectKeyword(event.detail.keywordId);
     }
@@ -27,8 +29,8 @@
   // Listen for article navigation events (e.g., from Similar Articles in ArticleView)
   async function handleNavigateToArticle(event: CustomEvent<{ articleId: number }>) {
     // Navigate to ErisianArchives if not already there
-    if (mainView !== 'erisianArchives') {
-      mainView = 'erisianArchives';
+    if (mainView !== "erisianArchives") {
+      mainView = "erisianArchives";
     }
 
     // Ensure the article is loaded (fetch if not in current list)
@@ -41,13 +43,13 @@
     await platformStore.init();
     await settings.init();
     await initLocaleFromDb();
-    window.addEventListener('navigate-to-network', handleNavigateToNetwork as EventListener);
-    window.addEventListener('navigate-to-article', handleNavigateToArticle as EventListener);
+    window.addEventListener("navigate-to-network", handleNavigateToNetwork as EventListener);
+    window.addEventListener("navigate-to-article", handleNavigateToArticle as EventListener);
   });
 
   onDestroy(() => {
-    window.removeEventListener('navigate-to-network', handleNavigateToNetwork as EventListener);
-    window.removeEventListener('navigate-to-article', handleNavigateToArticle as EventListener);
+    window.removeEventListener("navigate-to-network", handleNavigateToNetwork as EventListener);
+    window.removeEventListener("navigate-to-article", handleNavigateToArticle as EventListener);
   });
 </script>
 
@@ -59,33 +61,33 @@
     <div class="main-content">
       <!-- Sidebar: Feed list (Pentacles) -->
       <Sidebar
-        onerisianArchives={() => mainView = 'erisianArchives'}
-        onfnord={() => mainView = 'fnord'}
-        onnetwork={() => mainView = 'network'}
-        onmindfuck={() => mainView = 'mindfuck'}
-        onsettings={() => mainView = 'settings'}
-        erisianArchivesActive={mainView === 'erisianArchives'}
-        fnordActive={mainView === 'fnord'}
-        networkActive={mainView === 'network'}
-        mindfuckActive={mainView === 'mindfuck'}
-        settingsActive={mainView === 'settings'}
+        onerisianArchives={() => (mainView = "erisianArchives")}
+        onfnord={() => (mainView = "fnord")}
+        onnetwork={() => (mainView = "network")}
+        onmindfuck={() => (mainView = "mindfuck")}
+        onsettings={() => (mainView = "settings")}
+        erisianArchivesActive={mainView === "erisianArchives"}
+        fnordActive={mainView === "fnord"}
+        networkActive={mainView === "network"}
+        mindfuckActive={mainView === "mindfuck"}
+        settingsActive={mainView === "settings"}
       />
 
       <!-- Main content area -->
       <div class="content-area">
-        {#if mainView === 'erisianArchives'}
+        {#if mainView === "erisianArchives"}
           <!-- Erisian Archives: All articles with tabs and integrated reading pane -->
           <ErisianArchives />
-        {:else if mainView === 'network'}
+        {:else if mainView === "network"}
           <!-- Keyword Network View -->
           <KeywordNetwork />
-        {:else if mainView === 'fnord'}
+        {:else if mainView === "fnord"}
           <!-- Fnord Statistics View -->
           <FnordView />
-        {:else if mainView === 'mindfuck'}
+        {:else if mainView === "mindfuck"}
           <!-- Operation Mindfuck (Bias Mirror) -->
           <MindfuckView />
-        {:else if mainView === 'settings'}
+        {:else if mainView === "settings"}
           <!-- Settings View -->
           <SettingsView />
         {/if}

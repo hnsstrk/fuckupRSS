@@ -7,9 +7,9 @@
  * Uses tauri-plugin-log to send logs to both console and Rust backend.
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "@tauri-apps/api/core";
 
-export type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'trace';
+export type LogLevel = "error" | "warn" | "info" | "debug" | "trace";
 
 const LOG_LEVELS: Record<LogLevel, number> = {
   error: 0,
@@ -21,26 +21,26 @@ const LOG_LEVELS: Record<LogLevel, number> = {
 
 // ANSI color codes for terminal output (works in Tauri dev console)
 const COLORS = {
-  error: '\x1b[31m', // red
-  warn: '\x1b[33m', // yellow
-  info: '\x1b[36m', // cyan
-  debug: '\x1b[35m', // magenta
-  trace: '\x1b[90m', // gray
-  reset: '\x1b[0m',
+  error: "\x1b[31m", // red
+  warn: "\x1b[33m", // yellow
+  info: "\x1b[36m", // cyan
+  debug: "\x1b[35m", // magenta
+  trace: "\x1b[90m", // gray
+  reset: "\x1b[0m",
 };
 
 // Browser console styles
 const BROWSER_STYLES = {
-  error: 'color: #f38ba8; font-weight: bold',
-  warn: 'color: #f9e2af; font-weight: bold',
-  info: 'color: #89dceb',
-  debug: 'color: #cba6f7',
-  trace: 'color: #6c7086',
+  error: "color: #f38ba8; font-weight: bold",
+  warn: "color: #f9e2af; font-weight: bold",
+  info: "color: #89dceb",
+  debug: "color: #cba6f7",
+  trace: "color: #6c7086",
 };
 
 class Logger {
-  #currentLevel: LogLevel = import.meta.env.DEV ? 'debug' : 'info';
-  #context: string = 'app';
+  #currentLevel: LogLevel = import.meta.env.DEV ? "debug" : "info";
+  #context: string = "app";
 
   /**
    * Create a logger instance
@@ -59,7 +59,7 @@ class Logger {
   setLevel(level: LogLevel) {
     this.#currentLevel = level;
     // Also notify backend
-    invoke('set_log_level', { level }).catch(() => {
+    invoke("set_log_level", { level }).catch(() => {
       // Ignore errors if command not available
     });
   }
@@ -88,23 +88,15 @@ class Logger {
     const prefix = `[${timestamp}] [${level.toUpperCase().padEnd(5)}] [${this.#context}]`;
 
     // Check if we're in a browser environment with styled console
-    if (typeof window !== 'undefined' && 'chrome' in window) {
+    if (typeof window !== "undefined" && "chrome" in window) {
       // Browser with styled console support
       const style = BROWSER_STYLES[level];
-      console[level === 'trace' ? 'debug' : level](
-        `%c${prefix}%c ${message}`,
-        style,
-        '',
-        ...args
-      );
+      console[level === "trace" ? "debug" : level](`%c${prefix}%c ${message}`, style, "", ...args);
     } else {
       // Terminal output with ANSI colors
       const color = COLORS[level];
       const reset = COLORS.reset;
-      console[level === 'trace' ? 'debug' : level](
-        `${color}${prefix}${reset} ${message}`,
-        ...args
-      );
+      console[level === "trace" ? "debug" : level](`${color}${prefix}${reset} ${message}`, ...args);
     }
   }
 
@@ -113,7 +105,7 @@ class Logger {
    * Use for errors that prevent normal operation
    */
   error(message: string, ...args: unknown[]) {
-    this.#log('error', message, ...args);
+    this.#log("error", message, ...args);
   }
 
   /**
@@ -121,7 +113,7 @@ class Logger {
    * Use for potential issues that don't prevent operation
    */
   warn(message: string, ...args: unknown[]) {
-    this.#log('warn', message, ...args);
+    this.#log("warn", message, ...args);
   }
 
   /**
@@ -129,7 +121,7 @@ class Logger {
    * Use for general information about app operation
    */
   info(message: string, ...args: unknown[]) {
-    this.#log('info', message, ...args);
+    this.#log("info", message, ...args);
   }
 
   /**
@@ -137,7 +129,7 @@ class Logger {
    * Use for detailed debugging information
    */
   debug(message: string, ...args: unknown[]) {
-    this.#log('debug', message, ...args);
+    this.#log("debug", message, ...args);
   }
 
   /**
@@ -145,7 +137,7 @@ class Logger {
    * Use for very detailed tracing information
    */
   trace(message: string, ...args: unknown[]) {
-    this.#log('trace', message, ...args);
+    this.#log("trace", message, ...args);
   }
 
   /**
@@ -178,7 +170,7 @@ class Logger {
    * Log a group of related messages
    */
   group(label: string, fn: () => void) {
-    if (!this.#shouldLog('debug')) return;
+    if (!this.#shouldLog("debug")) return;
     console.group(label);
     fn();
     console.groupEnd();

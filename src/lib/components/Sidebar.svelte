@@ -48,7 +48,6 @@
   let unlistenEmbedding: UnlistenFn | null = null;
   let maintenanceInterval: ReturnType<typeof setInterval> | null = null;
 
-
   onMount(async () => {
     await appState.loadPentacles();
     await appState.loadSephiroth();
@@ -74,12 +73,9 @@
     });
 
     // Listen for embedding progress events
-    unlistenEmbedding = await listen<EmbeddingProgress>(
-      "embedding-progress",
-      (event) => {
-        appState.updateEmbeddingProgress(event.payload);
-      },
-    );
+    unlistenEmbedding = await listen<EmbeddingProgress>("embedding-progress", (event) => {
+      appState.updateEmbeddingProgress(event.payload);
+    });
 
     // Schedule periodic maintenance (every 60 minutes)
     maintenanceInterval = setInterval(
@@ -114,9 +110,7 @@
         toasts.info($_("toast.syncSuccessNoNew"));
       }
     } else if (appState.error) {
-      toasts.error(
-        $_("toast.syncError", { values: { error: appState.error } }),
-      );
+      toasts.error($_("toast.syncError", { values: { error: appState.error } }));
     }
   }
 
@@ -136,9 +130,7 @@
       showAddForm = false;
       await appState.addPentacle(url);
       if (appState.error) {
-        toasts.error(
-          $_("toast.feedError", { values: { error: appState.error } }),
-        );
+        toasts.error($_("toast.feedError", { values: { error: appState.error } }));
       } else {
         toasts.success($_("toast.feedAdded"));
       }
@@ -164,7 +156,10 @@
     onerisianArchives?.();
   }
 
-  let deleteConfirm = $state<{pentacle: {id: number, title: string | null, url: string}, stats: {total: number, favorites: number}} | null>(null);
+  let deleteConfirm = $state<{
+    pentacle: { id: number; title: string | null; url: string };
+    stats: { total: number; favorites: number };
+  } | null>(null);
   let cancelBtnRef = $state<HTMLButtonElement | null>(null);
 
   $effect(() => {
@@ -174,18 +169,23 @@
   });
 
   async function handleDeletePentacle(id: number) {
-    const pentacle = appState.pentacles.find(p => p.id === id);
+    const pentacle = appState.pentacles.find((p) => p.id === id);
     if (!pentacle) return;
 
     try {
-      const stats: {total: number, favorites: number} = await invoke('count_pentacle_articles', { pentacleId: id });
-      deleteConfirm = { pentacle: { id: pentacle.id, title: pentacle.title, url: pentacle.url }, stats };
+      const stats: { total: number; favorites: number } = await invoke("count_pentacle_articles", {
+        pentacleId: id,
+      });
+      deleteConfirm = {
+        pentacle: { id: pentacle.id, title: pentacle.title, url: pentacle.url },
+        stats,
+      };
     } catch (e) {
-      console.error('Failed to count articles:', e);
+      console.error("Failed to count articles:", e);
       // Fallback: direkt loeschen ohne Modal
       await appState.deletePentacle(id);
       if (!appState.error) {
-        toasts.success($_('toast.feedDeleted'));
+        toasts.success($_("toast.feedDeleted"));
       }
     }
   }
@@ -198,9 +198,9 @@
     await appState.deletePentacle(pentacle.id);
     if (!appState.error) {
       if (stats.total > 0) {
-        toasts.success($_('deletePentacle.success', { values: { count: stats.total } }));
+        toasts.success($_("deletePentacle.success", { values: { count: stats.total } }));
       } else {
-        toasts.success($_('deletePentacle.successNoArticles'));
+        toasts.success($_("deletePentacle.successNoArticles"));
       }
     }
   }
@@ -219,9 +219,7 @@
         }),
       );
     } else if (appState.error) {
-      toasts.error(
-        $_("toast.analyzeError", { values: { error: appState.error } }),
-      );
+      toasts.error($_("toast.analyzeError", { values: { error: appState.error } }));
     }
   }
 
@@ -365,10 +363,7 @@
       {#if appState.searching}
         <i class="search-spinner fa-solid fa-rotate fa-spin"></i>
       {:else if searchInput}
-        <button
-          class="search-clear"
-          onclick={handleClearSearch}
-          title={$_("search.clearSearch")}
+        <button class="search-clear" onclick={handleClearSearch} title={$_("search.clearSearch")}
           ><i class="fa-solid fa-xmark"></i></button
         >
       {/if}
@@ -402,12 +397,9 @@
       <!-- Pentacles List -->
       {#each appState.pentacles as pentacle (pentacle.id)}
         <div
-          class="feed-item {appState.selectedPentacleId === pentacle.id
-            ? 'active'
-            : ''}"
+          class="feed-item {appState.selectedPentacleId === pentacle.id ? 'active' : ''}"
           onclick={() => handleSelectPentacle(pentacle.id)}
-          onkeydown={(e) =>
-            e.key === "Enter" && handleSelectPentacle(pentacle.id)}
+          onkeydown={(e) => e.key === "Enter" && handleSelectPentacle(pentacle.id)}
           role="button"
           tabindex="0"
         >
@@ -419,8 +411,7 @@
                 e.stopPropagation();
                 handleDeletePentacle(pentacle.id);
               }}
-              title={$_("actions.delete")}
-              ><i class="fa-solid fa-xmark"></i></button
+              title={$_("actions.delete")}><i class="fa-solid fa-xmark"></i></button
             >
           </div>
         </div>
@@ -435,37 +426,25 @@
     {:else}
       <!-- Sephiroth (Categories) List - Main categories (level 0) with expandable subcategories -->
       {#each appState.sephiroth.filter((c) => c.level === 0) as category (category.id)}
-        {@const subcategories = appState.sephiroth.filter(
-          (c) => c.parent_id === category.id,
-        )}
-        {@const subcategoryCount = subcategories.reduce(
-          (sum, c) => sum + c.article_count,
-          0,
-        )}
+        {@const subcategories = appState.sephiroth.filter((c) => c.parent_id === category.id)}
+        {@const subcategoryCount = subcategories.reduce((sum, c) => sum + c.article_count, 0)}
         {@const isExpanded = expandedCategoryId === category.id}
         <div class="sephiroth-group category-{category.id}">
           <div class="sephiroth-header">
             <button
               class="expand-btn"
-              onclick={() =>
-                (expandedCategoryId = isExpanded ? null : category.id)}
+              onclick={() => (expandedCategoryId = isExpanded ? null : category.id)}
               aria-expanded={isExpanded}
               aria-label={isExpanded ? "Collapse" : "Expand"}
             >
-              <i
-                class="fa-solid fa-chevron-right expand-chevron {isExpanded
-                  ? 'rotated'
-                  : ''}"
-              ></i>
+              <i class="fa-solid fa-chevron-right expand-chevron {isExpanded ? 'rotated' : ''}"></i>
             </button>
             <div
-              class="feed-item sephiroth-item {appState.selectedSephirothId ===
-              category.id
+              class="feed-item sephiroth-item {appState.selectedSephirothId === category.id
                 ? 'active'
                 : ''}"
               onclick={() => handleSelectSephiroth(category.id)}
-              onkeydown={(e) =>
-                e.key === "Enter" && handleSelectSephiroth(category.id)}
+              onkeydown={(e) => e.key === "Enter" && handleSelectSephiroth(category.id)}
               role="button"
               tabindex="0"
             >
@@ -484,13 +463,11 @@
             <div class="subcategory-list">
               {#each subcategories as sub (sub.id)}
                 <div
-                  class="feed-item subcategory-item {appState.selectedSephirothId ===
-                  sub.id
+                  class="feed-item subcategory-item {appState.selectedSephirothId === sub.id
                     ? 'active'
                     : ''}"
                   onclick={() => handleSelectSephiroth(sub.id)}
-                  onkeydown={(e) =>
-                    e.key === "Enter" && handleSelectSephiroth(sub.id)}
+                  onkeydown={(e) => e.key === "Enter" && handleSelectSephiroth(sub.id)}
                   role="button"
                   tabindex="0"
                 >
@@ -501,8 +478,7 @@
                     {sub.name}
                   </span>
                   {#if sub.article_count > 0}
-                    <span class="category-count small">{sub.article_count}</span
-                    >
+                    <span class="category-count small">{sub.article_count}</span>
                   {/if}
                 </div>
               {/each}
@@ -524,14 +500,8 @@
           class="add-input"
         />
         <div class="add-buttons">
-          <button type="submit" class="btn-primary"
-            >{$_("sidebar.addFeed")}</button
-          >
-          <button
-            type="button"
-            class="btn-secondary"
-            onclick={() => (showAddForm = false)}
-          >
+          <button type="submit" class="btn-primary">{$_("sidebar.addFeed")}</button>
+          <button type="button" class="btn-secondary" onclick={() => (showAddForm = false)}>
             {$_("settings.cancel")}
           </button>
         </div>
@@ -546,11 +516,7 @@
   <!-- Batch Processing -->
   <div class="batch-section">
     {#if appState.batchProcessing}
-      <button
-        onclick={handleCancelBatch}
-        class="btn-batch processing"
-        title={$_("batch.cancel")}
-      >
+      <button onclick={handleCancelBatch} class="btn-batch processing" title={$_("batch.cancel")}>
         {$_("batch.title")}
         <i class="cancel-icon fa-solid fa-xmark"></i>
       </button>
@@ -560,10 +526,7 @@
         disabled
         title={$_("batch.modelMissing", {
           values: {
-            model:
-              appState.missingMainModel ||
-              appState.missingEmbeddingModel ||
-              "",
+            model: appState.missingMainModel || appState.missingEmbeddingModel || "",
           },
         })}
       >
@@ -574,14 +537,11 @@
       <button
         onclick={handleBatchProcessing}
         class="btn-batch"
-        disabled={appState.batchProcessing ||
-          appState.unprocessedCount.with_content === 0}
+        disabled={appState.batchProcessing || appState.unprocessedCount.with_content === 0}
       >
         {$_("batch.title")}
         {#if appState.unprocessedCount.with_content > 0}
-          <span class="unprocessed-badge"
-            >{appState.unprocessedCount.with_content}</span
-          >
+          <span class="unprocessed-badge">{appState.unprocessedCount.with_content}</span>
         {/if}
       </button>
     {:else}
@@ -596,62 +556,73 @@
     <div class="stat-row">
       <span
         ><i class="stat-icon fa-solid fa-eye-slash concealed"></i>
-        <Tooltip termKey="concealed">{$_("terminology.concealed.term")}</Tooltip
-        ></span
+        <Tooltip termKey="concealed">{$_("terminology.concealed.term")}</Tooltip></span
       >
       <span>{appState.totalUnread}</span>
     </div>
     <div class="stat-row">
       <span
         ><i class="stat-icon fa-solid fa-check illuminated"></i>
-        <Tooltip termKey="illuminated"
-          >{$_("terminology.illuminated.term")}</Tooltip
-        ></span
+        <Tooltip termKey="illuminated">{$_("terminology.illuminated.term")}</Tooltip></span
       >
       <span>{appState.totalIlluminated}</span>
     </div>
     <div class="stat-row">
       <span
         ><i class="stat-icon fa-solid fa-apple-whole golden"></i>
-        <Tooltip termKey="golden_apple"
-          >{$_("terminology.golden_apple.term")}</Tooltip
-        ></span
+        <Tooltip termKey="golden_apple">{$_("terminology.golden_apple.term")}</Tooltip></span
       >
       <span>{appState.totalGoldenApple}</span>
     </div>
   </div>
 
   {#if deleteConfirm}
-    <div class="delete-overlay" onkeydown={(e) => e.key === 'Escape' && cancelDeletePentacle()} role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title" tabindex="-1">
-      <button class="delete-backdrop" onclick={cancelDeletePentacle} tabindex="-1" aria-label="Close dialog"></button>
+    <div
+      class="delete-overlay"
+      onkeydown={(e) => e.key === "Escape" && cancelDeletePentacle()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-dialog-title"
+      tabindex="-1"
+    >
+      <button
+        class="delete-backdrop"
+        onclick={cancelDeletePentacle}
+        tabindex="-1"
+        aria-label="Close dialog"
+      ></button>
       <div class="delete-dialog" role="document">
         <h3 class="delete-title" id="delete-dialog-title">
           <i class="fa-solid fa-triangle-exclamation"></i>
-          {$_('deletePentacle.title')}
+          {$_("deletePentacle.title")}
         </h3>
         <p class="delete-confirm-text">
-          {$_('deletePentacle.confirm', { values: { title: deleteConfirm.pentacle.title || deleteConfirm.pentacle.url } })}
+          {$_("deletePentacle.confirm", {
+            values: { title: deleteConfirm.pentacle.title || deleteConfirm.pentacle.url },
+          })}
         </p>
         {#if deleteConfirm.stats.total > 0}
           <p class="delete-article-count">
-            {$_('deletePentacle.articleCount', { values: { count: deleteConfirm.stats.total } })}
+            {$_("deletePentacle.articleCount", { values: { count: deleteConfirm.stats.total } })}
           </p>
           {#if deleteConfirm.stats.favorites > 0}
             <p class="delete-favorites-warning">
               <i class="fa-solid fa-apple-whole"></i>
-              {$_('deletePentacle.favoritesWarning', { values: { count: deleteConfirm.stats.favorites } })}
+              {$_("deletePentacle.favoritesWarning", {
+                values: { count: deleteConfirm.stats.favorites },
+              })}
             </p>
           {/if}
         {:else}
-          <p class="delete-no-articles">{$_('deletePentacle.noArticles')}</p>
+          <p class="delete-no-articles">{$_("deletePentacle.noArticles")}</p>
         {/if}
         <div class="delete-actions">
           <button class="btn-secondary" bind:this={cancelBtnRef} onclick={cancelDeletePentacle}>
-            {$_('deletePentacle.cancel')}
+            {$_("deletePentacle.cancel")}
           </button>
           <button class="btn-danger" onclick={confirmDeletePentacle}>
             <i class="fa-solid fa-trash"></i>
-            {$_('deletePentacle.deleteAll')}
+            {$_("deletePentacle.deleteAll")}
           </button>
         </div>
       </div>
@@ -985,8 +956,7 @@
   .subcategory-item {
     font-size: 0.75rem;
     padding: 0.375rem 0.5rem;
-    border-left: 2px solid
-      color-mix(in srgb, var(--category-color) 40%, transparent);
+    border-left: 2px solid color-mix(in srgb, var(--category-color) 40%, transparent);
     margin-left: 0.5rem;
   }
 

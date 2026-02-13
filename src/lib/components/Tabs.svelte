@@ -7,7 +7,7 @@
 </script>
 
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+  import type { Snippet } from "svelte";
 
   interface Props {
     /** Array of tab definitions */
@@ -22,9 +22,9 @@
 
   let {
     tabs,
-    activeTab = $bindable(tabs[0]?.id ?? ''),
+    activeTab = $bindable(tabs[0]?.id ?? ""),
     onchange,
-    tab: customTab
+    tab: customTab,
   }: Props = $props();
 
   function handleTabClick(tabId: string) {
@@ -35,7 +35,7 @@
   }
 
   function handleKeyDown(event: KeyboardEvent, tabId: string) {
-    if (event.key === 'Enter' || event.key === ' ') {
+    if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       handleTabClick(tabId);
     }

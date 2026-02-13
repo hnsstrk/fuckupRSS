@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { _ } from 'svelte-i18n';
-  import cytoscape from 'cytoscape';
+  import { onMount, onDestroy } from "svelte";
+  import { _ } from "svelte-i18n";
+  import cytoscape from "cytoscape";
 
   interface GraphNode {
     id: number;
@@ -37,54 +37,54 @@
   let cy: cytoscape.Core | null = null;
 
   // Track state
-  let prevGraphDataKey = '';
+  let prevGraphDataKey = "";
   let mounted = false;
   let focusedNodeId: string | null = $state(null);
   let showTooltip = $state(false);
-  let tooltipContent = $state({ name: '', category: '', articles: 0 });
+  let tooltipContent = $state({ name: "", category: "", articles: 0 });
   let tooltipPosition = $state({ x: 0, y: 0 });
 
   // Category color mapping (Sephiroth IDs)
   const CATEGORY_COLORS: Record<number, string> = {
     // Main categories (1-6)
-    1: '#3B82F6',   // Wissen & Technologie - Blue
-    2: '#EF4444',   // Politik & Gesellschaft - Red
-    3: '#10B981',   // Wirtschaft - Green
-    4: '#22C55E',   // Umwelt & Gesundheit - Emerald
-    5: '#F59E0B',   // Sicherheit - Amber
-    6: '#8B5CF6',   // Kultur & Leben - Purple
+    1: "#3B82F6", // Wissen & Technologie - Blue
+    2: "#EF4444", // Politik & Gesellschaft - Red
+    3: "#10B981", // Wirtschaft - Green
+    4: "#22C55E", // Umwelt & Gesundheit - Emerald
+    5: "#F59E0B", // Sicherheit - Amber
+    6: "#8B5CF6", // Kultur & Leben - Purple
     // Subcategories (101-602)
-    101: '#3B82F6', // Technik - Blue
-    102: '#06B6D4', // Wissenschaft - Cyan
-    201: '#EF4444', // Politik - Red
-    202: '#F97316', // Gesellschaft - Orange
-    203: '#6366F1', // Recht - Indigo
-    301: '#10B981', // Wirtschaft - Green
-    302: '#FBBF24', // Energie - Yellow
-    401: '#22C55E', // Umwelt - Emerald
-    402: '#EC4899', // Gesundheit - Pink
-    501: '#F59E0B', // Sicherheit - Amber
-    502: '#78716C', // Verteidigung - Stone
-    601: '#8B5CF6', // Kultur - Purple
-    602: '#14B8A6', // Sport - Teal
+    101: "#3B82F6", // Technik - Blue
+    102: "#06B6D4", // Wissenschaft - Cyan
+    201: "#EF4444", // Politik - Red
+    202: "#F97316", // Gesellschaft - Orange
+    203: "#6366F1", // Recht - Indigo
+    301: "#10B981", // Wirtschaft - Green
+    302: "#FBBF24", // Energie - Yellow
+    401: "#22C55E", // Umwelt - Emerald
+    402: "#EC4899", // Gesundheit - Pink
+    501: "#F59E0B", // Sicherheit - Amber
+    502: "#78716C", // Verteidigung - Stone
+    601: "#8B5CF6", // Kultur - Purple
+    602: "#14B8A6", // Sport - Teal
   };
 
-  const DEFAULT_NODE_COLOR = '#6B7280'; // Gray for uncategorized
+  const DEFAULT_NODE_COLOR = "#6B7280"; // Gray for uncategorized
 
   // Get CSS variable values for Cytoscape
   function getCssVar(name: string): string {
-    if (typeof document === 'undefined') return '';
+    if (typeof document === "undefined") return "";
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
 
   function getThemeColors() {
     return {
-      text: getCssVar('--text-primary'),
-      textOutline: getCssVar('--bg-base'),
-      edge: getCssVar('--text-muted'),
-      edgeHighlight: getCssVar('--accent-primary'),
-      selectedBorder: getCssVar('--golden-apple-color'),
-      dimmed: getCssVar('--text-faint'),
+      text: getCssVar("--text-primary"),
+      textOutline: getCssVar("--bg-base"),
+      edge: getCssVar("--text-muted"),
+      edgeHighlight: getCssVar("--accent-primary"),
+      selectedBorder: getCssVar("--golden-apple-color"),
+      dimmed: getCssVar("--text-faint"),
     };
   }
 
@@ -97,15 +97,15 @@
     const elements: cytoscape.ElementDefinition[] = [];
 
     // Find max values for scaling
-    const maxArticleCount = Math.max(...data.nodes.map(n => n.article_count), 1);
-    const maxWeight = Math.max(...data.edges.map(e => e.weight), 0.1);
-    const minWeight = Math.min(...data.edges.map(e => e.weight), 0.01);
+    const maxArticleCount = Math.max(...data.nodes.map((n) => n.article_count), 1);
+    const maxWeight = Math.max(...data.edges.map((e) => e.weight), 0.1);
+    const minWeight = Math.min(...data.edges.map((e) => e.weight), 0.01);
 
     // Add nodes with category colors
     for (const node of data.nodes) {
       const size = 25 + (node.article_count / maxArticleCount) * 45;
       elements.push({
-        group: 'nodes',
+        group: "nodes",
         data: {
           id: String(node.id),
           label: node.name,
@@ -113,7 +113,7 @@
           articleCount: node.article_count,
           clusterId: node.cluster_id,
           categoryId: node.primary_category_id,
-          categoryName: node.primary_category_name || 'Unbekannt',
+          categoryName: node.primary_category_name || "Unbekannt",
           size: size,
           color: getCategoryColor(node.primary_category_id),
         },
@@ -128,7 +128,7 @@
       const width = 1 + normalizedWeight * 4;
 
       elements.push({
-        group: 'edges',
+        group: "edges",
         data: {
           id: `${edge.source}-${edge.target}`,
           source: String(edge.source),
@@ -162,91 +162,91 @@
       style: [
         // Normal nodes - colored by category
         {
-          selector: 'node',
+          selector: "node",
           style: {
-            'background-color': 'data(color)',
-            'label': 'data(label)',
-            'width': 'data(size)',
-            'height': 'data(size)',
-            'font-size': '11px',
-            'font-weight': 500,
-            'color': colors.text,
-            'text-outline-color': colors.textOutline,
-            'text-outline-width': 2,
-            'text-valign': 'bottom',
-            'text-margin-y': 6,
-            'border-width': 0,
-            'transition-property': 'opacity, border-width, border-color',
-            'transition-duration': '0.2s',
+            "background-color": "data(color)",
+            label: "data(label)",
+            width: "data(size)",
+            height: "data(size)",
+            "font-size": "11px",
+            "font-weight": 500,
+            color: colors.text,
+            "text-outline-color": colors.textOutline,
+            "text-outline-width": 2,
+            "text-valign": "bottom",
+            "text-margin-y": 6,
+            "border-width": 0,
+            "transition-property": "opacity, border-width, border-color",
+            "transition-duration": "0.2s",
           },
         },
         // Selected node
         {
-          selector: 'node:selected',
+          selector: "node:selected",
           style: {
-            'border-width': 4,
-            'border-color': colors.selectedBorder,
+            "border-width": 4,
+            "border-color": colors.selectedBorder,
           },
         },
         // Focused node (center of focus mode)
         {
-          selector: 'node.focused',
+          selector: "node.focused",
           style: {
-            'border-width': 4,
-            'border-color': colors.selectedBorder,
-            'z-index': 999,
+            "border-width": 4,
+            "border-color": colors.selectedBorder,
+            "z-index": 999,
           },
         },
         // Neighbor of focused node
         {
-          selector: 'node.neighbor',
+          selector: "node.neighbor",
           style: {
-            'opacity': 1,
-            'z-index': 100,
+            opacity: 1,
+            "z-index": 100,
           },
         },
         // Dimmed nodes (not in focus)
         {
-          selector: 'node.dimmed',
+          selector: "node.dimmed",
           style: {
-            'opacity': 0.15,
-            'label': '',
+            opacity: 0.15,
+            label: "",
           },
         },
         // Normal edges - opacity based on weight
         {
-          selector: 'edge',
+          selector: "edge",
           style: {
-            'width': 'data(width)',
-            'line-color': colors.edge,
-            'curve-style': 'bezier',
-            'opacity': 'data(opacity)',
-            'transition-property': 'opacity, line-color',
-            'transition-duration': '0.2s',
+            width: "data(width)",
+            "line-color": colors.edge,
+            "curve-style": "bezier",
+            opacity: "data(opacity)",
+            "transition-property": "opacity, line-color",
+            "transition-duration": "0.2s",
           },
         },
         // Highlighted edges (connected to focused node)
         {
-          selector: 'edge.highlighted',
+          selector: "edge.highlighted",
           style: {
-            'line-color': colors.edgeHighlight,
-            'opacity': 0.9,
-            'z-index': 100,
+            "line-color": colors.edgeHighlight,
+            opacity: 0.9,
+            "z-index": 100,
           },
         },
         // Dimmed edges
         {
-          selector: 'edge.dimmed',
+          selector: "edge.dimmed",
           style: {
-            'opacity': 0.05,
+            opacity: 0.05,
           },
         },
       ],
       layout: {
-        name: 'cose',
-        animate: 'end',
+        name: "cose",
+        animate: "end",
         animationDuration: 400,
-        animationEasing: 'ease-out',
+        animationEasing: "ease-out",
         nodeRepulsion: () => 10000,
         idealEdgeLength: () => 120,
         edgeElasticity: () => 100,
@@ -262,7 +262,7 @@
     });
 
     // Node click handler - Focus Mode + Zoom
-    cy.on('tap', 'node', (evt: cytoscape.EventObject) => {
+    cy.on("tap", "node", (evt: cytoscape.EventObject) => {
       const node = evt.target;
       const nodeId = node.id();
 
@@ -280,14 +280,14 @@
     });
 
     // Click on background - exit focus mode
-    cy.on('tap', (evt: cytoscape.EventObject) => {
+    cy.on("tap", (evt: cytoscape.EventObject) => {
       if (evt.target === cy) {
         exitFocusMode();
       }
     });
 
     // Hover effects with tooltip
-    cy.on('mouseover', 'node', (evt: cytoscape.EventObject) => {
+    cy.on("mouseover", "node", (evt: cytoscape.EventObject) => {
       const node = evt.target;
 
       // Show tooltip
@@ -305,27 +305,27 @@
       };
       showTooltip = true;
 
-      container.style.cursor = 'pointer';
+      container.style.cursor = "pointer";
 
       // Slight highlight on hover (if not in focus mode or is relevant)
-      if (!focusedNodeId || node.hasClass('focused') || node.hasClass('neighbor')) {
-        node.style('border-width', 2);
-        node.style('border-color', colors.edgeHighlight);
+      if (!focusedNodeId || node.hasClass("focused") || node.hasClass("neighbor")) {
+        node.style("border-width", 2);
+        node.style("border-color", colors.edgeHighlight);
       }
     });
 
-    cy.on('mouseout', 'node', (evt: cytoscape.EventObject) => {
+    cy.on("mouseout", "node", (evt: cytoscape.EventObject) => {
       showTooltip = false;
-      container.style.cursor = 'default';
+      container.style.cursor = "default";
 
       const node = evt.target;
-      if (!node.hasClass('focused')) {
-        node.style('border-width', 0);
+      if (!node.hasClass("focused")) {
+        node.style("border-width", 0);
       }
     });
 
     // Fit graph after layout
-    cy.on('layoutstop', () => {
+    cy.on("layoutstop", () => {
       cy?.fit(undefined, 50);
     });
   }
@@ -341,23 +341,23 @@
     const connectedEdges = node.connectedEdges();
 
     // Reset all classes
-    cy.elements().removeClass('focused neighbor highlighted dimmed');
+    cy.elements().removeClass("focused neighbor highlighted dimmed");
 
     // Apply focus classes
-    node.addClass('focused');
-    neighbors.addClass('neighbor');
-    connectedEdges.addClass('highlighted');
+    node.addClass("focused");
+    neighbors.addClass("neighbor");
+    connectedEdges.addClass("highlighted");
 
     // Dim everything else
-    cy.nodes().not(node).not(neighbors).addClass('dimmed');
-    cy.edges().not(connectedEdges).addClass('dimmed');
+    cy.nodes().not(node).not(neighbors).addClass("dimmed");
+    cy.edges().not(connectedEdges).addClass("dimmed");
 
     // Zoom to focused node and neighbors
     const focusCollection = node.union(neighbors);
     cy.animate({
       fit: { eles: focusCollection, padding: 80 },
       duration: 300,
-      easing: 'ease-out',
+      easing: "ease-out",
     });
   }
 
@@ -365,13 +365,13 @@
     if (!cy) return;
 
     focusedNodeId = null;
-    cy.elements().removeClass('focused neighbor highlighted dimmed');
+    cy.elements().removeClass("focused neighbor highlighted dimmed");
 
     // Fit all
     cy.animate({
       fit: { eles: cy.elements(), padding: 50 },
       duration: 300,
-      easing: 'ease-out',
+      easing: "ease-out",
     });
   }
 
@@ -406,8 +406,11 @@
   }
 
   function generateGraphKey(data: NetworkGraphData | null): string {
-    if (!data || data.nodes.length === 0) return '';
-    const nodeIds = data.nodes.map(n => n.id).sort((a, b) => a - b).join(',');
+    if (!data || data.nodes.length === 0) return "";
+    const nodeIds = data.nodes
+      .map((n) => n.id)
+      .sort((a, b) => a - b)
+      .join(",");
     return `${data.nodes.length}-${data.edges.length}-${nodeIds}`;
   }
 
@@ -443,13 +446,13 @@
 <div class="network-graph-container">
   <!-- Controls -->
   <div class="graph-controls">
-    <button onclick={handleZoomIn} title={$_('network.zoomIn') || 'Zoom In'}>
+    <button onclick={handleZoomIn} title={$_("network.zoomIn") || "Zoom In"}>
       <i class="fa-solid fa-plus"></i>
     </button>
-    <button onclick={handleZoomOut} title={$_('network.zoomOut') || 'Zoom Out'}>
+    <button onclick={handleZoomOut} title={$_("network.zoomOut") || "Zoom Out"}>
       <i class="fa-solid fa-minus"></i>
     </button>
-    <button onclick={handleReset} title={$_('network.resetView') || 'Reset'}>
+    <button onclick={handleReset} title={$_("network.resetView") || "Reset"}>
       <i class="fa-solid fa-expand"></i>
     </button>
   </div>
@@ -457,17 +460,17 @@
   <!-- Focus mode indicator -->
   {#if focusedNodeId}
     <div class="focus-indicator">
-      <span>{$_('network.focusMode') || 'Fokus-Modus'}</span>
+      <span>{$_("network.focusMode") || "Fokus-Modus"}</span>
       <button onclick={exitFocusMode} class="exit-focus">
         <i class="fa-solid fa-xmark"></i>
-        {$_('network.exitFocus') || 'Beenden'}
+        {$_("network.exitFocus") || "Beenden"}
       </button>
     </div>
   {/if}
 
   <!-- Legend -->
   <div class="graph-legend">
-    <div class="legend-title">{$_('network.categories') || 'Kategorien'}</div>
+    <div class="legend-title">{$_("network.categories") || "Kategorien"}</div>
     <div class="legend-items">
       <div class="legend-item">
         <span class="legend-dot" style="background-color: #EF4444"></span>
@@ -498,14 +501,13 @@
 
   <!-- Tooltip -->
   {#if showTooltip}
-    <div
-      class="graph-tooltip"
-      style="left: {tooltipPosition.x}px; top: {tooltipPosition.y}px"
-    >
+    <div class="graph-tooltip" style="left: {tooltipPosition.x}px; top: {tooltipPosition.y}px">
       <div class="tooltip-name">{tooltipContent.name}</div>
       <div class="tooltip-info">
         <span class="tooltip-category">{tooltipContent.category}</span>
-        <span class="tooltip-articles">{tooltipContent.articles} {$_('network.articles') || 'Artikel'}</span>
+        <span class="tooltip-articles"
+          >{tooltipContent.articles} {$_("network.articles") || "Artikel"}</span
+        >
       </div>
     </div>
   {/if}
@@ -513,16 +515,20 @@
   {#if loading}
     <div class="graph-loading">
       <div class="spinner"></div>
-      <span>{$_('network.graphLoading') || 'Loading graph...'}</span>
+      <span>{$_("network.graphLoading") || "Loading graph..."}</span>
     </div>
   {:else if !graphData || graphData.nodes.length === 0}
     <div class="graph-empty">
       <i class="fa-solid fa-diagram-project empty-icon"></i>
-      <span>{$_('network.noData') || 'No network data available'}</span>
+      <span>{$_("network.noData") || "No network data available"}</span>
     </div>
   {/if}
 
-  <div bind:this={container} class="graph-canvas" class:hidden={loading || !graphData || graphData.nodes.length === 0}></div>
+  <div
+    bind:this={container}
+    class="graph-canvas"
+    class:hidden={loading || !graphData || graphData.nodes.length === 0}
+  ></div>
 </div>
 
 <style>
@@ -722,6 +728,8 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>
