@@ -22,7 +22,10 @@
     "format": "prettier --write \"src/**/*.{ts,svelte,js,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,svelte,js,css,json}\"",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
+    "lint:fix": "eslint src/ --fix",
+    "rust:fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "rust:fmt:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
+    "rust:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.1.1",
