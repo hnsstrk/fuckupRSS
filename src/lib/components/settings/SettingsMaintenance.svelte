@@ -39,7 +39,8 @@
   // Reanalyze progress state
   let reanalyzeProgress = $state<BatchProgress | null>(null);
   let reanalyzeRunning = $state(false);
-  // Result stored for potential future display
+  // Result stored for potential future display (assigned in handleResetForReprocessing)
+  // @ts-expect-error - stored for future display, currently write-only
   let _reanalyzeResult = $state<BatchResult | null>(null);
   let progressUnlisten: UnlistenFn | null = null;
 

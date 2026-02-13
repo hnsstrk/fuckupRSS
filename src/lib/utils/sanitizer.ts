@@ -6,12 +6,13 @@
  */
 
 import DOMPurify from "dompurify";
+import type { Config, UponSanitizeElementHookEvent } from "dompurify";
 
 /**
  * Konfiguration für Artikel-Content Sanitization
  * Erlaubt gängige Artikel-Formatierungen, blockiert XSS-Vektoren
  */
-const ARTICLE_CONFIG: DOMPurify.Config = {
+const ARTICLE_CONFIG: Config = {
   ALLOWED_TAGS: [
     // Text-Formatierung
     "p",
@@ -185,18 +186,19 @@ function setupDOMPurifyHooks(): void {
   // Hook: Vor dem Sanitizen eines Elements
   DOMPurify.addHook(
     "uponSanitizeElement",
-    (node: Element, _data: DOMPurify.SanitizeElementHookEvent) => {
+    (currentNode: Node, _data: UponSanitizeElementHookEvent) => {
       // Entferne Elemente mit data-component (BBC-spezifische Artefakte)
-      if (node.hasAttribute && node.hasAttribute("data-component")) {
-        const component = node.getAttribute("data-component");
+      const el = currentNode as Element;
+      if (el.hasAttribute && el.hasAttribute("data-component")) {
+        const component = el.getAttribute("data-component");
         // Behalte nur sinnvolle data-components (text-block, caption-block)
         if (component && !["text-block", "caption-block", "image-block"].includes(component)) {
           // Ersetze durch Kinder
-          if (node.parentNode) {
-            while (node.firstChild) {
-              node.parentNode.insertBefore(node.firstChild, node);
+          if (currentNode.parentNode) {
+            while (currentNode.firstChild) {
+              currentNode.parentNode.insertBefore(currentNode.firstChild, currentNode);
             }
-            node.parentNode.removeChild(node);
+            currentNode.parentNode.removeChild(currentNode);
           }
         }
       }
@@ -204,19 +206,20 @@ function setupDOMPurifyHooks(): void {
   );
 
   // Hook: Nach dem Sanitizen eines Elements
-  DOMPurify.addHook("afterSanitizeElements", (node: Element) => {
+  DOMPurify.addHook("afterSanitizeElements", (currentNode: Node) => {
+    const el = currentNode as Element;
     // Füge lazy-loading zu allen Bildern hinzu
-    if (node.tagName === "IMG") {
-      node.setAttribute("loading", "lazy");
-      node.setAttribute("decoding", "async");
+    if (el.tagName === "IMG") {
+      el.setAttribute("loading", "lazy");
+      el.setAttribute("decoding", "async");
     }
 
     // Füge rel="noopener noreferrer" zu externen Links hinzu
-    if (node.tagName === "A") {
-      const href = node.getAttribute("href");
+    if (el.tagName === "A") {
+      const href = el.getAttribute("href");
       if (href && (href.startsWith("http://") || href.startsWith("https://"))) {
-        node.setAttribute("target", "_blank");
-        node.setAttribute("rel", "noopener noreferrer");
+        el.setAttribute("target", "_blank");
+        el.setAttribute("rel", "noopener noreferrer");
       }
     }
   });
@@ -255,10 +258,10 @@ export function sanitizeArticleContent(dirtyHtml: string): string {
     .replace(/(&nbsp;){3,}/gi, " ");
 
   // Sanitize mit Konfiguration
-  const config: DOMPurify.Config = {
+  const config: Config = {
     ...ARTICLE_CONFIG,
     FORBID_TAGS,
   };
 
-  return DOMPurify.sanitize(processedHtml, config);
+  return DOMPurify.sanitize(processedHtml, config) as string;
 }

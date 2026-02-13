@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 
 // Test the Toast component logic without rendering
 // Since Svelte 5 components with runes are difficult to test directly,
@@ -202,7 +202,7 @@ describe("Toasts Store Pattern", () => {
   });
 
   it("should add error toast", () => {
-    const id = store.error("Error message");
+    store.error("Error message");
     const toasts = store.getAll();
 
     expect(toasts).toHaveLength(1);

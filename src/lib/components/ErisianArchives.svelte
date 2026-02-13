@@ -136,6 +136,7 @@
       changed_at: null,
       revision_count: 0,
       categories: [],
+      full_text_fetch_error: null,
     } as Fnord;
   }
 

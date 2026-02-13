@@ -177,7 +177,7 @@
             "text-margin-y": 6,
             "border-width": 0,
             "transition-property": "opacity, border-width, border-color",
-            "transition-duration": "0.2s",
+            "transition-duration": 200,
           },
         },
         // Selected node
@@ -220,9 +220,9 @@
             width: "data(width)",
             "line-color": colors.edge,
             "curve-style": "bezier",
-            opacity: "data(opacity)",
+            opacity: "data(opacity)" as unknown as number,
             "transition-property": "opacity, line-color",
-            "transition-duration": "0.2s",
+            "transition-duration": 200,
           },
         },
         // Highlighted edges (connected to focused node)
@@ -244,7 +244,7 @@
       ],
       layout: {
         name: "cose",
-        animate: "end",
+        animate: "end" as unknown as boolean,
         animationDuration: 400,
         animationEasing: "ease-out",
         nodeRepulsion: () => 10000,

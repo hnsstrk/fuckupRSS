@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { _, locale } from "svelte-i18n";
+  import { _ } from "svelte-i18n";
   import type { Fnord, FnordRevision } from "../stores/state.svelte";
   import {
     computeWordDiff,

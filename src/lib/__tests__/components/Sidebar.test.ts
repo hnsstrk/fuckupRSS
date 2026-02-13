@@ -68,7 +68,7 @@ describe("Sidebar Component Logic", () => {
 
   describe("Sync Handling", () => {
     it("calls syncAllFeeds and shows success toast", async () => {
-      const mockResult = { total_new: 5, total_updated: 2 };
+      const mockResult = { success: true, total_new: 5, total_updated: 2, results: [] };
       vi.mocked(appState.syncAllFeeds).mockResolvedValue(mockResult);
 
       const handleSync = async () => {
@@ -89,7 +89,7 @@ describe("Sidebar Component Logic", () => {
     });
 
     it("shows info toast when no new articles", async () => {
-      const mockResult = { total_new: 0, total_updated: 0 };
+      const mockResult = { success: true, total_new: 0, total_updated: 0, results: [] };
       vi.mocked(appState.syncAllFeeds).mockResolvedValue(mockResult);
 
       const handleSync = async () => {

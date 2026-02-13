@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
-  import { toasts, type Toast, removeToast } from "../stores/state.svelte";
+  import { toasts, removeToast } from "../stores/state.svelte";
+  import type { Toast } from "../types";
 
   function getIconClass(type: Toast["type"]): string {
     switch (type) {

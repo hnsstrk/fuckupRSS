@@ -232,7 +232,12 @@ describe("MindfuckView Component Logic", () => {
 
       vi.mocked(invoke).mockResolvedValue(mockProfile);
 
-      const profile = await invoke("get_reading_profile");
+      const profile = (await invoke("get_reading_profile")) as {
+        total_read: number;
+        read_percentage: number;
+        avg_political_bias: number;
+        avg_sachlichkeit: number;
+      };
 
       expect(invoke).toHaveBeenCalledWith("get_reading_profile");
       expect(profile.total_read).toBe(100);

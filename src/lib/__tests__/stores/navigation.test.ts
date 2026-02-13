@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
  * Tests for navigation events between components.
@@ -198,7 +198,7 @@ describe("Navigation Events", () => {
       const setMainView = vi.fn();
       const selectKeyword = vi.fn();
 
-      const event = new CustomEvent("navigate-to-network");
+      const event = new CustomEvent("navigate-to-network") as CustomEvent<{ keywordId?: number }>;
 
       handleNavigateToNetwork(event, setMainView, selectKeyword);
 
@@ -214,7 +214,7 @@ describe("Navigation Events", () => {
       let mainView: MainView = "articles";
 
       // Toggle to network
-      mainView = mainView === "network" ? "articles" : "network";
+      mainView = (mainView as MainView) === "network" ? "articles" : "network";
       expect(mainView).toBe("network");
 
       // Toggle back to articles
@@ -294,6 +294,7 @@ describe("Tab switching in KeywordNetwork", () => {
 
     handleTabChange("trends");
     expect(loadGraphData).not.toHaveBeenCalled();
+    expect(activeTab).toBe("trends");
 
     handleTabChange("list");
     expect(loadGraphData).not.toHaveBeenCalled();

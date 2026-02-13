@@ -104,7 +104,11 @@ describe("Network Store / Immanentize Network", () => {
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockStats);
 
-      const result = await invoke("get_network_stats");
+      const result = (await invoke("get_network_stats")) as {
+        total_keywords: number;
+        total_connections: number;
+        avg_neighbors_per_keyword: number;
+      };
 
       expect(result).toEqual(mockStats);
       expect(result.total_keywords).toBe(1500);
@@ -119,7 +123,11 @@ describe("Network Store / Immanentize Network", () => {
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockStats);
 
-      const result = await invoke("get_network_stats");
+      const result = (await invoke("get_network_stats")) as {
+        total_keywords: number;
+        total_connections: number;
+        avg_neighbors_per_keyword: number;
+      };
 
       expect(result.total_keywords).toBe(0);
     });
@@ -261,7 +269,10 @@ describe("Network Store / Immanentize Network", () => {
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockGraph);
 
-      const result = await invoke("get_network_graph", { limit: 100, minWeight: 0.1 });
+      const result = (await invoke("get_network_graph", { limit: 100, minWeight: 0.1 })) as {
+        nodes: { id: number; name: string; article_count: number; cluster_id: number | null }[];
+        edges: { source: number; target: number; weight: number }[];
+      };
 
       expect(result).toEqual(mockGraph);
       expect(result.nodes).toHaveLength(3);
@@ -287,7 +298,10 @@ describe("Network Store / Immanentize Network", () => {
       const mockGraph = { nodes: [], edges: [] };
       vi.mocked(invoke).mockResolvedValueOnce(mockGraph);
 
-      const result = await invoke("get_network_graph", { limit: 100, minWeight: 0.1 });
+      const result = (await invoke("get_network_graph", { limit: 100, minWeight: 0.1 })) as {
+        nodes: unknown[];
+        edges: unknown[];
+      };
 
       expect(result.nodes).toHaveLength(0);
       expect(result.edges).toHaveLength(0);

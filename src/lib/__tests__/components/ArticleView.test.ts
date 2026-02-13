@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
 import {
   getMainCategoryId,
   getCategoryColorVar,
@@ -232,7 +231,6 @@ describe("ArticleView Component Logic", () => {
   describe("Article Actions", () => {
     it("toggles golden apple status", () => {
       const fnordId = 42;
-      const currentStatus = "concealed";
 
       const handleToggleGoldenApple = (id: number) => {
         appState.toggleGoldenApple(id);
@@ -244,9 +242,10 @@ describe("ArticleView Component Logic", () => {
 
     it("opens article in browser", () => {
       const mockOpen = vi.fn();
-      const originalOpen = global.window?.open;
+      const originalOpen = (globalThis as unknown as { window?: { open?: typeof window.open } })
+        .window?.open;
       // @ts-ignore
-      global.window = { open: mockOpen };
+      (globalThis as Record<string, unknown>).window = { open: mockOpen };
 
       const openInBrowser = (url: string) => {
         window.open(url, "_blank");
@@ -260,7 +259,12 @@ describe("ArticleView Component Logic", () => {
     });
 
     it("fetches full content", async () => {
-      const mockResult = { success: true, content: "Full article content" };
+      const mockResult = {
+        fnord_id: 42,
+        success: true,
+        content: "Full article content",
+        error: null,
+      };
       vi.mocked(appState.fetchFullContent).mockResolvedValue(mockResult);
 
       const fetchFullContent = async (fnordId: number) => {
@@ -277,7 +281,14 @@ describe("ArticleView Component Logic", () => {
     });
 
     it("analyzes article with AI", async () => {
-      const mockResult = { success: true, analysis: {} };
+      const mockResult = {
+        fnord_id: 42,
+        success: true,
+        analysis: null,
+        categories_saved: [],
+        tags_saved: [],
+        error: null,
+      };
       vi.mocked(appState.processArticleDiscordian).mockResolvedValue(mockResult);
 
       const analyzeWithAI = async (fnordId: number) => {
@@ -351,8 +362,28 @@ describe("ArticleView Component Logic", () => {
 
     it("loads revisions when article has changes", async () => {
       const mockRevisions = [
-        { id: 1, fnord_id: 42, title: "Revision 1", revision_at: "2025-01-15T10:00:00Z" },
-        { id: 2, fnord_id: 42, title: "Revision 2", revision_at: "2025-01-14T10:00:00Z" },
+        {
+          id: 1,
+          fnord_id: 42,
+          title: "Revision 1",
+          author: null,
+          content_raw: null,
+          content_full: null,
+          summary: null,
+          content_hash: "abc",
+          revision_at: "2025-01-15T10:00:00Z",
+        },
+        {
+          id: 2,
+          fnord_id: 42,
+          title: "Revision 2",
+          author: null,
+          content_raw: null,
+          content_full: null,
+          summary: null,
+          content_hash: "def",
+          revision_at: "2025-01-14T10:00:00Z",
+        },
       ];
       vi.mocked(appState.getRevisions).mockResolvedValue(mockRevisions);
 
@@ -373,8 +404,24 @@ describe("ArticleView Component Logic", () => {
   describe("Similar Articles", () => {
     it("loads similar articles when article has embedding", async () => {
       const mockSimilar = [
-        { fnord_id: 10, title: "Similar 1", similarity: 0.85 },
-        { fnord_id: 11, title: "Similar 2", similarity: 0.75 },
+        {
+          fnord_id: 10,
+          title: "Similar 1",
+          pentacle_title: null,
+          published_at: null,
+          similarity: 0.85,
+          tags: [],
+          categories: [],
+        },
+        {
+          fnord_id: 11,
+          title: "Similar 2",
+          pentacle_title: null,
+          published_at: null,
+          similarity: 0.75,
+          tags: [],
+          categories: [],
+        },
       ];
       vi.mocked(appState.findSimilarArticles).mockResolvedValue(mockSimilar);
 
@@ -408,8 +455,21 @@ describe("ArticleView Component Logic", () => {
 
   describe("Article Data Loading", () => {
     it("loads categories and tags", async () => {
-      const mockCategories = [{ sephiroth_id: 1, name: "Tech" }];
-      const mockTags = [{ id: 1, name: "AI" }];
+      const mockCategories = [
+        {
+          sephiroth_id: 1,
+          name: "Tech",
+          icon: null,
+          color: null,
+          confidence: 0.9,
+          source: "ai" as const,
+          assigned_at: null,
+          parent_id: null,
+          main_category_name: null,
+          main_category_color: null,
+        },
+      ];
+      const mockTags = [{ id: 1, name: "AI", count: 5, last_used: null }];
 
       vi.mocked(appState.getArticleCategories).mockResolvedValue(mockCategories);
       vi.mocked(appState.getArticleTags).mockResolvedValue(mockTags);

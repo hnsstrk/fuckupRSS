@@ -97,7 +97,14 @@ describe("AppState", () => {
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockStatus);
 
-      const result = await invoke("check_ollama");
+      const result = (await invoke("check_ollama")) as {
+        available: boolean;
+        models: string[];
+        recommended_main: string;
+        recommended_embedding: string;
+        has_recommended_main: boolean;
+        has_recommended_embedding: boolean;
+      };
       expect(result).toEqual(mockStatus);
       expect(result.available).toBe(true);
     });
@@ -113,7 +120,10 @@ describe("AppState", () => {
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockStatus);
 
-      const result = await invoke("check_ollama");
+      const result = (await invoke("check_ollama")) as {
+        available: boolean;
+        models: string[];
+      };
       expect(result.available).toBe(false);
       expect(result.models).toHaveLength(0);
     });
@@ -158,7 +168,12 @@ describe("AppState", () => {
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockResult);
 
-      const result = await invoke("sync_all_feeds");
+      const result = (await invoke("sync_all_feeds")) as {
+        success: boolean;
+        total_new: number;
+        total_updated: number;
+        results: { pentacle_id: number; error: string | null }[];
+      };
       expect(result.success).toBe(true);
       expect(result.total_new).toBe(15);
     });
@@ -181,7 +196,12 @@ describe("AppState", () => {
       };
       vi.mocked(invoke).mockResolvedValueOnce(mockResult);
 
-      const result = await invoke("sync_all_feeds");
+      const result = (await invoke("sync_all_feeds")) as {
+        success: boolean;
+        total_new: number;
+        total_updated: number;
+        results: { pentacle_id: number; error: string | null }[];
+      };
       expect(result.results[0].error).toBe("Connection timeout");
     });
   });
@@ -417,7 +437,10 @@ describe("Sync and Unprocessed Count integration", () => {
     const mockCount = { total: 10, with_content: 7 };
     vi.mocked(invoke).mockResolvedValueOnce(mockCount);
 
-    const result = await invoke("get_unprocessed_count");
+    const result = (await invoke("get_unprocessed_count")) as {
+      total: number;
+      with_content: number;
+    };
 
     expect(result).toEqual(mockCount);
     expect(result).toHaveProperty("total");

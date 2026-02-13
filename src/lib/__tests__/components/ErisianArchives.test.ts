@@ -138,7 +138,12 @@ describe("ErisianArchives", () => {
       mockInvoke.mockResolvedValue(mockFailedArticles);
 
       // Component now uses BATCH_SIZE (50) and offset for pagination
-      const articles = await invoke("get_failed_articles", { limit: 50, offset: 0 });
+      const articles = (await invoke("get_failed_articles", { limit: 50, offset: 0 })) as {
+        id: number;
+        title: string;
+        analysis_attempts: number;
+        last_error: string | null;
+      }[];
 
       expect(mockInvoke).toHaveBeenCalledWith("get_failed_articles", { limit: 50, offset: 0 });
       expect(articles).toHaveLength(1);
@@ -165,7 +170,10 @@ describe("ErisianArchives", () => {
       mockInvoke.mockResolvedValue(mockMoreArticles);
 
       // Simulate loading more with offset
-      const articles = await invoke("get_failed_articles", { limit: 50, offset: 50 });
+      const articles = (await invoke("get_failed_articles", { limit: 50, offset: 50 })) as {
+        id: number;
+        title: string;
+      }[];
 
       expect(mockInvoke).toHaveBeenCalledWith("get_failed_articles", { limit: 50, offset: 50 });
       expect(articles).toHaveLength(1);
@@ -247,7 +255,11 @@ describe("ErisianArchives", () => {
       mockInvoke.mockResolvedValue(mockHopelessArticles);
 
       // Component now uses BATCH_SIZE (50) and offset for pagination
-      const articles = await invoke("get_hopeless_articles", { limit: 50, offset: 0 });
+      const articles = (await invoke("get_hopeless_articles", { limit: 50, offset: 0 })) as {
+        id: number;
+        title: string;
+        analysis_attempts: number;
+      }[];
 
       expect(mockInvoke).toHaveBeenCalledWith("get_hopeless_articles", { limit: 50, offset: 0 });
       expect(articles).toHaveLength(1);
@@ -273,7 +285,10 @@ describe("ErisianArchives", () => {
       mockInvoke.mockResolvedValue(mockMoreArticles);
 
       // Simulate loading more with offset
-      const articles = await invoke("get_hopeless_articles", { limit: 50, offset: 50 });
+      const articles = (await invoke("get_hopeless_articles", { limit: 50, offset: 50 })) as {
+        id: number;
+        title: string;
+      }[];
 
       expect(mockInvoke).toHaveBeenCalledWith("get_hopeless_articles", { limit: 50, offset: 50 });
       expect(articles).toHaveLength(1);

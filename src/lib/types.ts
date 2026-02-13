@@ -314,6 +314,8 @@ export interface GraphNode {
   count: number;
   article_count: number;
   cluster_id: number | null;
+  primary_category_id: number | null;
+  primary_category_name: string | null;
 }
 
 export interface GraphEdge {

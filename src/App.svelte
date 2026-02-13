@@ -43,13 +43,25 @@
     await platformStore.init();
     await settings.init();
     await initLocaleFromDb();
-    window.addEventListener("navigate-to-network", handleNavigateToNetwork as EventListener);
-    window.addEventListener("navigate-to-article", handleNavigateToArticle as EventListener);
+    window.addEventListener(
+      "navigate-to-network",
+      handleNavigateToNetwork as unknown as EventListener,
+    );
+    window.addEventListener(
+      "navigate-to-article",
+      handleNavigateToArticle as unknown as EventListener,
+    );
   });
 
   onDestroy(() => {
-    window.removeEventListener("navigate-to-network", handleNavigateToNetwork as EventListener);
-    window.removeEventListener("navigate-to-article", handleNavigateToArticle as EventListener);
+    window.removeEventListener(
+      "navigate-to-network",
+      handleNavigateToNetwork as unknown as EventListener,
+    );
+    window.removeEventListener(
+      "navigate-to-article",
+      handleNavigateToArticle as unknown as EventListener,
+    );
   });
 </script>
 
