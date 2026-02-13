@@ -1,0 +1,13 @@
+# Source cargo env for Git GUIs (SourceTree, etc.)
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+
+# Run lint-staged on frontend files
+npx lint-staged
+
+# Run Rust formatting check if .rs files are staged
+if git diff --cached --name-only | grep -q '\.rs$'; then
+  echo "Checking Rust formatting..."
+  cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+  echo "Running Clippy..."
+  cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+fi

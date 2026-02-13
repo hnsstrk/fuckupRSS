@@ -1,0 +1,16 @@
+# Source cargo env for Git GUIs
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+
+echo "Running pre-push checks..."
+
+# Frontend tests
+echo "Running frontend tests..."
+npm run test
+
+# Rust tests
+echo "Running Rust tests..."
+cargo test --manifest-path src-tauri/Cargo.toml --lib --bins
+
+# Svelte type checking
+echo "Running svelte-check..."
+npx svelte-check --tsconfig ./tsconfig.json
