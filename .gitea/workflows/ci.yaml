@@ -11,6 +11,7 @@ jobs:
   lint:
     name: Lint & Type Check
     runs-on: linux-x64
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -19,7 +20,15 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: ESLint
@@ -37,8 +46,18 @@ jobs:
   rust-lint:
     name: Rust Lint
     runs-on: linux-x64
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
       - name: Rust format check
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
@@ -50,6 +69,7 @@ jobs:
   test-frontend:
     name: Frontend Tests
     runs-on: linux-x64
+    timeout-minutes: 15
     needs: [lint]
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +79,15 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Vitest
@@ -68,9 +96,19 @@ jobs:
   test-rust-linux:
     name: Rust Tests (Linux)
     runs-on: linux-x64
+    timeout-minutes: 20
     needs: [rust-lint]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
       - name: Run tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib --bins
@@ -78,9 +116,19 @@ jobs:
   test-rust-macos:
     name: Rust Tests (macOS)
     runs-on: macos-arm64
+    timeout-minutes: 20
     needs: [rust-lint]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
       - name: Run tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib --bins
@@ -88,6 +136,7 @@ jobs:
   test-e2e:
     name: E2E Tests
     runs-on: linux-x64
+    timeout-minutes: 15
     needs: [lint]
     steps:
       - uses: actions/checkout@v4
@@ -97,12 +146,24 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
 
+      # NOTE: Playwright is configured with webServer to start 'npm run dev' (Vite only).
+      # E2E tests that require Tauri backend functionality (invoke calls, DB access)
+      # will not work in CI without a full Tauri dev server. These tests should either
+      # mock Tauri APIs or be run locally with 'npm run tauri dev'.
       - name: Run E2E tests
         run: npm run test:e2e
 
@@ -110,7 +171,8 @@ jobs:
   security:
     name: Security Scan
     runs-on: linux-x64
-    needs: [test-frontend, test-rust-linux]
+    timeout-minutes: 10
+    needs: [test-frontend, test-rust-linux, test-e2e, test-rust-macos]
     steps:
       - uses: actions/checkout@v4
 
@@ -120,10 +182,14 @@ jobs:
       - name: npm audit
         run: npm audit --audit-level=high
 
+      - name: Cargo audit
+        run: cargo audit --file src-tauri/Cargo.lock
+
   # Stage 4: Build (parallel)
   build-linux:
     name: Build (Linux)
     runs-on: linux-x64
+    timeout-minutes: 30
     needs: [test-frontend, test-rust-linux, security]
     steps:
       - uses: actions/checkout@v4
@@ -133,8 +199,25 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node.outputs.cache-hit != 'true'
         run: npm ci
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
       - name: Build
         run: npm run tauri build
@@ -150,7 +233,8 @@ jobs:
   build-macos:
     name: Build (macOS)
     runs-on: macos-arm64
-    needs: [test-rust-macos, security]
+    timeout-minutes: 30
+    needs: [test-frontend, test-rust-macos, security]
     steps:
       - uses: actions/checkout@v4
 
@@ -159,8 +243,25 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node.outputs.cache-hit != 'true'
         run: npm ci
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
       - name: Build
         run: npm run tauri build
@@ -175,6 +276,7 @@ jobs:
   sbom:
     name: Generate SBOM
     runs-on: linux-x64
+    timeout-minutes: 10
     needs: [build-linux]
     steps:
       - uses: actions/checkout@v4
@@ -184,8 +286,19 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-node
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache-node.outputs.cache-hit != 'true'
         run: npm ci
+
+      - name: Create sbom directory
+        run: mkdir -p sbom
 
       - name: Generate Frontend SBOM
         run: npx @cyclonedx/cyclonedx-npm --output-file sbom/frontend-bom.json

@@ -85,6 +85,8 @@ Siehe [docs/guides/TESTING.md](docs/guides/TESTING.md) fuer die vollstaendige Te
 ```bash
 npm run test                                      # Frontend (Vitest)
 npm run test:e2e                                  # E2E Tests (Playwright)
+npm run test:watch                                # Frontend Watch-Modus
+npm run test:coverage                             # Frontend mit Coverage
 cargo test --manifest-path src-tauri/Cargo.toml  # Backend (Rust)
 ```
 
@@ -201,7 +203,7 @@ Automatische Qualitaetssicherung via Git Hooks (Husky 9 + lint-staged).
 Pipeline in `.gitea/workflows/ci.yaml`. Ausfuehrliches Setup-Guide: [docs/guides/CI_CD_SETUP.md](docs/guides/CI_CD_SETUP.md)
 
 **Pipeline-Stages:**
-1. **Lint** - ESLint, Prettier, svelte-check, cargo fmt, Clippy
+1. **Lint** - ESLint, Prettier, svelte-check, tsc --noEmit, cargo fmt, Clippy
 2. **Tests** - Vitest, cargo test (Linux + macOS), E2E
 3. **Security** - Semgrep, npm audit
 4. **Build** - Linux (.deb, .AppImage), macOS (.dmg)
@@ -346,7 +348,9 @@ fuckupRSS/
 │   │       ├── ai/               # KI-Provider Commands (Test, Kosten)
 │   │       ├── pentacles.rs      # Feed-Operationen
 │   │       └── fnords.rs         # Artikel-Operationen
-│   └── Cargo.toml
+│   ├── Cargo.toml
+│   ├── rustfmt.toml              # Rust Formatierung (max_width=100)
+│   └── clippy.toml               # Clippy Config (threshold=8)
 ├── docs/                         # Referenzdokumentation
 │   ├── api/
 │   │   └── TAURI_COMMANDS_REFERENCE.md
@@ -370,6 +374,7 @@ fuckupRSS/
 │   └── pre-push                  # Tests + svelte-check
 ├── eslint.config.js              # ESLint 9.x Flat Config
 ├── .prettierrc                   # Prettier Config
+├── .prettierignore               # Prettier Ausnahmen
 ├── .editorconfig                 # Editor-Einstellungen
 ├── .semgrepignore                # Semgrep Ausnahmen
 ├── fuckupRSS-Anforderungen.md    # Technische Spezifikation
