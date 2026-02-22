@@ -11,20 +11,14 @@ use super::{AiProviderError, AiTextProvider, EmbeddingProvider, GenerationResult
 
 /// Ollama text generation provider (local or remote)
 pub struct OllamaTextProvider {
-    base_url: String,
-    num_ctx: u32,
+    client: OllamaClient,
 }
 
 impl OllamaTextProvider {
     pub fn new(base_url: &str, num_ctx: u32) -> Self {
         Self {
-            base_url: base_url.to_string(),
-            num_ctx,
+            client: OllamaClient::with_context(Some(base_url.to_string()), num_ctx),
         }
-    }
-
-    fn client(&self) -> OllamaClient {
-        OllamaClient::with_context(Some(self.base_url.clone()), self.num_ctx)
     }
 }
 
@@ -36,8 +30,6 @@ impl AiTextProvider for OllamaTextProvider {
         prompt: &str,
         json_mode: bool,
     ) -> Result<GenerationResult, AiProviderError> {
-        let client = self.client();
-
         // Prepend /no_think for Ollama models (optimizes thinking-capable models)
         let full_prompt = if prompt.starts_with("/no_think") {
             prompt.to_string()
@@ -46,9 +38,11 @@ impl AiTextProvider for OllamaTextProvider {
         };
 
         let result = if json_mode {
-            client.generate_simple(model, &full_prompt).await
+            self.client.generate_simple(model, &full_prompt).await
         } else {
-            client.summarize_with_prompt(model, "", &full_prompt).await
+            self.client
+                .summarize_with_prompt(model, "", &full_prompt)
+                .await
         };
 
         match result {
@@ -78,8 +72,7 @@ impl AiTextProvider for OllamaTextProvider {
     }
 
     async fn is_available(&self) -> bool {
-        let client = self.client();
-        client.is_available().await
+        self.client.is_available().await
     }
 
     fn provider_name(&self) -> &str {
@@ -95,7 +88,7 @@ impl AiTextProvider for OllamaTextProvider {
 ///
 /// Wraps `OllamaClient::generate_embedding()` to implement the `EmbeddingProvider` trait.
 pub struct OllamaEmbeddingProvider {
-    base_url: String,
+    client: OllamaClient,
     model: String,
     dimensions: usize,
 }
@@ -103,22 +96,17 @@ pub struct OllamaEmbeddingProvider {
 impl OllamaEmbeddingProvider {
     pub fn new(base_url: &str, model: &str, dimensions: usize) -> Self {
         Self {
-            base_url: base_url.to_string(),
+            client: OllamaClient::new(Some(base_url.to_string())),
             model: model.to_string(),
             dimensions,
         }
-    }
-
-    fn client(&self) -> OllamaClient {
-        OllamaClient::new(Some(self.base_url.clone()))
     }
 }
 
 #[async_trait]
 impl EmbeddingProvider for OllamaEmbeddingProvider {
     async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>, AiProviderError> {
-        let client = self.client();
-        client
+        self.client
             .generate_embedding(&self.model, text)
             .await
             .map_err(|e| match e {

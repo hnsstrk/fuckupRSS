@@ -161,6 +161,7 @@ struct GenerateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     format: Option<String>,
     options: GenerateOptions,
+    keep_alive: String,
 }
 
 #[derive(Deserialize)]
@@ -200,6 +201,7 @@ struct PullResponse {
 struct EmbeddingRequest {
     model: String,
     prompt: String,
+    keep_alive: String,
 }
 
 #[derive(Deserialize)]
@@ -306,6 +308,7 @@ pub const DEFAULT_NUM_CTX: u32 = 4096;
 pub struct OllamaClient {
     base_url: String,
     num_ctx: u32,
+    http_client: reqwest_new::Client,
 }
 
 impl OllamaClient {
@@ -313,6 +316,10 @@ impl OllamaClient {
         Self {
             base_url: base_url.unwrap_or_else(|| "http://localhost:11434".to_string()),
             num_ctx: DEFAULT_NUM_CTX,
+            http_client: reqwest_new::Client::builder()
+                .timeout(Duration::from_secs(120))
+                .build()
+                .expect("Failed to create HTTP client"),
         }
     }
 
@@ -321,20 +328,21 @@ impl OllamaClient {
         Self {
             base_url: base_url.unwrap_or_else(|| "http://localhost:11434".to_string()),
             num_ctx,
+            http_client: reqwest_new::Client::builder()
+                .timeout(Duration::from_secs(120))
+                .build()
+                .expect("Failed to create HTTP client"),
         }
     }
 
-    fn client(&self) -> Result<reqwest_new::Client, OllamaError> {
-        reqwest_new::Client::builder()
-            .timeout(Duration::from_secs(120))
-            .build()
-            .map_err(|e| OllamaError::NotAvailable(format!("Failed to create HTTP client: {}", e)))
+    fn client(&self) -> &reqwest_new::Client {
+        &self.http_client
     }
 
     /// Check if Ollama is available and return list of models
     pub async fn list_models(&self) -> Result<Vec<ModelInfo>, OllamaError> {
         let url = format!("{}/api/tags", self.base_url);
-        let client = self.client()?;
+        let client = self.client();
 
         let resp: reqwest_new::Response = client
             .get(&url)
@@ -422,11 +430,12 @@ impl OllamaClient {
         text: &str,
     ) -> Result<Vec<f32>, OllamaError> {
         let url = format!("{}/api/embeddings", self.base_url);
-        let client = self.client()?;
+        let client = self.client();
 
         let request = EmbeddingRequest {
             model: model.to_string(),
             prompt: text.to_string(),
+            keep_alive: "30m".to_string(),
         };
 
         let resp = client.post(&url).json(&request).send().await.map_err(|e| {
@@ -727,7 +736,7 @@ Content: {}"#,
         format: Option<String>,
     ) -> Result<String, OllamaError> {
         let url = format!("{}/api/generate", self.base_url);
-        let client = self.client()?;
+        let client = self.client();
 
         let prompt_len = prompt.len();
         debug!(
@@ -748,6 +757,7 @@ Content: {}"#,
                 // 4096 allows for detailed summaries + full JSON structure
                 num_predict: 4096,
             },
+            keep_alive: "30m".to_string(),
         };
 
         let resp: reqwest_new::Response =

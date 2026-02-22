@@ -1146,7 +1146,15 @@ pub async fn process_batch(
         succeeded, total, failed, batch_duration.as_secs_f64(), avg_time_per_article
     );
 
-    // Process embedding queue after batch
+    // Release batch_running BEFORE embedding generation to avoid model swapping.
+    // The LLM model (ministral) can now be unloaded by Ollama, and the background
+    // embedding worker will resume using the same embedding model (snowflake) as
+    // the article embedding generation below - no model swapping needed.
+    state.batch_running.store(false, Ordering::SeqCst);
+    info!("[LLM] Batch flag released - embedding worker can resume, embeddings use same model (no swap)");
+
+    // Process embeddings (keyword queue + article embeddings)
+    // Both use the embedding model (snowflake), so no model swapping occurs.
     if succeeded > 0 && !state.batch_cancel.load(Ordering::SeqCst) {
         let queue_size = {
             let db = state.db_conn()?;
@@ -1272,8 +1280,6 @@ pub async fn process_batch(
             }
         }
     }
-
-    state.batch_running.store(false, Ordering::SeqCst);
 
     // Final batch summary
     let processed_final = processed_count.load(Ordering::Relaxed) as i64;
