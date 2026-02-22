@@ -120,8 +120,11 @@ jobs:
       - name: Run tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib --bins
 
+  # NOTE: macOS-Jobs deaktiviert – kein macOS-Runner auf Callisto verfügbar.
+  # Zum Aktivieren: Runner auf dem MacBook einrichten und if: false entfernen.
   test-rust-macos:
     name: Rust Tests (macOS)
+    if: false
     runs-on: macos-arm64
     timeout-minutes: 20
     needs: [rust-lint]
@@ -242,9 +245,10 @@ jobs:
 
   build-macos:
     name: Build (macOS)
+    if: false
     runs-on: macos-arm64
     timeout-minutes: 30
-    needs: [test-frontend, test-rust-macos]
+    needs: [test-frontend]
     steps:
       - uses: actions/checkout@v4
 
