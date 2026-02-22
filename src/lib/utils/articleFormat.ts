@@ -320,14 +320,13 @@ export function truncateText(text: string, maxLength: number): string {
 
 /**
  * Entfernt HTML-Tags aus einem String.
- * Verwendet textContent zur sicheren Text-Extraktion.
+ * Verwendet DOMParser zur sicheren Text-Extraktion.
  */
 export function stripHtml(html: string): string {
-  if (typeof document === "undefined") {
+  if (typeof DOMParser === "undefined") {
     // SSR-safe: einfache Regex-Lösung
     return html.replace(/<[^>]*>/g, "");
   }
-  const template = document.createElement("template");
-  template.innerHTML = html;
-  return template.content.textContent || "";
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return doc.body.textContent || "";
 }

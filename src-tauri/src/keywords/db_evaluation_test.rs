@@ -173,6 +173,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore] // Benoetigt lokale Datenbank mit Artikeln
     fn test_db_keyword_extraction_evaluation() {
         println!("\n");
         println!("==========================================================================");
