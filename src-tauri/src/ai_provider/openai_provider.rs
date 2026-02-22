@@ -344,21 +344,31 @@ impl AiTextProvider for OpenAiCompatibleProvider {
 
                     let duration = request_start.elapsed();
 
-                    // Check for truncation via finish_reason
-                    if let Some(first_choice) = response.choices.first() {
-                        if first_choice.finish_reason.as_deref() == Some("length") {
-                            warn!(
-                                "[OpenAI] Response was truncated (finish_reason: length, max_completion_tokens: {})",
-                                MAX_COMPLETION_TOKENS
-                            );
-                        }
+                    // Check for empty response (no choices)
+                    if response.choices.is_empty() {
+                        return Err(AiProviderError::GenerationFailed(
+                            "API returned empty response (no choices)".to_string(),
+                        ));
                     }
 
-                    let text = response
-                        .choices
-                        .first()
-                        .and_then(|c| c.message.content.clone())
-                        .unwrap_or_default();
+                    let first_choice = &response.choices[0];
+
+                    // Check for truncation via finish_reason
+                    if first_choice.finish_reason.as_deref() == Some("length") {
+                        warn!(
+                            "[OpenAI] Response was truncated (finish_reason: length, max_completion_tokens: {})",
+                            MAX_COMPLETION_TOKENS
+                        );
+                    }
+
+                    let text = first_choice.message.content.clone().unwrap_or_default();
+
+                    // Check for null/empty content
+                    if text.is_empty() {
+                        return Err(AiProviderError::GenerationFailed(
+                            "API returned empty content (null or empty string)".to_string(),
+                        ));
+                    }
 
                     let (input_tokens, output_tokens) = response
                         .usage
@@ -466,10 +476,11 @@ impl AiTextProvider for OpenAiCompatibleProvider {
     }
 
     fn suggested_concurrency(&self) -> usize {
-        // Tier 2+ allows 500+ RPM for small models.
-        // 20 concurrent requests is a safe high-performance default.
-        // The provider handles 429s with backoff if this is too high for a specific key.
-        20
+        // Conservative default to avoid rate limiting.
+        // With 5 concurrent requests at ~2s each, we stay well under
+        // typical RPM limits (500 RPM for Tier 2+).
+        // Users can override via settings (openai_concurrency).
+        5
     }
 }
 

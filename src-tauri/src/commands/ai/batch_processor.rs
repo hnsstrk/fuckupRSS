@@ -16,9 +16,9 @@ use futures::stream::{self, StreamExt};
 use log::{debug, info, warn};
 use rusqlite::Connection;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, Manager, State, Window};
 
 /// Safely truncate a string to a maximum byte length, respecting UTF-8 char boundaries.
@@ -633,9 +633,6 @@ async fn process_single_article(
                 (llm_analysis_converted, false)
             }
             Err(e) => {
-                // Type should be inferred from analysis_result, but let's be safe if possible.
-                // Actually, Rust doesn't allow explicit type on match binding like `Err(e: Error)`.
-                // But we can cast it or shadow it.
                 let e: crate::ai_provider::AiProviderError = e;
                 warn!(
                     "[LLM] FAILED \"{}\" (ID: {}) after {:.2}s: {}",
@@ -645,8 +642,8 @@ async fn process_single_article(
                     e
                 );
 
-                // Handle LLM error (same as before)
                 let error_msg = e.to_string();
+                let is_rate_limit = matches!(e, crate::ai_provider::AiProviderError::RateLimited);
                 let is_json_error = matches!(
                     e,
                     crate::ai_provider::AiProviderError::JsonParseError { .. }
@@ -658,26 +655,38 @@ async fn process_single_article(
                         Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
                     };
 
-                    let attempts: i32 = db
-                        .conn()
-                        .query_row(
-                            "SELECT COALESCE(analysis_attempts, 0) FROM fnords WHERE id = ?1",
-                            [fnord_id],
-                            |row| row.get(0),
-                        )
-                        .unwrap_or(0);
+                    if is_rate_limit {
+                        // Rate limits are NOT article-specific failures.
+                        // Store error message but do NOT increment attempts.
+                        let _ = db.conn().execute(
+                            r#"UPDATE fnords SET
+                                analysis_error = ?1
+                            WHERE id = ?2"#,
+                            rusqlite::params![&error_msg, fnord_id],
+                        );
+                    } else {
+                        // Actual article-specific failure: increment attempts
+                        let attempts: i32 = db
+                            .conn()
+                            .query_row(
+                                "SELECT COALESCE(analysis_attempts, 0) FROM fnords WHERE id = ?1",
+                                [fnord_id],
+                                |row| row.get(0),
+                            )
+                            .unwrap_or(0);
 
-                    let new_attempts = attempts + 1;
-                    let is_hopeless = new_attempts >= 3;
+                        let new_attempts = attempts + 1;
+                        let is_hopeless = new_attempts >= 3;
 
-                    let _ = db.conn().execute(
-                        r#"UPDATE fnords SET
-                            analysis_attempts = ?1,
-                            analysis_error = ?2,
-                            analysis_hopeless = ?3
-                        WHERE id = ?4"#,
-                        rusqlite::params![new_attempts, &error_msg, is_hopeless, fnord_id],
-                    );
+                        let _ = db.conn().execute(
+                            r#"UPDATE fnords SET
+                                analysis_attempts = ?1,
+                                analysis_error = ?2,
+                                analysis_hopeless = ?3
+                            WHERE id = ?4"#,
+                            rusqlite::params![new_attempts, &error_msg, is_hopeless, fnord_id],
+                        );
+                    }
                 }
 
                 if is_json_error {
@@ -876,6 +885,12 @@ pub async fn process_batch(
     state.batch_cancel.store(false, Ordering::SeqCst);
     state.batch_running.store(true, Ordering::SeqCst);
 
+    // Global rate limit pause mechanism:
+    // When any task hits a rate limit, all tasks pause before their next request.
+    // rate_limit_until stores a UNIX timestamp (seconds) until which to pause.
+    let rate_limit_until = Arc::new(AtomicU64::new(0));
+    let rate_limit_hit_count = Arc::new(AtomicUsize::new(0));
+
     // Get provider and configure model
     let (provider_config, effective_model) = {
         let db = state.db_conn().map_err(|e| e.to_string())?;
@@ -954,7 +969,7 @@ pub async fn process_batch(
         .map(|(idx, article)| {
             let state = state.clone();
             let batch_cancel = state.batch_cancel.clone();
-            let provider = provider_for_batch.clone(); // Clone Arc, not reference
+            let provider = provider_for_batch.clone();
             let window = window.clone();
             let effective_model = effective_model.clone();
             let locale = locale.clone();
@@ -967,9 +982,30 @@ pub async fn process_batch(
             let succeeded_count = succeeded_count.clone();
             let failed_count = failed_count.clone();
 
+            // Rate limit pause mechanism
+            let rate_limit_until = rate_limit_until.clone();
+            let rate_limit_hit_count = rate_limit_hit_count.clone();
+
             async move {
                 if batch_cancel.load(Ordering::SeqCst) {
                     return None;
+                }
+
+                // Check if we need to wait due to global rate limit pause
+                let pause_until = rate_limit_until.load(Ordering::SeqCst);
+                if pause_until > 0 {
+                    let now = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    if now < pause_until {
+                        let wait_secs = pause_until - now;
+                        info!(
+                            "[LLM] Rate limit pause: waiting {}s before processing article {}",
+                            wait_secs, article.fnord_id
+                        );
+                        tokio::time::sleep(Duration::from_secs(wait_secs)).await;
+                    }
                 }
 
                 let fnord_id = article.fnord_id;
@@ -1025,6 +1061,29 @@ pub async fn process_batch(
                     process_single_article(provider_ref, &state, &effective_model, &locale, article, &batch_context)
                         .await;
 
+                // Detect rate limit errors and set global pause
+                if let Some(ref err_msg) = error {
+                    if err_msg.contains("Rate limit") {
+                        let hits = rate_limit_hit_count.fetch_add(1, Ordering::SeqCst) + 1;
+                        // Exponential backoff: 30s, 60s, 120s based on how many rate limits we've hit
+                        let pause_secs = match hits {
+                            1..=3 => 30,
+                            4..=6 => 60,
+                            _ => 120,
+                        };
+                        let until = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs()
+                            + pause_secs;
+                        rate_limit_until.store(until, Ordering::SeqCst);
+                        warn!(
+                            "[LLM] Rate limit detected (hit #{}) - pausing all tasks for {}s",
+                            hits, pause_secs
+                        );
+                    }
+                }
+
                 // Emit progress immediately from the task
                 let _ = window.emit(
                     "batch-progress",
@@ -1048,8 +1107,7 @@ pub async fn process_batch(
                     failed_count.fetch_add(1, Ordering::Relaxed);
                 }
 
-
-                // Return result for collecting (optional, but good for debugging)
+                // Return result for collecting
                 Some((fnord_id, success))
             }
         })
