@@ -78,6 +78,11 @@ npm run sbom:validate     # SBOMs validieren
 
 # Release (Tag-basiert, loest Release-Workflow aus)
 git tag v1.x.x && git push --tags
+
+# macOS Build (lokal, kein CI-Runner verfuegbar)
+./scripts/build-macos.sh             # Production Build
+./scripts/build-macos.sh --debug     # Debug Build
+./scripts/build-macos.sh --clean     # Clean Build
 ```
 
 ## Testing
@@ -205,21 +210,42 @@ Automatische Qualitaetssicherung via Git Hooks (Husky 9 + lint-staged).
 
 Pipeline in `.gitea/workflows/ci.yaml`. Release-Workflow in `.gitea/workflows/release.yaml`. Ausfuehrliches Setup-Guide: [docs/guides/CI_CD_SETUP.md](docs/guides/CI_CD_SETUP.md)
 
-**Pipeline-Stages (parallelisiert, ~35-40 Min Gesamtlaufzeit):**
+### Build-Strategie
+
+| Was | Wo | Wie |
+|-----|----|-----|
+| Lint, Tests, Security, SBOM | **Callisto** (Linux-Runner) | Automatisch bei Push/PR |
+| Linux-Build (.deb, .AppImage) | **Callisto** (Linux-Runner) | Automatisch in CI |
+| macOS-Build (.dmg, .app) | **Lokal** (MacBook) | Manuell via `./scripts/build-macos.sh` |
+
+**Entwickler-Workflow:** Push → Callisto prueft (Lint, Tests, Security, Linux-Build) → bei Bedarf `./scripts/build-macos.sh` lokal ausfuehren.
+
+### CI-Pipeline (Callisto, Linux-only)
+
+**Pipeline-Stages (parallelisiert):**
 1. **Lint** (parallel) - `lint`: ESLint, Prettier, svelte-check, tsc --noEmit | `rust-lint`: cargo fmt, Clippy
-2. **Tests** (parallel) - Vitest mit Coverage, cargo test (Linux + macOS), E2E (Playwright)
+2. **Tests** (parallel) - Vitest mit Coverage, cargo test, E2E (Playwright gegen Vite-Dev-Server)
 3. **Security** - Semgrep (auto + OWASP Top 10), npm audit, cargo audit --deny warnings
-4. **Build** (parallel) - Linux (.deb, .AppImage), macOS (.dmg)
+4. **Build** - Linux (.deb, .AppImage)
 5. **SBOM** - CycloneDX Frontend + Backend
 
 **Coverage:** Frontend-Tests erzeugen Coverage-Artefakte (30 Tage Aufbewahrung).
 
-**Release-Workflow (Tag-basiert):**
+### Release-Workflow (Tag-basiert)
+
 - Ausgeloest durch `v*`-Tags (`git tag v1.x.x && git push --tags`)
 - Baut Linux + macOS parallel, erstellt Gitea Release mit Changelog + Artefakten
 - Benoetigt `GITEATOKEN` Secret in Gitea Repository-Settings
 
-**Runner:** act_runner im Host-Modus (linux-x64 + macos-arm64)
+### Runner und Einschraenkungen
+
+**Runner:** act_runner im Host-Modus, nur `linux-x64`. Docker-basiert (`docker.gitea.com/runner-images:ubuntu-latest`), Container laeuft als root.
+
+**Bekannte Einschraenkungen:**
+- **Kein macOS-Runner** — macOS-Builds nur lokal via `scripts/build-macos.sh`
+- **Gitea Act Runner:** nur `upload-artifact@v3` (nicht v4), kein `sudo` im Container noetig (root)
+- **E2E-Tests in CI:** laufen nur gegen Vite-Dev-Server (kein Tauri-Backend verfuegbar)
+- **Node-Version:** gepinnt auf 22 (via CI, `.nvmrc`, `package.json engines`)
 
 ## Icons
 

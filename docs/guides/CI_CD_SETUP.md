@@ -20,15 +20,16 @@ fuckupRSS nutzt **Gitea Actions** mit `act_runner` im Host-Modus für CI/CD.
 ```
         Gitea (192.168.177.11:3000)
                     |
-          ┌─────────┴─────────┐
-    Linux Runner          macOS Runner
-    (linux-x64:host)      (macos-arm64:host)
-    - Lint                - Rust Tests (macOS)
-    - Tests               - macOS Build (.dmg)
-    - Security (Semgrep)
-    - Linux Build (.deb, .AppImage)
-    - SBOM
+              Linux Runner
+              (linux-x64:host)
+              - Lint
+              - Tests (Frontend, Rust, E2E)
+              - Security (Semgrep)
+              - Linux Build (.deb, .AppImage)
+              - SBOM
 ```
+
+**Hinweis:** macOS-CI-Jobs sind derzeit deaktiviert. Der macOS-Runner (`macos-arm64:host`) wird nur noch fuer den Release-Workflow genutzt.
 
 ## Voraussetzung: Gitea Server
 
@@ -137,27 +138,26 @@ Die CI-Pipeline ist in `.gitea/workflows/ci.yaml` definiert. Durch Parallelisier
 ```
 Stage 1 (parallel):    lint ──────────┐     rust-lint ────────┐
                                       │                       │
-Stage 2 (parallel):    test-frontend ─┤     test-rust-linux ──┤     test-rust-macos ──┐
-                       test-e2e ──────┤                       │                       │
-                                      │                       │                       │
-Stage 3 (parallel):    security ──────┘─────┘                 │                       │
-                                                              │                       │
-Stage 4 (parallel):    build-linux ───────────────────────────┘                       │
-                       build-macos ───────────────────────────────────────────────────┘
+Stage 2 (parallel):    test-frontend ─┤     test-rust ────────┤
+                       test-e2e ──────┤                       │
+                                      │                       │
+Stage 3 (parallel):    security ──────┘─────┘                 │
+                                                              │
+Stage 4 (parallel):    build ─────────────────────────────────┘
                        sbom ──────────────────────────────────┘
 ```
+
+**Hinweis:** macOS-CI-Jobs (test-rust-macos, build-macos) sind derzeit deaktiviert. macOS-Builds erfolgen nur im Release-Workflow.
 
 | Stage | Runner | Jobs | Details |
 |-------|--------|------|---------|
 | **1. Lint** (parallel) | linux-x64 | `lint`: ESLint, Prettier, svelte-check, tsc --noEmit | Frontend Lint + Typecheck |
 | | linux-x64 | `rust-lint`: cargo fmt, Clippy | Rust Lint (parallel zu Frontend) |
 | **2. Tests** (parallel) | linux-x64 | `test-frontend`: Vitest mit Coverage | Coverage-Artefakt wird hochgeladen |
-| | linux-x64 | `test-rust-linux`: cargo test | Abhaengig von rust-lint |
-| | macos-arm64 | `test-rust-macos`: cargo test | Abhaengig von rust-lint |
+| | linux-x64 | `test-rust`: cargo test | Abhaengig von rust-lint |
 | | linux-x64 | `test-e2e`: Playwright E2E | Abhaengig von lint |
 | **3. Security** | linux-x64 | Semgrep (auto + OWASP Top 10), npm audit, cargo audit --deny warnings | Abhaengig von lint + rust-lint |
-| **4. Build** (parallel) | linux-x64 | Linux (.deb, .AppImage) | Abhaengig von test-frontend + test-rust-linux |
-| | macos-arm64 | macOS (.dmg) | Abhaengig von test-frontend + test-rust-macos |
+| **4. Build** | linux-x64 | Linux (.deb, .AppImage) | Abhaengig von test-frontend + test-rust |
 | **5. SBOM** | linux-x64 | CycloneDX Frontend + Backend | Parallel zu Build |
 
 ### Security-Checks
