@@ -50,6 +50,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -107,6 +112,11 @@ jobs:
     needs: [rust-lint]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Cache Cargo
         uses: actions/cache@v4
@@ -186,6 +196,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install security tools
+        run: |
+          pip install semgrep --break-system-packages || pip install semgrep
+          cargo install cargo-audit
+
       - name: Semgrep scan
         run: semgrep scan --config auto --error src-tauri/src/ src/
 
@@ -206,6 +226,16 @@ jobs:
     needs: [test-frontend, test-rust-linux]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -294,6 +324,16 @@ jobs:
     needs: [test-frontend, test-rust-linux]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install SBOM tools
+        run: |
+          cargo install cargo-cyclonedx
+          npm install -g @cyclonedx/cyclonedx-cli || true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
