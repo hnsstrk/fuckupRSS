@@ -316,7 +316,7 @@ pub fn get_system_theme() -> String {
         }
 
         // Default to dark for Linux
-        return "dark".to_string();
+        "dark".to_string()
     }
 
     // Fallback for other platforms (Windows, etc.)

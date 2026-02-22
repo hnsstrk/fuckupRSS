@@ -108,6 +108,7 @@ jobs:
 
       - name: Upload Coverage
         uses: actions/upload-artifact@v3
+        continue-on-error: true
         with:
           name: coverage-frontend
           path: coverage/
@@ -256,6 +257,7 @@ jobs:
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
+        continue-on-error: true
         with:
           name: linux-build
           path: |
@@ -316,6 +318,7 @@ jobs:
 
       - name: Upload SBOMs
         uses: actions/upload-artifact@v3
+        continue-on-error: true
         with:
           name: sbom
           path: sbom/*.json
