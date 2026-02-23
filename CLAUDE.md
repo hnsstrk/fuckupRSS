@@ -214,27 +214,37 @@ Pipeline in `.gitea/workflows/ci.yaml`. Release-Workflow in `.gitea/workflows/re
 
 | Was | Wo | Wie |
 |-----|----|-----|
-| Lint, Tests, Security, SBOM | **Callisto** (Linux-Runner) | Automatisch bei Push/PR |
-| Linux-Build (.deb, .AppImage) | **Callisto** (Linux-Runner) | Automatisch in CI |
+| Security Scan, SBOM | **Callisto** (Linux-Runner) | Automatisch bei Push/PR |
+| Linux-Build (.deb, .AppImage) | **Callisto** (Linux-Runner) | Automatisch bei Release (Tag-basiert) |
 | macOS-Build (.dmg, .app) | **Lokal** (MacBook) | Manuell via `./scripts/build-macos.sh` |
 
-**Entwickler-Workflow:** Push → Callisto prueft (Lint, Tests, Security, Linux-Build) → bei Bedarf `./scripts/build-macos.sh` lokal ausfuehren.
+**Entwickler-Workflow:** Commit → Pre-commit Hooks (Lint, Format) → Push → Pre-push Hooks (Tests, svelte-check) → Callisto prueft (Security, SBOM) → bei Release: `git tag v1.x.x && git push --tags` → Linux-Build + Gitea Release.
+
+**Warum kein Lint/Test/Build in CI?**
+- **Lint:** Redundant zu Pre-commit Hooks (ESLint+Prettier via lint-staged, cargo fmt+clippy)
+- **Tests:** Redundant zu Pre-push Hooks (Vitest, cargo test, svelte-check)
+- **Build:** Nur bei Releases noetig, nicht bei jedem Push
+- **E2E:** Nur gegen Vite-Dev-Server (kein Tauri-Backend in CI), daher limitierter Nutzen
 
 ### CI-Pipeline (Callisto, Linux-only)
 
-**Pipeline-Stages (parallelisiert):**
-1. **Lint** (parallel) - `lint`: ESLint, Prettier, svelte-check, tsc --noEmit | `rust-lint`: cargo fmt, Clippy
-2. **Tests** (parallel) - Vitest mit Coverage, cargo test, E2E (Playwright gegen Vite-Dev-Server)
-3. **Security** - Semgrep (auto + OWASP Top 10), npm audit, cargo audit --deny warnings
-4. **Build** - Linux (.deb, .AppImage)
-5. **SBOM** - CycloneDX Frontend + Backend
+**1 Job:** `security-sbom`
 
-**Coverage:** Frontend-Tests erzeugen Coverage-Artefakte (30 Tage Aufbewahrung).
+| Schritt | Details |
+|---------|---------|
+| **Semgrep auto** | `semgrep scan --config auto --error` auf src-tauri/src/ und src/ |
+| **Semgrep OWASP** | `semgrep scan --config p/owasp-top-ten --error` |
+| **npm audit** | `npm audit --audit-level=high --omit=dev` |
+| **cargo audit** | `cargo audit --file src-tauri/Cargo.lock --deny unsound --deny yanked` |
+| **Frontend SBOM** | CycloneDX via `@cyclonedx/cyclonedx-npm` |
+| **Backend SBOM** | CycloneDX via `cargo-cyclonedx` |
+| **SBOM Validierung** | JSON-Validierung beider SBOMs |
 
 ### Release-Workflow (Tag-basiert)
 
 - Ausgeloest durch `v*`-Tags (`git tag v1.x.x && git push --tags`)
-- Baut Linux + macOS parallel, erstellt Gitea Release mit Changelog + Artefakten
+- Baut nur Linux (.deb, .AppImage), erstellt Gitea Release mit Changelog + Artefakten
+- macOS-Build (.dmg) wird manuell via `scripts/build-macos.sh` erstellt und nachtraeglich zum Release hinzugefuegt
 - Benoetigt `GITEATOKEN` Secret in Gitea Repository-Settings
 
 ### Runner und Einschraenkungen
@@ -244,7 +254,6 @@ Pipeline in `.gitea/workflows/ci.yaml`. Release-Workflow in `.gitea/workflows/re
 **Bekannte Einschraenkungen:**
 - **Kein macOS-Runner** — macOS-Builds nur lokal via `scripts/build-macos.sh`
 - **Gitea Act Runner:** nur `upload-artifact@v3` (nicht v4), kein `sudo` im Container noetig (root)
-- **E2E-Tests in CI:** laufen nur gegen Vite-Dev-Server (kein Tauri-Backend verfuegbar)
 - **Node-Version:** gepinnt auf 22 (via CI, `.nvmrc`, `package.json engines`)
 
 ## Icons

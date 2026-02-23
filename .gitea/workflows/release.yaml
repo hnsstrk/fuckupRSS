@@ -54,82 +54,28 @@ jobs:
         run: npm run tauri build
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: linux-build
           path: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/appimage/*.AppImage
 
-  build-macos:
-    name: Build (macOS)
-    runs-on: macos-arm64
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install Rust toolchain
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        id: cache-node
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
-
-      - name: Install dependencies
-        if: steps.cache-node.outputs.cache-hit != 'true'
-        run: npm ci
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            src-tauri/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
-
-      - name: Build
-        run: npm run tauri build
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-build
-          path: src-tauri/target/release/bundle/dmg/*.dmg
-
   release:
     name: Create Release
     runs-on: linux-x64
     timeout-minutes: 10
-    needs: [build-linux, build-macos]
+    needs: [build-linux]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Download Linux artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: linux-build
           path: artifacts/linux
-
-      - name: Download macOS artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-build
-          path: artifacts/macos
 
       - name: Generate changelog
         id: changelog
@@ -148,7 +94,7 @@ jobs:
       - name: Collect release assets
         run: |
           mkdir -p release-assets
-          find artifacts/ -type f \( -name "*.deb" -o -name "*.AppImage" -o -name "*.dmg" \) -exec cp {} release-assets/ \;
+          find artifacts/ -type f \( -name "*.deb" -o -name "*.AppImage" \) -exec cp {} release-assets/ \;
           ls -la release-assets/
 
       - name: Create Gitea Release
@@ -168,7 +114,7 @@ jobs:
             -d "{
               \"tag_name\": \"${TAG_NAME}\",
               \"name\": \"fuckupRSS ${TAG_NAME}\",
-              \"body\": \"## Changes\\n\\n${CHANGELOG}\",
+              \"body\": \"## Changes\\n\\n${CHANGELOG}\\n\\n**Hinweis:** macOS-Build (.dmg) wird manuell erstellt und nachtraeglich hinzugefuegt.\",
               \"draft\": false,
               \"prerelease\": false
             }")

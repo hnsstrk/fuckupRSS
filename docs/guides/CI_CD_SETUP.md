@@ -20,16 +20,13 @@ fuckupRSS nutzt **Gitea Actions** mit `act_runner` im Host-Modus für CI/CD.
 ```
         Gitea (192.168.177.11:3000)
                     |
-              Linux Runner
+              Linux Runner (Callisto)
               (linux-x64:host)
-              - Lint
-              - Tests (Frontend, Rust, E2E)
-              - Security (Semgrep)
-              - Linux Build (.deb, .AppImage)
-              - SBOM
+              - CI: Security Scan + SBOM
+              - Release: Linux Build (.deb, .AppImage)
 ```
 
-**Hinweis:** macOS-CI-Jobs sind derzeit deaktiviert. Der macOS-Runner (`macos-arm64:host`) wird nur noch fuer den Release-Workflow genutzt.
+**Hinweis:** Lint, Tests und Typechecks laufen lokal via Git Hooks (Pre-commit + Pre-push) und sind nicht mehr in der CI-Pipeline. macOS-Builds erfolgen manuell via `scripts/build-macos.sh`.
 
 ## Voraussetzung: Gitea Server
 
@@ -100,7 +97,6 @@ sudo mv act_runner-linux-amd64 /usr/local/bin/act_runner
 
 # Voraussetzungen
 pip install semgrep
-npx playwright install chromium --with-deps
 cargo install cargo-audit cargo-cyclonedx
 
 # Registrieren
@@ -131,49 +127,45 @@ SERVICE
 sudo systemctl enable --now act-runner
 ```
 
-## Pipeline-Stages (CI)
+## Qualitaetssicherung: Lokale Hooks vs. CI
 
-Die CI-Pipeline ist in `.gitea/workflows/ci.yaml` definiert. Durch Parallelisierung betraegt die geschaetzte Gesamtlaufzeit **~35-40 Minuten**.
+Lint, Tests und Typechecks sind **nicht** in der CI-Pipeline, sondern laufen lokal via Git Hooks:
+
+| Pruefung | Hook | Details |
+|----------|------|---------|
+| ESLint + Prettier | Pre-commit (lint-staged) | Nur auf staged Dateien |
+| cargo fmt + Clippy | Pre-commit | Nur bei .rs-Aenderungen |
+| Vitest (Frontend) | Pre-push | Alle Frontend-Tests |
+| cargo test | Pre-push | `--lib --bins` |
+| svelte-check | Pre-push | TypeScript-Pruefung |
+
+**Begründung:** Da alle Qualitaetspruefungen bereits lokal erzwungen werden, waeren CI-Jobs redundant und wuerden den schwachen Runner (Intel N100) unnoetig belasten.
+
+## CI-Pipeline (Security + SBOM)
+
+Die CI-Pipeline ist in `.gitea/workflows/ci.yaml` definiert und besteht aus **einem einzigen Job**.
 
 ```
-Stage 1 (parallel):    lint ──────────┐     rust-lint ────────┐
-                                      │                       │
-Stage 2 (parallel):    test-frontend ─┤     test-rust ────────┤
-                       test-e2e ──────┤                       │
-                                      │                       │
-Stage 3 (parallel):    security ──────┘─────┘                 │
-                                                              │
-Stage 4 (parallel):    build ─────────────────────────────────┘
-                       sbom ──────────────────────────────────┘
+Push/PR zu main ──→ security-sbom (Security Scan + SBOM Generation)
 ```
-
-**Hinweis:** macOS-CI-Jobs (test-rust-macos, build-macos) sind derzeit deaktiviert. macOS-Builds erfolgen nur im Release-Workflow.
-
-| Stage | Runner | Jobs | Details |
-|-------|--------|------|---------|
-| **1. Lint** (parallel) | linux-x64 | `lint`: ESLint, Prettier, svelte-check, tsc --noEmit | Frontend Lint + Typecheck |
-| | linux-x64 | `rust-lint`: cargo fmt, Clippy | Rust Lint (parallel zu Frontend) |
-| **2. Tests** (parallel) | linux-x64 | `test-frontend`: Vitest mit Coverage | Coverage-Artefakt wird hochgeladen |
-| | linux-x64 | `test-rust`: cargo test | Abhaengig von rust-lint |
-| | linux-x64 | `test-e2e`: Playwright E2E | Abhaengig von lint |
-| **3. Security** | linux-x64 | Semgrep (auto + OWASP Top 10), npm audit, cargo audit --deny warnings | Abhaengig von lint + rust-lint |
-| **4. Build** | linux-x64 | Linux (.deb, .AppImage) | Abhaengig von test-frontend + test-rust |
-| **5. SBOM** | linux-x64 | CycloneDX Frontend + Backend | Parallel zu Build |
 
 ### Security-Checks
-
-Die Security-Stage umfasst vier Pruefungen:
 
 | Check | Command | Beschreibung |
 |-------|---------|-------------|
 | Semgrep auto | `semgrep scan --config auto --error` | Automatische Regeln, Fehler bei Fund |
 | Semgrep OWASP | `semgrep scan --config p/owasp-top-ten --error` | OWASP Top 10 Pruefung |
-| npm audit | `npm audit --audit-level=high` | Frontend-Dependencies (high+) |
-| cargo audit | `cargo audit --file src-tauri/Cargo.lock --deny warnings` | Rust-Dependencies (strikt, alle Warnings) |
+| npm audit | `npm audit --audit-level=high --omit=dev` | Frontend-Dependencies (high+) |
+| cargo audit | `cargo audit --file src-tauri/Cargo.lock --deny unsound --deny yanked` | Rust-Dependencies |
 
-### Coverage-Reporting
+### SBOM-Generierung
 
-Frontend-Tests laufen mit `npm run test:coverage` (Vitest). Das Coverage-Ergebnis wird als Artefakt (`coverage-frontend`) hochgeladen und 30 Tage aufbewahrt.
+| SBOM | Tool | Output |
+|------|------|--------|
+| Frontend | `@cyclonedx/cyclonedx-npm` | `sbom/frontend-bom.json` |
+| Backend | `cargo-cyclonedx` | `sbom/backend-bom.json` |
+
+Beide SBOMs werden nach Generierung JSON-validiert und als Artefakt hochgeladen.
 
 ## Release-Workflow
 
@@ -182,8 +174,9 @@ Der Release-Workflow ist in `.gitea/workflows/release.yaml` definiert und wird *
 ### Ablauf
 
 1. Ein Git-Tag mit `v`-Prefix erstellen und pushen
-2. Der Workflow baut automatisch fuer Linux und macOS (parallel)
-3. Ein Gitea Release wird erstellt mit Changelog und Build-Artefakten
+2. Der Workflow baut automatisch fuer Linux (.deb, .AppImage)
+3. Ein Gitea Release wird erstellt mit Changelog und Linux-Artefakten
+4. macOS-Build (.dmg) wird manuell via `scripts/build-macos.sh` erstellt und nachtraeglich zum Release hinzugefuegt
 
 ### Release erstellen
 
@@ -207,10 +200,10 @@ git push --tags
 
 ### Release-Artefakte
 
-| Plattform | Format |
-|-----------|--------|
-| Linux | `.deb`, `.AppImage` |
-| macOS | `.dmg` |
+| Plattform | Format | Quelle |
+|-----------|--------|--------|
+| Linux | `.deb`, `.AppImage` | Automatisch via CI (Callisto) |
+| macOS | `.dmg` | Manuell via `scripts/build-macos.sh` |
 
 Der Changelog wird automatisch aus den Commits seit dem letzten Tag generiert.
 
@@ -224,9 +217,14 @@ act_runner daemon --log-level debug
 curl http://192.168.177.11:3000/api/v1/version
 ```
 
-### Build schlägt fehl
+### Build schlaegt fehl
 ```bash
-# Lokal testen was CI tut
+# Lokal testen was CI tut (Security)
+semgrep scan --config auto src-tauri/src/ src/
+npm audit --audit-level=high --omit=dev
+cargo audit --file src-tauri/Cargo.lock --deny unsound --deny yanked
+
+# Lokal testen was Hooks pruefen
 npm run lint && npm run format:check && npm run test
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings

@@ -6,57 +6,13 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  TAURI_SYSTEM_DEPS: libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf pkg-config libssl-dev
-
 jobs:
-  # Stage 1: Lint & Type Check (parallel)
-  lint:
-    name: Lint & Type Check
+  security-sbom:
+    name: Security Scan & SBOM
     runs-on: linux-x64
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        id: cache-node
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
-
-      - name: Install dependencies
-        if: steps.cache-node.outputs.cache-hit != 'true'
-        run: npm ci
-
-      - name: ESLint
-        run: npm run lint
-
-      - name: Prettier check
-        run: npm run format:check
-
-      - name: Svelte check
-        run: npx svelte-check --tsconfig ./tsconfig.json
-
-      - name: TypeScript check
-        run: npx tsc --noEmit
-
-  rust-lint:
-    name: Rust Lint
-    runs-on: linux-x64
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Tauri system dependencies
-        run: |
-          apt-get update
-          apt-get install -y ${{ env.TAURI_SYSTEM_DEPS }}
 
       - name: Install Rust toolchain
         run: |
@@ -69,23 +25,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            src-tauri/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
-
-      - name: Rust format check
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-
-      - name: Clippy
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
-
-  # Stage 2: Tests (parallel)
-  test-frontend:
-    name: Frontend Tests
-    runs-on: linux-x64
-    timeout-minutes: 15
-    needs: [lint]
-    steps:
-      - uses: actions/checkout@v4
+          key: cargo-audit-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -103,98 +43,12 @@ jobs:
         if: steps.cache-node.outputs.cache-hit != 'true'
         run: npm ci
 
-      - name: Vitest with Coverage
-        run: npm run test:coverage
-
-      - name: Upload Coverage
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage-frontend
-          path: coverage/
-          retention-days: 30
-
-  test-rust:
-    name: Rust Tests
-    runs-on: linux-x64
-    timeout-minutes: 20
-    needs: [rust-lint]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Tauri system dependencies
-        run: |
-          apt-get update
-          apt-get install -y ${{ env.TAURI_SYSTEM_DEPS }}
-
-      - name: Install Rust toolchain
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            src-tauri/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
-
-      - name: Run tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib --bins
-
-  test-e2e:
-    name: E2E Tests
-    runs-on: linux-x64
-    timeout-minutes: 15
-    needs: [lint]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        id: cache-node
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
-
-      - name: Install dependencies
-        if: steps.cache-node.outputs.cache-hit != 'true'
-        run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
-
-      # NOTE: Playwright uses webServer to start 'npm run dev' (Vite only).
-      # Tests requiring Tauri backend (invoke calls, DB access) should
-      # mock Tauri APIs or be run locally with 'npm run tauri dev'.
-      - name: Run E2E tests
-        run: npm run test:e2e
-
-  # Stage 3: Security
-  security:
-    name: Security Scan
-    runs-on: linux-x64
-    timeout-minutes: 10
-    needs: [lint, rust-lint]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Install security tools
+      - name: Install security and SBOM tools
         run: |
           pip install semgrep --break-system-packages || pip install semgrep
-          cargo install cargo-audit
+          cargo install cargo-audit cargo-cyclonedx
 
+      # Security Scans
       - name: Semgrep scan
         run: semgrep scan --config auto --error src-tauri/src/ src/
 
@@ -207,94 +61,7 @@ jobs:
       - name: Cargo audit
         run: cargo audit --file src-tauri/Cargo.lock --deny unsound --deny yanked
 
-  # Stage 4: Build
-  build:
-    name: Build (Linux)
-    runs-on: linux-x64
-    timeout-minutes: 30
-    needs: [test-frontend, test-rust]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Tauri system dependencies
-        run: |
-          apt-get update
-          apt-get install -y ${{ env.TAURI_SYSTEM_DEPS }}
-
-      - name: Install Rust toolchain
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        id: cache-node
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
-
-      - name: Install dependencies
-        if: steps.cache-node.outputs.cache-hit != 'true'
-        run: npm ci
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            src-tauri/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
-
-      - name: Build
-        run: npm run tauri build
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: linux-build
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
-
-  # Stage 5: SBOM
-  sbom:
-    name: Generate SBOM
-    runs-on: linux-x64
-    timeout-minutes: 10
-    needs: [test-frontend, test-rust]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Install SBOM tools
-        run: cargo install cargo-cyclonedx
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        id: cache-node
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
-
-      - name: Install dependencies
-        if: steps.cache-node.outputs.cache-hit != 'true'
-        run: npm ci
-
+      # SBOM Generation
       - name: Create sbom directory
         run: mkdir -p sbom
 
