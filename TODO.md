@@ -11,6 +11,15 @@
   - Tauri-Roadmap bzgl. Linux-Backend-Alternativen beobachten
 - [ ] **Langfristiges Ziel:** cargo audit ohne GTK3-Ausnahmen bestehen
 
+## CI/CD Verbesserungen
+
+- [ ] **Rust-Toolchain cachen** — Aktuell wird bei jedem CI-Run `rustup.rs` frisch installiert. Tool-Cache konfigurieren oder Custom Runner-Image mit vorinstallierter Toolchain verwenden.
+- [ ] **Semgrep und Cargo-Tools cachen** — `pip install semgrep` und `cargo install cargo-audit cargo-cyclonedx` laufen bei jedem Run. Entweder in Custom Runner-Image einbacken oder Cache erweitern.
+- [ ] **Runner-Image pinnen** — Aktuell `:latest` Tag (`docker.gitea.com/runner-images:ubuntu-latest`). Für Reproduzierbarkeit auf spezifische Version pinnen.
+- [ ] **SBOM-Validierung verbessern** — Aktuell nur `JSON.parse()`. Besser: CycloneDX Schema-Validierung. Das npm-Paket `@cyclonedx/cyclonedx-cli` existiert nicht in npm, Alternative suchen oder als Binary im Runner-Image vorinstallieren.
+- [ ] **macOS-Build Checkliste** — macOS-Build ist manuell (`scripts/build-macos.sh`). Release-Checkliste erstellen damit der Schritt nicht vergessen wird.
+- [ ] **Dependency-Update-Automation** — Kein Renovate/Dependabot konfiguriert. Für automatische Dependency-Updates evaluieren (Gitea hat Renovate-Support).
+
 ## Linux-Rechner (RTX 3080Ti)
 
 - [ ] **Ollama Config bereinigen** - `OLLAMA_NUM_PARALLEL` entfernen (nicht mehr verwendet)
