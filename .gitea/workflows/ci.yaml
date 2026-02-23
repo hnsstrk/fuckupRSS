@@ -59,7 +59,7 @@ jobs:
         run: npm audit --audit-level=high --omit=dev
 
       - name: Cargo audit
-        run: cargo audit --file src-tauri/Cargo.lock --deny unsound --deny yanked
+        run: cargo audit --file src-tauri/Cargo.lock --deny yanked
 
       # SBOM Generation
       - name: Create sbom directory
