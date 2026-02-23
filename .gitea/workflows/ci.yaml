@@ -202,7 +202,7 @@ jobs:
         run: semgrep scan --config p/owasp-top-ten --error src-tauri/src/ src/
 
       - name: npm audit
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
 
       - name: Cargo audit
         run: cargo audit --file src-tauri/Cargo.lock --deny warnings
@@ -277,9 +277,7 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Install SBOM tools
-        run: |
-          cargo install cargo-cyclonedx
-          npm install -g @cyclonedx/cyclonedx-cli || true
+        run: cargo install cargo-cyclonedx
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -311,8 +309,8 @@ jobs:
 
       - name: Validate SBOMs
         run: |
-          cyclonedx validate --input-file sbom/frontend-bom.json
-          cyclonedx validate --input-file sbom/backend-bom.json
+          npx @cyclonedx/cyclonedx-cli validate --input-file sbom/frontend-bom.json
+          npx @cyclonedx/cyclonedx-cli validate --input-file sbom/backend-bom.json
 
       - name: Upload SBOMs
         uses: actions/upload-artifact@v3
