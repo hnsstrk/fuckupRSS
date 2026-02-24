@@ -4,6 +4,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { SvelteSet } from "svelte/reactivity";
   import Tooltip from "../Tooltip.svelte";
+  import ActionButton from "$lib/components/ui/ActionButton.svelte";
+  import { formatError } from "$lib/utils/formatError";
   import type { Keyword, TrueSynonymCandidate, SynonymVerificationResult } from "../../types";
 
   // Type for synonym candidate
@@ -142,7 +144,7 @@
         limit: 50,
       });
     } catch (e) {
-      trueSynonymsError = String(e);
+      trueSynonymsError = formatError(e);
       console.error("Failed to load true synonyms:", e);
     } finally {
       trueSynonymsLoading = false;
@@ -297,8 +299,11 @@
             class="merge-search-input"
           />
           {#if keepSearchInput}
-            <button onclick={onClearKeepSearch} class="clear-btn" aria-label="Clear"
-              ><i class="fa-solid fa-xmark"></i></button
+            <button
+              onclick={onClearKeepSearch}
+              class="clear-btn"
+              aria-label={$_("search.clearSearch")}
+              ><i class="fa-solid fa-xmark" aria-hidden="true"></i></button
             >
           {/if}
           {#if keepSearchResults.length > 0 && !selectedKeepKeyword}
@@ -343,8 +348,11 @@
             class="merge-search-input"
           />
           {#if removeSearchInput}
-            <button onclick={onClearRemoveSearch} class="clear-btn" aria-label="Clear"
-              ><i class="fa-solid fa-xmark"></i></button
+            <button
+              onclick={onClearRemoveSearch}
+              class="clear-btn"
+              aria-label={$_("search.clearSearch")}
+              ><i class="fa-solid fa-xmark" aria-hidden="true"></i></button
             >
           {/if}
           {#if removeSearchResults.length > 0 && !selectedRemoveKeyword}
@@ -419,13 +427,18 @@
         {$_("network.synonymCandidatesHint") ||
           "Diese Vorschläge basieren auf Embedding-Ähnlichkeit (semantische Nähe), nicht auf lexikalischer Übereinstimmung."}
       </p>
-      <button class="action-btn primary" onclick={onFindSynonyms} disabled={synonymsLoading}>
+      <ActionButton
+        variant="primary"
+        onclick={onFindSynonyms}
+        disabled={synonymsLoading}
+        loading={synonymsLoading}
+      >
         {#if synonymsLoading}
           {$_("network.loading") || "Lade..."}
         {:else}
           {$_("network.findSynonyms") || "Synonyme finden"}
         {/if}
-      </button>
+      </ActionButton>
 
       {#if synonymsError}
         <div class="feedback-message error">{synonymsError}</div>
@@ -504,17 +517,18 @@
           class="create-keyword-input"
           onkeydown={handleNewKeywordKeydown}
         />
-        <button
-          class="action-btn primary"
+        <ActionButton
+          variant="primary"
           onclick={onCreateNewKeyword}
           disabled={createKeywordLoading || !newKeywordInput.trim()}
+          loading={createKeywordLoading}
         >
           {#if createKeywordLoading}
             {$_("network.loading") || "Lade..."}
           {:else}
             {$_("network.create") || "Erstellen"}
           {/if}
-        </button>
+        </ActionButton>
       </div>
       {#if createKeywordError}
         <div class="feedback-message error">{createKeywordError}</div>
@@ -536,15 +550,19 @@
         "Diese Paare sind wahrscheinlich echte Synonyme (Abkürzungen, alternative Namen) basierend auf String-Ähnlichkeit."}
     </p>
 
-    <button class="action-btn primary" onclick={loadTrueSynonyms} disabled={trueSynonymsLoading}>
+    <ActionButton
+      variant="primary"
+      onclick={loadTrueSynonyms}
+      disabled={trueSynonymsLoading}
+      loading={trueSynonymsLoading}
+      icon={trueSynonymsLoading ? undefined : "fa-solid fa-magnifying-glass"}
+    >
       {#if trueSynonymsLoading}
-        <i class="fa-solid fa-spinner fa-spin"></i>
         {$_("network.loading") || "Lade..."}
       {:else}
-        <i class="fa-solid fa-magnifying-glass"></i>
         {$_("network.findTrueSynonyms") || "Echte Synonyme finden"}
       {/if}
-    </button>
+    </ActionButton>
 
     {#if trueSynonymsError}
       <div class="feedback-message error">{trueSynonymsError}</div>

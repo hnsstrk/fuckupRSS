@@ -23,6 +23,7 @@
     getSachlichkeitIcon,
     formatFullDate,
   } from "$lib/utils/articleFormat";
+  import { formatError } from "$lib/utils/formatError";
 
   // Track component mount state to prevent state updates after unmount
   let mounted = $state(true);
@@ -327,7 +328,7 @@
     } catch (e) {
       console.error("Fetch full content failed:", e);
       if (mounted) {
-        toasts.error(getSpecificFetchError(String(e)));
+        toasts.error(getSpecificFetchError(formatError(e)));
       }
     }
   }
@@ -388,7 +389,7 @@
     } catch (e) {
       console.error("AI analysis failed:", e);
       if (mounted) {
-        toasts.error($_("toast.analyzeError", { values: { error: String(e) } }));
+        toasts.error($_("toast.analyzeError", { values: { error: formatError(e) } }));
       }
     }
   }

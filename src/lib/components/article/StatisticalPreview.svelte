@@ -2,6 +2,7 @@
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
   import type { StatisticalAnalysis } from "$lib/types";
+  import { formatError } from "$lib/utils/formatError";
 
   interface Props {
     fnordId: number;
@@ -32,7 +33,7 @@
       analysis = await invoke<StatisticalAnalysis>("analyze_article_statistical", { fnordId });
     } catch (e) {
       console.error("Failed to load statistical analysis:", e);
-      error = e instanceof Error ? e.message : String(e);
+      error = formatError(e);
     } finally {
       loading = false;
     }
@@ -94,7 +95,7 @@
                     title={`Score: ${formatScore(kw.score)}, Häufigkeit: ${kw.frequency}`}
                   >
                     <span class="keyword-name">{kw.term}</span>
-                    <span class="keyword-score" style="color: {getConfidenceColor(kw.score)}">
+                    <span class="keyword-score" style:color={getConfidenceColor(kw.score)}>
                       {formatScore(kw.score)}
                     </span>
                   </span>
@@ -123,7 +124,7 @@
                       <span class="category-name">{cat.name}</span>
                       <span
                         class="category-confidence"
-                        style="color: {getConfidenceColor(cat.confidence)}"
+                        style:color={getConfidenceColor(cat.confidence)}
                       >
                         {formatScore(cat.confidence)}
                       </span>

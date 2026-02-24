@@ -18,6 +18,7 @@
     KeywordCloudEntry,
   } from "../types";
   import Tooltip from "./Tooltip.svelte";
+  import { formatError } from "$lib/utils/formatError";
   import Tabs, { type Tab } from "./Tabs.svelte";
   import { ArticleItemCompact } from "./article";
 
@@ -128,7 +129,7 @@
       }
     } catch (e) {
       console.error("[FnordView] Error loading extended stats:", e);
-      extendedStatsError = e instanceof Error ? e.message : String(e);
+      extendedStatsError = formatError(e);
     } finally {
       extendedStatsLoading = false;
     }
@@ -294,7 +295,7 @@
                     <span class="detail-label">{$_("fnordView.greyface.avgBias")}</span>
                     <span
                       class="detail-value"
-                      style="color: {getBiasColor(greyfaceIndex.avg_political_bias)}"
+                      style:color={getBiasColor(greyfaceIndex.avg_political_bias)}
                     >
                       {greyfaceIndex.avg_political_bias.toFixed(2)}
                     </span>
@@ -494,7 +495,7 @@
                       <td class="heatmap-cell" style="--intensity: {entry.bias_plus_2 / maxCell}">
                         {entry.bias_plus_2 || ""}
                       </td>
-                      <td class="avg-cell" style="color: {getBiasColor(entry.avg_bias)}">
+                      <td class="avg-cell" style:color={getBiasColor(entry.avg_bias)}>
                         {entry.avg_bias.toFixed(2)}
                       </td>
                     </tr>

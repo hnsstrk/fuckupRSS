@@ -318,7 +318,7 @@
               title={$_("common.cancel") || "Abbrechen"}
               aria-label={$_("common.cancel") || "Abbrechen"}
             >
-              <i class="fa-solid fa-times"></i>
+              <i class="fa-solid fa-times" aria-hidden="true"></i>
             </button>
           </div>
           {#if renameError}
@@ -332,7 +332,7 @@
             title={$_("network.renameKeyword") || "Umbenennen"}
             aria-label={$_("network.renameKeyword") || "Umbenennen"}
           >
-            <i class="fa-solid fa-pen"></i>
+            <i class="fa-solid fa-pen" aria-hidden="true"></i>
           </button>
         {/if}
       </div>
