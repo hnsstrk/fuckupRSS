@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+  import { formatError } from "$lib/utils/formatError";
   import {
     settings,
     type DarkTheme,
@@ -240,7 +241,7 @@
       });
       opmlPreview = preview;
     } catch (e) {
-      opmlError = String(e);
+      opmlError = formatError(e);
     }
   }
 
@@ -262,7 +263,7 @@
 
       await appState.loadPentacles();
     } catch (e) {
-      opmlError = String(e);
+      opmlError = formatError(e);
     } finally {
       opmlImporting = false;
     }
@@ -310,7 +311,7 @@
         values: { count: appState.pentacles.length },
       });
     } catch (e) {
-      opmlExportError = String(e);
+      opmlExportError = formatError(e);
     } finally {
       opmlExporting = false;
     }

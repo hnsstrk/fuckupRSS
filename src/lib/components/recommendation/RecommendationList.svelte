@@ -9,6 +9,7 @@
     RecommendationPhase,
   } from "../../types";
   import RecommendationCard from "./RecommendationCard.svelte";
+  import { formatError } from "$lib/utils/formatError";
 
   // Configuration
   const TIMEOUT_MS = 30000; // 30 second timeout
@@ -139,7 +140,7 @@
       cleanup();
       loadTimingMs = Date.now() - startTime;
 
-      const errorMessage = e instanceof Error ? e.message : String(e);
+      const errorMessage = formatError(e);
 
       if (errorMessage === "TIMEOUT") {
         loadState = {

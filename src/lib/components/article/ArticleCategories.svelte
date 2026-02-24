@@ -4,6 +4,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import type { ArticleCategoryDetailed, Sephiroth, CorrectionInput } from "$lib/types";
   import { getCategoryColorVar } from "$lib/utils/articleFormat";
+  import { formatError } from "$lib/utils/formatError";
 
   interface Props {
     fnordId: number;
@@ -56,7 +57,7 @@
       allCategories = await invoke<Sephiroth[]>("get_all_categories");
     } catch (e) {
       console.error("Failed to load categories:", e);
-      loadError = e instanceof Error ? e.message : String(e);
+      loadError = formatError(e);
     } finally {
       loading = false;
     }

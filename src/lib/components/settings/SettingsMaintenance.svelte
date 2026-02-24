@@ -7,6 +7,8 @@
   import { settings } from "../../stores/settings.svelte";
   import { onDestroy } from "svelte";
   import MaintenanceProgress from "./MaintenanceProgress.svelte";
+  import ActionButton from "$lib/components/ui/ActionButton.svelte";
+  import { formatError } from "$lib/utils/formatError";
 
   interface Props {
     ollamaAvailable: boolean;
@@ -514,7 +516,7 @@
       const stats = await invoke<ShortContentStats>("get_short_content_stats");
       shortContentStats = stats;
     } catch (e) {
-      shortContentError = String(e);
+      shortContentError = formatError(e);
     } finally {
       shortContentAnalyzing = false;
     }
@@ -543,7 +545,7 @@
       const stats = await invoke<ShortContentStats>("get_short_content_stats");
       shortContentStats = stats;
     } catch (e) {
-      shortContentError = String(e);
+      shortContentError = formatError(e);
     } finally {
       shortContentRefetching = false;
       shortContentProgress = null;
@@ -577,7 +579,7 @@
       const stats = await invoke<ShortContentStats>("get_short_content_stats");
       shortContentStats = stats;
     } catch (e) {
-      shortContentError = String(e);
+      shortContentError = formatError(e);
     } finally {
       refetchingFeed = null;
       shortContentProgress = null;
@@ -604,7 +606,7 @@
       await appState.loadFnords();
       await appState.loadPentacles();
     } catch (e) {
-      shortContentError = String(e);
+      shortContentError = formatError(e);
     }
   }
 
@@ -621,7 +623,7 @@
       // Refresh unprocessed count
       await appState.loadUnprocessedCount();
     } catch (e) {
-      shortContentError = String(e);
+      shortContentError = formatError(e);
     }
   }
 
@@ -755,14 +757,9 @@
       </p>
     </div>
     {#if maintenanceRunning !== "scores"}
-      <button
-        type="button"
-        class="btn-action"
-        onclick={handleCalculateScores}
-        disabled={maintenanceRunning !== null}
-      >
+      <ActionButton onclick={handleCalculateScores} disabled={maintenanceRunning !== null}>
         {$_("settings.maintenance.calculateScores")}
-      </button>
+      </ActionButton>
     {/if}
   </div>
 
@@ -791,14 +788,12 @@
       </p>
     </div>
     {#if maintenanceRunning !== "embeddings"}
-      <button
-        type="button"
-        class="btn-action"
+      <ActionButton
         onclick={handleGenerateEmbeddings}
         disabled={maintenanceRunning !== null || !ollamaAvailable}
       >
         {$_("settings.maintenance.generateEmbeddings")}
-      </button>
+      </ActionButton>
     {/if}
   </div>
 
@@ -874,14 +869,13 @@
       </p>
     </div>
     {#if maintenanceRunning !== "prune"}
-      <button
-        type="button"
-        class="btn-action btn-danger"
+      <ActionButton
+        variant="danger"
         onclick={showPruneConfirmation}
         disabled={maintenanceRunning !== null}
       >
         {$_("settings.maintenance.pruneLowQuality")}
-      </button>
+      </ActionButton>
     {/if}
   </div>
 
@@ -978,7 +972,7 @@
   {/if}
 </div>
 
-<h3 style="margin-top: 1.5rem;">
+<h3 class="maintenance-section-heading">
   {$_("settings.maintenance.reprocessArticles")}
 </h3>
 
@@ -991,14 +985,13 @@
       </p>
     </div>
     {#if !reanalyzeRunning && maintenanceRunning !== "reset"}
-      <button
-        type="button"
-        class="btn-action btn-danger"
+      <ActionButton
+        variant="danger"
         onclick={showResetConfirmation}
         disabled={maintenanceRunning !== null}
       >
         {$_("settings.maintenance.resetForReprocessing")}
-      </button>
+      </ActionButton>
     {/if}
   </div>
 
@@ -1026,7 +1019,7 @@
 </div>
 
 <!-- Orphaned Articles Section -->
-<h3 style="margin-top: 1.5rem;">
+<h3 class="maintenance-section-heading">
   {$_("settings.maintenance.orphanedArticles.title")}
 </h3>
 
@@ -1118,7 +1111,7 @@
 </div>
 
 <!-- Short Content Analysis Section -->
-<h3 style="margin-top: 1.5rem;">
+<h3 class="maintenance-section-heading">
   {$_("settings.maintenance.shortContent.title")}
 </h3>
 
@@ -1932,5 +1925,9 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
+
+  :global(.maintenance-section-heading) {
+    margin-top: 1.5rem;
   }
 </style>

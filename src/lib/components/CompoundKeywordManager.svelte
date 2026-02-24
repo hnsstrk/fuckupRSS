@@ -4,6 +4,7 @@
   import { onMount, onDestroy } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import KeywordContextTooltip from "./KeywordContextTooltip.svelte";
+  import { formatError } from "$lib/utils/formatError";
 
   // Type for compound preview item
   interface CompoundItem {
@@ -161,7 +162,7 @@
       selectAll = false;
       currentPage = 1;
     } catch (e) {
-      error = String(e);
+      error = formatError(e);
       console.error("Failed to load compound keywords:", e);
     } finally {
       loading = false;
@@ -235,7 +236,7 @@
         $_("compound.preserved", { values: { name: item.original } }) ||
         `"${item.original}" preserved`;
     } catch (e) {
-      error = String(e);
+      error = formatError(e);
       console.error("Failed to preserve keyword:", e);
     }
   }
@@ -257,7 +258,7 @@
         $_("compound.unpreserved", { values: { name: item.original } }) ||
         `"${item.original}" protection removed`;
     } catch (e) {
-      error = String(e);
+      error = formatError(e);
       console.error("Failed to unpreserve keyword:", e);
     }
   }
@@ -291,7 +292,7 @@
 
       if (loadKeywords) await loadKeywords();
     } catch (e) {
-      error = String(e);
+      error = formatError(e);
       console.error("Failed to split keyword:", e);
     } finally {
       splitting = false;
@@ -434,7 +435,7 @@
         c.id === item.id ? { ...c, keyword_type: newType } : c,
       );
     } catch (e) {
-      error = String(e);
+      error = formatError(e);
       console.error("Failed to update keyword type:", e);
     }
   }
