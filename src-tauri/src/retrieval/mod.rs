@@ -68,6 +68,9 @@ impl HagbardRetrieval {
         // Restore media elements
         let content = postprocess_media_tags(&extracted.content, &replacements);
 
+        // Sanitize HTML to prevent XSS
+        let content = sanitize_html(&content);
+
         Ok(ExtractedArticle {
             title: Some(extracted.title),
             content,
@@ -116,6 +119,9 @@ impl HagbardRetrieval {
 
         let content = postprocess_media_tags(&extracted.content, &replacements);
 
+        // Sanitize HTML to prevent XSS
+        let content = sanitize_html(&content);
+
         let result = ExtractedArticle {
             title: Some(extracted.title),
             content,
@@ -162,6 +168,9 @@ impl HagbardRetrieval {
 
         let rendered_content =
             postprocess_media_tags(&extracted_from_rendered.content, &rendered_replacements);
+
+        // Sanitize HTML to prevent XSS
+        let rendered_content = sanitize_html(&rendered_content);
 
         let headless_result = ExtractedArticle {
             title: Some(extracted_from_rendered.title),
@@ -230,6 +239,95 @@ impl Default for HagbardRetrieval {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Sanitize HTML content to prevent XSS attacks.
+/// Allows safe formatting tags, links, images, and embedded media (iframe, video).
+fn sanitize_html(html: &str) -> String {
+    use std::collections::HashSet;
+
+    let mut builder = ammonia::Builder::new();
+
+    // Allow standard formatting and structural tags
+    let mut tags: HashSet<&str> = HashSet::new();
+    for tag in &[
+        "p", "br", "div", "span", "h1", "h2", "h3", "h4", "h5", "h6", "a", "img", "ul", "ol",
+        "li", "blockquote", "pre", "code", "em", "strong", "b", "i", "u", "sub", "sup", "table",
+        "thead", "tbody", "tr", "th", "td", "figure", "figcaption", "picture", "source",
+        // Media tags that the preprocess/postprocess pipeline preserves
+        "iframe", "video", "audio", "object", "embed",
+    ] {
+        tags.insert(tag);
+    }
+    builder.tags(tags);
+
+    // Allow safe attributes for links, images, and media
+    let mut tag_attrs: HashMap<&str, HashSet<&str>> = HashMap::new();
+
+    let mut a_attrs = HashSet::new();
+    a_attrs.insert("href");
+    a_attrs.insert("title");
+    a_attrs.insert("rel");
+    tag_attrs.insert("a", a_attrs);
+
+    let mut img_attrs = HashSet::new();
+    img_attrs.insert("src");
+    img_attrs.insert("alt");
+    img_attrs.insert("title");
+    img_attrs.insert("width");
+    img_attrs.insert("height");
+    img_attrs.insert("loading");
+    tag_attrs.insert("img", img_attrs);
+
+    let mut iframe_attrs = HashSet::new();
+    iframe_attrs.insert("src");
+    iframe_attrs.insert("width");
+    iframe_attrs.insert("height");
+    iframe_attrs.insert("frameborder");
+    iframe_attrs.insert("allowfullscreen");
+    iframe_attrs.insert("allow");
+    iframe_attrs.insert("title");
+    tag_attrs.insert("iframe", iframe_attrs);
+
+    let mut video_attrs = HashSet::new();
+    video_attrs.insert("src");
+    video_attrs.insert("width");
+    video_attrs.insert("height");
+    video_attrs.insert("controls");
+    video_attrs.insert("poster");
+    tag_attrs.insert("video", video_attrs);
+
+    let mut audio_attrs = HashSet::new();
+    audio_attrs.insert("src");
+    audio_attrs.insert("controls");
+    tag_attrs.insert("audio", audio_attrs);
+
+    let mut source_attrs = HashSet::new();
+    source_attrs.insert("src");
+    source_attrs.insert("srcset");
+    source_attrs.insert("type");
+    source_attrs.insert("media");
+    tag_attrs.insert("source", source_attrs);
+
+    let mut td_attrs = HashSet::new();
+    td_attrs.insert("colspan");
+    td_attrs.insert("rowspan");
+    tag_attrs.insert("td", td_attrs.clone());
+    tag_attrs.insert("th", td_attrs);
+
+    builder.tag_attributes(tag_attrs);
+
+    // Allow https and data URIs for images
+    let mut url_schemes: HashSet<&str> = HashSet::new();
+    url_schemes.insert("http");
+    url_schemes.insert("https");
+    url_schemes.insert("data");
+    builder.url_schemes(url_schemes);
+
+    // Force rel="noopener noreferrer" on links
+    builder.link_rel(Some("noopener noreferrer"));
+
+    builder.clean(html).to_string()
 }
 
 /// Preprocess HTML to mask media elements so they don't get stripped by readability

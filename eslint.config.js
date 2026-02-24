@@ -38,7 +38,7 @@ export default tseslint.config(
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/ban-ts-comment": "warn",
-      "svelte/no-at-html-tags": "warn",
+      "svelte/no-at-html-tags": "error",
       "svelte/require-each-key": "warn",
       "svelte/prefer-svelte-reactivity": "warn",
       "svelte/prefer-writable-derived": "warn",
