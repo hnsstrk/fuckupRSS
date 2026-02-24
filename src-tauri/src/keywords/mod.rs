@@ -18,11 +18,13 @@ static CAPITALIZED_PATTERN: Lazy<Regex> =
 static ACRONYM_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b([A-Z]{2,6})\b").unwrap());
 
 pub mod advanced;
+#[cfg(feature = "clustering")]
 pub mod clustering;
 pub mod config;
 pub mod types;
 
 // Clustering types are used by batch_processor.rs for cluster-based batch processing
+#[cfg(feature = "clustering")]
 pub use clustering::{
     calculate_savings, cluster_articles, get_representatives, ArticleCluster, ArticleForClustering,
     ClusterConfig, ClusteringResult,

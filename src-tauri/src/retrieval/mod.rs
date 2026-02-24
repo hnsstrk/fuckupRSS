@@ -40,14 +40,13 @@ pub struct HagbardRetrieval {
 }
 
 impl HagbardRetrieval {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, RetrievalError> {
         let client = reqwest_new::Client::builder()
             .timeout(Duration::from_secs(30))
             .user_agent("Mozilla/5.0 (compatible; fuckupRSS/0.1; +https://github.com/fuckuprss)")
-            .build()
-            .expect("Failed to create HTTP client");
+            .build()?;
 
-        Self { client }
+        Ok(Self { client })
     }
 
     /// Fetch and extract full article content from URL
@@ -228,7 +227,7 @@ impl HagbardRetrieval {
 
 impl Default for HagbardRetrieval {
     fn default() -> Self {
-        Self::new()
+        Self::new().expect("Failed to create HTTP client for HagbardRetrieval")
     }
 }
 

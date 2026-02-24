@@ -103,7 +103,7 @@ pub async fn fetch_full_content(
     state: State<'_, AppState>,
     fnord_id: i64,
 ) -> Result<RetrievalResponse, String> {
-    let retrieval = HagbardRetrieval::new();
+    let retrieval = to_cmd_err!(HagbardRetrieval::new());
 
     // Get article URL and headless setting (sync)
     let (url, use_headless): (String, bool) = {
@@ -172,7 +172,7 @@ pub async fn fetch_truncated_articles(
     state: State<'_, AppState>,
     pentacle_id: Option<i64>,
 ) -> Result<Vec<RetrievalResponse>, String> {
-    let retrieval = HagbardRetrieval::new();
+    let retrieval = to_cmd_err!(HagbardRetrieval::new());
 
     // Get articles and headless setting (sync)
     let (articles, use_headless): (Vec<(i64, String, Option<String>)>, bool) = {
@@ -313,7 +313,7 @@ pub async fn refetch_short_articles(
     let min_length = min_content_length.unwrap_or(500);
     let max_articles = limit.unwrap_or(100);
 
-    let retrieval = HagbardRetrieval::new();
+    let retrieval = to_cmd_err!(HagbardRetrieval::new());
 
     // Get articles with short content and headless setting (sync)
     let (articles, use_headless): (Vec<(i64, String, String, i64)>, bool) = {
@@ -744,7 +744,7 @@ pub async fn refetch_feed_short_articles(
     let min_length = min_content_length.unwrap_or(500);
     let max_articles = limit.unwrap_or(50);
 
-    let retrieval = HagbardRetrieval::new();
+    let retrieval = to_cmd_err!(HagbardRetrieval::new());
 
     // Get articles with short content for specific feed (sync)
     let (articles, use_headless): (Vec<(i64, String, String, i64)>, bool) = {
@@ -997,7 +997,7 @@ pub async fn fetch_fulltext_batch(
     };
 
     // Create shared retrieval client
-    let retrieval = Arc::new(HagbardRetrieval::new());
+    let retrieval = Arc::new(to_cmd_err!(HagbardRetrieval::new()));
     let db_arc = state.db.clone();
 
     // Process articles in parallel

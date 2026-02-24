@@ -1,10 +1,13 @@
+// error module must be declared first so the to_cmd_err! macro is available everywhere
+#[macro_use]
+pub mod error;
+
 pub mod ai_provider;
 mod categories;
 mod commands;
 mod db;
 mod embedding_worker;
 mod embeddings;
-pub mod error;
 mod keywords;
 mod logging;
 mod ollama;
