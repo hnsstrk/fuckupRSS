@@ -49,6 +49,10 @@ strsim = "0.11"
 async-trait = "0.1"
 ammonia = "4"
 
+[features]
+default = []
+clustering = []
+
 [dev-dependencies]
 tempfile = "3"
 tokio-test = "0.4"

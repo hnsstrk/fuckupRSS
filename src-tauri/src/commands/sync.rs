@@ -114,7 +114,13 @@ async fn fetch_full_content_for_articles_parallel(
     );
 
     // Create shared retrieval client
-    let retrieval = Arc::new(HagbardRetrieval::new());
+    let retrieval = match HagbardRetrieval::new() {
+        Ok(r) => Arc::new(r),
+        Err(e) => {
+            warn!("Failed to create HagbardRetrieval: {}", e);
+            return 0;
+        }
+    };
     let db_arc = state.db.clone();
 
     // Process articles in parallel using futures::stream

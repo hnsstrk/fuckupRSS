@@ -14,9 +14,6 @@
 //! **Trade-off:** Speed (~30-50% fewer LLM calls) vs. accuracy (cluster transfers use confidence=0.85).
 //! **To enable:** Register command in invoke_handler (lib.rs), add frontend UI, write integration tests.
 
-// Allow dead code - this module is implemented but intentionally dormant (not exposed to frontend)
-#![allow(dead_code)]
-
 use std::collections::{HashMap, HashSet};
 
 /// Configuration for article clustering

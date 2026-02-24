@@ -119,11 +119,11 @@ impl CategoryClassifier {
         }
     }
 
-    fn client(&self) -> reqwest_new::Client {
+    fn client(&self) -> Result<reqwest_new::Client, String> {
         reqwest_new::Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .expect("Failed to create HTTP client")
+            .map_err(|e| format!("Failed to create HTTP client: {}", e))
     }
 
     pub async fn classify(
@@ -150,7 +150,7 @@ impl CategoryClassifier {
 
     async fn generate(&self, prompt: &str) -> Result<String, String> {
         let url = format!("{}/api/generate", self.base_url);
-        let client = self.client();
+        let client = self.client()?;
 
         let request = GenerateRequest {
             model: self.model.clone(),
