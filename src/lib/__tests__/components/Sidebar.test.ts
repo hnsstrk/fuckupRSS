@@ -72,8 +72,8 @@ import { appState, toasts } from "../../stores/state.svelte";
 describe("Sidebar Component Logic", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (appState as Record<string, unknown>).error = null;
-    (appState as Record<string, unknown>).syncing = false;
+    (appState as unknown as Record<string, unknown>).error = null;
+    (appState as unknown as Record<string, unknown>).syncing = false;
   });
 
   describe("Sync Handling", () => {
@@ -123,7 +123,7 @@ describe("Sidebar Component Logic", () => {
 
     it("shows error toast when sync fails", async () => {
       vi.mocked(appState.syncAllFeeds).mockResolvedValue(null);
-      (appState as Record<string, unknown>).error = "Connection failed";
+      (appState as unknown as Record<string, unknown>).error = "Connection failed";
 
       const handleSync = async () => {
         const result = await appState.syncAllFeeds();
@@ -179,7 +179,7 @@ describe("Sidebar Component Logic", () => {
   describe("Feed Management", () => {
     it("adds feed and shows success toast", async () => {
       vi.mocked(appState.addPentacle).mockImplementation(() => {
-        (appState as Record<string, unknown>).error = null;
+        (appState as unknown as Record<string, unknown>).error = null;
         return Promise.resolve();
       });
 
@@ -239,7 +239,7 @@ describe("Sidebar Component Logic", () => {
 
     it("shows error toast when adding feed fails", async () => {
       vi.mocked(appState.addPentacle).mockImplementation(() => {
-        (appState as Record<string, unknown>).error = "Invalid URL";
+        (appState as unknown as Record<string, unknown>).error = "Invalid URL";
         return Promise.resolve();
       });
 
@@ -259,7 +259,7 @@ describe("Sidebar Component Logic", () => {
 
     it("deletes feed and shows success toast", async () => {
       vi.mocked(appState.deletePentacle).mockImplementation(() => {
-        (appState as Record<string, unknown>).error = null;
+        (appState as unknown as Record<string, unknown>).error = null;
         return Promise.resolve();
       });
 
@@ -420,7 +420,7 @@ describe("Sidebar Component Logic", () => {
 
     it("shows error toast when batch processing fails", async () => {
       vi.mocked(appState.startBatchProcessing).mockResolvedValue(null);
-      (appState as Record<string, unknown>).error = "Ollama not available";
+      (appState as unknown as Record<string, unknown>).error = "Ollama not available";
 
       const handleBatchProcessing = async () => {
         const result = await appState.startBatchProcessing();

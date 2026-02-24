@@ -95,7 +95,7 @@ describe("ArticleList Component Logic", () => {
         }
       };
 
-      (appState as Record<string, unknown>).loadingMore = false;
+      (appState as unknown as Record<string, unknown>).loadingMore = false;
       handleScroll(150);
 
       expect(appState.loadMoreFnords).toHaveBeenCalled();
