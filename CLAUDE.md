@@ -13,6 +13,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `CLAUDE.md` | Entwickler-Kontext fuer Claude Code | Build-Aenderungen, neue Patterns, Strukturaenderungen |
 | `docs/guides/QUALITY_CHECKLIST.md` | Frontend-Backend-Kommunikation Checkliste | Neue invoke-Calls, Event-Listener, State-Updates |
 
+## Task Management
+
+Alle offenen Tasks werden zentral in **Taskwarrior** verwaltet (Projekt: `fuckupRSS`).
+
+```bash
+task project:fuckupRSS list          # Alle offenen Tasks
+task project:fuckupRSS +bug list     # Nur Bugs
+task project:fuckupRSS +refactor list # Refactoring-Tasks
+task project:fuckupRSS +cicd list    # CI/CD Verbesserungen
+```
+
+Die `TODO.md` enthaelt nur noch erledigte Items als Referenz und einen Verweis auf Taskwarrior.
+
 ### Dokumentations-Workflow
 
 1. **Vor Implementierung:** Anforderungsdokument lesen und verstehen
@@ -426,7 +439,7 @@ fuckupRSS/
 ├── playwright-cli.json           # Playwright CLI Konfiguration
 ├── README.md                     # Projekt-Dokumentation
 ├── CLAUDE.md                     # Diese Datei
-└── TODO.md                       # Zentrale Aufgabenliste
+└── TODO.md                       # Archiv + Verweis auf Taskwarrior
 ```
 
 ## i18n (Internationalisierung)
