@@ -1273,11 +1273,20 @@ pub async fn process_batch(
     // Trigger WAL checkpoint if many changes were made
     if succeeded_final >= 100 {
         if let Ok(db) = state.db.lock() {
-            match db.conn().execute("PRAGMA wal_checkpoint(PASSIVE)", []) {
-                Ok(_) => {
+            match db.conn().query_row(
+                "PRAGMA wal_checkpoint(PASSIVE)",
+                [],
+                |row| {
+                    let busy: i32 = row.get(0)?;
+                    let log: i32 = row.get(1)?;
+                    let checkpointed: i32 = row.get(2)?;
+                    Ok((busy, log, checkpointed))
+                },
+            ) {
+                Ok((busy, log, checkpointed)) => {
                     info!(
-                        "WAL checkpoint triggered after processing {} articles",
-                        succeeded_final
+                        "WAL checkpoint after processing {} articles: busy={}, log={}, checkpointed={}",
+                        succeeded_final, busy, log, checkpointed
                     );
                 }
                 Err(e) => {

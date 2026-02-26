@@ -267,11 +267,20 @@ pub async fn sync_all_feeds(state: State<'_, AppState>) -> Result<SyncResponse, 
     // Trigger WAL checkpoint if we synced a significant number of articles
     if total_new + total_updated >= 100 {
         if let Ok(db) = state.db.lock() {
-            match db.conn().execute("PRAGMA wal_checkpoint(PASSIVE)", []) {
-                Ok(_) => {
+            match db.conn().query_row(
+                "PRAGMA wal_checkpoint(PASSIVE)",
+                [],
+                |row| {
+                    let busy: i32 = row.get(0)?;
+                    let log: i32 = row.get(1)?;
+                    let checkpointed: i32 = row.get(2)?;
+                    Ok((busy, log, checkpointed))
+                },
+            ) {
+                Ok((busy, log, checkpointed)) => {
                     info!(
-                        "WAL checkpoint triggered after syncing {} articles",
-                        total_new + total_updated
+                        "WAL checkpoint after syncing {} articles: busy={}, log={}, checkpointed={}",
+                        total_new + total_updated, busy, log, checkpointed
                     );
                 }
                 Err(e) => {
