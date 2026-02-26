@@ -774,20 +774,17 @@ pub fn get_trending_comparison(
         daily_counts.entry(id).or_default().insert(date, count);
     }
 
-    // Build result preserving original order
+    // Build result preserving original order, skip entries without name (orphaned)
     let keywords: Vec<KeywordTrendData> = ids
         .iter()
-        .map(|&id| {
-            let name = names_map
-                .get(&id)
-                .cloned()
-                .unwrap_or_else(|| format!("Keyword {}", id));
+        .filter_map(|&id| {
+            let name = names_map.get(&id).cloned()?;
             let id_counts = daily_counts.get(&id);
             let counts: Vec<i64> = dates
                 .iter()
                 .map(|d| id_counts.and_then(|c| c.get(d)).copied().unwrap_or(0))
                 .collect();
-            KeywordTrendData { id, name, counts }
+            Some(KeywordTrendData { id, name, counts })
         })
         .collect();
 
@@ -1748,14 +1745,15 @@ pub fn find_synonym_candidates(
             }
             seen_pairs.insert((min_id, max_id));
 
-            // Get neighbor name
-            let neighbor_name: String = conn
-                .query_row(
-                    "SELECT name FROM immanentize WHERE id = ?",
-                    [neighbor_id],
-                    |row| row.get(0),
-                )
-                .unwrap_or_else(|_| format!("Keyword {}", neighbor_id));
+            // Get neighbor name (skip orphaned vec_immanentize entries)
+            let neighbor_name: String = match conn.query_row(
+                "SELECT name FROM immanentize WHERE id = ?",
+                [neighbor_id],
+                |row| row.get(0),
+            ) {
+                Ok(name) => name,
+                Err(_) => continue, // Orphaned entry in vec_immanentize, skip
+            };
 
             // Convert distance back to similarity
             let similarity = 1.0 - distance;
@@ -2910,6 +2908,11 @@ pub fn cleanup_keywords(state: State<AppState>) -> Result<KeywordCleanupResult, 
             .ok();
             conn.execute("DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ?1 OR immanentize_id_b = ?1", params![id])
                 .ok();
+            conn.execute(
+                "DELETE FROM vec_immanentize WHERE immanentize_id = ?1",
+                params![id],
+            )
+            .ok();
             if conn
                 .execute("DELETE FROM immanentize WHERE id = ?1", params![id])
                 .is_ok()
@@ -3188,6 +3191,12 @@ pub fn split_compound_keywords(
         conn.execute(
             "DELETE FROM dismissed_synonyms WHERE keyword_a_id = ? OR keyword_b_id = ?",
             params![compound_id, compound_id],
+        )
+        .ok();
+
+        conn.execute(
+            "DELETE FROM vec_immanentize WHERE immanentize_id = ?",
+            [compound_id],
         )
         .ok();
 
