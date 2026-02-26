@@ -13,6 +13,7 @@
 
 <div class="content-section">
   <div class="section-content">
+    <!-- eslint-disable svelte/no-at-html-tags -->
     <article class="article-body">
       {#if contentFull}
         {@html sanitizeArticleContent(contentFull)}

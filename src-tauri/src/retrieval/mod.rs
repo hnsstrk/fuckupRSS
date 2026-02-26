@@ -21,7 +21,13 @@ pub enum RetrievalError {
     #[error("Database error: {0}")]
     Db(#[from] rusqlite::Error),
     #[error("Headless browser error: {0}")]
-    Headless(#[from] HeadlessError),
+    Headless(Box<HeadlessError>),
+}
+
+impl From<HeadlessError> for RetrievalError {
+    fn from(err: HeadlessError) -> Self {
+        RetrievalError::Headless(Box::new(err))
+    }
 }
 
 /// Extracted article content
@@ -250,11 +256,47 @@ fn sanitize_html(html: &str) -> String {
     // Allow standard formatting and structural tags
     let mut tags: HashSet<&str> = HashSet::new();
     for tag in &[
-        "p", "br", "div", "span", "h1", "h2", "h3", "h4", "h5", "h6", "a", "img", "ul", "ol",
-        "li", "blockquote", "pre", "code", "em", "strong", "b", "i", "u", "sub", "sup", "table",
-        "thead", "tbody", "tr", "th", "td", "figure", "figcaption", "picture", "source",
+        "p",
+        "br",
+        "div",
+        "span",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "a",
+        "img",
+        "ul",
+        "ol",
+        "li",
+        "blockquote",
+        "pre",
+        "code",
+        "em",
+        "strong",
+        "b",
+        "i",
+        "u",
+        "sub",
+        "sup",
+        "table",
+        "thead",
+        "tbody",
+        "tr",
+        "th",
+        "td",
+        "figure",
+        "figcaption",
+        "picture",
+        "source",
         // Media tags that the preprocess/postprocess pipeline preserves
-        "iframe", "video", "audio", "object", "embed",
+        "iframe",
+        "video",
+        "audio",
+        "object",
+        "embed",
     ] {
         tags.insert(tag);
     }

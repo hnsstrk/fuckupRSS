@@ -94,7 +94,6 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_tabindex a11y-no-noninteractive-tabindex -->
 <div
   class="article-card"
   class:clickable={!!onclick}

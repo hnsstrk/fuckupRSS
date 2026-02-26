@@ -89,7 +89,7 @@
                 <span class="count">({analysis.keyword_candidates.length})</span>
               </h4>
               <div class="keyword-chips">
-                {#each analysis.keyword_candidates.slice(0, 10) as kw}
+                {#each analysis.keyword_candidates.slice(0, 10) as kw (kw.term)}
                   <span
                     class="keyword-chip"
                     title={`Score: ${formatScore(kw.score)}, Häufigkeit: ${kw.frequency}`}
@@ -118,7 +118,7 @@
                 <span class="count">({analysis.category_scores.length})</span>
               </h4>
               <div class="category-list">
-                {#each analysis.category_scores as cat}
+                {#each analysis.category_scores as cat (cat.name)}
                   <div class="category-item">
                     <div class="category-header">
                       <span class="category-name">{cat.name}</span>
@@ -134,7 +134,7 @@
                         <span class="terms-label">
                           {$_("articleView.matchingTerms") || "Passende Begriffe"}:
                         </span>
-                        {#each cat.matching_terms.slice(0, 5) as term}
+                        {#each cat.matching_terms.slice(0, 5) as term (term)}
                           <span class="term-tag">{term}</span>
                         {/each}
                         {#if cat.matching_terms.length > 5}

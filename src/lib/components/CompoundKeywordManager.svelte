@@ -379,7 +379,7 @@
         selectedIds.delete(id);
         preserveSuccessCount++;
       }
-    } catch (e) {
+    } catch {
       // Fallback to individual calls if batch not available
       for (const id of idsToPreserve) {
         try {

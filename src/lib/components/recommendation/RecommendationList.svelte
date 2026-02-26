@@ -132,7 +132,7 @@
         loadStats();
       }
 
-      console.log(`[${reqId}] Recommendations loaded in ${loadTimingMs}ms:`, {
+      console.warn(`[${reqId}] Recommendations loaded in ${loadTimingMs}ms:`, {
         count: result.length,
         phase: "complete",
       });
@@ -194,7 +194,7 @@
   function handleCancel() {
     cleanup();
     loadState = { status: "cancelled" };
-    console.log(`[${requestId}] Request cancelled by user`);
+    console.warn(`[${requestId}] Request cancelled by user`);
   }
 
   async function handleRetry() {
@@ -277,7 +277,7 @@
       <p class="loading-phase">{getPhaseText(loadState.phase)}</p>
       <div class="loading-progress">
         <div class="progress-bar">
-          {#each phases as phase, i}
+          {#each phases as phase, i (phase)}
             <div
               class="progress-step"
               class:active={phases.indexOf(loadState.phase) >= i}
@@ -441,7 +441,7 @@
       <h4>
         <i class="fa-solid fa-bug"></i>
         Diagnose
-        <button type="button" class="close-btn" onclick={() => (showDiagnostics = false)}>
+        <button type="button" class="close-btn" aria-label="Schließen" onclick={() => (showDiagnostics = false)}>
           <i class="fa-solid fa-xmark"></i>
         </button>
       </h4>

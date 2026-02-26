@@ -320,7 +320,7 @@
     <p class="stopword-empty">{$_("settings.stopwords.noResults")}</p>
   {:else}
     <div class="stopword-chips">
-      {#each userStopwords as sw}
+      {#each userStopwords as sw (sw.word)}
         <span class="stopword-chip user">
           <span class="stopword-word">{sw.word}</span>
           <button
@@ -351,7 +351,7 @@
 
   {#if stopwordSearchResults.length > 0}
     <div class="stopword-search-results">
-      {#each stopwordSearchResults as result}
+      {#each stopwordSearchResults as result (result.word)}
         <span class="stopword-chip {result.is_builtin ? 'builtin' : 'user'}">
           <span class="stopword-word">{result.word}</span>
           <span class="stopword-type">

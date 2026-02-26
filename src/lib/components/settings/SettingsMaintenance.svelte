@@ -255,13 +255,11 @@
         min_age_days: 7,
         dry_run: false,
       });
-      console.log("Prune result:", result);
       if (result.pruned_count === 0) {
         maintenanceResult = $_("settings.maintenance.noPruneCandidates");
       } else {
         maintenanceResult = `${result.pruned_count} ${$_("settings.maintenance.pruned")}`;
       }
-      console.log("maintenanceResult set to:", maintenanceResult);
       await loadKeywordStats();
     } catch (e) {
       console.error("Prune error:", e);
@@ -912,16 +910,6 @@
   .btn-action:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-  }
-
-  .btn-action.btn-danger {
-    border-color: var(--status-error);
-    color: var(--status-error);
-  }
-
-  .btn-action.btn-danger:hover:not(:disabled) {
-    background-color: var(--status-error);
-    color: var(--text-on-accent);
   }
 
   .btn-action.btn-small {

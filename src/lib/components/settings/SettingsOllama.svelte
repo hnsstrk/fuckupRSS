@@ -228,7 +228,7 @@
         baseUrl: ollamaUrl,
         apiKey: null,
       });
-    } catch (e) {
+    } catch {
       ollamaTestResult = { success: false, latency_ms: 0, models: [] };
     }
     testingOllama = false;
@@ -301,7 +301,7 @@
   async function loadMonthlyCost() {
     try {
       monthlyCost = await invoke("get_monthly_cost");
-    } catch (e) {
+    } catch {
       monthlyCost = null;
     }
   }

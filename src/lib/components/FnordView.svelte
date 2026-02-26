@@ -115,7 +115,7 @@
       keywordCloud = cloudData;
 
       // Easter egg
-      if (selectedPeriod === (23 as any)) {
+      if ((selectedPeriod as number) === 23) {
         show23EasterEgg = true;
       }
     } catch (e) {

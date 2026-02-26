@@ -119,7 +119,7 @@
     try {
       await invoke("calculate_keyword_quality_scores", { limit: 500 });
     } catch (e) {
-      console.debug("Background maintenance skipped:", e);
+      console.warn("Background maintenance skipped:", e);
     }
   }
 
@@ -182,7 +182,7 @@
         stats,
       };
     } catch (e) {
-      console.error("Failed to count articles:", e);
+      console.error("Failed to count articles for delete confirmation:", e);
       // Fallback: direkt loeschen ohne Modal
       await appState.deletePentacle(id);
       if (!appState.error) {
