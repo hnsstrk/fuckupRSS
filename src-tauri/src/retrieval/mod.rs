@@ -308,7 +308,8 @@ fn sanitize_html(html: &str) -> String {
     let mut a_attrs = HashSet::new();
     a_attrs.insert("href");
     a_attrs.insert("title");
-    a_attrs.insert("rel");
+    // NOTE: "rel" must NOT be in tag_attributes for <a> when link_rel() is used,
+    // otherwise ammonia panics (assertion in Builder::clean).
     tag_attrs.insert("a", a_attrs);
 
     let mut img_attrs = HashSet::new();
