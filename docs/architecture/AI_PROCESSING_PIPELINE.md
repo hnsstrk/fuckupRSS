@@ -74,6 +74,8 @@ AI-powered summarization, bias detection, and keyword validation.
 | **Secondary Output** | Validated keywords |
 | **Optional Output** | Categories (only if statistical derivation seems wrong) |
 | **Mode** | Native JSON mode for stability |
+| **keep_alive** | `5m` (Modell wird nach 5 Minuten Inaktivitaet entladen) |
+| **Concurrency** | Konfigurierbar via `ollama_concurrency` Setting (Standard: 1) |
 
 - **Uses ONLY `content_full`** - no fallback to `content_raw`
 - Articles without full text are not suggested for analysis
@@ -93,9 +95,11 @@ Vector embedding generation for semantic similarity search.
 | **Input** | Title + first 500 characters of content |
 | **Storage** | `fnords.embedding` + `vec_fnords` virtual table |
 | **Index** | sqlite-vec with O(log n) KNN |
+| **API** | `/api/embed` (Batch-Endpunkt, mehrere Texte pro Request) |
 
 - Automatic after successful Discordian Analysis
 - Enables similar article discovery and semantic search
+- Vor dem Embedding-Schritt wird das LLM-Modell explizit aus dem VRAM entladen (`unload_model()`), damit das Embedding-Modell ausreichend VRAM hat
 
 ### Stage 4: Greyface Alert
 
