@@ -912,27 +912,30 @@ pub async fn process_batch(
     // Determine concurrency
     let suggested = provider_for_batch.suggested_concurrency();
 
-    // Get OpenAI concurrency setting from DB if applicable
-    let openai_concurrency_setting: usize = if suggested > 1 {
-        let db = state.db_conn().map_err(|e| e.to_string())?;
-        super::helpers::get_setting(&db, "openai_concurrency", "20")
-            .parse()
-            .unwrap_or(20)
-    } else {
-        1
-    };
-
-    // If provider suggests 1 (e.g. local Ollama), enforce 1.
-    // Otherwise (remote APIs), use the setting.
-    let active_concurrency = if suggested == 1 {
-        1
-    } else {
+    // Provider determines concurrency: Ollama uses ollama_concurrency setting,
+    // OpenAI uses openai_concurrency setting
+    let active_concurrency = if matches!(
+        provider_config.provider_type,
+        crate::ai_provider::ProviderType::OpenAiCompatible
+    ) {
+        // For OpenAI-compatible: use the separate openai_concurrency setting
+        let openai_concurrency_setting: usize = if suggested > 1 {
+            let db = state.db_conn().map_err(|e| e.to_string())?;
+            super::helpers::get_setting(&db, "openai_concurrency", "20")
+                .parse()
+                .unwrap_or(20)
+        } else {
+            1
+        };
         openai_concurrency_setting
+    } else {
+        // For Ollama: suggested already contains ollama_concurrency value
+        suggested
     };
 
     info!(
-        "[LLM] Parallel processing enabled: concurrency={} (provider suggested={}, setting={})",
-        active_concurrency, suggested, openai_concurrency_setting
+        "[LLM] Parallel processing enabled: concurrency={} (provider suggested={})",
+        active_concurrency, suggested
     );
 
     let batch_context = Arc::new(batch_context);

@@ -112,6 +112,9 @@
   const DEFAULT_NUM_CTX = 4096;
   let ollamaNumCtx = $state(DEFAULT_NUM_CTX);
 
+  // Concurrency
+  let ollamaConcurrency = $state(1);
+
   // Dropdown states
   let mainModelDropdownOpen = $state(false);
   let embeddingModelDropdownOpen = $state(false);
@@ -192,6 +195,11 @@
     if (savedNumCtx) {
       ollamaNumCtx = parseInt(savedNumCtx) || DEFAULT_NUM_CTX;
     }
+
+    const savedConcurrency = await invoke<string | null>("get_setting", {
+      key: "ollama_concurrency",
+    });
+    if (savedConcurrency) ollamaConcurrency = parseInt(savedConcurrency) || 1;
 
     // Listen for model pull completion events
     pullUnlisten = await listen<string>("model-pull-complete", async () => {
@@ -378,6 +386,19 @@
     }
   }
 
+  async function handleConcurrencyChange(value: number) {
+    ollamaConcurrency = Math.max(1, value);
+    try {
+      await invoke("set_setting", {
+        key: "ollama_concurrency",
+        value: ollamaConcurrency.toString(),
+      });
+    } catch (e) {
+      console.error("Failed to save ollama_concurrency setting:", e);
+      toasts.error($_("settings.saveError"));
+    }
+  }
+
   async function handleDownloadModel(model: string) {
     if (downloadingModel) return;
 
@@ -500,6 +521,7 @@
     bind:selectedMainModel
     {selectedEmbeddingModel}
     bind:ollamaNumCtx
+    bind:ollamaConcurrency
     {downloadingModel}
     {downloadError}
     {testingOllama}
@@ -514,6 +536,7 @@
     onDownloadModel={handleDownloadModel}
     onToggleMainModelDropdown={toggleMainModelDropdown}
     onHandleNumCtxChange={handleNumCtxChange}
+    onHandleConcurrencyChange={handleConcurrencyChange}
   />
 {/if}
 

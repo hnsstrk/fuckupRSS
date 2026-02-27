@@ -12,12 +12,14 @@ use super::{AiProviderError, AiTextProvider, EmbeddingProvider, GenerationResult
 /// Ollama text generation provider (local or remote)
 pub struct OllamaTextProvider {
     client: OllamaClient,
+    concurrency: usize,
 }
 
 impl OllamaTextProvider {
-    pub fn new(base_url: &str, num_ctx: u32) -> Self {
+    pub fn new(base_url: &str, num_ctx: u32, concurrency: usize) -> Self {
         Self {
             client: OllamaClient::with_context(Some(base_url.to_string()), num_ctx),
+            concurrency: concurrency.max(1),
         }
     }
 }
@@ -73,7 +75,7 @@ impl AiTextProvider for OllamaTextProvider {
     }
 
     fn suggested_concurrency(&self) -> usize {
-        1
+        self.concurrency
     }
 }
 

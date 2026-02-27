@@ -1348,7 +1348,8 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             ('locale', 'de'),
             ('theme', 'mocha'),
             ('showTerminologyTooltips', 'true'),
-            ('ollama_num_ctx', '4096');
+            ('ollama_num_ctx', '4096'),
+            ('ollama_concurrency', '1');
 
         -- ============================================================
         -- INDIZES

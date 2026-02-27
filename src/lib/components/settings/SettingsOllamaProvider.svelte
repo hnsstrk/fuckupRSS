@@ -11,6 +11,7 @@
     selectedMainModel = $bindable(),
     selectedEmbeddingModel,
     ollamaNumCtx = $bindable(),
+    ollamaConcurrency = $bindable(),
     downloadingModel,
     downloadError,
     testingOllama,
@@ -25,6 +26,7 @@
     onDownloadModel,
     onToggleMainModelDropdown,
     onHandleNumCtxChange,
+    onHandleConcurrencyChange,
   }: {
     ollamaUrl: string;
     ollamaStatus: {
@@ -44,6 +46,7 @@
     selectedMainModel: string;
     selectedEmbeddingModel: string;
     ollamaNumCtx: number;
+    ollamaConcurrency: number;
     downloadingModel: string | null;
     downloadError: string | null;
     testingOllama: boolean;
@@ -62,6 +65,7 @@
     onDownloadModel: (model: string) => void;
     onToggleMainModelDropdown: () => void;
     onHandleNumCtxChange: (value: number) => void;
+    onHandleConcurrencyChange: (value: number) => void;
   } = $props();
 
   const numCtxOptions = [
@@ -311,6 +315,25 @@
     </p>
   </div>
 
+  <!-- Ollama Concurrency -->
+  <div class="setting-group">
+    <span class="label"
+      >{$_("settings.ollama.ollamaConcurrency") || "Parallelität (Concurrency)"}</span
+    >
+    <input
+      type="number"
+      class="number-input"
+      min="1"
+      max="16"
+      value={ollamaConcurrency}
+      onchange={(e) => onHandleConcurrencyChange(parseInt((e.target as HTMLInputElement).value) || 1)}
+    />
+    <p class="setting-description">
+      {$_("settings.ollama.ollamaConcurrencyDescription") ||
+        "Anzahl paralleler Requests an Ollama. Bei lokalem Ollama auf 1 lassen."}
+    </p>
+  </div>
+
   <!-- Load Models Button -->
   <div class="setting-group">
     <button
@@ -355,6 +378,22 @@
     margin: 0.25rem 0 0 0;
     font-size: 0.875rem;
     color: var(--text-muted);
+  }
+
+  .number-input {
+    width: 80px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    background-color: var(--bg-overlay);
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+    font-family: inherit;
+  }
+
+  .number-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
   }
 
   .url-row {

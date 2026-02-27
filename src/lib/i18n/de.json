@@ -291,6 +291,8 @@
       "noModels": "Keine Modelle installiert",
       "contextLength": "Kontext-Länge (num_ctx)",
       "contextLengthDescription": "Höhere Werte erlauben längere Artikel, benötigen aber mehr VRAM. 4K ist für die meisten Artikel ausreichend.",
+      "ollamaConcurrency": "Parallelität (Concurrency)",
+      "ollamaConcurrencyDescription": "Anzahl paralleler Requests an Ollama. Bei lokalem Ollama auf 1 lassen. Bei Remote-Ollama mit OLLAMA_NUM_PARALLEL > 1 entsprechend erhöhen.",
       "loadedModels": "Geladene Modelle (VRAM)",
       "noLoadedModels": "Keine Modelle geladen",
       "loadModels": "Modelle in VRAM laden",
