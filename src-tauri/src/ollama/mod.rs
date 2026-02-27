@@ -503,6 +503,34 @@ impl OllamaClient {
 
         Ok(result.response)
     }
+
+    /// Unload a model from VRAM by sending a generate request with keep_alive: "0"
+    pub async fn unload_model(&self, model: &str) -> Result<(), OllamaError> {
+        let url = format!("{}/api/generate", self.base_url);
+        let request = GenerateRequest {
+            model: model.to_string(),
+            prompt: String::new(),
+            stream: false,
+            format: None,
+            options: GenerateOptions {
+                num_ctx: self.num_ctx,
+                num_predict: 1,
+            },
+            keep_alive: "0".to_string(),
+        };
+
+        let resp = self.client().post(&url).json(&request).send().await
+            .map_err(|e| OllamaError::GenerationFailed(format!("Unload request failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            warn!("[Ollama] Unload model '{}' failed: {}", model, body);
+        } else {
+            debug!("[Ollama] Model '{}' unloaded from VRAM", model);
+        }
+
+        Ok(())
+    }
 }
 
 /// Raw bias analysis from LLM (accepts floats)

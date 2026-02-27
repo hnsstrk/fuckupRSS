@@ -1127,6 +1127,18 @@ pub async fn process_batch(
     state.batch_running.store(false, Ordering::SeqCst);
     info!("[LLM] Batch flag released - embedding worker can resume, embeddings use same model (no swap)");
 
+    // Explicitly unload LLM model to free VRAM for embedding model
+    {
+        let ollama_url = {
+            let db = state.db_conn()?;
+            super::helpers::get_setting(&db, "ollama_url", "http://localhost:11434")
+        };
+        let unload_client = crate::ollama::OllamaClient::new(Some(ollama_url));
+        if let Err(e) = unload_client.unload_model(&effective_model).await {
+            warn!("[LLM] Failed to unload model: {}", e);
+        }
+    }
+
     // Process embeddings (keyword queue + article embeddings)
     // Both use the embedding model (snowflake), so no model swapping occurs.
     if succeeded > 0 && !state.batch_cancel.load(Ordering::SeqCst) {
