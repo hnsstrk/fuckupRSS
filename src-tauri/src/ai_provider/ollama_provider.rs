@@ -111,6 +111,22 @@ impl EmbeddingProvider for OllamaEmbeddingProvider {
             })
     }
 
+    async fn generate_embeddings_batch(
+        &self,
+        texts: &[String],
+    ) -> Result<Vec<Vec<f32>>, AiProviderError> {
+        self.client
+            .generate_embeddings_batch(&self.model, texts)
+            .await
+            .map_err(|e| match e {
+                crate::ollama::OllamaError::NotAvailable(msg) => AiProviderError::NotAvailable(msg),
+                crate::ollama::OllamaError::GenerationFailed(msg) => {
+                    AiProviderError::GenerationFailed(msg)
+                }
+                other => AiProviderError::GenerationFailed(other.to_string()),
+            })
+    }
+
     fn embedding_dimensions(&self) -> usize {
         self.dimensions
     }

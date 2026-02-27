@@ -1225,7 +1225,7 @@ pub async fn process_batch(
                 result
             };
 
-            // Generate embeddings sequentially (uses embedding model, not LLM)
+            // Generate embeddings via batch request (uses embedding model, not LLM)
 
             // Check for cancellation before starting embedding generation
             let cancelled = state.batch_cancel.load(Ordering::SeqCst);
@@ -1233,25 +1233,62 @@ pub async fn process_batch(
                 info!("Embedding generation cancelled");
             } else {
                 let mut embed_succeeded = 0;
-                let mut embed_total = 0;
+                let embed_total = articles_for_embedding.len();
 
-                for (fnord_id, title, content) in &articles_for_embedding {
-                    if state.batch_cancel.load(Ordering::SeqCst) {
-                        break;
+                // Prepare batch: collect embedding texts
+                let embedding_texts: Vec<String> = articles_for_embedding
+                    .iter()
+                    .map(|(_id, title, content)| {
+                        let content_preview: String = content.chars().take(500).collect();
+                        format!("{}\n\n{}", title, content_preview)
+                    })
+                    .collect();
+
+                // Generate all embeddings in one batch request
+                match embedding_provider.generate_embeddings_batch(&embedding_texts).await {
+                    Ok(embeddings) => {
+                        let db = state.db_conn()?;
+                        for (embedding, (fnord_id, _title, _content)) in
+                            embeddings.iter().zip(articles_for_embedding.iter())
+                        {
+                            match crate::commands::ai::data_persistence::save_article_embedding(
+                                db.conn(),
+                                *fnord_id,
+                                embedding,
+                            ) {
+                                Ok(_) => embed_succeeded += 1,
+                                Err(e) => {
+                                    debug!(
+                                        "[Embedding] Failed to save for article {}: {}",
+                                        fnord_id, e
+                                    );
+                                }
+                            }
+                        }
                     }
-                    embed_total += 1;
-                    match generate_and_save_article_embedding(
-                        embedding_provider.as_ref(),
-                        &state.db,
-                        *fnord_id,
-                        title,
-                        content,
-                    )
-                    .await
-                    {
-                        Ok(_) => embed_succeeded += 1,
-                        Err(e) => {
-                            debug!("[Embedding] Failed for article {}: {}", fnord_id, e);
+                    Err(e) => {
+                        warn!(
+                            "[Embedding] Batch embedding failed, falling back to sequential: {}",
+                            e
+                        );
+                        for (fnord_id, title, content) in &articles_for_embedding {
+                            if state.batch_cancel.load(Ordering::SeqCst) {
+                                break;
+                            }
+                            match generate_and_save_article_embedding(
+                                embedding_provider.as_ref(),
+                                &state.db,
+                                *fnord_id,
+                                title,
+                                content,
+                            )
+                            .await
+                            {
+                                Ok(_) => embed_succeeded += 1,
+                                Err(e) => {
+                                    debug!("[Embedding] Failed for article {}: {}", fnord_id, e);
+                                }
+                            }
                         }
                     }
                 }

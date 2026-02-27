@@ -128,6 +128,19 @@ pub trait EmbeddingProvider: Send + Sync {
     /// Generate an embedding vector for the given text
     async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>, AiProviderError>;
 
+    /// Generate embedding vectors for multiple texts in a single batch
+    /// Default implementation falls back to sequential single calls
+    async fn generate_embeddings_batch(
+        &self,
+        texts: &[String],
+    ) -> Result<Vec<Vec<f32>>, AiProviderError> {
+        let mut results = Vec::with_capacity(texts.len());
+        for text in texts {
+            results.push(self.generate_embedding(text).await?);
+        }
+        Ok(results)
+    }
+
     /// The number of dimensions produced by this provider
     fn embedding_dimensions(&self) -> usize;
 

@@ -149,17 +149,17 @@ struct PullResponse {
     status: String,
 }
 
-// Embedding structs for Ollama /api/embeddings endpoint
+// Embedding structs for Ollama /api/embed endpoint (batch-capable)
 #[derive(Serialize)]
-struct EmbeddingRequest {
+struct EmbedRequest {
     model: String,
-    prompt: String,
+    input: Vec<String>,
     keep_alive: String,
 }
 
 #[derive(Deserialize)]
-struct EmbeddingResponse {
-    embedding: Vec<f32>,
+struct EmbedResponse {
+    embeddings: Vec<Vec<f32>>,
 }
 
 /// Recommended models for fuckupRSS
@@ -362,39 +362,68 @@ impl OllamaClient {
         Ok(result.status)
     }
 
-    /// Generate embedding vector for text using nomic-embed-text or similar
+    /// Generate embedding vector for a single text
     pub async fn generate_embedding(
         &self,
         model: &str,
         text: &str,
     ) -> Result<Vec<f32>, OllamaError> {
-        let url = format!("{}/api/embeddings", self.base_url);
-        let client = self.client();
+        let result = self.generate_embeddings_batch(model, &[text.to_string()]).await?;
+        result.into_iter().next().ok_or_else(|| {
+            OllamaError::GenerationFailed("Empty embedding response".to_string())
+        })
+    }
 
-        let request = EmbeddingRequest {
+    /// Generate embedding vectors for multiple texts in a single request
+    pub async fn generate_embeddings_batch(
+        &self,
+        model: &str,
+        texts: &[String],
+    ) -> Result<Vec<Vec<f32>>, OllamaError> {
+        if texts.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let url = format!("{}/api/embed", self.base_url);
+
+        let request = EmbedRequest {
             model: model.to_string(),
-            prompt: text.to_string(),
+            input: texts.to_vec(),
             keep_alive: "5m".to_string(),
         };
 
-        let resp = client.post(&url).json(&request).send().await.map_err(|e| {
-            OllamaError::GenerationFailed(format!("Embedding request failed: {}", e))
+        debug!(
+            "[Ollama] Batch embedding request: {} texts to model '{}'",
+            texts.len(),
+            model
+        );
+        let request_start = Instant::now();
+
+        let resp = self.client().post(&url).json(&request).send().await.map_err(|e| {
+            OllamaError::GenerationFailed(format!("Batch embedding request failed: {}", e))
         })?;
 
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
             return Err(OllamaError::GenerationFailed(format!(
-                "Embedding failed with status {}: {}",
+                "Batch embedding failed with status {}: {}",
                 status, body
             )));
         }
 
-        let result: EmbeddingResponse = resp.json().await.map_err(|e| {
-            OllamaError::GenerationFailed(format!("Failed to parse embedding: {}", e))
+        let result: EmbedResponse = resp.json().await.map_err(|e| {
+            OllamaError::GenerationFailed(format!("Failed to parse batch embedding: {}", e))
         })?;
 
-        Ok(result.embedding)
+        let duration = request_start.elapsed();
+        debug!(
+            "[Ollama] Batch embedding completed in {:.2}s ({} embeddings)",
+            duration.as_secs_f64(),
+            result.embeddings.len()
+        );
+
+        Ok(result.embeddings)
     }
 
     /// Generate a summary with custom prompt template
