@@ -187,7 +187,6 @@
 
     // Load existing Ollama settings
     await loadOllamaStatus();
-    await loadOllamaStatus();
 
     const savedNumCtx = await invoke<string | null>("get_setting", {
       key: "ollama_num_ctx",
@@ -196,10 +195,10 @@
       ollamaNumCtx = parseInt(savedNumCtx) || DEFAULT_NUM_CTX;
     }
 
-    const savedConcurrency = await invoke<string | null>("get_setting", {
+    const savedOllamaConcurrency = await invoke<string | null>("get_setting", {
       key: "ollama_concurrency",
     });
-    if (savedConcurrency) ollamaConcurrency = parseInt(savedConcurrency) || 1;
+    if (savedOllamaConcurrency) ollamaConcurrency = parseInt(savedOllamaConcurrency) || 1;
 
     // Listen for model pull completion events
     pullUnlisten = await listen<string>("model-pull-complete", async () => {
