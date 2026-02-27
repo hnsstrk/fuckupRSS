@@ -374,7 +374,7 @@ impl OllamaClient {
         let request = EmbeddingRequest {
             model: model.to_string(),
             prompt: text.to_string(),
-            keep_alive: "30m".to_string(),
+            keep_alive: "5m".to_string(),
         };
 
         let resp = client.post(&url).json(&request).send().await.map_err(|e| {
@@ -443,7 +443,7 @@ impl OllamaClient {
                 // 4096 allows for detailed summaries + full JSON structure
                 num_predict: 4096,
             },
-            keep_alive: "30m".to_string(),
+            keep_alive: "5m".to_string(),
         };
 
         let resp: reqwest_new::Response =
