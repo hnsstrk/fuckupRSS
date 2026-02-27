@@ -57,13 +57,6 @@ impl AiTextProvider for OllamaTextProvider {
                 crate::ollama::OllamaError::GenerationFailed(msg) => {
                     AiProviderError::GenerationFailed(msg)
                 }
-                crate::ollama::OllamaError::JsonParseError {
-                    message,
-                    raw_response,
-                } => AiProviderError::JsonParseError {
-                    message,
-                    raw_response,
-                },
                 crate::ollama::OllamaError::PullFailed(msg) => {
                     AiProviderError::GenerationFailed(msg)
                 }

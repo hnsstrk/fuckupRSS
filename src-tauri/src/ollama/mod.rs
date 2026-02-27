@@ -48,21 +48,6 @@ mod flexible_deser {
             .ok_or_else(|| serde::de::Error::custom(format!("cannot extract string from {:?}", v)))
     }
 
-    /// Deserialize an optional string that might be an object with a text field
-    #[allow(dead_code)] // Serde helper for JSON robustness
-    pub fn flexible_string_optional<'de, D>(deserializer: D) -> Result<String, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let v = Option::<Value>::deserialize(deserializer)?;
-        match v {
-            Some(val) => extract_string_from_value(&val).ok_or_else(|| {
-                serde::de::Error::custom(format!("cannot extract string from {:?}", val))
-            }),
-            None => Ok(String::new()),
-        }
-    }
-
     /// Deserialize a Vec<String> where items might be objects with text fields
     pub fn flexible_string_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
     where
@@ -89,32 +74,6 @@ mod flexible_deser {
         }
     }
 
-    /// Deserialize an optional Vec<String> where items might be objects
-    #[allow(dead_code)] // Serde helper for JSON robustness
-    pub fn flexible_string_vec_optional<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let v = Option::<Value>::deserialize(deserializer)?;
-        match v {
-            Some(Value::Array(arr)) => {
-                let mut result = Vec::with_capacity(arr.len());
-                for item in arr {
-                    if let Some(s) = extract_string_from_value(&item) {
-                        if !s.is_empty() {
-                            result.push(s);
-                        }
-                    }
-                }
-                Ok(result)
-            }
-            Some(Value::Null) | None => Ok(Vec::new()),
-            Some(other) => Err(serde::de::Error::custom(format!(
-                "expected array or null, got {:?}",
-                other
-            ))),
-        }
-    }
 }
 
 /// Safely truncate a string to at most `max_bytes` bytes at a character boundary
@@ -138,11 +97,6 @@ pub enum OllamaError {
     GenerationFailed(String),
     #[error("Model pull failed: {0}")]
     PullFailed(String),
-    #[error("JSON parse error: {message}")]
-    JsonParseError {
-        message: String,
-        raw_response: String,
-    },
 }
 
 #[derive(Serialize)]
@@ -195,9 +149,8 @@ struct PullResponse {
     status: String,
 }
 
-// Embedding structs for future nomic-embed-text integration
+// Embedding structs for Ollama /api/embeddings endpoint
 #[derive(Serialize)]
-#[allow(dead_code)]
 struct EmbeddingRequest {
     model: String,
     prompt: String,
@@ -205,7 +158,6 @@ struct EmbeddingRequest {
 }
 
 #[derive(Deserialize)]
-#[allow(dead_code)]
 struct EmbeddingResponse {
     embedding: Vec<f32>,
 }
@@ -369,7 +321,6 @@ impl OllamaClient {
     }
 
     /// Check if Ollama is running
-    #[allow(dead_code)]
     pub async fn is_available(&self) -> bool {
         self.list_models().await.is_ok()
     }
@@ -411,19 +362,7 @@ impl OllamaClient {
         Ok(result.status)
     }
 
-    /// Check if a specific model is installed
-    #[allow(dead_code)]
-    pub async fn has_model(&self, model_name: &str) -> bool {
-        match self.list_models().await {
-            Ok(models) => models
-                .iter()
-                .any(|m| m.name == model_name || m.name.starts_with(&format!("{}:", model_name))),
-            Err(_) => false,
-        }
-    }
-
     /// Generate embedding vector for text using nomic-embed-text or similar
-    #[allow(dead_code)]
     pub async fn generate_embedding(
         &self,
         model: &str,
@@ -458,26 +397,6 @@ impl OllamaClient {
         Ok(result.embedding)
     }
 
-    /// Generate embeddings for multiple texts (batch) parallelly
-    #[allow(dead_code)]
-    pub async fn generate_embeddings_batch(
-        &self,
-        model: &str,
-        texts: &[String],
-    ) -> Vec<Result<Vec<f32>, OllamaError>> {
-        let futures = texts
-            .iter()
-            .map(|text| self.generate_embedding(model, text));
-        futures::future::join_all(futures).await
-    }
-
-    /// Generate a summary for article content
-    #[allow(dead_code)]
-    pub async fn summarize(&self, model: &str, content: &str) -> Result<String, OllamaError> {
-        self.summarize_with_prompt(model, content, DEFAULT_SUMMARY_PROMPT)
-            .await
-    }
-
     /// Generate a summary with custom prompt template
     pub async fn summarize_with_prompt(
         &self,
@@ -488,239 +407,6 @@ impl OllamaClient {
         let truncated_content = content.chars().take(8000).collect::<String>();
         let prompt = prompt_template.replace("{content}", &truncated_content);
         self.generate(model, &prompt, None).await
-    }
-
-    /// Analyze article for bias and objectivity
-    #[allow(dead_code)]
-    pub async fn analyze_bias(
-        &self,
-        model: &str,
-        title: &str,
-        content: &str,
-    ) -> Result<BiasAnalysis, OllamaError> {
-        self.analyze_bias_with_prompt(model, title, content, DEFAULT_ANALYSIS_PROMPT)
-            .await
-    }
-
-    /// Analyze article with custom prompt template
-    pub async fn analyze_bias_with_prompt(
-        &self,
-        model: &str,
-        title: &str,
-        content: &str,
-        prompt_template: &str,
-    ) -> Result<BiasAnalysis, OllamaError> {
-        let truncated_content = content.chars().take(4000).collect::<String>();
-        let prompt = prompt_template
-            .replace("{title}", title)
-            .replace("{content}", &truncated_content);
-
-        // Use JSON mode
-        let response = self
-            .generate(model, &prompt, Some("json".to_string()))
-            .await?;
-
-        // Parse directly
-        let raw: RawBiasAnalysis = serde_json::from_str(&response).map_err(|e| {
-            warn!(
-                "JSON parse error: {}. Response: {}",
-                e,
-                truncate_str(&response, 300)
-            );
-            OllamaError::JsonParseError {
-                message: e.to_string(),
-                raw_response: response.chars().take(500).collect(),
-            }
-        })?;
-
-        Ok(raw.into())
-    }
-
-    /// Full Discordian Analysis: Summary + Bias + Categories + Keywords in one call
-    /// Note: Prefer discordian_analysis_with_stats for the statistical-first workflow
-    #[allow(dead_code)]
-    pub async fn discordian_analysis(
-        &self,
-        model: &str,
-        title: &str,
-        content: &str,
-        locale: &str,
-    ) -> Result<DiscordianAnalysis, OllamaError> {
-        self.discordian_analysis_with_retry(model, title, content, locale, None)
-            .await
-    }
-
-    /// Discordian Analysis with optional retry feedback
-    /// If previous_error is provided, sends a correction request to the LLM
-    pub async fn discordian_analysis_with_retry(
-        &self,
-        model: &str,
-        title: &str,
-        content: &str,
-        locale: &str,
-        previous_error: Option<&str>,
-    ) -> Result<DiscordianAnalysis, OllamaError> {
-        debug!(
-            "Starting Discordian analysis for: {}",
-            truncate_str(title, 60)
-        );
-        let language = get_language_for_locale(locale);
-        let truncated_content = content.chars().take(6000).collect::<String>();
-
-        let prompt = if let Some(error) = previous_error {
-            // Retry prompt with error feedback
-            format!(
-                r#"Your previous response could not be parsed. Error: {}
-Return ONLY valid JSON:
-{{
-  "political_bias": 0,
-  "sachlichkeit": 2,
-  "summary": "...",
-  "categories": ["..."],
-  "keywords": ["..."]
-}}
-
-Title: {}
-Content: {}"#,
-                error, title, truncated_content
-            )
-        } else {
-            // Normal prompt
-            DEFAULT_DISCORDIAN_PROMPT
-                .replace("{language}", language)
-                .replace("{title}", title)
-                .replace("{content}", &truncated_content)
-        };
-
-        // Use JSON mode
-        let response = self
-            .generate(model, &prompt, Some("json".to_string()))
-            .await?;
-
-        let raw: RawDiscordianAnalysis = serde_json::from_str(&response).map_err(|e| {
-            warn!(
-                "JSON parse error: {}. Response: {}",
-                e,
-                truncate_str(&response, 300)
-            );
-            OllamaError::JsonParseError {
-                message: e.to_string(),
-                raw_response: response.chars().take(500).collect(),
-            }
-        })?;
-
-        debug!(
-            "Analysis complete: {} categories, {} keywords",
-            raw.categories.len(),
-            raw.keywords.len()
-        );
-
-        Ok(raw.into())
-    }
-
-    /// Discordian Analysis with statistical pre-analysis context
-    /// The LLM validates and corrects statistical suggestions rather than generating from scratch
-    ///
-    /// If `custom_prompt` is provided, it will be used instead of the default prompt.
-    /// The prompt template should contain placeholders: {language}, {title}, {content}, {stat_keywords}, {stat_categories}
-    #[allow(dead_code)] // Public API for statistical-first analysis workflow
-    pub async fn discordian_analysis_with_stats(
-        &self,
-        model: &str,
-        title: &str,
-        content: &str,
-        locale: &str,
-        stat_keywords: &[String],
-        stat_categories: &[(String, f64)], // (category_name, confidence)
-    ) -> Result<DiscordianAnalysisWithRejections, OllamaError> {
-        self.discordian_analysis_with_stats_custom(
-            model,
-            title,
-            content,
-            locale,
-            stat_keywords,
-            stat_categories,
-            None,
-        )
-        .await
-    }
-
-    /// Discordian Analysis with statistical pre-analysis context and optional custom prompt
-    /// The LLM validates and corrects statistical suggestions rather than generating from scratch
-    ///
-    /// If `custom_prompt` is provided, it will be used instead of the default prompt.
-    /// The prompt template should contain placeholders: {language}, {title}, {content}, {stat_keywords}, {stat_categories}
-    #[allow(clippy::too_many_arguments)] // This is a comprehensive analysis API with necessary parameters
-    pub async fn discordian_analysis_with_stats_custom(
-        &self,
-        model: &str,
-        title: &str,
-        content: &str,
-        locale: &str,
-        stat_keywords: &[String],
-        stat_categories: &[(String, f64)], // (category_name, confidence)
-        custom_prompt: Option<&str>,
-    ) -> Result<DiscordianAnalysisWithRejections, OllamaError> {
-        debug!(
-            "Starting Discordian analysis with stats for: {}",
-            truncate_str(title, 60)
-        );
-        let language = get_language_for_locale(locale);
-        let truncated_content = content.chars().take(6000).collect::<String>();
-
-        // Format statistical keywords
-        let stat_keywords_str = if stat_keywords.is_empty() {
-            "none".to_string()
-        } else {
-            stat_keywords.join(", ")
-        };
-
-        // Format statistical categories with confidence
-        let stat_categories_str = if stat_categories.is_empty() {
-            "none".to_string()
-        } else {
-            stat_categories
-                .iter()
-                .map(|(name, conf)| format!("{} ({:.0}%)", name, conf * 100.0))
-                .collect::<Vec<_>>()
-                .join(", ")
-        };
-
-        let prompt_template = custom_prompt.unwrap_or(DEFAULT_DISCORDIAN_PROMPT_WITH_STATS);
-        let prompt = prompt_template
-            .replace("{language}", language)
-            .replace("{title}", title)
-            .replace("{content}", &truncated_content)
-            .replace("{stat_keywords}", &stat_keywords_str)
-            .replace("{stat_categories}", &stat_categories_str);
-
-        // Use JSON mode
-        let response = self
-            .generate(model, &prompt, Some("json".to_string()))
-            .await?;
-
-        let raw: RawDiscordianAnalysisWithRejections =
-            serde_json::from_str(&response).map_err(|e| {
-                warn!(
-                    "JSON parse error: {}. Response: {}",
-                    e,
-                    truncate_str(&response, 300)
-                );
-                OllamaError::JsonParseError {
-                    message: e.to_string(),
-                    raw_response: response.chars().take(500).collect(),
-                }
-            })?;
-
-        debug!(
-            "Analysis with stats complete: {} categories, {} keywords, {} rejected_kw, {} rejected_cat",
-            raw.categories.len(),
-            raw.keywords.len(),
-            raw.rejected_keywords.len(),
-            raw.rejected_categories.len()
-        );
-
-        Ok(raw.into())
     }
 
     /// Simple text generation (public API for synonym verification etc.)
