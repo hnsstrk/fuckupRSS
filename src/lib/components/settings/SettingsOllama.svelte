@@ -123,6 +123,7 @@
   let mainModelDropdownOpen = $state(false);
   let embeddingModelDropdownOpen = $state(false);
   let numCtxDropdownOpen = $state(false);
+  let embeddingServerDropdownOpen = $state(false);
 
   export function getOllamaStatus() {
     return ollamaStatus;
@@ -312,9 +313,11 @@
     await saveServerHistory();
   }
 
-  function selectServerFromHistory(url: string) {
+  async function selectServerFromHistory(url: string) {
     ollamaUrl = url;
+    ollamaTestResult = null;
     saveOllamaUrl();
+    await loadOllamaStatus();
   }
 
   async function testOpenaiConnection() {
@@ -679,13 +682,77 @@
       <div class="sub-field">
         <span class="sub-label">{$_("settings.ollama.ollamaUrlForEmbeddings")}</span>
         <div class="url-row">
-          <input
-            type="text"
-            class="text-input"
-            bind:value={ollamaUrl}
-            onblur={saveOllamaUrl}
-            placeholder="http://localhost:11434"
-          />
+          <div class="server-combobox">
+            <div class="combobox-input-row">
+              <input
+                type="text"
+                class="text-input combobox-text"
+                bind:value={ollamaUrl}
+                onblur={() => {
+                  setTimeout(() => {
+                    embeddingServerDropdownOpen = false;
+                  }, 200);
+                  saveOllamaUrl();
+                }}
+                onfocus={() => {
+                  embeddingServerDropdownOpen = true;
+                }}
+                placeholder="http://localhost:11434"
+              />
+              <button
+                type="button"
+                class="combobox-toggle"
+                aria-label={$_("settings.ollama.toggleServerList")}
+                onclick={() => {
+                  embeddingServerDropdownOpen = !embeddingServerDropdownOpen;
+                }}
+              >
+                <i class="fa-solid {embeddingServerDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
+              </button>
+            </div>
+            {#if embeddingServerDropdownOpen && serverHistory.length > 0}
+              <div class="server-dropdown">
+                {#each serverHistory as serverUrl (serverUrl)}
+                  <div class="server-option">
+                    <button
+                      type="button"
+                      class="server-select-btn {serverUrl === ollamaUrl ? 'selected' : ''}"
+                      onmousedown={(e) => {
+                        e.preventDefault();
+                        selectServerFromHistory(serverUrl);
+                        embeddingServerDropdownOpen = false;
+                      }}
+                    >
+                      <span
+                        class="status-dot {serverStatusMap[serverUrl] === true
+                          ? 'online'
+                          : serverStatusMap[serverUrl] === false
+                            ? 'offline'
+                            : 'unknown'}"
+                      ></span>
+                      <span class="server-url-text">{serverUrl}</span>
+                      {#if serverUrl === "http://localhost:11434"}
+                        <span class="default-badge">{$_("settings.ollama.defaultServer")}</span>
+                      {/if}
+                    </button>
+                    {#if serverUrl !== "http://localhost:11434"}
+                      <button
+                        type="button"
+                        class="server-remove-btn"
+                        title={$_("settings.ollama.removeServer")}
+                        onmousedown={(e) => {
+                          e.preventDefault();
+                          removeFromServerHistory(serverUrl);
+                        }}
+                      >
+                        <i class="fa-solid fa-xmark"></i>
+                      </button>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
           <button
             type="button"
             class="btn-test"
@@ -1202,5 +1269,131 @@
   .openai-embedding-presets .preset-price {
     color: var(--text-muted);
     font-size: 0.75rem;
+  }
+
+  /* Server Combobox (Embedding URL) */
+  .server-combobox {
+    flex: 1;
+    position: relative;
+  }
+
+  .combobox-input-row {
+    display: flex;
+  }
+
+  .combobox-text {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-right: none !important;
+  }
+
+  .combobox-toggle {
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--border-default);
+    border-top-right-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+    background-color: var(--bg-overlay);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: all 0.15s;
+  }
+
+  .combobox-toggle:hover {
+    border-color: var(--accent-primary);
+    color: var(--text-primary);
+  }
+
+  .server-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 0.25rem;
+    background-color: var(--bg-overlay);
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    overflow: hidden;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .server-option {
+    display: flex;
+    align-items: center;
+  }
+
+  .server-select-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    font-family: inherit;
+  }
+
+  .server-select-btn:hover {
+    background-color: var(--bg-muted);
+  }
+
+  .server-select-btn.selected {
+    background-color: var(--bg-muted);
+    color: var(--accent-primary);
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .status-dot.online {
+    background-color: var(--status-success);
+  }
+
+  .status-dot.offline {
+    background-color: var(--status-error);
+  }
+
+  .status-dot.unknown {
+    background-color: var(--text-muted);
+  }
+
+  .server-url-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .default-badge {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-left: 0.25rem;
+  }
+
+  .server-remove-btn {
+    padding: 0.5rem;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s;
+    flex-shrink: 0;
+  }
+
+  .server-remove-btn:hover {
+    color: var(--status-error);
   }
 </style>
