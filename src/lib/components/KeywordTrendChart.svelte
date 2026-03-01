@@ -3,6 +3,7 @@
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
   import { Chart, registerables } from "chart.js";
+  import { formatError } from "$lib/utils/formatError";
 
   // Register all Chart.js components
   Chart.register(...registerables);
@@ -99,7 +100,7 @@
 
       updateChart(response);
     } catch (e) {
-      error = String(e);
+      error = formatError(e);
       console.error("Failed to load trend data:", e);
     } finally {
       loading = false;

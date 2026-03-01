@@ -5,6 +5,7 @@
   import type { Keyword, KeywordType } from "../types";
   import KeywordContextTooltip from "./KeywordContextTooltip.svelte";
   import { formatChangedDate } from "$lib/utils/articleFormat";
+  import { formatError } from "$lib/utils/formatError";
 
   // Props
   interface Props {
@@ -125,7 +126,7 @@
 
       keywords = reset ? newKeywords : [...keywords, ...newKeywords];
     } catch (e) {
-      error = String(e);
+      error = formatError(e);
       console.error("Failed to load keywords:", e);
     } finally {
       loading = false;
@@ -253,8 +254,8 @@
           class="search-input"
         />
         {#if searchQuery}
-          <button onclick={clearSearch} class="clear-btn" aria-label="Clear search">
-            <i class="fa-solid fa-xmark"></i>
+          <button onclick={clearSearch} class="clear-btn" aria-label={$_("search.clearSearch")}>
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
           </button>
         {/if}
       </div>
@@ -379,7 +380,7 @@
                 <td class="type-cell">
                   <span
                     class="type-badge"
-                    style="color: {getTypeConfig(keyword.keyword_type).color}"
+                    style:color={getTypeConfig(keyword.keyword_type).color}
                     title={getTypeLabel(keyword.keyword_type || "concept")}
                   >
                     <i class={getTypeConfig(keyword.keyword_type).icon}></i>

@@ -13,6 +13,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `CLAUDE.md` | Entwickler-Kontext fuer Claude Code | Build-Aenderungen, neue Patterns, Strukturaenderungen |
 | `docs/guides/QUALITY_CHECKLIST.md` | Frontend-Backend-Kommunikation Checkliste | Neue invoke-Calls, Event-Listener, State-Updates |
 
+## Task Management
+
+Alle offenen Tasks werden zentral in **Taskwarrior** verwaltet (Projekt: `fuckupRSS`).
+
+```bash
+task project:fuckupRSS list          # Alle offenen Tasks
+task project:fuckupRSS +bug list     # Nur Bugs
+task project:fuckupRSS +refactor list # Refactoring-Tasks
+task project:fuckupRSS +cicd list    # CI/CD Verbesserungen
+```
+
+Die `TODO.md` enthaelt nur noch erledigte Items als Referenz und einen Verweis auf Taskwarrior.
+
 ### Dokumentations-Workflow
 
 1. **Vor Implementierung:** Anforderungsdokument lesen und verstehen
@@ -426,7 +439,7 @@ fuckupRSS/
 ├── playwright-cli.json           # Playwright CLI Konfiguration
 ├── README.md                     # Projekt-Dokumentation
 ├── CLAUDE.md                     # Diese Datei
-└── TODO.md                       # Zentrale Aufgabenliste
+└── TODO.md                       # Archiv + Verweis auf Taskwarrior
 ```
 
 ## i18n (Internationalisierung)
@@ -716,7 +729,11 @@ ollama pull snowflake-arctic-embed2:latest
 
 **Hinweis:** Bei Modellwechsel muessen alle Keywords neu eingebettet werden (Settings -> Wartung -> Embeddings generieren).
 
+**Embedding-API:** Embeddings werden ueber den `/api/embed` Batch-Endpunkt in einem einzigen Request erzeugt (nicht mehr `/api/embeddings` pro Text). Nach der LLM-Analyse wird das LLM-Modell explizit entladen (`keep_alive: 5m`), bevor das Embedding-Modell geladen wird.
+
 **Alternative Text-Generation:** Anstelle von Ollama kann fuer Textgenerierung (Zusammenfassungen, Kategorisierung, Bias-Erkennung) auch eine OpenAI-kompatible API verwendet werden. Die Konfiguration erfolgt in Settings -> KI-Provider (API-URL, API-Key, Modellname). Ollama bleibt weiterhin erforderlich fuer Embeddings (snowflake-arctic-embed2).
+
+**Ollama Concurrency:** Das Setting `ollama_concurrency` (Standard: 1) steuert die Anzahl paralleler LLM-Requests. Nur erhoehen bei Remote-Ollama oder OpenAI-kompatibler API.
 
 **OpenAI Default-Modell:** `gpt-5-nano` ($0.05/$0.40 pro 1M Tokens). Sehr schnell, kosteneffizient, "great for summarization and classification tasks". Konstante: `ai_provider::DEFAULT_OPENAI_MODEL`. Alternative: `gpt-5-mini` ($0.25/$2.00) fuer hoehere Qualitaet bei Bias-Erkennung.
 

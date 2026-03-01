@@ -163,6 +163,7 @@
   {/if}
 
   <!-- Content -->
+  <!-- eslint-disable svelte/no-at-html-tags -->
   <div
     class="revision-content"
     role="tabpanel"

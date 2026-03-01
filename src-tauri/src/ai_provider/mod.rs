@@ -55,6 +55,8 @@ pub struct ProviderConfig {
     pub ollama_model: String,
     /// Ollama num_ctx setting
     pub ollama_num_ctx: u32,
+    /// Ollama parallel request concurrency (1 = sequential, 2-4 for remote)
+    pub ollama_concurrency: usize,
     /// OpenAI-compatible API base URL
     pub openai_base_url: String,
     /// API key for OpenAI-compatible provider
@@ -128,6 +130,19 @@ pub trait EmbeddingProvider: Send + Sync {
     /// Generate an embedding vector for the given text
     async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>, AiProviderError>;
 
+    /// Generate embedding vectors for multiple texts in a single batch
+    /// Default implementation falls back to sequential single calls
+    async fn generate_embeddings_batch(
+        &self,
+        texts: &[String],
+    ) -> Result<Vec<Vec<f32>>, AiProviderError> {
+        let mut results = Vec::with_capacity(texts.len());
+        for text in texts {
+            results.push(self.generate_embedding(text).await?);
+        }
+        Ok(results)
+    }
+
     /// The number of dimensions produced by this provider
     fn embedding_dimensions(&self) -> usize;
 
@@ -193,6 +208,7 @@ pub fn create_provider(config: &ProviderConfig) -> Arc<dyn AiTextProvider> {
         ProviderType::Ollama => Arc::new(ollama_provider::OllamaTextProvider::new(
             &config.ollama_url,
             config.ollama_num_ctx,
+            config.ollama_concurrency,
         )),
         ProviderType::OpenAiCompatible => Arc::new(openai_provider::OpenAiCompatibleProvider::new(
             &config.openai_base_url,
@@ -301,6 +317,7 @@ mod tests {
             ollama_url: "http://localhost:11434".to_string(),
             ollama_model: "ministral-3:latest".to_string(),
             ollama_num_ctx: 4096,
+            ollama_concurrency: 1,
             openai_base_url: "https://api.openai.com".to_string(),
             openai_api_key: "".to_string(),
             openai_model: "gpt-5-nano".to_string(),
@@ -319,6 +336,7 @@ mod tests {
             ollama_url: "http://192.168.1.100:11434".to_string(),
             ollama_model: "test".to_string(),
             ollama_num_ctx: 8192,
+            ollama_concurrency: 1,
             openai_base_url: "https://api.together.xyz".to_string(),
             openai_api_key: "sk-test-key".to_string(),
             openai_model: "meta-llama/Llama-3-70b".to_string(),
@@ -343,6 +361,7 @@ mod tests {
             ollama_url: "http://localhost:11434".to_string(),
             ollama_model: "test".to_string(),
             ollama_num_ctx: 4096,
+            ollama_concurrency: 1,
             openai_base_url: String::new(),
             openai_api_key: String::new(),
             openai_model: String::new(),
@@ -360,6 +379,7 @@ mod tests {
             ollama_url: String::new(),
             ollama_model: String::new(),
             ollama_num_ctx: 4096,
+            ollama_concurrency: 1,
             openai_base_url: "https://api.openai.com".to_string(),
             openai_api_key: "sk-test".to_string(),
             openai_model: "gpt-5-nano".to_string(),

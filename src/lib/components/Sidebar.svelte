@@ -10,6 +10,7 @@
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { invoke } from "@tauri-apps/api/core";
   import Tooltip from "./Tooltip.svelte";
+  import ActionButton from "$lib/components/ui/ActionButton.svelte";
 
   interface Props {
     onsettings?: () => void;
@@ -118,7 +119,7 @@
     try {
       await invoke("calculate_keyword_quality_scores", { limit: 500 });
     } catch (e) {
-      console.debug("Background maintenance skipped:", e);
+      console.warn("Background maintenance skipped:", e);
     }
   }
 
@@ -181,7 +182,7 @@
         stats,
       };
     } catch (e) {
-      console.error("Failed to count articles:", e);
+      console.error("Failed to count articles for delete confirmation:", e);
       // Fallback: direkt loeschen ohne Modal
       await appState.deletePentacle(id);
       if (!appState.error) {
@@ -363,8 +364,12 @@
       {#if appState.searching}
         <i class="search-spinner fa-solid fa-rotate fa-spin"></i>
       {:else if searchInput}
-        <button class="search-clear" onclick={handleClearSearch} title={$_("search.clearSearch")}
-          ><i class="fa-solid fa-xmark"></i></button
+        <button
+          class="search-clear"
+          onclick={handleClearSearch}
+          title={$_("search.clearSearch")}
+          aria-label={$_("search.clearSearch")}
+          ><i class="fa-solid fa-xmark" aria-hidden="true"></i></button
         >
       {/if}
     </div>
@@ -500,10 +505,12 @@
           class="add-input"
         />
         <div class="add-buttons">
-          <button type="submit" class="btn-primary">{$_("sidebar.addFeed")}</button>
-          <button type="button" class="btn-secondary" onclick={() => (showAddForm = false)}>
+          <ActionButton variant="primary" type="submit" size="sm"
+            >{$_("sidebar.addFeed")}</ActionButton
+          >
+          <ActionButton variant="default" size="sm" onclick={() => (showAddForm = false)}>
             {$_("settings.cancel")}
-          </button>
+          </ActionButton>
         </div>
       </form>
     {:else}
@@ -620,10 +627,9 @@
           <button class="btn-secondary" bind:this={cancelBtnRef} onclick={cancelDeletePentacle}>
             {$_("deletePentacle.cancel")}
           </button>
-          <button class="btn-danger" onclick={confirmDeletePentacle}>
-            <i class="fa-solid fa-trash"></i>
+          <ActionButton variant="danger" icon="fa-solid fa-trash" onclick={confirmDeletePentacle}>
             {$_("deletePentacle.deleteAll")}
-          </button>
+          </ActionButton>
         </div>
       </div>
     </div>

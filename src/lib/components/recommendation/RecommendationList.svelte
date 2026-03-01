@@ -9,6 +9,7 @@
     RecommendationPhase,
   } from "../../types";
   import RecommendationCard from "./RecommendationCard.svelte";
+  import { formatError } from "$lib/utils/formatError";
 
   // Configuration
   const TIMEOUT_MS = 30000; // 30 second timeout
@@ -131,7 +132,7 @@
         loadStats();
       }
 
-      console.log(`[${reqId}] Recommendations loaded in ${loadTimingMs}ms:`, {
+      console.warn(`[${reqId}] Recommendations loaded in ${loadTimingMs}ms:`, {
         count: result.length,
         phase: "complete",
       });
@@ -139,7 +140,7 @@
       cleanup();
       loadTimingMs = Date.now() - startTime;
 
-      const errorMessage = e instanceof Error ? e.message : String(e);
+      const errorMessage = formatError(e);
 
       if (errorMessage === "TIMEOUT") {
         loadState = {
@@ -193,7 +194,7 @@
   function handleCancel() {
     cleanup();
     loadState = { status: "cancelled" };
-    console.log(`[${requestId}] Request cancelled by user`);
+    console.warn(`[${requestId}] Request cancelled by user`);
   }
 
   async function handleRetry() {
@@ -276,7 +277,7 @@
       <p class="loading-phase">{getPhaseText(loadState.phase)}</p>
       <div class="loading-progress">
         <div class="progress-bar">
-          {#each phases as phase, i}
+          {#each phases as phase, i (phase)}
             <div
               class="progress-step"
               class:active={phases.indexOf(loadState.phase) >= i}
@@ -440,7 +441,7 @@
       <h4>
         <i class="fa-solid fa-bug"></i>
         Diagnose
-        <button type="button" class="close-btn" onclick={() => (showDiagnostics = false)}>
+        <button type="button" class="close-btn" aria-label="Schließen" onclick={() => (showDiagnostics = false)}>
           <i class="fa-solid fa-xmark"></i>
         </button>
       </h4>

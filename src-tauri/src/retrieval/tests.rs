@@ -150,8 +150,8 @@ fn test_is_truncated_499_chars() {
 
 #[test]
 fn test_hagbard_retrieval_creation() {
-    let retrieval = HagbardRetrieval::new();
-    // Just verify it can be created without panicking
+    let retrieval = HagbardRetrieval::new().expect("Failed to create HagbardRetrieval");
+    // Just verify it can be created without error
     drop(retrieval);
 }
 

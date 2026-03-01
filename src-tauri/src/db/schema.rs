@@ -1000,6 +1000,37 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 25: DELETE trigger for vec_immanentize cleanup
+    // Ensures orphaned vec_immanentize entries are removed when keywords are deleted
+    conn.execute_batch(
+        r#"
+        CREATE TRIGGER IF NOT EXISTS immanentize_delete_vec
+            AFTER DELETE ON immanentize
+        BEGIN
+            DELETE FROM vec_immanentize WHERE immanentize_id = OLD.id;
+        END;
+        "#,
+    )?;
+
+    // One-time cleanup: remove orphaned vec_immanentize entries
+    // (entries where the parent keyword no longer exists)
+    let orphaned_count: i64 = conn
+        .prepare(
+            "SELECT COUNT(*) FROM vec_immanentize WHERE immanentize_id NOT IN (SELECT id FROM immanentize)",
+        )?
+        .query_row([], |row| row.get(0))?;
+
+    if orphaned_count > 0 {
+        conn.execute(
+            "DELETE FROM vec_immanentize WHERE immanentize_id NOT IN (SELECT id FROM immanentize)",
+            [],
+        )?;
+        info!(
+            "Cleaned up {} orphaned vec_immanentize entries",
+            orphaned_count
+        );
+    }
+
     Ok(())
 }
 
@@ -1317,7 +1348,8 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             ('locale', 'de'),
             ('theme', 'mocha'),
             ('showTerminologyTooltips', 'true'),
-            ('ollama_num_ctx', '4096');
+            ('ollama_num_ctx', '4096'),
+            ('ollama_concurrency', '1');
 
         -- ============================================================
         -- INDIZES

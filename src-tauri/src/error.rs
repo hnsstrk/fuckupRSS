@@ -57,3 +57,18 @@ impl From<FuckupError> for String {
 
 /// Type alias for Results returned by Tauri commands
 pub type CmdResult<T> = Result<T, FuckupError>;
+
+/// Convenience macro to convert any error to String via `.map_err(|e| e.to_string())?`.
+///
+/// Usage:
+/// ```rust
+/// let result = some_operation().map_err(|e| e.to_string())?;
+/// // becomes:
+/// let result = to_cmd_err!(some_operation());
+/// ```
+#[macro_export]
+macro_rules! to_cmd_err {
+    ($expr:expr) => {
+        $expr.map_err(|e| e.to_string())?
+    };
+}

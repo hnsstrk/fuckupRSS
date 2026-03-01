@@ -31,16 +31,11 @@
   let settingsMaintenanceRef = $state<{ init: () => Promise<void> } | undefined>();
 
   // Ollama status for child components
-  let ollamaAvailable = $state(false);
+  let ollamaAvailable = $derived(appState.ollamaStatus.available);
 
   async function refreshOllamaStatus() {
-    const status = await appState.checkOllama();
-    ollamaAvailable = status.available;
+    await appState.checkOllama();
   }
-
-  $effect(() => {
-    ollamaAvailable = appState.ollamaStatus.available;
-  });
 
   // Tabs definition
   let tabs = $derived<Tab[]>([

@@ -7,7 +7,6 @@ use crate::ai_provider::EmbeddingProvider;
 use crate::commands::ai::helpers::create_embedding_provider_from_db;
 use crate::db::Database;
 use crate::embeddings::{cosine_similarity_from_blobs, embedding_to_blob};
-use futures::future::join_all;
 use log::{debug, error, info, trace, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -184,34 +183,20 @@ pub async fn process_embedding_queue(
     let mut processed = 0i64;
     let mut failed = 0i64;
 
-    // Process in chunks for parallel execution
+    // Process in chunks using batch embedding API
     for chunk in keywords.chunks(concurrency) {
-        let futures: Vec<_> = chunk
+        let texts: Vec<String> = chunk
             .iter()
-            .map(|(queue_id, keyword_id, name)| {
-                let provider = Arc::clone(&provider);
-                let name = name.clone();
-                let queue_id = *queue_id;
-                let keyword_id = *keyword_id;
-
-                async move {
-                    // Add unique suffix to work around Ollama embedding cache issue
-                    let embedding_text = format!("{}_{}", name, keyword_id);
-                    let result = provider.generate_embedding(&embedding_text).await;
-                    (queue_id, keyword_id, name, result)
-                }
-            })
+            .map(|(_queue_id, keyword_id, name)| format!("{}_{}", name, keyword_id))
             .collect();
 
-        // Execute all embeddings in parallel
-        let results = join_all(futures).await;
-
-        // Process results
-        for (queue_id, keyword_id, name, result) in results {
-            match result {
-                Ok(embedding) => {
+        match provider.generate_embeddings_batch(&texts).await {
+            Ok(embeddings) => {
+                for (embedding, (queue_id, keyword_id, name)) in
+                    embeddings.iter().zip(chunk.iter())
+                {
                     if let Err(e) =
-                        save_embedding_and_dequeue(&db, queue_id, keyword_id, &embedding)
+                        save_embedding_and_dequeue(&db, *queue_id, *keyword_id, embedding)
                     {
                         error!("Failed to save embedding for '{}': {}", name, e);
                         failed += 1;
@@ -220,10 +205,33 @@ pub async fn process_embedding_queue(
                         processed += 1;
                     }
                 }
-                Err(e) => {
-                    warn!("Failed to generate embedding for '{}': {}", name, e);
-                    let _ = record_failure(&db, queue_id, &e.to_string());
-                    failed += 1;
+            }
+            Err(e) => {
+                warn!(
+                    "Batch embedding failed for chunk, falling back to sequential: {}",
+                    e
+                );
+                for (queue_id, keyword_id, name) in chunk {
+                    match provider
+                        .generate_embedding(&format!("{}_{}", name, keyword_id))
+                        .await
+                    {
+                        Ok(embedding) => {
+                            if let Err(e) =
+                                save_embedding_and_dequeue(&db, *queue_id, *keyword_id, &embedding)
+                            {
+                                error!("Failed to save embedding for '{}': {}", name, e);
+                                failed += 1;
+                            } else {
+                                processed += 1;
+                            }
+                        }
+                        Err(e) => {
+                            warn!("Failed to generate embedding for '{}': {}", name, e);
+                            let _ = record_failure(&db, *queue_id, &e.to_string());
+                            failed += 1;
+                        }
+                    }
                 }
             }
         }

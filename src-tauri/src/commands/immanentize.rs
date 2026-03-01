@@ -131,13 +131,12 @@ pub fn get_keywords(
         KEYWORD_SELECT_COLUMNS
     );
 
-    let mut stmt = db.conn().prepare(&sql).map_err(|e| e.to_string())?;
+    let mut stmt = to_cmd_err!(db.conn().prepare(&sql));
 
-    let keywords = stmt
-        .query_map(rusqlite::params![limit, offset], keyword_from_row)
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+    let keywords = to_cmd_err!(to_cmd_err!(
+        stmt.query_map(rusqlite::params![limit, offset], keyword_from_row)
+    )
+    .collect::<Result<Vec<_>, _>>());
 
     Ok(keywords)
 }
@@ -188,8 +187,8 @@ pub fn get_keyword_neighbors(
         )
         .map_err(|e| e.to_string())?;
 
-    let neighbors = stmt
-        .query_map(rusqlite::params![id, limit], |row| {
+    let neighbors = to_cmd_err!(
+        to_cmd_err!(stmt.query_map(rusqlite::params![id, limit], |row| {
             Ok(KeywordNeighbor {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -197,10 +196,9 @@ pub fn get_keyword_neighbors(
                 embedding_similarity: row.get(3)?,
                 combined_weight: row.get::<_, Option<f64>>(4)?.unwrap_or(0.0),
             })
-        })
-        .map_err(|e| e.to_string())?
+        }))
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+    );
 
     Ok(neighbors)
 }
@@ -213,10 +211,8 @@ pub fn get_keyword_categories(
 ) -> Result<Vec<KeywordCategory>, String> {
     let db = state.db_conn()?;
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt = to_cmd_err!(db.conn().prepare(
+        r#"
             SELECT s.id, s.name, s.icon, COALESCE(m.color, s.color), ims.weight, ims.article_count,
                    s.parent_id, m.name as parent_name, m.icon as parent_icon
             FROM immanentize_sephiroth ims
@@ -225,26 +221,22 @@ pub fn get_keyword_categories(
             WHERE ims.immanentize_id = ?
             ORDER BY m.name, ims.weight DESC
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+    ));
 
-    let categories = stmt
-        .query_map([id], |row| {
-            Ok(KeywordCategory {
-                sephiroth_id: row.get(0)?,
-                name: row.get(1)?,
-                icon: row.get(2)?,
-                color: row.get(3)?,
-                weight: row.get(4)?,
-                article_count: row.get(5)?,
-                parent_id: row.get(6)?,
-                parent_name: row.get(7)?,
-                parent_icon: row.get(8)?,
-            })
+    let categories = to_cmd_err!(to_cmd_err!(stmt.query_map([id], |row| {
+        Ok(KeywordCategory {
+            sephiroth_id: row.get(0)?,
+            name: row.get(1)?,
+            icon: row.get(2)?,
+            color: row.get(3)?,
+            weight: row.get(4)?,
+            article_count: row.get(5)?,
+            parent_id: row.get(6)?,
+            parent_name: row.get(7)?,
+            parent_icon: row.get(8)?,
         })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+    }))
+    .collect::<Result<Vec<_>, _>>());
 
     Ok(categories)
 }
@@ -258,23 +250,19 @@ pub fn get_category_keywords(
     let db = state.db_conn()?;
     let limit = limit.unwrap_or(50);
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            "SELECT i.id, i.name, i.count, i.article_count, i.cluster_id, i.is_canonical, i.canonical_id, i.first_seen, i.last_used, i.quality_score, i.keyword_type \
-             FROM immanentize_sephiroth ims \
-             JOIN immanentize i ON i.id = ims.immanentize_id \
-             WHERE ims.sephiroth_id = ? \
-             ORDER BY ims.weight DESC, ims.article_count DESC \
-             LIMIT ?",
-        )
-        .map_err(|e| e.to_string())?;
+    let mut stmt = to_cmd_err!(db.conn().prepare(
+        "SELECT i.id, i.name, i.count, i.article_count, i.cluster_id, i.is_canonical, i.canonical_id, i.first_seen, i.last_used, i.quality_score, i.keyword_type \
+         FROM immanentize_sephiroth ims \
+         JOIN immanentize i ON i.id = ims.immanentize_id \
+         WHERE ims.sephiroth_id = ? \
+         ORDER BY ims.weight DESC, ims.article_count DESC \
+         LIMIT ?",
+    ));
 
-    let keywords = stmt
-        .query_map(rusqlite::params![sephiroth_id, limit], keyword_from_row)
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+    let keywords = to_cmd_err!(to_cmd_err!(
+        stmt.query_map(rusqlite::params![sephiroth_id, limit], keyword_from_row)
+    )
+    .collect::<Result<Vec<_>, _>>());
 
     Ok(keywords)
 }
@@ -303,10 +291,8 @@ pub fn get_trending_keywords(
     let limit = limit.unwrap_or(20);
     let sort_by = sort_by.unwrap_or_else(|| "score".to_string());
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"
+    let mut stmt = to_cmd_err!(db.conn().prepare(
+        r#"
             SELECT
                 i.id,
                 i.name,
@@ -331,8 +317,7 @@ pub fn get_trending_keywords(
               AND i.article_count >= 3
               AND COALESCE(recent.cnt, 0) > 0
             "#,
-        )
-        .map_err(|e| e.to_string())?;
+    ));
 
     let mut keywords = stmt
         .query_map(rusqlite::params![days], |row| {
@@ -789,20 +774,17 @@ pub fn get_trending_comparison(
         daily_counts.entry(id).or_default().insert(date, count);
     }
 
-    // Build result preserving original order
+    // Build result preserving original order, skip entries without name (orphaned)
     let keywords: Vec<KeywordTrendData> = ids
         .iter()
-        .map(|&id| {
-            let name = names_map
-                .get(&id)
-                .cloned()
-                .unwrap_or_else(|| format!("Keyword {}", id));
+        .filter_map(|&id| {
+            let name = names_map.get(&id).cloned()?;
             let id_counts = daily_counts.get(&id);
             let counts: Vec<i64> = dates
                 .iter()
                 .map(|d| id_counts.and_then(|c| c.get(d)).copied().unwrap_or(0))
                 .collect();
-            KeywordTrendData { id, name, counts }
+            Some(KeywordTrendData { id, name, counts })
         })
         .collect();
 
@@ -1763,14 +1745,15 @@ pub fn find_synonym_candidates(
             }
             seen_pairs.insert((min_id, max_id));
 
-            // Get neighbor name
-            let neighbor_name: String = conn
-                .query_row(
-                    "SELECT name FROM immanentize WHERE id = ?",
-                    [neighbor_id],
-                    |row| row.get(0),
-                )
-                .unwrap_or_else(|_| format!("Keyword {}", neighbor_id));
+            // Get neighbor name (skip orphaned vec_immanentize entries)
+            let neighbor_name: String = match conn.query_row(
+                "SELECT name FROM immanentize WHERE id = ?",
+                [neighbor_id],
+                |row| row.get(0),
+            ) {
+                Ok(name) => name,
+                Err(_) => continue, // Orphaned entry in vec_immanentize, skip
+            };
 
             // Convert distance back to similarity
             let similarity = 1.0 - distance;
@@ -2925,6 +2908,11 @@ pub fn cleanup_keywords(state: State<AppState>) -> Result<KeywordCleanupResult, 
             .ok();
             conn.execute("DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ?1 OR immanentize_id_b = ?1", params![id])
                 .ok();
+            conn.execute(
+                "DELETE FROM vec_immanentize WHERE immanentize_id = ?1",
+                params![id],
+            )
+            .ok();
             if conn
                 .execute("DELETE FROM immanentize WHERE id = ?1", params![id])
                 .is_ok()
@@ -3203,6 +3191,12 @@ pub fn split_compound_keywords(
         conn.execute(
             "DELETE FROM dismissed_synonyms WHERE keyword_a_id = ? OR keyword_b_id = ?",
             params![compound_id, compound_id],
+        )
+        .ok();
+
+        conn.execute(
+            "DELETE FROM vec_immanentize WHERE immanentize_id = ?",
+            [compound_id],
         )
         .ok();
 

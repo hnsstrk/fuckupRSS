@@ -14,7 +14,7 @@
   interface Props {
     keywordId: number;
     keywordName: string;
-    children: any;
+    children: import("svelte").Snippet;
     onclick?: () => void;
   }
 
@@ -28,8 +28,10 @@
   let context = $state<KeywordContext | null>(null);
   let loadError = $state<string | null>(null);
 
+  import { SvelteMap } from "svelte/reactivity";
+
   // Cache for keyword contexts (persists across hovers)
-  const contextCache = new Map<number, KeywordContext>();
+  const contextCache = new SvelteMap<number, KeywordContext>();
 
   async function loadContext() {
     // Check cache first

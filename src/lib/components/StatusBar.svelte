@@ -35,7 +35,7 @@
       // Load models
       const response = await invoke<{ models: LoadedModel[] }>("get_loaded_models");
       loadedModels = response.models;
-    } catch (e) {
+    } catch {
       loadedModels = [];
     }
 
@@ -53,7 +53,7 @@
         with_embeddings: stats.total_keywords - status.queue_size,
         queue_size: status.queue_size,
       };
-    } catch (e) {
+    } catch {
       // Ignore errors
     }
 
@@ -61,7 +61,7 @@
       // Load hopeless article count
       const hopeless = await invoke<{ count: number }>("get_hopeless_count");
       hopelessCount = hopeless.count;
-    } catch (e) {
+    } catch {
       hopelessCount = 0;
     }
 
@@ -69,7 +69,7 @@
       // Load failed article count (articles with errors but not yet hopeless)
       const failed = await invoke<{ count: number }>("get_failed_count");
       failedCount = failed.count;
-    } catch (e) {
+    } catch {
       failedCount = 0;
     }
   }

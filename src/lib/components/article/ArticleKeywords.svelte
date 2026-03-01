@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
+  import { SvelteMap } from "svelte/reactivity";
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
   import type { ArticleKeyword, KeywordType, ExtractionMethod, CorrectionInput } from "$lib/types";
@@ -36,7 +37,7 @@
   let loadingNeighbors = $state(false);
 
   // Semantic scores for suggestions
-  let semanticScores = $state<Map<string, number>>(new Map());
+  let semanticScores: SvelteMap<string, number> = new SvelteMap();
   let loadingSemanticScores = $state(false);
 
   // Get source icon class
@@ -254,7 +255,7 @@
         { keyword: string; semantic_score: number; combined_score: number }[]
       >("score_keywords_semantically", { fnordId, keywords: keywordTerms, semanticWeight: 0.4 });
       // Update the map
-      const newScores = new Map<string, number>();
+      const newScores = new SvelteMap<string, number>();
       for (const score of scores) {
         newScores.set(score.keyword.toLowerCase(), score.semantic_score);
       }
@@ -376,7 +377,7 @@
     // Clear cached data so load functions will re-fetch
     suggestedKeywords = [];
     similarKeywords = [];
-    semanticScores = new Map();
+    semanticScores = new SvelteMap();
     loadSuggestions();
     loadSimilarFromNetwork();
   }
@@ -608,7 +609,7 @@
               </span>
             {:else if expandedNeighbors.length > 0}
               <div class="neighbors-list">
-                {#each expandedNeighbors as neighbor}
+                {#each expandedNeighbors as neighbor (neighbor.id)}
                   <button
                     type="button"
                     class="neighbor-chip"
@@ -650,7 +651,7 @@
         {/if}
       </span>
       <div class="suggestions-list">
-        {#each suggestedKeywords as suggestion}
+        {#each suggestedKeywords as suggestion (suggestion.term)}
           {@const semanticScore = semanticScores.get(suggestion.term.toLowerCase())}
           <button
             type="button"
@@ -687,7 +688,7 @@
         {$_("articleKeywords.fromNetwork") || "Aus Netzwerk"}:
       </span>
       <div class="similar-list">
-        {#each similarKeywords as similar}
+        {#each similarKeywords as similar (similar.id)}
           <button
             type="button"
             class="similar-chip"

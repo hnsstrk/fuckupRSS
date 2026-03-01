@@ -446,14 +446,26 @@
 <div class="network-graph-container">
   <!-- Controls -->
   <div class="graph-controls">
-    <button onclick={handleZoomIn} title={$_("network.zoomIn") || "Zoom In"}>
-      <i class="fa-solid fa-plus"></i>
+    <button
+      onclick={handleZoomIn}
+      title={$_("network.zoomIn") || "Zoom In"}
+      aria-label={$_("network.zoomIn") || "Zoom In"}
+    >
+      <i class="fa-solid fa-plus" aria-hidden="true"></i>
     </button>
-    <button onclick={handleZoomOut} title={$_("network.zoomOut") || "Zoom Out"}>
-      <i class="fa-solid fa-minus"></i>
+    <button
+      onclick={handleZoomOut}
+      title={$_("network.zoomOut") || "Zoom Out"}
+      aria-label={$_("network.zoomOut") || "Zoom Out"}
+    >
+      <i class="fa-solid fa-minus" aria-hidden="true"></i>
     </button>
-    <button onclick={handleReset} title={$_("network.resetView") || "Reset"}>
-      <i class="fa-solid fa-expand"></i>
+    <button
+      onclick={handleReset}
+      title={$_("network.resetView") || "Reset"}
+      aria-label={$_("network.resetView") || "Reset"}
+    >
+      <i class="fa-solid fa-expand" aria-hidden="true"></i>
     </button>
   </div>
 
@@ -461,8 +473,12 @@
   {#if focusedNodeId}
     <div class="focus-indicator">
       <span>{$_("network.focusMode") || "Fokus-Modus"}</span>
-      <button onclick={exitFocusMode} class="exit-focus">
-        <i class="fa-solid fa-xmark"></i>
+      <button
+        onclick={exitFocusMode}
+        class="exit-focus"
+        aria-label={$_("network.exitFocus") || "Beenden"}
+      >
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
         {$_("network.exitFocus") || "Beenden"}
       </button>
     </div>
@@ -473,27 +489,27 @@
     <div class="legend-title">{$_("network.categories") || "Kategorien"}</div>
     <div class="legend-items">
       <div class="legend-item">
-        <span class="legend-dot" style="background-color: #EF4444"></span>
+        <span class="legend-dot legend-dot--politik"></span>
         <span>Politik</span>
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style="background-color: #3B82F6"></span>
+        <span class="legend-dot legend-dot--technik"></span>
         <span>Technik</span>
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style="background-color: #10B981"></span>
+        <span class="legend-dot legend-dot--wirtschaft"></span>
         <span>Wirtschaft</span>
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style="background-color: #8B5CF6"></span>
+        <span class="legend-dot legend-dot--kultur"></span>
         <span>Kultur</span>
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style="background-color: #F59E0B"></span>
+        <span class="legend-dot legend-dot--sicherheit"></span>
         <span>Sicherheit</span>
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style="background-color: #6B7280"></span>
+        <span class="legend-dot legend-dot--andere"></span>
         <span>Andere</span>
       </div>
     </div>
@@ -665,6 +681,30 @@
     height: 10px;
     border-radius: 50%;
     flex-shrink: 0;
+  }
+
+  .legend-dot--politik {
+    background-color: #ef4444;
+  }
+
+  .legend-dot--technik {
+    background-color: #3b82f6;
+  }
+
+  .legend-dot--wirtschaft {
+    background-color: #10b981;
+  }
+
+  .legend-dot--kultur {
+    background-color: #8b5cf6;
+  }
+
+  .legend-dot--sicherheit {
+    background-color: #f59e0b;
+  }
+
+  .legend-dot--andere {
+    background-color: #6b7280;
   }
 
   /* Tooltip */

@@ -18,9 +18,22 @@ Reduzierung auf `num_ctx=4096` senkt den VRAM-Verbrauch drastisch, ohne die Qual
 
 ---
 
-## Verarbeitungsmodus
+## Verarbeitungsmodus und Concurrency
 
-Artikel werden **sequentiell** verarbeitet (ein Artikel nach dem anderen). Dies ist zuverlaessig und vermeidet VRAM-Engpaesse.
+Standardmaessig werden Artikel **sequentiell** verarbeitet (ein LLM-Request auf einmal). Ueber das Setting `ollama_concurrency` (Standard: 1) kann die Anzahl paralleler LLM-Anfragen erhoeht werden.
+
+| Setting | Wert | Empfehlung |
+|---------|------|------------|
+| `ollama_concurrency` | 1 | Lokales Ollama auf derselben Maschine (VRAM-schonend) |
+| `ollama_concurrency` | 2-4 | Remote Ollama mit ausreichend VRAM oder OpenAI-kompatible API |
+
+**Wichtig:** Wenn `ollama_concurrency > 1`, muss `OLLAMA_NUM_PARALLEL` auf dem Ollama-Server mindestens denselben Wert haben, sonst werden Requests seralisiert.
+
+## Explizites Modell-Entladen
+
+Nach der LLM-Analyse (Discordian Analysis) wird das LLM-Modell explizit via `unload_model()` aus dem VRAM entladen, bevor das Embedding-Modell `snowflake-arctic-embed2` geladen wird. Dies verhindert VRAM-Engpaesse auf Systemen mit 12 GB oder weniger.
+
+`keep_alive` ist auf `5m` gesetzt: Wird kein weiterer Request gesendet, entlaedt Ollama das Modell nach 5 Minuten automatisch (entspricht dem Ollama-Server-Standard).
 
 ---
 

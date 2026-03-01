@@ -59,7 +59,7 @@ describe("ErisianArchives", () => {
       let errorCaught = false;
       try {
         await invoke("get_fnords_count", { filter: null });
-      } catch (e) {
+      } catch {
         errorCaught = true;
       }
 

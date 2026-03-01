@@ -108,9 +108,10 @@ impl FeedSyncer {
                     .content
                     .as_ref()
                     .and_then(|c| c.body.clone())
-                    .or_else(|| entry.summary.as_ref().map(|s| s.content.clone()));
+                    .or_else(|| entry.summary.as_ref().map(|s| s.content.clone()))
+                    .map(|html| ammonia::clean(&html));
 
-                let summary = entry.summary.as_ref().map(|s| s.content.clone());
+                let summary = entry.summary.as_ref().map(|s| ammonia::clean(&s.content));
 
                 let image_url = entry
                     .media

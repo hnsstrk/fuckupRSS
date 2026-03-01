@@ -291,6 +291,8 @@
       "noModels": "Keine Modelle installiert",
       "contextLength": "Kontext-Länge (num_ctx)",
       "contextLengthDescription": "Höhere Werte erlauben längere Artikel, benötigen aber mehr VRAM. 4K ist für die meisten Artikel ausreichend.",
+      "ollamaConcurrency": "Parallelität (Concurrency)",
+      "ollamaConcurrencyDescription": "Anzahl paralleler Requests an Ollama. Bei lokalem Ollama auf 1 lassen. Bei Remote-Ollama mit OLLAMA_NUM_PARALLEL > 1 entsprechend erhöhen.",
       "loadedModels": "Geladene Modelle (VRAM)",
       "noLoadedModels": "Keine Modelle geladen",
       "loadModels": "Modelle in VRAM laden",
@@ -299,7 +301,13 @@
       "modelMissing": "Modell \"{model}\" ist nicht installiert",
       "modelMissingHint": "Dieses Modell muss heruntergeladen werden bevor die KI-Analyse funktioniert.",
       "downloadNow": "Jetzt herunterladen",
-      "modelsIncomplete": "Modelle unvollständig"
+      "modelsIncomplete": "Modelle unvollständig",
+      "serverHistory": "Server-Verlauf",
+      "removeServer": "Server entfernen",
+      "serverAdded": "Server zur Liste hinzugefügt",
+      "serverRemoved": "Server aus Liste entfernt",
+      "defaultServer": "Standard",
+      "toggleServerList": "Server-Liste öffnen/schließen"
     },
     "prompts": {
       "title": "KI-Prompts",

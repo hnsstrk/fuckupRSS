@@ -5,6 +5,17 @@ import {
   getSachlichkeitLabel,
   getSachlichkeitIcon,
   getSachlichkeitColor,
+  getBiasColor,
+  getBiasIcon,
+  getBiasLabel,
+  getStatusIcon,
+  getStatusColorClass,
+  formatRelativeDate,
+  formatFullDate,
+  formatShortDate,
+  stripHtml,
+  formatSimilarity,
+  truncateText,
 } from "$lib/utils/articleFormat";
 
 // Mock the invoke function
@@ -21,6 +32,7 @@ vi.mock("../../stores/state.svelte", () => ({
     retrieving: false,
     analyzing: false,
     error: null,
+    selectedModel: "ministral-3:latest",
     getRevisions: vi.fn(),
     getArticleCategories: vi.fn(),
     getArticleTags: vi.fn(),
@@ -39,150 +51,139 @@ vi.mock("../../stores/state.svelte", () => ({
 
 import { appState, toasts } from "../../stores/state.svelte";
 
-describe("ArticleView Component Logic", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+// ============================================================
+// Utility Function Tests (articleFormat.ts)
+// ============================================================
 
-  describe("HTML Stripping", () => {
-    it("strips HTML tags from content", () => {
-      // Simulate the stripHtml function
-      const stripHtml = (html: string): string => {
-        // In tests, we can't use document.createElement, so we use regex
-        return html.replace(/<[^>]*>/g, "");
-      };
-
-      expect(stripHtml("<p>Hello World</p>")).toBe("Hello World");
-      expect(stripHtml("<div><span>Nested</span></div>")).toBe("Nested");
-      expect(stripHtml("Plain text")).toBe("Plain text");
-    });
-  });
+describe("ArticleView Utility Functions", () => {
+  // ============================================================
+  // Date Formatting
+  // ============================================================
 
   describe("Date Formatting", () => {
-    it("formats date string correctly", () => {
-      const formatDate = (dateStr: string | null, locale: string): string => {
-        if (!dateStr) return "";
-        const date = new Date(dateStr);
-        return date.toLocaleDateString(locale === "de" ? "de-DE" : "en-US", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      };
-
-      const result = formatDate("2025-01-15T10:30:00Z", "en");
+    it("formats full date in German", () => {
+      const result = formatFullDate("2025-01-15T10:30:00Z", "de");
       expect(result).toBeTruthy();
       expect(typeof result).toBe("string");
+      expect(result).toContain("15");
+    });
+
+    it("formats full date in English", () => {
+      const result = formatFullDate("2025-01-15T10:30:00Z", "en");
+      expect(result).toBeTruthy();
+      expect(result).toContain("15");
     });
 
     it("returns empty string for null date", () => {
-      const formatDate = (dateStr: string | null): string => {
-        if (!dateStr) return "";
-        return new Date(dateStr).toLocaleDateString();
-      };
-
-      expect(formatDate(null)).toBe("");
+      expect(formatFullDate(null)).toBe("");
     });
 
-    it("formats short date", () => {
-      const formatShortDate = (dateStr: string | null, locale: string): string => {
-        if (!dateStr) return "";
-        const date = new Date(dateStr);
-        return date.toLocaleDateString(locale === "de" ? "de-DE" : "en-US", {
-          day: "numeric",
-          month: "short",
-        });
-      };
-
+    it("formats short date correctly", () => {
       const result = formatShortDate("2025-01-15T10:30:00Z", "en");
       expect(result).toContain("15");
     });
+
+    it("returns empty string for null short date", () => {
+      expect(formatShortDate(null)).toBe("");
+    });
+
+    it("formats relative date for recent articles", () => {
+      const now = new Date();
+      const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
+      const result = formatRelativeDate(fiveMinAgo, "de");
+      expect(result).toContain("Min");
+    });
+
+    it("formats relative date for hours ago", () => {
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
+      const result = formatRelativeDate(twoHoursAgo, "de");
+      expect(result).toContain("Std");
+    });
+
+    it("formats relative date for days ago", () => {
+      const now = new Date();
+      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
+      const result = formatRelativeDate(threeDaysAgo, "de");
+      expect(result).toContain("Tagen");
+    });
+
+    it("returns empty string for null relative date", () => {
+      expect(formatRelativeDate(null)).toBe("");
+    });
   });
+
+  // ============================================================
+  // Bias Functions
+  // ============================================================
 
   describe("Bias Labels", () => {
-    it("returns correct bias label for each value", () => {
-      const getBiasLabel = (bias: number | null): string => {
-        if (bias === null) return "Not Rated";
-        switch (bias) {
-          case -2:
-            return "Strong Left";
-          case -1:
-            return "Lean Left";
-          case 0:
-            return "Center";
-          case 1:
-            return "Lean Right";
-          case 2:
-            return "Strong Right";
-          default:
-            return "Unknown";
-        }
-      };
-
-      expect(getBiasLabel(null)).toBe("Not Rated");
-      expect(getBiasLabel(-2)).toBe("Strong Left");
-      expect(getBiasLabel(-1)).toBe("Lean Left");
-      expect(getBiasLabel(0)).toBe("Center");
-      expect(getBiasLabel(1)).toBe("Lean Right");
-      expect(getBiasLabel(2)).toBe("Strong Right");
-      expect(getBiasLabel(5)).toBe("Unknown");
-    });
-  });
-
-  describe("Sachlichkeit Labels", () => {
-    it("returns correct sachlichkeit label for each value", () => {
-      expect(getSachlichkeitLabel(null, "en")).toBe("");
-      expect(getSachlichkeitLabel(0, "en")).toBe("Highly emotional");
-      expect(getSachlichkeitLabel(1, "en")).toBe("Emotional");
-      expect(getSachlichkeitLabel(2, "en")).toBe("Mixed");
-      expect(getSachlichkeitLabel(3, "en")).toBe("Mostly objective");
-      expect(getSachlichkeitLabel(4, "en")).toBe("Objective");
+    it("returns correct bias label for each value in German", () => {
+      expect(getBiasLabel(null, "de")).toBe("");
+      expect(getBiasLabel(-2, "de")).toBe("Stark links");
+      expect(getBiasLabel(-1, "de")).toBe("Leicht links");
+      expect(getBiasLabel(0, "de")).toBe("Neutral");
+      expect(getBiasLabel(1, "de")).toBe("Leicht rechts");
+      expect(getBiasLabel(2, "de")).toBe("Stark rechts");
     });
 
-    it("returns correct sachlichkeit label in German", () => {
-      expect(getSachlichkeitLabel(0, "de")).toBe("Hoch emotional");
-      expect(getSachlichkeitLabel(4, "de")).toBe("Sachlich");
+    it("returns correct bias label for each value in English", () => {
+      expect(getBiasLabel(-2, "en")).toBe("Strong left");
+      expect(getBiasLabel(-1, "en")).toBe("Lean left");
+      expect(getBiasLabel(0, "en")).toBe("Neutral");
+      expect(getBiasLabel(1, "en")).toBe("Lean right");
+      expect(getBiasLabel(2, "en")).toBe("Strong right");
+    });
+
+    it("returns empty string for unknown bias values", () => {
+      expect(getBiasLabel(5, "de")).toBe("");
     });
   });
 
   describe("Bias Icons", () => {
     it("returns correct bias icon class", () => {
-      const getBiasIcon = (bias: number | null): string => {
-        if (bias === null) return "fa-scale-balanced";
-        if (bias < 0) return "fa-scale-unbalanced";
-        if (bias > 0) return "fa-scale-unbalanced-flip";
-        return "fa-scale-balanced";
-      };
-
-      expect(getBiasIcon(null)).toBe("fa-scale-balanced");
-      expect(getBiasIcon(-2)).toBe("fa-scale-unbalanced");
-      expect(getBiasIcon(-1)).toBe("fa-scale-unbalanced");
-      expect(getBiasIcon(0)).toBe("fa-scale-balanced");
-      expect(getBiasIcon(1)).toBe("fa-scale-unbalanced-flip");
-      expect(getBiasIcon(2)).toBe("fa-scale-unbalanced-flip");
+      expect(getBiasIcon(null)).toBe("");
+      expect(getBiasIcon(-2)).toBe("fa-solid fa-angles-left");
+      expect(getBiasIcon(-1)).toBe("fa-solid fa-angle-left");
+      expect(getBiasIcon(0)).toBe("fa-solid fa-circle");
+      expect(getBiasIcon(1)).toBe("fa-solid fa-angle-right");
+      expect(getBiasIcon(2)).toBe("fa-solid fa-angles-right");
     });
   });
 
   describe("Bias Colors", () => {
-    it("returns correct bias color class", () => {
-      const getBiasColor = (bias: number | null): string => {
-        if (bias === null) return "neutral";
-        if (bias <= -2) return "strong-left";
-        if (bias === -1) return "lean-left";
-        if (bias === 0) return "center";
-        if (bias === 1) return "lean-right";
-        return "strong-right";
-      };
+    it("returns correct bias color class format", () => {
+      expect(getBiasColor(null, "class")).toBe("neutral");
+      expect(getBiasColor(-2, "class")).toBe("strong-left");
+      expect(getBiasColor(-1, "class")).toBe("lean-left");
+      expect(getBiasColor(0, "class")).toBe("center");
+      expect(getBiasColor(1, "class")).toBe("lean-right");
+      expect(getBiasColor(2, "class")).toBe("strong-right");
+    });
 
-      expect(getBiasColor(null)).toBe("neutral");
-      expect(getBiasColor(-2)).toBe("strong-left");
-      expect(getBiasColor(-1)).toBe("lean-left");
-      expect(getBiasColor(0)).toBe("center");
-      expect(getBiasColor(1)).toBe("lean-right");
-      expect(getBiasColor(2)).toBe("strong-right");
+    it("returns CSS variable format by default", () => {
+      expect(getBiasColor(null)).toBe("var(--text-muted)");
+      expect(getBiasColor(0)).toBe("var(--bias-center)");
+    });
+  });
+
+  // ============================================================
+  // Sachlichkeit Functions
+  // ============================================================
+
+  describe("Sachlichkeit Labels", () => {
+    it("returns correct sachlichkeit label in German", () => {
+      expect(getSachlichkeitLabel(null, "de")).toBe("");
+      expect(getSachlichkeitLabel(0, "de")).toBe("Hoch emotional");
+      expect(getSachlichkeitLabel(1, "de")).toBe("Emotional");
+      expect(getSachlichkeitLabel(2, "de")).toBe("Gemischt");
+      expect(getSachlichkeitLabel(3, "de")).toBe("Überwiegend sachlich");
+      expect(getSachlichkeitLabel(4, "de")).toBe("Sachlich");
+    });
+
+    it("returns correct sachlichkeit label in English", () => {
+      expect(getSachlichkeitLabel(0, "en")).toBe("Highly emotional");
+      expect(getSachlichkeitLabel(4, "en")).toBe("Objective");
     });
   });
 
@@ -208,6 +209,34 @@ describe("ArticleView Component Logic", () => {
     });
   });
 
+  // ============================================================
+  // Status Functions
+  // ============================================================
+
+  describe("Status Icons", () => {
+    it("returns correct status icon", () => {
+      expect(getStatusIcon("concealed")).toBe("fa-solid fa-eye-slash");
+      expect(getStatusIcon("illuminated")).toBe("fa-solid fa-eye");
+      expect(getStatusIcon("golden_apple")).toBe("fa-solid fa-apple-whole");
+    });
+
+    it("returns default icon for unknown status", () => {
+      expect(getStatusIcon("unknown")).toBe("fa-solid fa-check");
+    });
+  });
+
+  describe("Status Color Classes", () => {
+    it("returns correct status color class", () => {
+      expect(getStatusColorClass("concealed")).toBe("status-concealed");
+      expect(getStatusColorClass("illuminated")).toBe("status-illuminated");
+      expect(getStatusColorClass("golden_apple")).toBe("status-golden_apple");
+    });
+  });
+
+  // ============================================================
+  // Category Functions
+  // ============================================================
+
   describe("Category Color Helpers", () => {
     it("gets main category ID from subcategory ID", () => {
       expect(getMainCategoryId(undefined)).toBe(0);
@@ -226,7 +255,50 @@ describe("ArticleView Component Logic", () => {
       expect(getCategoryColorVar(101)).toBe("var(--category-1)");
       expect(getCategoryColorVar(305)).toBe("var(--category-3)");
     });
+
+    it("returns fallback for invalid category IDs", () => {
+      expect(getCategoryColorVar(0)).toBe("var(--accent-primary)");
+      expect(getCategoryColorVar(undefined)).toBe("var(--accent-primary)");
+    });
   });
+
+  // ============================================================
+  // Text Utilities
+  // ============================================================
+
+  describe("Text Utilities", () => {
+    it("strips HTML tags", () => {
+      expect(stripHtml("<p>Hello World</p>")).toBe("Hello World");
+      expect(stripHtml("<div><span>Nested</span></div>")).toBe("Nested");
+      expect(stripHtml("Plain text")).toBe("Plain text");
+    });
+
+    it("truncates text with ellipsis", () => {
+      expect(truncateText("Short", 100)).toBe("Short");
+      expect(truncateText("This is a longer text", 10)).toBe("This is a ...");
+    });
+
+    it("formats similarity as percentage", () => {
+      expect(formatSimilarity(0.85)).toBe("85%");
+      expect(formatSimilarity(1.0)).toBe("100%");
+      expect(formatSimilarity(0.0)).toBe("0%");
+      expect(formatSimilarity(0.333)).toBe("33%");
+    });
+  });
+});
+
+// ============================================================
+// Component Logic Tests
+// ============================================================
+
+describe("ArticleView Component Logic", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // ============================================================
+  // Article Actions
+  // ============================================================
 
   describe("Article Actions", () => {
     it("toggles golden apple status", () => {
@@ -240,25 +312,7 @@ describe("ArticleView Component Logic", () => {
       expect(appState.toggleGoldenApple).toHaveBeenCalledWith(42);
     });
 
-    it("opens article in browser", () => {
-      const mockOpen = vi.fn();
-      const originalOpen = (globalThis as unknown as { window?: { open?: typeof window.open } })
-        .window?.open;
-      // @ts-ignore
-      (globalThis as Record<string, unknown>).window = { open: mockOpen };
-
-      const openInBrowser = (url: string) => {
-        window.open(url, "_blank");
-      };
-
-      openInBrowser("https://example.com/article");
-      expect(mockOpen).toHaveBeenCalledWith("https://example.com/article", "_blank");
-
-      // @ts-ignore
-      if (originalOpen) global.window.open = originalOpen;
-    });
-
-    it("fetches full content", async () => {
+    it("fetches full content successfully", async () => {
       const mockResult = {
         fnord_id: 42,
         success: true,
@@ -271,6 +325,8 @@ describe("ArticleView Component Logic", () => {
         const result = await appState.fetchFullContent(fnordId);
         if (result?.success) {
           toasts.success("Content fetched");
+        } else if (result?.error) {
+          toasts.error(`Fetch failed: ${result.error}`);
         }
       };
 
@@ -278,6 +334,41 @@ describe("ArticleView Component Logic", () => {
 
       expect(appState.fetchFullContent).toHaveBeenCalledWith(42);
       expect(toasts.success).toHaveBeenCalled();
+    });
+
+    it("handles fetch error with specific messages", async () => {
+      const mockResult = {
+        fnord_id: 42,
+        success: false,
+        content: null,
+        error: "404 Not Found",
+      };
+      vi.mocked(appState.fetchFullContent).mockResolvedValue(mockResult);
+
+      const getSpecificFetchError = (error: string): string => {
+        const errorLower = error.toLowerCase();
+        if (errorLower.includes("404") || errorLower.includes("not found")) {
+          return "Page not found";
+        }
+        if (errorLower.includes("403") || errorLower.includes("forbidden")) {
+          return "Access blocked";
+        }
+        if (errorLower.includes("timeout")) {
+          return "Connection timeout";
+        }
+        return `Fetch error: ${error}`;
+      };
+
+      const fetchFullContent = async (fnordId: number) => {
+        const result = await appState.fetchFullContent(fnordId);
+        if (result?.error) {
+          toasts.error(getSpecificFetchError(result.error));
+        }
+      };
+
+      await fetchFullContent(42);
+
+      expect(toasts.error).toHaveBeenCalledWith("Page not found");
     });
 
     it("analyzes article with AI", async () => {
@@ -303,7 +394,101 @@ describe("ArticleView Component Logic", () => {
       expect(appState.processArticleDiscordian).toHaveBeenCalledWith(42);
       expect(toasts.success).toHaveBeenCalled();
     });
+
+    it("requires model selection for analysis", () => {
+      const selectedModel: string | null = null;
+
+      const canAnalyze = !!selectedModel;
+      expect(canAnalyze).toBe(false);
+    });
+
+    it("requires sufficient content for analysis", () => {
+      const hasContentForAnalysis = (contentFull: string | null): boolean => {
+        return !!contentFull && contentFull.length >= 100;
+      };
+
+      expect(hasContentForAnalysis(null)).toBe(false);
+      expect(hasContentForAnalysis("short")).toBe(false);
+      expect(hasContentForAnalysis("x".repeat(100))).toBe(true);
+      expect(hasContentForAnalysis("x".repeat(1000))).toBe(true);
+    });
   });
+
+  // ============================================================
+  // Content Status
+  // ============================================================
+
+  describe("Content Status", () => {
+    type ContentStatus = "full" | "rss" | "missing";
+
+    const getContentStatus = (
+      contentFull: string | null,
+      contentRaw: string | null,
+    ): ContentStatus => {
+      if (contentFull && contentFull.length > 500) return "full";
+      if (contentRaw) return "rss";
+      return "missing";
+    };
+
+    it("returns full for articles with full content", () => {
+      expect(getContentStatus("x".repeat(600), null)).toBe("full");
+    });
+
+    it("returns rss for articles with only raw content", () => {
+      expect(getContentStatus(null, "raw content")).toBe("rss");
+    });
+
+    it("returns rss for articles with short full content", () => {
+      expect(getContentStatus("short", "raw")).toBe("rss");
+    });
+
+    it("returns missing for articles without any content", () => {
+      expect(getContentStatus(null, null)).toBe("missing");
+    });
+  });
+
+  // ============================================================
+  // Content Display
+  // ============================================================
+
+  describe("Content Display", () => {
+    it("prefers content_full over content_raw", () => {
+      const getDisplayContent = (
+        contentFull: string | null,
+        contentRaw: string | null,
+      ): string | null => {
+        if (contentFull) return contentFull;
+        if (contentRaw) return contentRaw;
+        return null;
+      };
+
+      expect(getDisplayContent("Full", "Raw")).toBe("Full");
+      expect(getDisplayContent(null, "Raw")).toBe("Raw");
+      expect(getDisplayContent(null, null)).toBeNull();
+    });
+
+    it("determines if full content fetch is needed", () => {
+      const needsFullContent = (contentFull: string | null): boolean => {
+        return !contentFull;
+      };
+
+      expect(needsFullContent(null)).toBe(true);
+      expect(needsFullContent("Full content here")).toBe(false);
+    });
+
+    it("determines analyze button text", () => {
+      const getAnalyzeButtonText = (hasSummary: boolean): string => {
+        return hasSummary ? "Reanalyze" : "Analyze";
+      };
+
+      expect(getAnalyzeButtonText(true)).toBe("Reanalyze");
+      expect(getAnalyzeButtonText(false)).toBe("Analyze");
+    });
+  });
+
+  // ============================================================
+  // Keyboard Shortcuts
+  // ============================================================
 
   describe("Keyboard Shortcuts", () => {
     it("handles v key to open in browser", () => {
@@ -319,8 +504,19 @@ describe("ArticleView Component Logic", () => {
 
       expect(handleKeydown("v", true)).toBe(true);
       expect(browserOpened).toBe(true);
+    });
 
-      browserOpened = false;
+    it("does not open browser without selection", () => {
+      let browserOpened = false;
+
+      const handleKeydown = (key: string, hasSelectedFnord: boolean) => {
+        if (key === "v" && hasSelectedFnord) {
+          browserOpened = true;
+          return true;
+        }
+        return false;
+      };
+
       expect(handleKeydown("v", false)).toBe(false);
       expect(browserOpened).toBe(false);
     });
@@ -338,12 +534,27 @@ describe("ArticleView Component Logic", () => {
 
       expect(handleKeydown("r", true, false)).toBe(true);
       expect(fetchTriggered).toBe(true);
+    });
 
-      fetchTriggered = false;
+    it("does not fetch when full content already exists", () => {
+      let fetchTriggered = false;
+
+      const handleKeydown = (key: string, hasSelectedFnord: boolean, hasFullContent: boolean) => {
+        if (key === "r" && hasSelectedFnord && !hasFullContent) {
+          fetchTriggered = true;
+          return true;
+        }
+        return false;
+      };
+
       expect(handleKeydown("r", true, true)).toBe(false);
       expect(fetchTriggered).toBe(false);
     });
   });
+
+  // ============================================================
+  // Revision Handling
+  // ============================================================
 
   describe("Revision Handling", () => {
     it("toggles revision visibility", () => {
@@ -399,7 +610,25 @@ describe("ArticleView Component Logic", () => {
       expect(appState.getRevisions).toHaveBeenCalledWith(42);
       expect(revisions).toHaveLength(2);
     });
+
+    it("skips loading revisions when count is 0", async () => {
+      const loadRevisions = async (fnordId: number, revisionCount: number) => {
+        if (revisionCount > 0) {
+          return await appState.getRevisions(fnordId);
+        }
+        return [];
+      };
+
+      const revisions = await loadRevisions(42, 0);
+
+      expect(appState.getRevisions).not.toHaveBeenCalled();
+      expect(revisions).toHaveLength(0);
+    });
   });
+
+  // ============================================================
+  // Similar Articles
+  // ============================================================
 
   describe("Similar Articles", () => {
     it("loads similar articles when article has embedding", async () => {
@@ -425,7 +654,11 @@ describe("ArticleView Component Logic", () => {
       ];
       vi.mocked(appState.findSimilarArticles).mockResolvedValue(mockSimilar);
 
-      const loadSimilarArticles = async (fnordId: number, hasEmbedding: boolean, limit: number) => {
+      const loadSimilarArticles = async (
+        fnordId: number,
+        hasEmbedding: boolean,
+        limit: number,
+      ) => {
         if (hasEmbedding) {
           return await appState.findSimilarArticles(fnordId, limit);
         }
@@ -439,7 +672,11 @@ describe("ArticleView Component Logic", () => {
     });
 
     it("does not load similar articles without embedding", async () => {
-      const loadSimilarArticles = async (fnordId: number, hasEmbedding: boolean, limit: number) => {
+      const loadSimilarArticles = async (
+        fnordId: number,
+        hasEmbedding: boolean,
+        limit: number,
+      ) => {
         if (hasEmbedding) {
           return await appState.findSimilarArticles(fnordId, limit);
         }
@@ -453,8 +690,12 @@ describe("ArticleView Component Logic", () => {
     });
   });
 
+  // ============================================================
+  // Article Data Loading
+  // ============================================================
+
   describe("Article Data Loading", () => {
-    it("loads categories and tags", async () => {
+    it("loads categories and tags in parallel", async () => {
       const mockCategories = [
         {
           sephiroth_id: 1,
@@ -496,32 +737,105 @@ describe("ArticleView Component Logic", () => {
 
       expect(appState.acknowledgeChanges).toHaveBeenCalledWith(42);
     });
-  });
 
-  describe("Navigation Events", () => {
-    it("creates navigate-to-network custom event correctly", () => {
-      const createNavigateToNetworkEvent = (tagId: number) => {
-        return new CustomEvent("navigate-to-network", { detail: { keywordId: tagId } });
+    it("does not acknowledge article without changes", async () => {
+      const fnord = { id: 42, has_changes: false };
+
+      const acknowledgeIfNeeded = async (article: { id: number; has_changes: boolean }) => {
+        if (article.has_changes) {
+          await appState.acknowledgeChanges(article.id);
+        }
       };
 
-      const event = createNavigateToNetworkEvent(123);
+      await acknowledgeIfNeeded(fnord);
+
+      expect(appState.acknowledgeChanges).not.toHaveBeenCalled();
+    });
+  });
+
+  // ============================================================
+  // Navigation Events
+  // ============================================================
+
+  describe("Navigation Events", () => {
+    it("creates navigate-to-network custom event", () => {
+      const event = new CustomEvent("navigate-to-network", { detail: { keywordId: 123 } });
 
       expect(event.type).toBe("navigate-to-network");
       expect(event.detail.keywordId).toBe(123);
     });
 
-    it("creates navigate-to-article custom event correctly", () => {
-      const createNavigateToArticleEvent = (fnordId: number) => {
-        return new CustomEvent("navigate-to-article", { detail: { articleId: fnordId } });
-      };
-
-      const event = createNavigateToArticleEvent(456);
+    it("creates navigate-to-article custom event", () => {
+      const event = new CustomEvent("navigate-to-article", { detail: { articleId: 456 } });
 
       expect(event.type).toBe("navigate-to-article");
       expect(event.detail.articleId).toBe(456);
     });
   });
+
+  // ============================================================
+  // Edit Mode
+  // ============================================================
+
+  describe("Edit Mode", () => {
+    it("toggles keyword editing mode", () => {
+      let editingKeywords = false;
+
+      const toggleKeywordEditing = () => {
+        editingKeywords = !editingKeywords;
+      };
+
+      expect(editingKeywords).toBe(false);
+      toggleKeywordEditing();
+      expect(editingKeywords).toBe(true);
+      toggleKeywordEditing();
+      expect(editingKeywords).toBe(false);
+    });
+
+    it("toggles category editing mode", () => {
+      let editingCategories = false;
+
+      const toggleCategoryEditing = () => {
+        editingCategories = !editingCategories;
+      };
+
+      expect(editingCategories).toBe(false);
+      toggleCategoryEditing();
+      expect(editingCategories).toBe(true);
+      toggleCategoryEditing();
+      expect(editingCategories).toBe(false);
+    });
+  });
+
+  // ============================================================
+  // Fetch Error Handling
+  // ============================================================
+
+  describe("Fetch Error Handling", () => {
+    it("classifies 404 errors", () => {
+      const getSpecificFetchError = (error: string): string => {
+        const errorLower = error.toLowerCase();
+        if (errorLower.includes("404") || errorLower.includes("not found")) return "not-found";
+        if (errorLower.includes("403") || errorLower.includes("forbidden")) return "blocked";
+        if (errorLower.includes("timeout")) return "timeout";
+        if (errorLower.includes("network") || errorLower.includes("connection")) return "network";
+        if (errorLower.includes("paywall")) return "paywall";
+        return "generic";
+      };
+
+      expect(getSpecificFetchError("HTTP 404 Not Found")).toBe("not-found");
+      expect(getSpecificFetchError("HTTP 403 Forbidden")).toBe("blocked");
+      expect(getSpecificFetchError("Connection timeout")).toBe("timeout");
+      expect(getSpecificFetchError("Network error")).toBe("network");
+      expect(getSpecificFetchError("Paywall detected")).toBe("paywall");
+      expect(getSpecificFetchError("Unknown error")).toBe("generic");
+    });
+  });
 });
+
+// ============================================================
+// Data Structures
+// ============================================================
 
 describe("ArticleView Data Structures", () => {
   describe("Fnord Structure", () => {
@@ -542,6 +856,7 @@ describe("ArticleView Data Structures", () => {
       quality_score: number | null;
       has_changes: boolean;
       revision_count: number;
+      full_text_fetch_error: string | null;
     }
 
     it("creates valid detailed fnord", () => {
@@ -562,6 +877,7 @@ describe("ArticleView Data Structures", () => {
         quality_score: 4,
         has_changes: false,
         revision_count: 0,
+        full_text_fetch_error: null,
       };
 
       expect(fnord.id).toBe(1);
@@ -587,128 +903,37 @@ describe("ArticleView Data Structures", () => {
         quality_score: null,
         has_changes: false,
         revision_count: 0,
+        full_text_fetch_error: null,
       };
 
       expect(fnord.processed_at).toBeNull();
       expect(fnord.summary).toBeNull();
       expect(fnord.content_full).toBeNull();
     });
-  });
 
-  describe("Revision Structure", () => {
-    interface FnordRevision {
-      id: number;
-      fnord_id: number;
-      title: string;
-      content_raw: string | null;
-      content_full: string | null;
-      revision_at: string;
-    }
-
-    it("creates valid revision", () => {
-      const revision: FnordRevision = {
-        id: 1,
-        fnord_id: 42,
-        title: "Updated Title",
-        content_raw: "<p>Updated content</p>",
-        content_full: "<article>Full updated content</article>",
-        revision_at: "2025-01-14T10:00:00Z",
+    it("handles fetch error state", () => {
+      const fnord: FnordDetailed = {
+        id: 3,
+        title: "Error Article",
+        pentacle_title: null,
+        url: "https://example.com/error",
+        author: null,
+        content_raw: null,
+        content_full: null,
+        summary: null,
+        published_at: null,
+        processed_at: null,
+        status: "concealed",
+        political_bias: null,
+        sachlichkeit: null,
+        quality_score: null,
+        has_changes: false,
+        revision_count: 0,
+        full_text_fetch_error: "403 Forbidden",
       };
 
-      expect(revision.fnord_id).toBe(42);
-      expect(revision.revision_at).toBeTruthy();
+      expect(fnord.full_text_fetch_error).toBe("403 Forbidden");
+      expect(fnord.content_full).toBeNull();
     });
-  });
-
-  describe("Similar Article Structure", () => {
-    interface SimilarArticleItem {
-      fnord_id: number;
-      title: string;
-      pentacle_title: string | null;
-      published_at: string | null;
-      similarity: number;
-      tags: { id: number; name: string }[];
-      categories: { id: number; name: string }[];
-    }
-
-    it("creates valid similar article", () => {
-      const similar: SimilarArticleItem = {
-        fnord_id: 10,
-        title: "Similar Article",
-        pentacle_title: "News Feed",
-        published_at: "2025-01-14T08:00:00Z",
-        similarity: 0.85,
-        tags: [{ id: 1, name: "AI" }],
-        categories: [{ id: 1, name: "Technology" }],
-      };
-
-      expect(similar.similarity).toBeGreaterThanOrEqual(0);
-      expect(similar.similarity).toBeLessThanOrEqual(1);
-    });
-  });
-});
-
-describe("ArticleView Content Display", () => {
-  it("prefers content_full over content_raw", () => {
-    const getDisplayContent = (
-      contentFull: string | null,
-      contentRaw: string | null,
-    ): string | null => {
-      if (contentFull) return contentFull;
-      if (contentRaw) return contentRaw;
-      return null;
-    };
-
-    expect(getDisplayContent("Full", "Raw")).toBe("Full");
-    expect(getDisplayContent(null, "Raw")).toBe("Raw");
-    expect(getDisplayContent(null, null)).toBeNull();
-  });
-
-  it("determines if full content fetch is needed", () => {
-    const needsFullContent = (contentFull: string | null): boolean => {
-      return !contentFull;
-    };
-
-    expect(needsFullContent(null)).toBe(true);
-    expect(needsFullContent("Full content here")).toBe(false);
-  });
-
-  it("determines analyze button text", () => {
-    const getAnalyzeButtonText = (hasSummary: boolean): string => {
-      return hasSummary ? "Reanalyze" : "Analyze";
-    };
-
-    expect(getAnalyzeButtonText(true)).toBe("Reanalyze");
-    expect(getAnalyzeButtonText(false)).toBe("Analyze");
-  });
-});
-
-describe("ArticleView Edit Mode", () => {
-  it("toggles keyword editing mode", () => {
-    let editingKeywords = false;
-
-    const toggleKeywordEditing = () => {
-      editingKeywords = !editingKeywords;
-    };
-
-    expect(editingKeywords).toBe(false);
-    toggleKeywordEditing();
-    expect(editingKeywords).toBe(true);
-    toggleKeywordEditing();
-    expect(editingKeywords).toBe(false);
-  });
-
-  it("toggles category editing mode", () => {
-    let editingCategories = false;
-
-    const toggleCategoryEditing = () => {
-      editingCategories = !editingCategories;
-    };
-
-    expect(editingCategories).toBe(false);
-    toggleCategoryEditing();
-    expect(editingCategories).toBe(true);
-    toggleCategoryEditing();
-    expect(editingCategories).toBe(false);
   });
 });

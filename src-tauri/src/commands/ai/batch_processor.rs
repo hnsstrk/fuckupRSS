@@ -3,6 +3,7 @@
 use crate::ai_provider::AiTextProvider;
 use crate::embedding_worker;
 use crate::extract_keywords;
+#[cfg(feature = "clustering")]
 use crate::keywords::{
     calculate_savings, cluster_articles, get_representatives, ArticleForClustering, ClusterConfig,
     ClusteringResult,
@@ -15,6 +16,7 @@ use crate::AppState;
 use futures::stream::{self, StreamExt};
 use log::{debug, info, warn};
 use rusqlite::Connection;
+#[cfg(feature = "clustering")]
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -40,11 +42,13 @@ use super::data_persistence::{
     save_article_categories_with_source, save_article_keywords_with_source,
 };
 use super::helpers::{
-    check_analysis_cache, compute_content_hash, create_text_provider, determine_keyword_sources,
+    check_analysis_cache, compute_content_hash, determine_keyword_sources,
     discordian_analysis_via_provider, get_embedding_provider_config, get_locale_from_db,
-    get_num_ctx_setting, get_provider_config, log_generation_cost, merge_categories_stat_primary,
-    merge_keywords, store_analysis_cache, TokenUsage,
+    get_num_ctx_setting, log_generation_cost, merge_categories_stat_primary, merge_keywords,
+    store_analysis_cache, TokenUsage,
 };
+#[cfg(feature = "clustering")]
+use super::helpers::{create_text_provider, get_provider_config};
 // CorrectionType is already imported from text_analysis
 use super::types::{
     BatchArticle, BatchProgress, BatchResult, FailedCount, HopelessCount, UnprocessedCount,
@@ -54,6 +58,7 @@ use crate::commands::ai::helpers::{derive_categories_from_keywords, determine_ca
 use crate::ollama::{DiscordianAnalysis, DiscordianAnalysisWithRejections};
 
 /// Type alias for articles with optional embeddings (for clustering)
+#[cfg(feature = "clustering")]
 type ArticleWithEmbedding = (BatchArticle, Option<Vec<f32>>);
 
 /// Shared context for batch processing - loaded once before processing starts
@@ -106,11 +111,11 @@ impl BatchContext {
 ///
 /// **Status:** Implemented but not exposed to frontend.
 /// **Trade-off:** Speed (~30-50% fewer LLM calls) vs. accuracy (cluster transfers use confidence=0.85).
-/// **To enable:** Register in invoke_handler (lib.rs), add frontend UI, write integration tests.
+/// **To enable:** Enable `clustering` feature flag in Cargo.toml, register in invoke_handler (lib.rs), add frontend UI, write integration tests.
+#[cfg(feature = "clustering")]
 #[derive(Debug, Clone)]
 pub struct ClusterBatchConfig {
     /// Whether to use clustering optimization
-    #[allow(dead_code)] // Dormant feature: will be checked when cluster UI is added
     pub use_clustering: bool,
     /// Minimum articles to enable clustering (below this, process all)
     pub min_articles_for_clustering: usize,
@@ -118,6 +123,7 @@ pub struct ClusterBatchConfig {
     pub cluster_config: ClusterConfig,
 }
 
+#[cfg(feature = "clustering")]
 impl Default for ClusterBatchConfig {
     fn default() -> Self {
         Self {
@@ -136,6 +142,7 @@ impl Default for ClusterBatchConfig {
 ///
 /// Part of the dormant cluster-based batch processing feature.
 /// See [`ClusterBatchConfig`] for full documentation on status and trade-offs.
+#[cfg(feature = "clustering")]
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ClusterBatchResult {
     /// Standard batch result
@@ -152,16 +159,14 @@ pub struct ClusterBatchResult {
 ///
 /// Part of the dormant cluster-based batch processing feature.
 /// See [`ClusterBatchConfig`] for full documentation on status and trade-offs.
-#[allow(dead_code)]
+#[cfg(feature = "clustering")]
 fn load_articles_for_clustering(
     state: &AppState,
     limit: Option<i64>,
 ) -> Result<Vec<ArticleWithEmbedding>, String> {
     let db = state.db_conn()?;
 
-    let query = match limit {
-        Some(n) => format!(
-            r#"SELECT f.id, f.title, f.content_full,
+    let query = r#"SELECT f.id, f.title, f.content_full,
                       DATE(COALESCE(f.published_at, f.fetched_at)) as article_date,
                       COALESCE(f.analysis_attempts, 0) as attempts,
                       f.analysis_error,
@@ -171,25 +176,14 @@ fn load_articles_for_clustering(
                AND f.content_full IS NOT NULL AND LENGTH(f.content_full) >= 100
                AND (f.analysis_hopeless IS NULL OR f.analysis_hopeless = FALSE)
                ORDER BY f.published_at DESC
-               LIMIT {}"#,
-            n
-        ),
-        None => r#"SELECT f.id, f.title, f.content_full,
-                      DATE(COALESCE(f.published_at, f.fetched_at)) as article_date,
-                      COALESCE(f.analysis_attempts, 0) as attempts,
-                      f.analysis_error,
-                      f.embedding
-               FROM fnords f
-               WHERE f.processed_at IS NULL
-               AND f.content_full IS NOT NULL AND LENGTH(f.content_full) >= 100
-               AND (f.analysis_hopeless IS NULL OR f.analysis_hopeless = FALSE)
-               ORDER BY f.published_at DESC"#
-            .to_string(),
-    };
+               LIMIT ?1"#;
 
-    let mut stmt = db.conn().prepare(&query).map_err(|e| e.to_string())?;
+    // SQLite: LIMIT -1 means unlimited
+    let limit_param = limit.unwrap_or(-1);
+
+    let mut stmt = to_cmd_err!(db.conn().prepare(query));
     let rows = stmt
-        .query_map([], |row| {
+        .query_map([limit_param], |row| {
             let embedding: Option<Vec<u8>> = row.get(6)?;
             let embedding_f32: Option<Vec<f32>> = embedding.map(|bytes| {
                 bytes
@@ -219,7 +213,7 @@ fn load_articles_for_clustering(
 ///
 /// Part of the dormant cluster-based batch processing feature.
 /// See [`ClusterBatchConfig`] for full documentation on status and trade-offs.
-#[allow(dead_code)]
+#[cfg(feature = "clustering")]
 fn apply_clustering(
     articles: Vec<(BatchArticle, Option<Vec<f32>>)>,
     config: &ClusterBatchConfig,
@@ -279,14 +273,11 @@ fn apply_clustering(
 pub fn get_hopeless_count(state: State<AppState>) -> Result<HopelessCount, String> {
     let db = state.db_conn()?;
 
-    let count: i64 = db
-        .conn()
-        .query_row(
-            "SELECT COUNT(*) FROM fnords WHERE analysis_hopeless = TRUE",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|e| e.to_string())?;
+    let count: i64 = to_cmd_err!(db.conn().query_row(
+        "SELECT COUNT(*) FROM fnords WHERE analysis_hopeless = TRUE",
+        [],
+        |row| row.get(0),
+    ));
 
     Ok(HopelessCount { count })
 }
@@ -296,17 +287,14 @@ pub fn get_hopeless_count(state: State<AppState>) -> Result<HopelessCount, Strin
 pub fn get_failed_count(state: State<AppState>) -> Result<FailedCount, String> {
     let db = state.db_conn()?;
 
-    let count: i64 = db
-        .conn()
-        .query_row(
-            r#"SELECT COUNT(*) FROM fnords
+    let count: i64 = to_cmd_err!(db.conn().query_row(
+        r#"SELECT COUNT(*) FROM fnords
                WHERE analysis_attempts > 0
                AND processed_at IS NULL
                AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)"#,
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|e| e.to_string())?;
+        [],
+        |row| row.get(0),
+    ));
 
     Ok(FailedCount { count })
 }
@@ -316,28 +304,22 @@ pub fn get_failed_count(state: State<AppState>) -> Result<FailedCount, String> {
 pub fn get_unprocessed_count(state: State<AppState>) -> Result<UnprocessedCount, String> {
     let db = state.db_conn()?;
 
-    let total: i64 = db
-        .conn()
-        .query_row(
-            r#"SELECT COUNT(*) FROM fnords
+    let total: i64 = to_cmd_err!(db.conn().query_row(
+        r#"SELECT COUNT(*) FROM fnords
                WHERE processed_at IS NULL
                AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)"#,
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|e| e.to_string())?;
+        [],
+        |row| row.get(0),
+    ));
 
-    let with_content: i64 = db
-        .conn()
-        .query_row(
-            r#"SELECT COUNT(*) FROM fnords
+    let with_content: i64 = to_cmd_err!(db.conn().query_row(
+        r#"SELECT COUNT(*) FROM fnords
                WHERE processed_at IS NULL
                AND content_full IS NOT NULL AND LENGTH(content_full) >= 100
                AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)"#,
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|e| e.to_string())?;
+        [],
+        |row| row.get(0),
+    ));
 
     Ok(UnprocessedCount {
         total,
@@ -356,10 +338,8 @@ pub fn get_failed_articles(
     let offset = offset.unwrap_or(0);
     let db = state.db_conn()?;
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"SELECT
+    let mut stmt = to_cmd_err!(db.conn().prepare(
+        r#"SELECT
                 f.id, f.title, f.pentacle_id, p.title as pentacle_title,
                 f.summary, f.published_at, f.status, f.analysis_attempts, f.analysis_error
             FROM fnords f
@@ -369,11 +349,10 @@ pub fn get_failed_articles(
               AND (f.analysis_hopeless IS NULL OR f.analysis_hopeless = FALSE)
             ORDER BY f.analysis_attempts DESC, f.published_at DESC
             LIMIT ? OFFSET ?"#,
-        )
-        .map_err(|e| e.to_string())?;
+    ));
 
-    let articles: Vec<super::types::AnalysisStatusArticle> = stmt
-        .query_map([limit, offset], |row| {
+    let articles: Vec<super::types::AnalysisStatusArticle> =
+        to_cmd_err!(stmt.query_map([limit, offset], |row| {
             Ok(super::types::AnalysisStatusArticle {
                 id: row.get(0)?,
                 title: row.get(1)?,
@@ -385,8 +364,7 @@ pub fn get_failed_articles(
                 analysis_attempts: row.get(7)?,
                 last_error: row.get(8)?,
             })
-        })
-        .map_err(|e| e.to_string())?
+        }))
         .filter_map(|r| r.ok())
         .collect();
 
@@ -404,10 +382,8 @@ pub fn get_hopeless_articles(
     let offset = offset.unwrap_or(0);
     let db = state.db_conn()?;
 
-    let mut stmt = db
-        .conn()
-        .prepare(
-            r#"SELECT
+    let mut stmt = to_cmd_err!(db.conn().prepare(
+        r#"SELECT
                 f.id, f.title, f.pentacle_id, p.title as pentacle_title,
                 f.summary, f.published_at, f.status, f.analysis_attempts, f.analysis_error
             FROM fnords f
@@ -415,11 +391,10 @@ pub fn get_hopeless_articles(
             WHERE f.analysis_hopeless = TRUE
             ORDER BY f.analysis_attempts DESC, f.published_at DESC
             LIMIT ? OFFSET ?"#,
-        )
-        .map_err(|e| e.to_string())?;
+    ));
 
-    let articles: Vec<super::types::AnalysisStatusArticle> = stmt
-        .query_map([limit, offset], |row| {
+    let articles: Vec<super::types::AnalysisStatusArticle> =
+        to_cmd_err!(stmt.query_map([limit, offset], |row| {
             Ok(super::types::AnalysisStatusArticle {
                 id: row.get(0)?,
                 title: row.get(1)?,
@@ -431,8 +406,7 @@ pub fn get_hopeless_articles(
                 analysis_attempts: row.get(7)?,
                 last_error: row.get(8)?,
             })
-        })
-        .map_err(|e| e.to_string())?
+        }))
         .filter_map(|r| r.ok())
         .collect();
 
@@ -938,27 +912,30 @@ pub async fn process_batch(
     // Determine concurrency
     let suggested = provider_for_batch.suggested_concurrency();
 
-    // Get OpenAI concurrency setting from DB if applicable
-    let openai_concurrency_setting: usize = if suggested > 1 {
-        let db = state.db_conn().map_err(|e| e.to_string())?;
-        super::helpers::get_setting(&db, "openai_concurrency", "20")
-            .parse()
-            .unwrap_or(20)
-    } else {
-        1
-    };
-
-    // If provider suggests 1 (e.g. local Ollama), enforce 1.
-    // Otherwise (remote APIs), use the setting.
-    let active_concurrency = if suggested == 1 {
-        1
-    } else {
+    // Provider determines concurrency: Ollama uses ollama_concurrency setting,
+    // OpenAI uses openai_concurrency setting
+    let active_concurrency = if matches!(
+        provider_config.provider_type,
+        crate::ai_provider::ProviderType::OpenAiCompatible
+    ) {
+        // For OpenAI-compatible: use the separate openai_concurrency setting
+        let openai_concurrency_setting: usize = if suggested > 1 {
+            let db = state.db_conn().map_err(|e| e.to_string())?;
+            super::helpers::get_setting(&db, "openai_concurrency", "20")
+                .parse()
+                .unwrap_or(20)
+        } else {
+            1
+        };
         openai_concurrency_setting
+    } else {
+        // For Ollama: suggested already contains ollama_concurrency value
+        suggested
     };
 
     info!(
-        "[LLM] Parallel processing enabled: concurrency={} (provider suggested={}, setting={})",
-        active_concurrency, suggested, openai_concurrency_setting
+        "[LLM] Parallel processing enabled: concurrency={} (provider suggested={})",
+        active_concurrency, suggested
     );
 
     let batch_context = Arc::new(batch_context);
@@ -1153,6 +1130,18 @@ pub async fn process_batch(
     state.batch_running.store(false, Ordering::SeqCst);
     info!("[LLM] Batch flag released - embedding worker can resume, embeddings use same model (no swap)");
 
+    // Explicitly unload LLM model to free VRAM for embedding model
+    {
+        let ollama_url = {
+            let db = state.db_conn()?;
+            super::helpers::get_setting(&db, "ollama_url", "http://localhost:11434")
+        };
+        let unload_client = crate::ollama::OllamaClient::new(Some(ollama_url));
+        if let Err(e) = unload_client.unload_model(&effective_model).await {
+            warn!("[LLM] Failed to unload model: {}", e);
+        }
+    }
+
     // Process embeddings (keyword queue + article embeddings)
     // Both use the embedding model (snowflake), so no model swapping occurs.
     if succeeded > 0 && !state.batch_cancel.load(Ordering::SeqCst) {
@@ -1239,7 +1228,7 @@ pub async fn process_batch(
                 result
             };
 
-            // Generate embeddings sequentially (uses embedding model, not LLM)
+            // Generate embeddings via batch request (uses embedding model, not LLM)
 
             // Check for cancellation before starting embedding generation
             let cancelled = state.batch_cancel.load(Ordering::SeqCst);
@@ -1247,25 +1236,62 @@ pub async fn process_batch(
                 info!("Embedding generation cancelled");
             } else {
                 let mut embed_succeeded = 0;
-                let mut embed_total = 0;
+                let embed_total = articles_for_embedding.len();
 
-                for (fnord_id, title, content) in &articles_for_embedding {
-                    if state.batch_cancel.load(Ordering::SeqCst) {
-                        break;
+                // Prepare batch: collect embedding texts
+                let embedding_texts: Vec<String> = articles_for_embedding
+                    .iter()
+                    .map(|(_id, title, content)| {
+                        let content_preview: String = content.chars().take(500).collect();
+                        format!("{}\n\n{}", title, content_preview)
+                    })
+                    .collect();
+
+                // Generate all embeddings in one batch request
+                match embedding_provider.generate_embeddings_batch(&embedding_texts).await {
+                    Ok(embeddings) => {
+                        let db = state.db_conn()?;
+                        for (embedding, (fnord_id, _title, _content)) in
+                            embeddings.iter().zip(articles_for_embedding.iter())
+                        {
+                            match crate::commands::ai::data_persistence::save_article_embedding(
+                                db.conn(),
+                                *fnord_id,
+                                embedding,
+                            ) {
+                                Ok(_) => embed_succeeded += 1,
+                                Err(e) => {
+                                    debug!(
+                                        "[Embedding] Failed to save for article {}: {}",
+                                        fnord_id, e
+                                    );
+                                }
+                            }
+                        }
                     }
-                    embed_total += 1;
-                    match generate_and_save_article_embedding(
-                        embedding_provider.as_ref(),
-                        &state.db,
-                        *fnord_id,
-                        title,
-                        content,
-                    )
-                    .await
-                    {
-                        Ok(_) => embed_succeeded += 1,
-                        Err(e) => {
-                            debug!("[Embedding] Failed for article {}: {}", fnord_id, e);
+                    Err(e) => {
+                        warn!(
+                            "[Embedding] Batch embedding failed, falling back to sequential: {}",
+                            e
+                        );
+                        for (fnord_id, title, content) in &articles_for_embedding {
+                            if state.batch_cancel.load(Ordering::SeqCst) {
+                                break;
+                            }
+                            match generate_and_save_article_embedding(
+                                embedding_provider.as_ref(),
+                                &state.db,
+                                *fnord_id,
+                                title,
+                                content,
+                            )
+                            .await
+                            {
+                                Ok(_) => embed_succeeded += 1,
+                                Err(e) => {
+                                    debug!("[Embedding] Failed for article {}: {}", fnord_id, e);
+                                }
+                            }
                         }
                     }
                 }
@@ -1299,11 +1325,20 @@ pub async fn process_batch(
     // Trigger WAL checkpoint if many changes were made
     if succeeded_final >= 100 {
         if let Ok(db) = state.db.lock() {
-            match db.conn().execute("PRAGMA wal_checkpoint(PASSIVE)", []) {
-                Ok(_) => {
+            match db.conn().query_row(
+                "PRAGMA wal_checkpoint(PASSIVE)",
+                [],
+                |row| {
+                    let busy: i32 = row.get(0)?;
+                    let log: i32 = row.get(1)?;
+                    let checkpointed: i32 = row.get(2)?;
+                    Ok((busy, log, checkpointed))
+                },
+            ) {
+                Ok((busy, log, checkpointed)) => {
                     info!(
-                        "WAL checkpoint triggered after processing {} articles",
-                        succeeded_final
+                        "WAL checkpoint after processing {} articles: busy={}, log={}, checkpointed={}",
+                        succeeded_final, busy, log, checkpointed
                     );
                 }
                 Err(e) => {
@@ -1337,18 +1372,15 @@ pub fn cancel_batch(state: State<AppState>) -> Result<(), String> {
 pub fn reset_failed_articles(state: State<AppState>) -> Result<i64, String> {
     let db = state.db_conn()?;
 
-    let affected = db
-        .conn()
-        .execute(
-            r#"UPDATE fnords SET
+    let affected = to_cmd_err!(db.conn().execute(
+        r#"UPDATE fnords SET
                 analysis_attempts = 0,
                 analysis_error = NULL
             WHERE analysis_attempts > 0
               AND processed_at IS NULL
               AND (analysis_hopeless IS NULL OR analysis_hopeless = FALSE)"#,
-            [],
-        )
-        .map_err(|e| e.to_string())?;
+        [],
+    ));
 
     info!("[LLM] Reset {} failed articles for retry", affected);
     Ok(affected as i64)
@@ -1362,17 +1394,14 @@ pub fn reset_failed_articles(state: State<AppState>) -> Result<i64, String> {
 pub fn reset_hopeless_articles(state: State<AppState>) -> Result<i64, String> {
     let db = state.db_conn()?;
 
-    let affected = db
-        .conn()
-        .execute(
-            r#"UPDATE fnords SET
+    let affected = to_cmd_err!(db.conn().execute(
+        r#"UPDATE fnords SET
                 analysis_attempts = 0,
                 analysis_error = NULL,
                 analysis_hopeless = FALSE
             WHERE analysis_hopeless = TRUE"#,
-            [],
-        )
-        .map_err(|e| e.to_string())?;
+        [],
+    ));
 
     info!("[LLM] Reset {} hopeless articles for retry", affected);
     Ok(affected as i64)
@@ -1382,7 +1411,7 @@ pub fn reset_hopeless_articles(state: State<AppState>) -> Result<i64, String> {
 ///
 /// Part of the dormant cluster-based batch processing feature.
 /// See [`ClusterBatchConfig`] for full documentation on status and trade-offs.
-#[allow(dead_code)]
+#[cfg(feature = "clustering")]
 async fn transfer_keywords_to_cluster_members(
     state: &AppState,
     cluster: &crate::keywords::ArticleCluster,
@@ -1405,54 +1434,72 @@ async fn transfer_keywords_to_cluster_members(
             conn.execute("BEGIN TRANSACTION", [])
                 .map_err(|e| e.to_string())?;
 
-            let result: Result<(), String> = {
-                // Save keywords for this article
-                for keyword in keywords {
-                    let _ = conn.execute(
-                        r#"INSERT OR IGNORE INTO immanentize (name) VALUES (?1)"#,
-                        [keyword],
+            let result: Result<(), String> = (|| {
+                // Batch-insert all keywords at once using prepared statements
+                if !keywords.is_empty() {
+                    let mut insert_kw_stmt = conn
+                        .prepare_cached("INSERT OR IGNORE INTO immanentize (name) VALUES (?1)")
+                        .map_err(|e| e.to_string())?;
+                    for keyword in keywords {
+                        let _ = insert_kw_stmt.execute([keyword]);
+                    }
+
+                    // Build a single query to resolve all keyword IDs at once
+                    let placeholders: String =
+                        keywords.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+                    let select_sql = format!(
+                        "SELECT id, name FROM immanentize WHERE name IN ({})",
+                        placeholders
                     );
+                    let mut select_stmt = conn.prepare(&select_sql).map_err(|e| e.to_string())?;
+                    let params: Vec<&dyn rusqlite::ToSql> =
+                        keywords.iter().map(|k| k as &dyn rusqlite::ToSql).collect();
+                    let keyword_ids: Vec<i64> = select_stmt
+                        .query_map(params.as_slice(), |row| row.get::<_, i64>(0))
+                        .map_err(|e| e.to_string())?
+                        .filter_map(|r| r.ok())
+                        .collect();
 
-                    let keyword_id: i64 = conn
-                        .query_row(
-                            "SELECT id FROM immanentize WHERE name = ?1",
-                            [keyword],
-                            |row| row.get(0),
-                        )
-                        .unwrap_or(0);
-
-                    if keyword_id > 0 {
-                        let _ = conn.execute(
+                    // Batch-insert all keyword-article associations
+                    let mut link_stmt = conn
+                        .prepare_cached(
                             r#"INSERT OR REPLACE INTO fnord_immanentize
                                (fnord_id, immanentize_id, source, confidence)
                                VALUES (?1, ?2, 'cluster', 0.85)"#,
-                            (article_id, keyword_id),
-                        );
+                        )
+                        .map_err(|e| e.to_string())?;
+                    for keyword_id in &keyword_ids {
+                        let _ = link_stmt.execute((article_id, keyword_id));
                     }
                 }
 
-                // Save categories for this article
-                for &category_id in categories {
-                    let _ = conn.execute(
-                        r#"INSERT OR REPLACE INTO fnord_sephiroth
-                           (fnord_id, sephiroth_id, source, confidence)
-                           VALUES (?1, ?2, 'cluster', 0.85)"#,
-                        (article_id, category_id),
-                    );
+                // Batch-insert all categories using prepared statement
+                if !categories.is_empty() {
+                    let mut cat_stmt = conn
+                        .prepare_cached(
+                            r#"INSERT OR REPLACE INTO fnord_sephiroth
+                               (fnord_id, sephiroth_id, source, confidence)
+                               VALUES (?1, ?2, 'cluster', 0.85)"#,
+                        )
+                        .map_err(|e| e.to_string())?;
+                    for &category_id in categories {
+                        let _ = cat_stmt.execute((article_id, category_id));
+                    }
                 }
 
                 // Mark as processed (via cluster)
-                let _ = conn.execute(
+                conn.execute(
                     r#"UPDATE fnords SET
                        processed_at = CURRENT_TIMESTAMP,
                        analysis_attempts = 0,
                        analysis_error = 'Processed via cluster transfer'
                     WHERE id = ?1"#,
                     [article_id],
-                );
+                )
+                .map_err(|e| e.to_string())?;
 
                 Ok(())
-            };
+            })();
 
             match result {
                 Ok(()) => {
@@ -1483,9 +1530,9 @@ async fn transfer_keywords_to_cluster_members(
 ///
 /// **Status:** Implemented but not registered in invoke_handler (lib.rs).
 /// **Trade-off:** Speed (~30-50% fewer LLM calls) vs. accuracy (cluster transfers use confidence=0.85).
-/// **To enable:** Register in invoke_handler (lib.rs), add frontend UI, write integration tests.
+/// **To enable:** Enable `clustering` feature flag, register in invoke_handler (lib.rs), add frontend UI.
+#[cfg(feature = "clustering")]
 #[tauri::command]
-#[allow(dead_code)]
 pub async fn process_batch_clustered(
     window: Window,
     state: State<'_, AppState>,

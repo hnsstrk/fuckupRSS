@@ -291,6 +291,8 @@
       "noModels": "No models installed",
       "contextLength": "Context Length (num_ctx)",
       "contextLengthDescription": "Higher values allow longer articles but require more VRAM. 4K is sufficient for most articles.",
+      "ollamaConcurrency": "Concurrency",
+      "ollamaConcurrencyDescription": "Number of parallel requests to Ollama. Keep at 1 for local Ollama. Increase for remote Ollama with OLLAMA_NUM_PARALLEL > 1.",
       "loadedModels": "Loaded Models (VRAM)",
       "noLoadedModels": "No models loaded",
       "loadModels": "Load Models into VRAM",
@@ -299,7 +301,13 @@
       "modelMissing": "Model \"{model}\" is not installed",
       "modelMissingHint": "This model must be downloaded before AI analysis will work.",
       "downloadNow": "Download now",
-      "modelsIncomplete": "Models incomplete"
+      "modelsIncomplete": "Models incomplete",
+      "serverHistory": "Server History",
+      "removeServer": "Remove server",
+      "serverAdded": "Server added to list",
+      "serverRemoved": "Server removed from list",
+      "defaultServer": "Default",
+      "toggleServerList": "Toggle server list"
     },
     "prompts": {
       "title": "AI Prompts",

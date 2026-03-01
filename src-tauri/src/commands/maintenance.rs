@@ -48,8 +48,13 @@ pub async fn vacuum_database(state: State<'_, AppState>) -> Result<VacuumResult,
     info!("Database size before VACUUM: {} MB", size_before_mb);
 
     // Step 1: Checkpoint and truncate WAL file
-    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)", [])
-        .map_err(|e| format!("WAL checkpoint failed: {}", e))?;
+    conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+        let busy: i32 = row.get(0)?;
+        let log: i32 = row.get(1)?;
+        let checkpointed: i32 = row.get(2)?;
+        Ok((busy, log, checkpointed))
+    })
+    .map_err(|e| format!("WAL checkpoint failed: {}", e))?;
 
     info!("WAL checkpoint completed");
 

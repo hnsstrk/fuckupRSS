@@ -94,7 +94,6 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_tabindex a11y-no-noninteractive-tabindex -->
 <div
   class="article-card"
   class:clickable={!!onclick}
@@ -118,7 +117,7 @@
         </span>
       {/if}
       {#if showBias && political_bias !== null}
-        <span class="card-bias" style="color: {getBiasColor(political_bias)}">
+        <span class="card-bias" style:color={getBiasColor(political_bias)}>
           {getBiasLabel(political_bias, currentLocale)}
         </span>
       {/if}
@@ -129,7 +128,7 @@
           {#each categories as cat (cat.name)}
             <span
               class="card-category"
-              style="background-color: {getCategoryColorVar(cat.id, 'var(--bg-overlay)')}"
+              style:background-color={getCategoryColorVar(cat.id, "var(--bg-overlay)")}
               title={cat.name}
             >
               {#if cat.icon}<i class={cat.icon}></i>{:else}{cat.name}{/if}

@@ -7,7 +7,7 @@
     termKey?: string;
     /** For generic help tooltips - shows plain content text */
     content?: string;
-    children: any;
+    children: import("svelte").Snippet;
   }
 
   let { termKey, content, children }: Props = $props();

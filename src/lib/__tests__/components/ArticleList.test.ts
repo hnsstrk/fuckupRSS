@@ -24,6 +24,10 @@ vi.mock("../../stores/state.svelte", () => ({
 
 import { appState } from "../../stores/state.svelte";
 
+// ============================================================
+// Search Mode Detection
+// ============================================================
+
 describe("ArticleList Component Logic", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -39,7 +43,20 @@ describe("ArticleList Component Logic", () => {
       expect(isSearchMode("", [{ fnord_id: 1 }])).toBe(true);
       expect(isSearchMode("", [])).toBe(false);
     });
+
+    it("remains in search mode with results but empty query", () => {
+      // After search completes, query may be cleared but results remain
+      const isSearchMode = (query: string, results: unknown[]) => {
+        return query.length > 0 || results.length > 0;
+      };
+
+      expect(isSearchMode("", [{ fnord_id: 1 }, { fnord_id: 2 }])).toBe(true);
+    });
   });
+
+  // ============================================================
+  // Scroll / Infinite Loading
+  // ============================================================
 
   describe("Scroll Handling", () => {
     it("calculates scroll bottom correctly", () => {
@@ -65,12 +82,41 @@ describe("ArticleList Component Logic", () => {
         return scrollBottom < 200 && hasMoreFnords && !loadingMore;
       };
 
-      expect(shouldLoadMore(100, true, false)).toBe(true);
-      expect(shouldLoadMore(300, true, false)).toBe(false);
-      expect(shouldLoadMore(100, false, false)).toBe(false);
-      expect(shouldLoadMore(100, true, true)).toBe(false);
+      expect(shouldLoadMore(100, true, false)).toBe(true); // Near bottom, more available
+      expect(shouldLoadMore(300, true, false)).toBe(false); // Not near bottom
+      expect(shouldLoadMore(100, false, false)).toBe(false); // No more to load
+      expect(shouldLoadMore(100, true, true)).toBe(false); // Already loading
+    });
+
+    it("triggers loadMoreFnords at threshold", () => {
+      const handleScroll = (scrollBottom: number) => {
+        if (scrollBottom < 200 && !appState.loadingMore) {
+          appState.loadMoreFnords();
+        }
+      };
+
+      (appState as unknown as Record<string, unknown>).loadingMore = false;
+      handleScroll(150);
+
+      expect(appState.loadMoreFnords).toHaveBeenCalled();
+    });
+
+    it("does not trigger loadMoreFnords when already loading", () => {
+      const handleScroll = (scrollBottom: number, loadingMore: boolean) => {
+        if (scrollBottom < 200 && !loadingMore) {
+          appState.loadMoreFnords();
+        }
+      };
+
+      handleScroll(150, true);
+
+      expect(appState.loadMoreFnords).not.toHaveBeenCalled();
     });
   });
+
+  // ============================================================
+  // Fnord Selection
+  // ============================================================
 
   describe("Fnord Selection", () => {
     it("calls selectFnord with correct id", () => {
@@ -90,7 +136,24 @@ describe("ArticleList Component Logic", () => {
       handleSelectSearchResult({ fnord_id: 123 });
       expect(appState.selectFnord).toHaveBeenCalledWith(123);
     });
+
+    it("selects first article in list", () => {
+      const fnords = [
+        { id: 1, title: "First" },
+        { id: 2, title: "Second" },
+      ];
+
+      if (fnords.length > 0) {
+        appState.selectFnord(fnords[0].id);
+      }
+
+      expect(appState.selectFnord).toHaveBeenCalledWith(1);
+    });
   });
+
+  // ============================================================
+  // Keyboard Navigation
+  // ============================================================
 
   describe("Keyboard Navigation", () => {
     it("handles j key for next fnord", () => {
@@ -122,7 +185,6 @@ describe("ArticleList Component Logic", () => {
     });
 
     it("handles s key for golden apple toggle when fnord selected", () => {
-      const selectedFnordId = 42;
       const handleKeydown = (key: string, selectedId: number | null) => {
         if (key === "s" && selectedId) {
           appState.toggleGoldenApple(selectedId);
@@ -131,7 +193,7 @@ describe("ArticleList Component Logic", () => {
         return false;
       };
 
-      const handled = handleKeydown("s", selectedFnordId);
+      const handled = handleKeydown("s", 42);
       expect(handled).toBe(true);
       expect(appState.toggleGoldenApple).toHaveBeenCalledWith(42);
     });
@@ -149,10 +211,32 @@ describe("ArticleList Component Logic", () => {
       expect(handled).toBe(false);
       expect(appState.toggleGoldenApple).not.toHaveBeenCalled();
     });
+
+    it("ignores unrecognized keys", () => {
+      const handleKeydown = (key: string) => {
+        if (key === "j") {
+          appState.selectNextFnord();
+          return true;
+        }
+        if (key === "k") {
+          appState.selectPrevFnord();
+          return true;
+        }
+        return false;
+      };
+
+      expect(handleKeydown("x")).toBe(false);
+      expect(appState.selectNextFnord).not.toHaveBeenCalled();
+      expect(appState.selectPrevFnord).not.toHaveBeenCalled();
+    });
   });
 
+  // ============================================================
+  // List Header Display
+  // ============================================================
+
   describe("List Header Display", () => {
-    it("shows search results count", () => {
+    it("shows search results count with query", () => {
       const getSearchResultsText = (count: number, query: string) => {
         let text = `${count} results`;
         if (query) {
@@ -163,6 +247,7 @@ describe("ArticleList Component Logic", () => {
 
       expect(getSearchResultsText(10, "test")).toBe('10 results "test"');
       expect(getSearchResultsText(5, "")).toBe("5 results");
+      expect(getSearchResultsText(0, "test")).toBe('0 results "test"');
     });
 
     it("shows feed title or all feeds", () => {
@@ -178,7 +263,7 @@ describe("ArticleList Component Logic", () => {
       expect(getFeedTitle(null)).toBe("All Feeds");
     });
 
-    it("shows article count with total", () => {
+    it("shows article count with total when paginated", () => {
       const getArticleCountText = (count: number, total: number) => {
         if (total > count) {
           return `${count}/${total} articles`;
@@ -188,8 +273,13 @@ describe("ArticleList Component Logic", () => {
 
       expect(getArticleCountText(50, 100)).toBe("50/100 articles");
       expect(getArticleCountText(100, 100)).toBe("100 articles");
+      expect(getArticleCountText(0, 0)).toBe("0 articles");
     });
   });
+
+  // ============================================================
+  // Empty State Detection
+  // ============================================================
 
   describe("Empty State Detection", () => {
     it("shows empty state when no articles and not loading", () => {
@@ -212,7 +302,23 @@ describe("ArticleList Component Logic", () => {
       expect(shouldShowNoResults(0, false, "")).toBe(false);
       expect(shouldShowNoResults(5, false, "test")).toBe(false);
     });
+
+    it("shows add feed hint when no pentacles", () => {
+      const getEmptyStateMessage = (pentaclesCount: number) => {
+        if (pentaclesCount === 0) {
+          return "add-feed";
+        }
+        return "select-feed";
+      };
+
+      expect(getEmptyStateMessage(0)).toBe("add-feed");
+      expect(getEmptyStateMessage(5)).toBe("select-feed");
+    });
   });
+
+  // ============================================================
+  // Load More Hint Display
+  // ============================================================
 
   describe("Load More Hint Display", () => {
     it("shows load more hint when conditions are met", () => {
@@ -229,8 +335,19 @@ describe("ArticleList Component Logic", () => {
       expect(shouldShowLoadMoreHint(true, 0, false)).toBe(false);
       expect(shouldShowLoadMoreHint(true, 10, true)).toBe(false);
     });
+
+    it("shows loading indicator when loading more", () => {
+      const shouldShowLoadingMore = (loadingMore: boolean) => loadingMore;
+
+      expect(shouldShowLoadingMore(true)).toBe(true);
+      expect(shouldShowLoadingMore(false)).toBe(false);
+    });
   });
 });
+
+// ============================================================
+// Data Structures
+// ============================================================
 
 describe("ArticleList Data Structures", () => {
   describe("Fnord Item Structure", () => {
@@ -308,8 +425,79 @@ describe("ArticleList Data Structures", () => {
       expect(result.similarity).toBeGreaterThan(0);
       expect(result.similarity).toBeLessThanOrEqual(1);
     });
+
+    it("similarity values are between 0 and 1", () => {
+      const results: SearchResultItem[] = [
+        {
+          fnord_id: 1,
+          title: "A",
+          pentacle_title: null,
+          published_at: null,
+          similarity: 0.95,
+          summary: null,
+        },
+        {
+          fnord_id: 2,
+          title: "B",
+          pentacle_title: null,
+          published_at: null,
+          similarity: 0.3,
+          summary: null,
+        },
+        {
+          fnord_id: 3,
+          title: "C",
+          pentacle_title: null,
+          published_at: null,
+          similarity: 0.5,
+          summary: null,
+        },
+      ];
+
+      for (const r of results) {
+        expect(r.similarity).toBeGreaterThanOrEqual(0);
+        expect(r.similarity).toBeLessThanOrEqual(1);
+      }
+    });
+
+    it("results are sorted by similarity (descending)", () => {
+      const results: SearchResultItem[] = [
+        {
+          fnord_id: 1,
+          title: "Most similar",
+          pentacle_title: null,
+          published_at: null,
+          similarity: 0.95,
+          summary: null,
+        },
+        {
+          fnord_id: 2,
+          title: "Medium similar",
+          pentacle_title: null,
+          published_at: null,
+          similarity: 0.7,
+          summary: null,
+        },
+        {
+          fnord_id: 3,
+          title: "Least similar",
+          pentacle_title: null,
+          published_at: null,
+          similarity: 0.3,
+          summary: null,
+        },
+      ];
+
+      for (let i = 1; i < results.length; i++) {
+        expect(results[i - 1].similarity).toBeGreaterThanOrEqual(results[i].similarity);
+      }
+    });
   });
 });
+
+// ============================================================
+// Active State Logic
+// ============================================================
 
 describe("ArticleList Active State Logic", () => {
   it("determines if article item is active", () => {
@@ -320,5 +508,14 @@ describe("ArticleList Active State Logic", () => {
     expect(isActive(1, 1)).toBe(true);
     expect(isActive(1, 2)).toBe(false);
     expect(isActive(1, null)).toBe(false);
+  });
+
+  it("determines active state for search results", () => {
+    const isActive = (fnordId: number, selectedFnordId: number | null) => {
+      return selectedFnordId === fnordId;
+    };
+
+    expect(isActive(42, 42)).toBe(true);
+    expect(isActive(42, 99)).toBe(false);
   });
 });

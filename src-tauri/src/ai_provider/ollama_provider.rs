@@ -12,12 +12,14 @@ use super::{AiProviderError, AiTextProvider, EmbeddingProvider, GenerationResult
 /// Ollama text generation provider (local or remote)
 pub struct OllamaTextProvider {
     client: OllamaClient,
+    concurrency: usize,
 }
 
 impl OllamaTextProvider {
-    pub fn new(base_url: &str, num_ctx: u32) -> Self {
+    pub fn new(base_url: &str, num_ctx: u32, concurrency: usize) -> Self {
         Self {
             client: OllamaClient::with_context(Some(base_url.to_string()), num_ctx),
+            concurrency: concurrency.max(1),
         }
     }
 }
@@ -57,13 +59,6 @@ impl AiTextProvider for OllamaTextProvider {
                 crate::ollama::OllamaError::GenerationFailed(msg) => {
                     AiProviderError::GenerationFailed(msg)
                 }
-                crate::ollama::OllamaError::JsonParseError {
-                    message,
-                    raw_response,
-                } => AiProviderError::JsonParseError {
-                    message,
-                    raw_response,
-                },
                 crate::ollama::OllamaError::PullFailed(msg) => {
                     AiProviderError::GenerationFailed(msg)
                 }
@@ -80,7 +75,7 @@ impl AiTextProvider for OllamaTextProvider {
     }
 
     fn suggested_concurrency(&self) -> usize {
-        1
+        self.concurrency
     }
 }
 
@@ -108,6 +103,22 @@ impl EmbeddingProvider for OllamaEmbeddingProvider {
     async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>, AiProviderError> {
         self.client
             .generate_embedding(&self.model, text)
+            .await
+            .map_err(|e| match e {
+                crate::ollama::OllamaError::NotAvailable(msg) => AiProviderError::NotAvailable(msg),
+                crate::ollama::OllamaError::GenerationFailed(msg) => {
+                    AiProviderError::GenerationFailed(msg)
+                }
+                other => AiProviderError::GenerationFailed(other.to_string()),
+            })
+    }
+
+    async fn generate_embeddings_batch(
+        &self,
+        texts: &[String],
+    ) -> Result<Vec<Vec<f32>>, AiProviderError> {
+        self.client
+            .generate_embeddings_batch(&self.model, texts)
             .await
             .map_err(|e| match e {
                 crate::ollama::OllamaError::NotAvailable(msg) => AiProviderError::NotAvailable(msg),

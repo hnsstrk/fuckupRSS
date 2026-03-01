@@ -4,6 +4,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { SvelteSet } from "svelte/reactivity";
   import Tooltip from "../Tooltip.svelte";
+  import ActionButton from "$lib/components/ui/ActionButton.svelte";
+  import { formatError } from "$lib/utils/formatError";
   import type { Keyword, TrueSynonymCandidate, SynonymVerificationResult } from "../../types";
 
   // Type for synonym candidate
@@ -13,15 +15,6 @@
     keyword_b_id: number;
     keyword_b_name: string;
     similarity: number;
-  }
-
-  // Type for compound preview
-  interface CompoundPreviewItem {
-    id: number;
-    original: string;
-    components: string[];
-    articles_affected: number;
-    is_preserved: boolean;
   }
 
   // Props
@@ -60,7 +53,6 @@
     onExecuteManualMerge: () => void;
     onNewKeywordInput: (value: string) => void;
     onCreateNewKeyword: () => void;
-    loadKeywords?: () => Promise<void>;
   }
 
   let {
@@ -90,17 +82,7 @@
     onExecuteManualMerge,
     onNewKeywordInput,
     onCreateNewKeyword,
-    loadKeywords,
   }: Props = $props();
-
-  // Compound keyword splitting state
-  let compoundPreview = $state<CompoundPreviewItem[] | null>(null);
-  let loadingCompounds = $state(false);
-  let splittingCompounds = $state(false);
-  let selectedCompoundIds = new SvelteSet<number>();
-  let selectAllCompounds = $state(false);
-
-  let selectedCompoundCount = $derived(selectedCompoundIds.size);
 
   // True synonyms state (hybrid string + embedding similarity)
   let trueSynonymCandidates = $state<TrueSynonymCandidate[]>([]);
@@ -114,7 +96,6 @@
   // Invalidate cached data when keywords change (e.g. after batch processing or merges)
   function handleKeywordsChanged() {
     trueSynonymCandidates = [];
-    compoundPreview = null;
     verificationResults = new Map();
   }
 
@@ -142,7 +123,7 @@
         limit: 50,
       });
     } catch (e) {
-      trueSynonymsError = String(e);
+      trueSynonymsError = formatError(e);
       console.error("Failed to load true synonyms:", e);
     } finally {
       trueSynonymsLoading = false;
@@ -201,74 +182,6 @@
     }
   }
 
-  async function loadCompoundPreview() {
-    loadingCompounds = true;
-    selectedCompoundIds.clear();
-    selectAllCompounds = false;
-    try {
-      compoundPreview = await invoke<CompoundPreviewItem[]>("preview_compound_splits");
-    } catch (e) {
-      console.error("Failed to load compound preview:", e);
-    } finally {
-      loadingCompounds = false;
-    }
-  }
-
-  function toggleCompoundSelection(id: number) {
-    if (selectedCompoundIds.has(id)) {
-      selectedCompoundIds.delete(id);
-    } else {
-      selectedCompoundIds.add(id);
-    }
-  }
-
-  function toggleSelectAllCompounds() {
-    selectedCompoundIds.clear();
-    if (selectAllCompounds) {
-      const ids = compoundPreview?.filter((c) => !c.is_preserved).map((c) => c.id) || [];
-      for (const id of ids) {
-        selectedCompoundIds.add(id);
-      }
-    }
-  }
-
-  async function splitSelectedCompounds() {
-    splittingCompounds = true;
-    const ids = Array.from(selectedCompoundIds);
-
-    for (const id of ids) {
-      try {
-        await invoke("split_single_compound", { keywordId: id });
-        compoundPreview = compoundPreview?.filter((c) => c.id !== id) || null;
-        selectedCompoundIds.delete(id);
-      } catch (e) {
-        console.error(`Failed to split ${id}:`, e);
-      }
-    }
-
-    splittingCompounds = false;
-
-    if (loadKeywords) await loadKeywords();
-  }
-
-  async function togglePreserveCompound(item: CompoundPreviewItem) {
-    try {
-      if (item.is_preserved) {
-        await invoke("unpreserve_compound_keyword", { keywordId: item.id });
-      } else {
-        await invoke("preserve_compound_keyword", { keywordId: item.id });
-      }
-      compoundPreview =
-        compoundPreview?.map((c) =>
-          c.id === item.id ? { ...c, is_preserved: !c.is_preserved } : c,
-        ) || null;
-      if (!item.is_preserved) {
-        selectedCompoundIds.delete(item.id);
-      }
-    } catch (e) {
-      console.error("Failed to toggle preserve:", e);
-    }
-  }
 </script>
 
 <div class="synonyms-view">
@@ -297,8 +210,11 @@
             class="merge-search-input"
           />
           {#if keepSearchInput}
-            <button onclick={onClearKeepSearch} class="clear-btn" aria-label="Clear"
-              ><i class="fa-solid fa-xmark"></i></button
+            <button
+              onclick={onClearKeepSearch}
+              class="clear-btn"
+              aria-label={$_("search.clearSearch")}
+              ><i class="fa-solid fa-xmark" aria-hidden="true"></i></button
             >
           {/if}
           {#if keepSearchResults.length > 0 && !selectedKeepKeyword}
@@ -343,8 +259,11 @@
             class="merge-search-input"
           />
           {#if removeSearchInput}
-            <button onclick={onClearRemoveSearch} class="clear-btn" aria-label="Clear"
-              ><i class="fa-solid fa-xmark"></i></button
+            <button
+              onclick={onClearRemoveSearch}
+              class="clear-btn"
+              aria-label={$_("search.clearSearch")}
+              ><i class="fa-solid fa-xmark" aria-hidden="true"></i></button
             >
           {/if}
           {#if removeSearchResults.length > 0 && !selectedRemoveKeyword}
@@ -419,13 +338,18 @@
         {$_("network.synonymCandidatesHint") ||
           "Diese Vorschläge basieren auf Embedding-Ähnlichkeit (semantische Nähe), nicht auf lexikalischer Übereinstimmung."}
       </p>
-      <button class="action-btn primary" onclick={onFindSynonyms} disabled={synonymsLoading}>
+      <ActionButton
+        variant="primary"
+        onclick={onFindSynonyms}
+        disabled={synonymsLoading}
+        loading={synonymsLoading}
+      >
         {#if synonymsLoading}
           {$_("network.loading") || "Lade..."}
         {:else}
           {$_("network.findSynonyms") || "Synonyme finden"}
         {/if}
-      </button>
+      </ActionButton>
 
       {#if synonymsError}
         <div class="feedback-message error">{synonymsError}</div>
@@ -504,17 +428,18 @@
           class="create-keyword-input"
           onkeydown={handleNewKeywordKeydown}
         />
-        <button
-          class="action-btn primary"
+        <ActionButton
+          variant="primary"
           onclick={onCreateNewKeyword}
           disabled={createKeywordLoading || !newKeywordInput.trim()}
+          loading={createKeywordLoading}
         >
           {#if createKeywordLoading}
             {$_("network.loading") || "Lade..."}
           {:else}
             {$_("network.create") || "Erstellen"}
           {/if}
-        </button>
+        </ActionButton>
       </div>
       {#if createKeywordError}
         <div class="feedback-message error">{createKeywordError}</div>
@@ -536,15 +461,19 @@
         "Diese Paare sind wahrscheinlich echte Synonyme (Abkürzungen, alternative Namen) basierend auf String-Ähnlichkeit."}
     </p>
 
-    <button class="action-btn primary" onclick={loadTrueSynonyms} disabled={trueSynonymsLoading}>
+    <ActionButton
+      variant="primary"
+      onclick={loadTrueSynonyms}
+      disabled={trueSynonymsLoading}
+      loading={trueSynonymsLoading}
+      icon={trueSynonymsLoading ? undefined : "fa-solid fa-magnifying-glass"}
+    >
       {#if trueSynonymsLoading}
-        <i class="fa-solid fa-spinner fa-spin"></i>
         {$_("network.loading") || "Lade..."}
       {:else}
-        <i class="fa-solid fa-magnifying-glass"></i>
         {$_("network.findTrueSynonyms") || "Echte Synonyme finden"}
       {/if}
-    </button>
+    </ActionButton>
 
     {#if trueSynonymsError}
       <div class="feedback-message error">{trueSynonymsError}</div>
@@ -700,90 +629,6 @@
     {/if}
   </div>
 
-  <!-- Compound Keyword Splitting -->
-  <div class="synonyms-section full-width compound-section">
-    <h3 class="section-heading">
-      <i class="fa-solid fa-scissors"></i>
-      {$_("network.splitCompounds") ?? "Compound-Keywords aufteilen"}
-    </h3>
-    <p class="section-description">
-      {$_("network.splitCompoundsDesc") ?? "Keywords mit Bindestrich in Komponenten aufteilen."}
-    </p>
-
-    <button
-      type="button"
-      class="action-btn primary"
-      onclick={loadCompoundPreview}
-      disabled={loadingCompounds}
-    >
-      {#if loadingCompounds}
-        <i class="fa-solid fa-spinner fa-spin"></i>
-      {:else}
-        <i class="fa-solid fa-list"></i>
-      {/if}
-      {$_("network.loadCompounds") ?? "Keywords laden"}
-    </button>
-
-    {#if compoundPreview !== null}
-      {#if compoundPreview.length === 0}
-        <p class="preview-empty">
-          {$_("network.noCompounds") ?? "Keine Compound-Keywords gefunden"}
-        </p>
-      {:else}
-        <div class="compound-controls">
-          <label class="select-all-label">
-            <input
-              type="checkbox"
-              bind:checked={selectAllCompounds}
-              onchange={toggleSelectAllCompounds}
-            />
-            {$_("network.selectAll") ?? "Alle"} ({selectedCompoundCount}/{compoundPreview.filter(
-              (c) => !c.is_preserved,
-            ).length})
-          </label>
-          <button
-            type="button"
-            class="action-btn danger"
-            onclick={splitSelectedCompounds}
-            disabled={selectedCompoundCount === 0 || splittingCompounds}
-          >
-            {#if splittingCompounds}
-              <i class="fa-solid fa-spinner fa-spin"></i>
-            {:else}
-              <i class="fa-solid fa-scissors"></i>
-            {/if}
-            {$_("network.splitSelected") ?? "Ausgewaehlte aufteilen"} ({selectedCompoundCount})
-          </button>
-        </div>
-
-        <div class="compound-batch-list">
-          {#each compoundPreview as item (item.id)}
-            <div class="compound-batch-item" class:preserved={item.is_preserved}>
-              <input
-                type="checkbox"
-                checked={selectedCompoundIds.has(item.id)}
-                onchange={() => toggleCompoundSelection(item.id)}
-                disabled={item.is_preserved}
-              />
-              <span class="original">{item.original}</span>
-              <i class="fa-solid fa-arrow-right"></i>
-              <span class="components">{item.components.join(" + ")}</span>
-              <span class="article-count">({item.articles_affected})</span>
-              <button
-                class="preserve-btn"
-                onclick={() => togglePreserveCompound(item)}
-                title={item.is_preserved
-                  ? ($_("network.removeProtection") ?? "Schutz aufheben")
-                  : ($_("network.preserve") ?? "Erhalten")}
-              >
-                <i class="fa-solid {item.is_preserved ? 'fa-shield-check' : 'fa-shield'}"></i>
-              </button>
-            </div>
-          {/each}
-        </div>
-      {/if}
-    {/if}
-  </div>
 </div>
 
 <style>
@@ -1276,102 +1121,6 @@
   .create-keyword-input:focus {
     outline: none;
     border-color: var(--accent-primary);
-  }
-
-  /* Compound Keyword Splitting */
-  .compound-section {
-    margin-top: 1rem;
-  }
-
-  .compound-section .section-heading {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .compound-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin: 1rem 0;
-    padding: 0.5rem 0.75rem;
-    background: var(--bg-overlay);
-    border-radius: 0.25rem;
-  }
-
-  .select-all-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-
-  .compound-batch-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    max-height: 350px;
-    overflow-y: auto;
-  }
-
-  .compound-batch-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.375rem 0.5rem;
-    background: var(--bg-overlay);
-    border-radius: 0.25rem;
-    font-size: 0.8125rem;
-  }
-
-  .compound-batch-item.preserved {
-    opacity: 0.5;
-  }
-
-  .compound-batch-item .original {
-    min-width: 120px;
-    font-weight: 500;
-    color: var(--text-primary);
-  }
-
-  .compound-batch-item .fa-arrow-right {
-    color: var(--accent-primary);
-    font-size: 0.5rem;
-  }
-
-  .compound-batch-item .components {
-    color: var(--accent-success);
-    flex: 1;
-  }
-
-  .compound-batch-item .article-count {
-    color: var(--text-muted);
-    font-size: 0.75rem;
-  }
-
-  .preserve-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 0.25rem;
-  }
-
-  .preserve-btn:hover {
-    color: var(--accent-warning);
-  }
-
-  .compound-batch-item.preserved .preserve-btn {
-    color: var(--accent-success);
-  }
-
-  .preview-empty {
-    text-align: center;
-    color: var(--text-muted);
-    padding: 1rem;
-    margin: 0.5rem 0 0 0;
   }
 
   /* True Synonyms Section */

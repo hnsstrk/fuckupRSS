@@ -57,6 +57,7 @@ pub use types::{
     UnprocessedCount,
 };
 
-// Re-export cluster batch types
+// Re-export cluster batch types (only available with clustering feature)
+#[cfg(feature = "clustering")]
 #[allow(unused_imports)]
 pub use batch_processor::{ClusterBatchConfig, ClusterBatchResult};
