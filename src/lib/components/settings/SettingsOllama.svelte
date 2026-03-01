@@ -15,6 +15,10 @@
   let openaiModel = $state("gpt-5-nano");
   let showApiKey = $state(false);
 
+  // Server history
+  let serverHistory = $state<string[]>([]);
+  let serverStatusMap = $state<Record<string, boolean | null>>({});
+
   // OpenAI model presets
   const openaiModelPresets = [
     {
@@ -136,6 +140,24 @@
     });
     if (savedOllamaUrl) ollamaUrl = savedOllamaUrl;
 
+    // Load server history
+    const savedHistory = await invoke<string | null>("get_setting", {
+      key: "ollama_server_history",
+    });
+    if (savedHistory) {
+      try {
+        serverHistory = JSON.parse(savedHistory);
+      } catch {
+        serverHistory = [];
+      }
+    }
+    // Ensure localhost is always present
+    if (!serverHistory.includes("http://localhost:11434")) {
+      serverHistory = ["http://localhost:11434", ...serverHistory];
+    }
+    // Check status of all known servers
+    checkAllServerStatus();
+
     const savedOpenaiBaseUrl = await invoke<string | null>("get_setting", {
       key: "openai_base_url",
     });
@@ -235,6 +257,10 @@
         baseUrl: ollamaUrl,
         apiKey: null,
       });
+      if (ollamaTestResult?.success) {
+        await addToServerHistory(ollamaUrl);
+        serverStatusMap = { ...serverStatusMap, [ollamaUrl]: true };
+      }
     } catch {
       ollamaTestResult = { success: false, latency_ms: 0, models: [] };
     }
@@ -243,6 +269,52 @@
 
   async function saveOllamaUrl() {
     await invoke("set_setting", { key: "ollama_url", value: ollamaUrl });
+  }
+
+  async function checkAllServerStatus() {
+    const checks = serverHistory.map(async (url) => {
+      try {
+        const result = await invoke<{ success: boolean }>("test_ai_provider", {
+          providerType: "ollama",
+          baseUrl: url,
+          apiKey: null,
+        });
+        return [url, result.success] as const;
+      } catch {
+        return [url, false] as const;
+      }
+    });
+    const results = await Promise.all(checks);
+    const newMap: Record<string, boolean> = {};
+    for (const [url, success] of results) {
+      newMap[url] = success;
+    }
+    serverStatusMap = newMap;
+  }
+
+  async function saveServerHistory() {
+    await invoke("set_setting", {
+      key: "ollama_server_history",
+      value: JSON.stringify(serverHistory),
+    });
+  }
+
+  async function addToServerHistory(url: string) {
+    if (!serverHistory.includes(url)) {
+      serverHistory = [...serverHistory, url];
+      await saveServerHistory();
+    }
+  }
+
+  async function removeFromServerHistory(url: string) {
+    if (url === "http://localhost:11434") return;
+    serverHistory = serverHistory.filter((u) => u !== url);
+    await saveServerHistory();
+  }
+
+  function selectServerFromHistory(url: string) {
+    ollamaUrl = url;
+    saveOllamaUrl();
   }
 
   async function testOpenaiConnection() {
@@ -515,6 +587,10 @@
 {#if aiTextProvider === "ollama"}
   <SettingsOllamaProvider
     bind:ollamaUrl
+    {serverHistory}
+    {serverStatusMap}
+    onSelectServer={selectServerFromHistory}
+    onRemoveServer={removeFromServerHistory}
     {ollamaStatus}
     {loadedModels}
     bind:selectedMainModel

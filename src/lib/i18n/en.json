@@ -301,7 +301,13 @@
       "modelMissing": "Model \"{model}\" is not installed",
       "modelMissingHint": "This model must be downloaded before AI analysis will work.",
       "downloadNow": "Download now",
-      "modelsIncomplete": "Models incomplete"
+      "modelsIncomplete": "Models incomplete",
+      "serverHistory": "Server History",
+      "removeServer": "Remove server",
+      "serverAdded": "Server added to list",
+      "serverRemoved": "Server removed from list",
+      "defaultServer": "Default",
+      "toggleServerList": "Toggle server list"
     },
     "prompts": {
       "title": "AI Prompts",

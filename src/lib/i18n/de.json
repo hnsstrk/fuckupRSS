@@ -301,7 +301,13 @@
       "modelMissing": "Modell \"{model}\" ist nicht installiert",
       "modelMissingHint": "Dieses Modell muss heruntergeladen werden bevor die KI-Analyse funktioniert.",
       "downloadNow": "Jetzt herunterladen",
-      "modelsIncomplete": "Modelle unvollständig"
+      "modelsIncomplete": "Modelle unvollständig",
+      "serverHistory": "Server-Verlauf",
+      "removeServer": "Server entfernen",
+      "serverAdded": "Server zur Liste hinzugefügt",
+      "serverRemoved": "Server aus Liste entfernt",
+      "defaultServer": "Standard",
+      "toggleServerList": "Server-Liste öffnen/schließen"
     },
     "prompts": {
       "title": "KI-Prompts",
