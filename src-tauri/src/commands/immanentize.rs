@@ -1984,7 +1984,7 @@ pub async fn verify_synonym_pair(
     // Get the configured provider and model from settings
     let (provider, model) = {
         let db = state.db_conn()?;
-        create_text_provider(&db)
+        create_text_provider(&db, Some(&state.proxy_manager))
     };
 
     // Prompt designed for YES/NO response with optional explanation

@@ -170,7 +170,7 @@ pub async fn process_embedding_queue(
     // Create embedding provider from settings
     let provider: Arc<dyn EmbeddingProvider> = {
         let db_guard = db.lock().map_err(|e| e.to_string())?;
-        create_embedding_provider_from_db(&db_guard)
+        create_embedding_provider_from_db(&db_guard, None)
     };
 
     debug!(

@@ -868,7 +868,7 @@ pub async fn process_batch(
     // Get provider and configure model
     let (provider_config, effective_model) = {
         let db = state.db_conn().map_err(|e| e.to_string())?;
-        let mut config = super::helpers::get_provider_config(&db);
+        let mut config = super::helpers::get_provider_config(&db, Some(&state.proxy_manager));
 
         // Only override Ollama model from frontend; OpenAI uses its configured model
         if matches!(
@@ -1100,7 +1100,7 @@ pub async fn process_batch(
     // Create embedding provider
     let embedding_provider = {
         let db = state.db_conn().map_err(|e| e.to_string())?;
-        let config = get_embedding_provider_config(&db);
+        let config = get_embedding_provider_config(&db, Some(&state.proxy_manager));
         crate::ai_provider::create_embedding_provider(&config)
     };
 
@@ -1545,7 +1545,7 @@ pub async fn process_batch_clustered(
     // Get provider config
     let provider_config = {
         let db = state.db_conn()?;
-        get_provider_config(&db)
+        get_provider_config(&db, Some(&state.proxy_manager))
     };
     let should_cluster = use_clustering.unwrap_or(true);
 
@@ -1641,7 +1641,7 @@ pub async fn process_batch_clustered(
 
     let (provider_for_batch, provider_model) = {
         let db = state.db_conn()?;
-        create_text_provider(&db)
+        create_text_provider(&db, Some(&state.proxy_manager))
     };
 
     // Determine provider name for logging/events

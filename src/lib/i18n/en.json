@@ -307,7 +307,19 @@
       "serverAdded": "Server added to list",
       "serverRemoved": "Server removed from list",
       "defaultServer": "Default",
-      "toggleServerList": "Toggle server list"
+      "toggleServerList": "Toggle server list",
+      "proxy": {
+        "title": "LAN Proxy (macOS Tahoe Workaround)",
+        "description": "Routes Ollama requests through a local proxy because macOS Tahoe blocks direct LAN access for unsigned apps.",
+        "remoteHost": "Remote Ollama Host",
+        "remotePort": "Remote Port",
+        "start": "Start Proxy",
+        "stop": "Stop Proxy",
+        "running": "Proxy active",
+        "stopped": "Proxy inactive",
+        "startError": "Failed to start proxy",
+        "routingVia": "Routing via localhost:{port}"
+      }
     },
     "prompts": {
       "title": "AI Prompts",

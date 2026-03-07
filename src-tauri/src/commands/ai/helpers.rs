@@ -47,6 +47,28 @@ pub fn get_ollama_url(db: &Database) -> String {
         .unwrap_or_else(|_| "http://localhost:11434".to_string())
 }
 
+/// Get effective Ollama URL considering proxy state.
+/// Returns the proxy local URL if the proxy is active, otherwise falls back to the DB setting.
+pub fn get_effective_ollama_url(
+    db: &Database,
+    proxy: &crate::proxy::ProxyManager,
+) -> String {
+    if let Some(local_url) = proxy.get_local_url() {
+        local_url
+    } else {
+        get_ollama_url(db)
+    }
+}
+
+/// Get the effective Ollama URL, using proxy if available.
+/// Helper that handles the `Option<&ProxyManager>` case.
+fn resolve_ollama_url(db: &Database, proxy: Option<&crate::proxy::ProxyManager>) -> String {
+    match proxy {
+        Some(p) => get_effective_ollama_url(db, p),
+        None => get_ollama_url(db),
+    }
+}
+
 /// Get a string setting from database with a default
 pub fn get_setting(db: &Database, key: &str, default: &str) -> String {
     db.conn()
@@ -66,14 +88,18 @@ fn parse_openai_temperature(db: &Database) -> Option<f32> {
     val.parse::<f32>().ok()
 }
 
-/// Get provider config from database settings
-pub fn get_provider_config(db: &Database) -> ProviderConfig {
+/// Get provider config from database settings.
+/// If a ProxyManager is provided, the Ollama URL will use the proxy when active.
+pub fn get_provider_config(
+    db: &Database,
+    proxy: Option<&crate::proxy::ProxyManager>,
+) -> ProviderConfig {
     let provider_type_str = get_setting(db, "ai_text_provider", "ollama");
     let provider_type = ProviderType::from_str_setting(&provider_type_str);
 
     ProviderConfig {
         provider_type: provider_type.clone(),
-        ollama_url: get_ollama_url(db),
+        ollama_url: resolve_ollama_url(db, proxy),
         ollama_model: get_setting(db, "main_model", RECOMMENDED_MAIN_MODEL),
         ollama_num_ctx: get_num_ctx_setting(db),
         ollama_concurrency: get_setting(db, "ollama_concurrency", "1").parse().unwrap_or(1),
@@ -84,28 +110,20 @@ pub fn get_provider_config(db: &Database) -> ProviderConfig {
     }
 }
 
-/// Create the configured text provider based on settings
+/// Create the configured text provider based on settings.
 ///
 /// Returns a provider that implements AiTextProvider trait.
 /// - If `ai_text_provider` is "openai_compatible", returns OpenAiCompatibleProvider
 /// - Otherwise returns OllamaTextProvider (default)
-pub fn create_text_provider(db: &Database) -> (Arc<dyn AiTextProvider>, String) {
-    let provider_type_str = get_setting(db, "ai_text_provider", "ollama");
-    let provider_type = ProviderType::from_str_setting(&provider_type_str);
+///
+/// If a ProxyManager is provided, the Ollama URL will use the proxy when active.
+pub fn create_text_provider(
+    db: &Database,
+    proxy: Option<&crate::proxy::ProxyManager>,
+) -> (Arc<dyn AiTextProvider>, String) {
+    let config = get_provider_config(db, proxy);
 
-    let config = ProviderConfig {
-        provider_type: provider_type.clone(),
-        ollama_url: get_ollama_url(db),
-        ollama_model: get_setting(db, "main_model", RECOMMENDED_MAIN_MODEL),
-        ollama_num_ctx: get_num_ctx_setting(db),
-        ollama_concurrency: get_setting(db, "ollama_concurrency", "1").parse().unwrap_or(1),
-        openai_base_url: get_setting(db, "openai_base_url", "https://api.openai.com"),
-        openai_api_key: get_setting(db, "openai_api_key", ""),
-        openai_model: get_setting(db, "openai_model", DEFAULT_OPENAI_MODEL),
-        openai_temperature: parse_openai_temperature(db),
-    };
-
-    let model = match provider_type {
+    let model = match config.provider_type {
         ProviderType::Ollama => config.ollama_model.clone(),
         ProviderType::OpenAiCompatible => config.openai_model.clone(),
     };
@@ -113,8 +131,12 @@ pub fn create_text_provider(db: &Database) -> (Arc<dyn AiTextProvider>, String) 
     (ai_provider::create_provider(&config), model)
 }
 
-/// Get embedding provider config from database settings
-pub fn get_embedding_provider_config(db: &Database) -> EmbeddingProviderConfig {
+/// Get embedding provider config from database settings.
+/// If a ProxyManager is provided, the Ollama URL will use the proxy when active.
+pub fn get_embedding_provider_config(
+    db: &Database,
+    proxy: Option<&crate::proxy::ProxyManager>,
+) -> EmbeddingProviderConfig {
     let provider_type_str = get_setting(db, "embedding_provider", "ollama");
     let provider_type = ProviderType::from_str_setting(&provider_type_str);
 
@@ -124,7 +146,7 @@ pub fn get_embedding_provider_config(db: &Database) -> EmbeddingProviderConfig {
 
     EmbeddingProviderConfig {
         provider_type,
-        ollama_url: get_ollama_url(db),
+        ollama_url: resolve_ollama_url(db, proxy),
         ollama_embedding_model: get_embedding_model_from_db(db.conn()),
         openai_base_url: get_setting(db, "openai_base_url", "https://api.openai.com"),
         openai_api_key: get_setting(db, "openai_api_key", ""),
@@ -137,9 +159,13 @@ pub fn get_embedding_provider_config(db: &Database) -> EmbeddingProviderConfig {
     }
 }
 
-/// Create the configured embedding provider based on settings
-pub fn create_embedding_provider_from_db(db: &Database) -> Arc<dyn EmbeddingProvider> {
-    let config = get_embedding_provider_config(db);
+/// Create the configured embedding provider based on settings.
+/// If a ProxyManager is provided, the Ollama URL will use the proxy when active.
+pub fn create_embedding_provider_from_db(
+    db: &Database,
+    proxy: Option<&crate::proxy::ProxyManager>,
+) -> Arc<dyn EmbeddingProvider> {
+    let config = get_embedding_provider_config(db, proxy);
     ai_provider::create_embedding_provider(&config)
 }
 

@@ -95,6 +95,12 @@
   let loadingModels = $state(false);
   let pullUnlisten: UnlistenFn | null = $state(null);
 
+  // Proxy state
+  let proxyRemoteHost = $state("");
+  let proxyRemotePort = $state(11434);
+  let proxyRunning = $state(false);
+  let proxyStarting = $state(false);
+
   // Embedding provider state
   let embeddingProvider = $state("ollama");
   let openaiEmbeddingModel = $state("text-embedding-3-small");
@@ -223,6 +229,29 @@
     });
     if (savedOllamaConcurrency) ollamaConcurrency = parseInt(savedOllamaConcurrency) || 1;
 
+    // Load proxy status
+    try {
+      const proxyStatus = await invoke<{
+        running: boolean;
+        remote_host: string | null;
+        remote_port: number | null;
+        local_url: string | null;
+      }>("get_ollama_proxy_status");
+      proxyRunning = proxyStatus.running;
+      if (proxyStatus.remote_host) proxyRemoteHost = proxyStatus.remote_host;
+      if (proxyStatus.remote_port) proxyRemotePort = proxyStatus.remote_port;
+    } catch {
+      /* proxy commands not yet available */
+    }
+    const savedProxyHost = await invoke<string | null>("get_setting", {
+      key: "ollama_proxy_remote_host",
+    });
+    if (savedProxyHost) proxyRemoteHost = savedProxyHost;
+    const savedProxyPort = await invoke<string | null>("get_setting", {
+      key: "ollama_proxy_remote_port",
+    });
+    if (savedProxyPort) proxyRemotePort = parseInt(savedProxyPort) || 11434;
+
     // Listen for model pull completion events
     pullUnlisten = await listen<string>("model-pull-complete", async () => {
       await loadOllamaStatus();
@@ -240,6 +269,32 @@
     embeddingModelDropdownOpen = false;
     numCtxDropdownOpen = false;
     openaiModelDropdownOpen = false;
+  }
+
+  // --- Proxy handler functions ---
+
+  async function startProxy() {
+    proxyStarting = true;
+    try {
+      const result = await invoke<{ running: boolean; local_url: string | null }>(
+        "start_ollama_proxy",
+        { remoteHost: proxyRemoteHost, remotePort: proxyRemotePort },
+      );
+      proxyRunning = result.running;
+      toasts.success($_("settings.ollama.proxy.running"));
+    } catch (e) {
+      toasts.error($_("settings.ollama.proxy.startError") + ": " + String(e));
+    }
+    proxyStarting = false;
+  }
+
+  async function stopProxy() {
+    try {
+      await invoke("stop_ollama_proxy");
+      proxyRunning = false;
+    } catch {
+      /* ignore */
+    }
   }
 
   // --- Provider handler functions ---
@@ -615,6 +670,12 @@
     onToggleMainModelDropdown={toggleMainModelDropdown}
     onHandleNumCtxChange={handleNumCtxChange}
     onHandleConcurrencyChange={handleConcurrencyChange}
+    {proxyRunning}
+    {proxyStarting}
+    bind:proxyRemoteHost
+    bind:proxyRemotePort
+    onStartProxy={startProxy}
+    onStopProxy={stopProxy}
   />
 {/if}
 

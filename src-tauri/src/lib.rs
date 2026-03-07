@@ -13,6 +13,7 @@ mod logging;
 mod ollama;
 mod retrieval;
 mod similarity;
+mod proxy;
 mod sync;
 mod text_analysis;
 
@@ -41,6 +42,7 @@ pub use keywords::{
     Language,
 };
 pub use logging::LogLevel;
+pub use proxy::ProxyManager;
 
 use db::Database;
 use log::{error, info};
@@ -54,6 +56,7 @@ pub struct AppState {
     pub batch_cancel: Arc<AtomicBool>,
     pub batch_running: Arc<AtomicBool>,
     pub embedding_worker: Arc<EmbeddingWorker>,
+    pub proxy_manager: ProxyManager,
 }
 
 impl AppState {
@@ -128,7 +131,66 @@ pub fn run() {
                 batch_cancel: Arc::new(AtomicBool::new(false)),
                 batch_running,
                 embedding_worker,
+                proxy_manager: ProxyManager::new(),
             });
+
+            // Auto-start Ollama LAN-Proxy if previously enabled
+            {
+                let state: tauri::State<AppState> = app.state();
+                let proxy_enabled = {
+                    let db = state.db_conn().expect("DB lock for proxy auto-start");
+                    let enabled = db
+                        .conn()
+                        .query_row(
+                            "SELECT value FROM settings WHERE key = 'ollama_proxy_enabled'",
+                            [],
+                            |row| row.get::<_, String>(0),
+                        )
+                        .unwrap_or_default()
+                        == "true";
+
+                    if enabled {
+                        let remote_host = db
+                            .conn()
+                            .query_row(
+                                "SELECT value FROM settings WHERE key = 'ollama_proxy_remote_host'",
+                                [],
+                                |row| row.get::<_, String>(0),
+                            )
+                            .unwrap_or_default();
+                        let remote_port: u16 = db
+                            .conn()
+                            .query_row(
+                                "SELECT value FROM settings WHERE key = 'ollama_proxy_remote_port'",
+                                [],
+                                |row| row.get::<_, String>(0),
+                            )
+                            .ok()
+                            .and_then(|v| v.parse().ok())
+                            .unwrap_or(11434);
+
+                        Some((remote_host, remote_port))
+                    } else {
+                        None
+                    }
+                };
+
+                if let Some((remote_host, remote_port)) = proxy_enabled {
+                    if !remote_host.is_empty() {
+                        if let Err(e) =
+                            state.proxy_manager.start(&remote_host, remote_port)
+                        {
+                            error!("Failed to auto-start Ollama proxy: {}", e);
+                        } else {
+                            info!(
+                                "Ollama LAN-Proxy auto-started: localhost:11435 -> {}:{}",
+                                remote_host, remote_port
+                            );
+                        }
+                    }
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -340,6 +402,10 @@ pub fn run() {
             commands::maintenance::vacuum_database,
             commands::maintenance::find_orphaned_articles,
             commands::maintenance::delete_orphaned_articles,
+            // Ollama LAN-Proxy
+            commands::proxy::start_ollama_proxy,
+            commands::proxy::stop_ollama_proxy,
+            commands::proxy::get_ollama_proxy_status,
             // Pentacle Article Stats
             commands::pentacles::count_pentacle_articles,
             // Keyword Type Detection (Semantic)

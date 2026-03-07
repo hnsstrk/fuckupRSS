@@ -52,7 +52,7 @@ pub async fn generate_summary(
 
     let (provider, effective_model, content): (Arc<dyn AiTextProvider>, String, String) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db);
+        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager));
         let content = db
             .conn()
             .query_row(
@@ -135,7 +135,7 @@ pub async fn analyze_article(
         String,
     ) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db);
+        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager));
         let (title, content) = db
             .conn()
             .query_row(
@@ -223,7 +223,7 @@ pub async fn process_article(
         String,
     ) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db);
+        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager));
         let (title, content) = db
             .conn()
             .query_row(
@@ -374,8 +374,8 @@ pub async fn process_article_discordian(
         Option<CorpusStats>,
     ) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db);
-        let embedding_provider = create_embedding_provider_from_db(&db);
+        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager));
+        let embedding_provider = create_embedding_provider_from_db(&db, Some(&state.proxy_manager));
         let (title, content, article_date) = db
             .conn()
             .query_row(

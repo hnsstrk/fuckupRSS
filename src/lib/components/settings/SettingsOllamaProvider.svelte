@@ -31,6 +31,12 @@
     onSelectServer,
     onRemoveServer,
     serverStatusMap,
+    proxyRunning,
+    proxyStarting,
+    proxyRemoteHost = $bindable(),
+    proxyRemotePort = $bindable(),
+    onStartProxy,
+    onStopProxy,
   }: {
     ollamaUrl: string;
     ollamaStatus: {
@@ -74,6 +80,12 @@
     serverStatusMap: Record<string, boolean | null>;
     onSelectServer: (url: string) => void;
     onRemoveServer: (url: string) => void;
+    proxyRunning: boolean;
+    proxyStarting: boolean;
+    proxyRemoteHost: string;
+    proxyRemotePort: number;
+    onStartProxy: () => void;
+    onStopProxy: () => void;
   } = $props();
 
   let serverDropdownOpen = $state(false);
@@ -226,6 +238,72 @@
       {/if}
     </div>
   {/if}
+
+  <!-- LAN-Proxy Section -->
+  <div class="proxy-section">
+    <div class="proxy-header">
+      <i class="fa-light fa-network-wired"></i>
+      <span class="proxy-title">{$_("settings.ollama.proxy.title")}</span>
+      <span class="status-dot {proxyRunning ? 'online' : 'offline'}"></span>
+      <span class="proxy-status-text">
+        {proxyRunning ? $_("settings.ollama.proxy.running") : $_("settings.ollama.proxy.stopped")}
+      </span>
+    </div>
+    <p class="setting-description proxy-description">
+      {$_("settings.ollama.proxy.description")}
+    </p>
+    <div class="proxy-fields">
+      <div class="proxy-field">
+        <label class="sub-label">
+          {$_("settings.ollama.proxy.remoteHost")}
+          <input
+            type="text"
+            class="text-input"
+            bind:value={proxyRemoteHost}
+            placeholder="192.168.1.100"
+            disabled={proxyRunning}
+          />
+        </label>
+      </div>
+      <div class="proxy-field proxy-port-field">
+        <label class="sub-label">
+          {$_("settings.ollama.proxy.remotePort")}
+          <input
+            type="number"
+            class="text-input"
+            bind:value={proxyRemotePort}
+            disabled={proxyRunning}
+          />
+        </label>
+      </div>
+    </div>
+    <div class="proxy-actions">
+      {#if proxyRunning}
+        <button type="button" class="btn-test proxy-stop" onclick={onStopProxy}>
+          <i class="fa-solid fa-stop"></i>
+          {$_("settings.ollama.proxy.stop")}
+        </button>
+        <span class="proxy-routing">
+          <i class="fa-light fa-route"></i>
+          {$_("settings.ollama.proxy.routingVia", { values: { port: 11435 } })}
+        </span>
+      {:else}
+        <button
+          type="button"
+          class="btn-test"
+          onclick={onStartProxy}
+          disabled={proxyStarting || !proxyRemoteHost}
+        >
+          {#if proxyStarting}
+            <i class="fa-solid fa-spinner fa-spin"></i>
+          {:else}
+            <i class="fa-solid fa-play"></i>
+          {/if}
+          {$_("settings.ollama.proxy.start")}
+        </button>
+      {/if}
+    </div>
+  </div>
 </div>
 
 <!-- Ollama Status -->
@@ -974,5 +1052,90 @@
 
   .server-remove-btn:hover {
     color: var(--status-error);
+  }
+
+  .sub-label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+  }
+
+  /* LAN-Proxy Section */
+  .proxy-section {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background-color: var(--bg-overlay);
+    border: 1px solid var(--border-default);
+    border-radius: 0.5rem;
+  }
+
+  .proxy-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.375rem;
+  }
+
+  .proxy-header i {
+    color: var(--accent-primary);
+  }
+
+  .proxy-title {
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+  }
+
+  .proxy-status-text {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .proxy-description {
+    margin-bottom: 0.75rem !important;
+  }
+
+  .proxy-fields {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .proxy-field {
+    flex: 1;
+  }
+
+  .proxy-port-field {
+    max-width: 120px;
+  }
+
+  .proxy-field .text-input {
+    width: 100%;
+  }
+
+  .proxy-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .proxy-stop {
+    border-color: var(--status-error) !important;
+    color: var(--status-error) !important;
+  }
+
+  .proxy-stop:hover {
+    background-color: var(--status-error) !important;
+    color: var(--text-on-accent) !important;
+  }
+
+  .proxy-routing {
+    font-size: 0.8125rem;
+    color: var(--status-success);
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
   }
 </style>

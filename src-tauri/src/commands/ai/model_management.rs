@@ -1,7 +1,7 @@
 //! Ollama model management and AI provider commands (status, load, unload, pull, cost tracking)
 
 use crate::ai_provider::{ProviderTestResult, ProviderType};
-use crate::commands::ai::helpers::get_ollama_url;
+use crate::commands::ai::helpers::get_effective_ollama_url;
 use crate::ollama::{OllamaClient, RECOMMENDED_EMBEDDING_MODEL, RECOMMENDED_MAIN_MODEL};
 use crate::AppState;
 use log::warn;
@@ -16,7 +16,7 @@ use super::types::{LoadedModel, LoadedModelsResponse, ModelPullResult, OllamaSta
 pub async fn check_ollama(state: State<'_, AppState>) -> Result<OllamaStatus, String> {
     let url = {
         let db = state.db_conn()?;
-        get_ollama_url(&db)
+        get_effective_ollama_url(&db, &state.proxy_manager)
     };
     let client = OllamaClient::new(Some(url));
 
@@ -61,7 +61,7 @@ pub async fn check_ollama(state: State<'_, AppState>) -> Result<OllamaStatus, St
 pub async fn get_loaded_models(state: State<'_, AppState>) -> Result<LoadedModelsResponse, String> {
     let ollama_url = {
         let db = state.db_conn()?;
-        get_ollama_url(&db)
+        get_effective_ollama_url(&db, &state.proxy_manager)
     };
     let client = reqwest_new::Client::new();
 
@@ -115,7 +115,7 @@ pub async fn get_loaded_models(state: State<'_, AppState>) -> Result<LoadedModel
 pub async fn load_model(state: State<'_, AppState>, model: String) -> Result<bool, String> {
     let ollama_url = {
         let db = state.db_conn()?;
-        get_ollama_url(&db)
+        get_effective_ollama_url(&db, &state.proxy_manager)
     };
     let client = reqwest_new::Client::new();
 
@@ -160,7 +160,7 @@ pub async fn load_model(state: State<'_, AppState>, model: String) -> Result<boo
 pub async fn unload_model(state: State<'_, AppState>, model: String) -> Result<bool, String> {
     let ollama_url = {
         let db = state.db_conn()?;
-        get_ollama_url(&db)
+        get_effective_ollama_url(&db, &state.proxy_manager)
     };
     let client = reqwest_new::Client::new();
 
@@ -216,7 +216,7 @@ pub async fn pull_model(
 ) -> Result<ModelPullResult, String> {
     let url = {
         let db = state.db_conn()?;
-        get_ollama_url(&db)
+        get_effective_ollama_url(&db, &state.proxy_manager)
     };
     let client = OllamaClient::new(Some(url));
 

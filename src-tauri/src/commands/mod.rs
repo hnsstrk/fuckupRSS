@@ -9,6 +9,7 @@ pub mod maintenance;
 pub mod mindfuck;
 pub mod opml;
 pub mod pentacles;
+pub mod proxy;
 pub mod recommendations;
 pub mod retrieval;
 pub mod settings;

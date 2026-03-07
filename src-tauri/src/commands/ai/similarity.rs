@@ -176,7 +176,7 @@ pub async fn semantic_search(
 
     let provider = {
         let db = state.db_conn()?;
-        create_embedding_provider_from_db(&db)
+        create_embedding_provider_from_db(&db, Some(&state.proxy_manager))
     };
 
     let query_embedding = provider
@@ -335,7 +335,7 @@ pub async fn generate_article_embeddings_batch(
 
     let provider = {
         let db = state.db_conn()?;
-        create_embedding_provider_from_db(&db)
+        create_embedding_provider_from_db(&db, Some(&state.proxy_manager))
     };
     let mut succeeded = 0i64;
     let mut failed = 0i64;
