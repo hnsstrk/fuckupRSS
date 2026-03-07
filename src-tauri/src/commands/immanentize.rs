@@ -2153,6 +2153,14 @@ pub fn merge_keyword_pair(
             [remove_id],
         )?;
 
+        // Merge daily trend data into keep_id before deleting remove_id's records
+        conn.execute(
+            r#"INSERT INTO immanentize_daily (immanentize_id, date, count)
+               SELECT ?1, date, count FROM immanentize_daily WHERE immanentize_id = ?2
+               ON CONFLICT(immanentize_id, date) DO UPDATE SET count = count + excluded.count"#,
+            params![keep_id, remove_id],
+        )?;
+
         conn.execute(
             "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
             [remove_id],
@@ -2687,6 +2695,15 @@ fn perform_merge(conn: &rusqlite::Connection, keep_id: i64, remove_id: i64) -> R
             remove_id,
             e
         );
+    }
+    // Merge daily trend data into keep_id before deleting remove_id's records
+    if let Err(e) = conn.execute(
+        r#"INSERT INTO immanentize_daily (immanentize_id, date, count)
+           SELECT ?1, date, count FROM immanentize_daily WHERE immanentize_id = ?2
+           ON CONFLICT(immanentize_id, date) DO UPDATE SET count = count + excluded.count"#,
+        params![keep_id, remove_id],
+    ) {
+        warn!("Failed to merge daily stats for keyword {}: {}", remove_id, e);
     }
     if let Err(e) = conn.execute(
         "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
