@@ -291,7 +291,7 @@ class ImmanentizeNetworkStore {
     try {
       this.trendingKeywords = await invoke<TrendingKeyword[]>("get_trending_keywords", {
         days: d,
-        limit: 20,
+        limit: 50,
         sortBy: this.trendingSortBy,
       });
     } catch (e) {
