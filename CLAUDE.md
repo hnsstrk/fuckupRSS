@@ -399,11 +399,13 @@ fuckupRSS/
 │   │   │   ├── mod.rs            # AiTextProvider Trait + Factory
 │   │   │   ├── ollama_provider.rs # Ollama-Implementierung
 │   │   │   └── openai_provider.rs # OpenAI-kompatible API-Implementierung
+│   │   ├── proxy.rs              # ProxyManager (Ollama LAN-Proxy Child-Process)
 │   │   ├── db/                   # Datenbank-Layer
 │   │   │   ├── mod.rs            # Database Struct
 │   │   │   └── schema.rs         # SQLite Schema
 │   │   └── commands/             # Tauri Commands (IPC)
 │   │       ├── ai/               # KI-Provider Commands (Test, Kosten)
+│   │       ├── proxy.rs          # Ollama LAN-Proxy Commands
 │   │       ├── pentacles.rs      # Feed-Operationen
 │   │       └── fnords.rs         # Artikel-Operationen
 │   ├── Cargo.toml
@@ -511,6 +513,11 @@ await invoke('check_ollama');
 await invoke('test_ai_provider');
 await invoke('get_monthly_cost', { year, month });
 await invoke('get_cost_history', { months });
+
+// Ollama LAN-Proxy
+await invoke('start_ollama_proxy', { remoteHost, remotePort });
+await invoke('stop_ollama_proxy');
+await invoke('get_ollama_proxy_status');
 ```
 
 ## Database Schema

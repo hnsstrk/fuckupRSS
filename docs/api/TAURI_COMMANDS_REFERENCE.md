@@ -29,6 +29,7 @@ This document provides a comprehensive reference for all Tauri commands availabl
 - [Model Management (Extended)](#model-management-extended)
 - [Cost Tracking](#cost-tracking)
 - [Batch Processing](#batch-processing)
+- [Ollama LAN-Proxy](#ollama-lan-proxy)
 - [OPML Import/Export](#opml-importexport)
 - [Settings (Extended)](#settings-extended)
 - [Prompts (Extended)](#prompts-extended)
@@ -441,6 +442,34 @@ interface CostEntry {
 
 ---
 
+## Ollama LAN-Proxy
+
+| Command | Parameter | Return | Description |
+|---------|-----------|--------|-------------|
+| `start_ollama_proxy` | `remote_host`, `remote_port` | `ProxyStatus` | Start LAN proxy (localhost:11435 -> remote) |
+| `stop_ollama_proxy` | - | `ProxyStatus` | Stop LAN proxy |
+| `get_ollama_proxy_status` | - | `ProxyStatus` | Get current proxy status |
+
+### ProxyStatus Structure
+
+```typescript
+interface ProxyStatus {
+  running: boolean;              // Whether the proxy process is running
+  remote_host: string | null;    // Remote Ollama host (e.g. "192.168.1.100")
+  remote_port: number | null;    // Remote Ollama port (e.g. 11434)
+  local_url: string | null;      // Local proxy URL (e.g. "http://localhost:11435")
+}
+```
+
+**Notes:**
+- The proxy is a Python TCP-proxy managed as a child process
+- Workaround for macOS Tahoe: ad-hoc-signed binaries cannot access LAN IPs directly
+- When the proxy is active, `get_effective_ollama_url()` automatically routes Ollama requests through `localhost:11435`
+- Proxy settings (`ollama_proxy_enabled`, `ollama_proxy_remote_host`, `ollama_proxy_remote_port`) are persisted in the `settings` table for auto-start on next app launch
+- Starting the proxy automatically stops any previously running proxy instance
+
+---
+
 ## OPML Import/Export
 
 | Command | Parameter | Return | Description |
@@ -530,6 +559,6 @@ const searchResults = await invoke<SemanticSearchResponse>('semantic_search', {
 
 ---
 
-*Last updated: February 2026*
+*Last updated: March 2026*
 
 *For development guidelines, database patterns, and project architecture, see [CLAUDE.md](../../CLAUDE.md).*

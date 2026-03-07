@@ -169,6 +169,17 @@ sudo systemctl daemon-reload
 sudo systemctl restart ollama
 ```
 
+### Ollama LAN-Proxy (macOS Tahoe)
+
+Unter **macOS Tahoe (15.x)** koennen ad-hoc-signierte Binaries (wie Tauri-Dev-Builds) nicht direkt auf LAN-IP-Adressen zugreifen. fuckupRSS enthält einen integrierten LAN-Proxy als Workaround:
+
+- Leitet Ollama-Requests von `localhost:11435` an eine Remote-Ollama-Instanz im LAN weiter
+- Konfigurierbar in **Einstellungen → Ollama → LAN-Proxy**
+- Startet automatisch beim nächsten App-Start, wenn zuvor aktiviert
+- Wird nur benötigt, wenn Ollama auf einem anderen Rechner im Netzwerk läuft
+
+> **Hinweis:** Production-Builds (.dmg) mit gültigem Signing sind nicht betroffen. Der Proxy wird nur für die Entwicklung oder ad-hoc-signierte Builds benötigt.
+
 ### 4. fuckupRSS installieren
 
 **Aus Releases (empfohlen):**
@@ -236,6 +247,7 @@ Die Einstellungen können direkt in der App unter "Einstellungen" geändert werd
 - **OpenAI-kompatible APIs:** OpenAI, Together.ai, Mistral, Groq etc. als Alternative für Textgenerierung
 - Modell-Auswahl (Hauptmodell, Embedding-Modell)
 - Empfohlene Modelle direkt herunterladen
+- **LAN-Proxy:** Integrierter Proxy für Ollama-Instanzen im lokalen Netzwerk (Workaround für macOS Tahoe, siehe unten)
 - **Hinweis:** Embeddings (für Ähnlichkeitssuche) erfordern weiterhin Ollama
 
 ### Prompts
