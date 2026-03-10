@@ -1031,6 +1031,29 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         );
     }
 
+    // Migration 27: Create briefings table for AI-generated news briefings
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS briefings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            period_type TEXT NOT NULL CHECK(period_type IN ('daily', 'weekly')),
+            period_start DATETIME NOT NULL,
+            period_end DATETIME NOT NULL,
+            content TEXT NOT NULL,
+            top_keywords TEXT,
+            article_count INTEGER NOT NULL DEFAULT 0,
+            model_used TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(period_type, period_start)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_briefings_created
+            ON briefings(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_briefings_period
+            ON briefings(period_type, period_start DESC);
+        "#,
+    )?;
+
     Ok(())
 }
 

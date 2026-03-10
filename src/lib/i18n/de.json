@@ -1144,5 +1144,22 @@
     "noSentenceAvailable": "Kein Satz-Kontext verfuegbar",
     "contextLoadError": "Kontext konnte nicht geladen werden",
     "clickToOpenNetwork": "Klicken um im Netzwerk zu oeffnen"
+  },
+  "briefing": {
+    "title": "Briefings",
+    "daily": "Tages-Briefing",
+    "weekly": "Wochen-Briefing",
+    "generate": "Briefing erstellen",
+    "generating": "Briefing wird erstellt...",
+    "noArticles": "Keine Artikel im Zeitraum vorhanden",
+    "articles": "Artikel",
+    "topKeywords": "Top-Keywords",
+    "period": "Zeitraum",
+    "delete": "Loeschen",
+    "deleteConfirm": "Briefing wirklich loeschen?",
+    "empty": "Noch keine Briefings vorhanden. Erstelle dein erstes Briefing!",
+    "error": "Fehler beim Erstellen des Briefings",
+    "model": "Modell",
+    "createdAt": "Erstellt"
   }
 }

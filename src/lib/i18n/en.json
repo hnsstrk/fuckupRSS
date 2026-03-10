@@ -1144,5 +1144,22 @@
     "noSentenceAvailable": "No sentence context available",
     "contextLoadError": "Failed to load context",
     "clickToOpenNetwork": "Click to open in Network"
+  },
+  "briefing": {
+    "title": "Briefings",
+    "daily": "Daily Briefing",
+    "weekly": "Weekly Briefing",
+    "generate": "Generate Briefing",
+    "generating": "Generating briefing...",
+    "noArticles": "No articles in this period",
+    "articles": "Articles",
+    "topKeywords": "Top Keywords",
+    "period": "Period",
+    "delete": "Delete",
+    "deleteConfirm": "Really delete this briefing?",
+    "empty": "No briefings yet. Create your first briefing!",
+    "error": "Error generating briefing",
+    "model": "Model",
+    "createdAt": "Created"
   }
 }
