@@ -49,6 +49,8 @@ export interface Fnord {
   categories: FnordCategoryInfo[];
   // Full text fetch error tracking
   full_text_fetch_error: string | null;
+  // Article type classification from LLM analysis
+  article_type: string;
 }
 
 export interface FnordRevision {
@@ -68,6 +70,7 @@ export interface FnordFilter {
   sephiroth_id?: number;
   main_sephiroth_id?: number; // Filter by main category (includes all subcategories)
   status?: string;
+  article_type?: string;
   limit?: number;
   offset?: number;
 }

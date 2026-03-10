@@ -79,6 +79,7 @@ fn test_raw_discordian_analysis_conversion() {
         keywords: vec!["keyword1".to_string(), "keyword2".to_string()],
         political_bias: -0.8,
         sachlichkeit: 2.6,
+        article_type: "news".to_string(),
     };
 
     let analysis: DiscordianAnalysis = raw.into();
@@ -98,6 +99,7 @@ fn test_raw_discordian_analysis_empty_collections() {
         keywords: vec![],
         political_bias: 0.0,
         sachlichkeit: 2.0,
+        article_type: "unknown".to_string(),
     };
 
     let analysis: DiscordianAnalysis = raw.into();
@@ -211,6 +213,7 @@ fn test_discordian_analysis_serialize() {
         keywords: vec!["keyword".to_string()],
         political_bias: 0,
         sachlichkeit: 2,
+        article_type: "analysis".to_string(),
     };
 
     let json = serde_json::to_string(&analysis).expect("Serialization failed");

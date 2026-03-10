@@ -569,12 +569,14 @@ pub async fn process_article_discordian(
                             summary = ?1,
                             political_bias = ?2,
                             sachlichkeit = ?3,
+                            article_type = ?4,
                             processed_at = CURRENT_TIMESTAMP
-                        WHERE id = ?4"#,
+                        WHERE id = ?5"#,
                         (
                             &analysis.summary,
                             analysis.political_bias,
                             analysis.sachlichkeit,
+                            &analysis.article_type,
                             fnord_id,
                         ),
                     )

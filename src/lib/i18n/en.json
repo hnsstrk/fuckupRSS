@@ -531,6 +531,17 @@
       "noStopwordsToExport": "No user-defined stopwords to export"
     }
   },
+  "articleType": {
+    "label": "Article Type",
+    "news": "News",
+    "analysis": "Analysis",
+    "opinion": "Opinion",
+    "satire": "Satire",
+    "ad": "Advertisement",
+    "unknown": "Unknown",
+    "all": "All Types",
+    "filter": "Filter by type"
+  },
   "terminology": {
     "fnord": {
       "term": "Fnord",

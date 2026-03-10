@@ -304,7 +304,8 @@ pub const DEFAULT_DISCORDIAN_PROMPT: &str = r#"Analyze this news article. Respon
   "sachlichkeit": <0 to 4>,
   "summary": "<2-3 sentences>",
   "keywords": ["<kw1>", "<kw2>", "<kw3>"],
-  "categories": ["<cat1>"]
+  "categories": ["<cat1>"],
+  "article_type": "<type>"
 }
 
 Rules:
@@ -313,6 +314,7 @@ Rules:
 - summary: 2-3 factual sentences in {language}, capture the key information
 - keywords: 3-5 short keywords (1-2 words each) - IMPORTANT for categorization
 - categories: 0-1 from: Technik, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit, Verteidigung, Energie, Recht (optional, empty [] is fine)
+- article_type: exactly one of: news, analysis, opinion, satire, ad, unknown
 
 Title: {title}
 Content: {content}"#;
@@ -333,6 +335,7 @@ YOUR TASKS:
 3. Assess sachlichkeit: 0=emotional/sensational, 2=mixed, 4=objective/factual
 4. Review keywords: keep good ones, add max 2 important missing ones
 5. Categories: only provide if pre-computed ones are clearly wrong (empty [] is fine)
+6. Classify article_type: exactly one of: news, analysis, opinion, satire, ad, unknown
 
 Return ONLY valid JSON:
 {
@@ -342,7 +345,8 @@ Return ONLY valid JSON:
   "keywords": ["kw1", "kw2", "..."],
   "categories": [],
   "rejected_keywords": [],
-  "rejected_categories": []
+  "rejected_categories": [],
+  "article_type": "<type>"
 }
 
 Title: {title}
@@ -811,6 +815,13 @@ pub struct RawDiscordianAnalysis {
     political_bias: f64,
     #[serde(default)]
     sachlichkeit: f64,
+    /// Article type: news/analysis/opinion/satire/ad/unknown
+    #[serde(default = "default_article_type")]
+    article_type: String,
+}
+
+fn default_article_type() -> String {
+    "unknown".to_string()
 }
 
 /// Full Discordian analysis with all KI-extracted data
@@ -821,6 +832,21 @@ pub struct DiscordianAnalysis {
     pub keywords: Vec<String>,
     pub political_bias: i32,
     pub sachlichkeit: i32,
+    /// Article type: news/analysis/opinion/satire/ad/unknown
+    pub article_type: String,
+}
+
+/// Validate and normalize article_type to known values
+fn normalize_article_type(raw: &str) -> String {
+    match raw.to_lowercase().trim() {
+        "news" => "news",
+        "analysis" => "analysis",
+        "opinion" => "opinion",
+        "satire" => "satire",
+        "ad" | "advertisement" => "ad",
+        _ => "unknown",
+    }
+    .to_string()
 }
 
 impl From<RawDiscordianAnalysis> for DiscordianAnalysis {
@@ -831,6 +857,7 @@ impl From<RawDiscordianAnalysis> for DiscordianAnalysis {
             keywords: raw.keywords,
             political_bias: raw.political_bias.round() as i32,
             sachlichkeit: raw.sachlichkeit.round() as i32,
+            article_type: normalize_article_type(&raw.article_type),
         }
     }
 }
@@ -853,6 +880,9 @@ pub struct RawDiscordianAnalysisWithRejections {
     political_bias: f64,
     #[serde(default)]
     sachlichkeit: f64,
+    /// Article type: news/analysis/opinion/satire/ad/unknown
+    #[serde(default = "default_article_type")]
+    article_type: String,
 }
 
 /// Full Discordian analysis with rejection info for bias learning
@@ -867,6 +897,8 @@ pub struct DiscordianAnalysisWithRejections {
     pub rejected_categories: Vec<String>,
     pub political_bias: i32,
     pub sachlichkeit: i32,
+    /// Article type: news/analysis/opinion/satire/ad/unknown
+    pub article_type: String,
 }
 
 impl From<RawDiscordianAnalysisWithRejections> for DiscordianAnalysisWithRejections {
@@ -879,6 +911,7 @@ impl From<RawDiscordianAnalysisWithRejections> for DiscordianAnalysisWithRejecti
             rejected_categories: raw.rejected_categories,
             political_bias: raw.political_bias.round() as i32,
             sachlichkeit: raw.sachlichkeit.round() as i32,
+            article_type: normalize_article_type(&raw.article_type),
         }
     }
 }
@@ -891,6 +924,7 @@ impl From<DiscordianAnalysisWithRejections> for DiscordianAnalysis {
             keywords: raw.keywords,
             political_bias: raw.political_bias,
             sachlichkeit: raw.sachlichkeit,
+            article_type: raw.article_type,
         }
     }
 }

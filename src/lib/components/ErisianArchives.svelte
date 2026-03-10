@@ -137,7 +137,35 @@
       revision_count: 0,
       categories: [],
       full_text_fetch_error: null,
+      article_type: "unknown",
     } as Fnord;
+  }
+
+  // Article type filter state
+  let selectedArticleType = $state<string>("");
+
+  async function handleArticleTypeFilter(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    selectedArticleType = target.value;
+
+    // Rebuild filter and reload
+    let filter: Record<string, unknown> = {};
+
+    if (appState.selectedPentacleId !== null) {
+      filter.pentacle_id = appState.selectedPentacleId;
+    }
+
+    if (activeTab === "unread") {
+      filter.status = "concealed";
+    } else if (activeTab === "goldenApple") {
+      filter.status = "golden_apple";
+    }
+
+    if (selectedArticleType) {
+      filter.article_type = selectedArticleType;
+    }
+
+    await appState.loadFnords(filter);
   }
 
   // Load special articles for failed/hopeless tabs (not available in appState.fnords)
@@ -265,6 +293,11 @@
         filter = { ...filter, status: "golden_apple" };
       }
       // 'articles' tab has no status filter (shows all)
+
+      // Preserve article_type filter
+      if (selectedArticleType) {
+        filter = { ...filter, article_type: selectedArticleType };
+      }
 
       await appState.loadFnords(filter);
     }
@@ -408,6 +441,26 @@
           <span class="summary-label">{$_("erisianArchives.stats.favorites") || "Favoriten"}</span>
         </span>
       </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-row">
+      <!-- Article Type Filter -->
+      <select
+        class="article-type-filter"
+        value={selectedArticleType}
+        onchange={handleArticleTypeFilter}
+        title={$_("articleType.filter")}
+        disabled={activeTab === "failed" || activeTab === "hopeless"}
+      >
+        <option value="">{$_("articleType.all")}</option>
+        <option value="news">{$_("articleType.news")}</option>
+        <option value="analysis">{$_("articleType.analysis")}</option>
+        <option value="opinion">{$_("articleType.opinion")}</option>
+        <option value="satire">{$_("articleType.satire")}</option>
+        <option value="ad">{$_("articleType.ad")}</option>
+        <option value="unknown">{$_("articleType.unknown")}</option>
+      </select>
     </div>
 
     <!-- Tabs -->
@@ -568,6 +621,40 @@
   .summary-label {
     font-size: 0.6875rem;
     color: var(--text-muted);
+  }
+
+  /* Filter Row */
+  .filter-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .article-type-filter {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    border: 1px solid var(--border-default);
+    background-color: var(--bg-surface);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+
+  .article-type-filter:hover {
+    border-color: var(--accent-primary);
+  }
+
+  .article-type-filter:focus {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 1px var(--accent-primary);
+  }
+
+  .article-type-filter:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* 2-Column Body Layout */

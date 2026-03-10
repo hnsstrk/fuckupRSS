@@ -488,6 +488,7 @@ async fn process_single_article(
                 keywords: cached.keywords,
                 political_bias: cached.political_bias,
                 sachlichkeit: cached.sachlichkeit,
+                article_type: cached.article_type.unwrap_or_else(|| "unknown".to_string()),
             },
             true,
         )
@@ -600,6 +601,7 @@ async fn process_single_article(
                         &llm_analysis.keywords,
                         llm_analysis.political_bias,
                         llm_analysis.sachlichkeit,
+                        &llm_analysis.article_type,
                     );
                 }
 
@@ -684,14 +686,16 @@ async fn process_single_article(
                 summary = ?1,
                 political_bias = ?2,
                 sachlichkeit = ?3,
+                article_type = ?4,
                 processed_at = CURRENT_TIMESTAMP,
                 analysis_attempts = 0,
                 analysis_error = NULL
-            WHERE id = ?4"#,
+            WHERE id = ?5"#,
             (
                 &analysis.summary,
                 analysis.political_bias,
                 analysis.sachlichkeit,
+                &analysis.article_type,
                 fnord_id,
             ),
         );

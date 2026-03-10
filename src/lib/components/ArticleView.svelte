@@ -515,6 +515,7 @@
       politicalBias={fnord.political_bias}
       sachlichkeit={fnord.sachlichkeit}
       qualityScore={fnord.quality_score}
+      articleType={fnord.article_type}
     />
 
     <!-- Summary (Discordian Analysis) -->
