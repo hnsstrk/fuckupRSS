@@ -1144,5 +1144,27 @@
     "noSentenceAvailable": "No sentence context available",
     "contextLoadError": "Failed to load context",
     "clickToOpenNetwork": "Click to open in Network"
+  },
+  "storyClusters": {
+    "title": "Story Clustering",
+    "discover": "Discover Clusters",
+    "discovering": "Searching for story clusters...",
+    "noResults": "No story clusters found. Try a longer time period.",
+    "articles": "Articles",
+    "sources": "Sources",
+    "perspectives": "Compare Perspectives",
+    "comparing": "Comparing perspectives...",
+    "comparison": "Perspective Comparison",
+    "noComparison": "No comparison generated yet",
+    "delete": "Delete Cluster",
+    "deleteConfirm": "Really delete this story cluster?",
+    "minArticles": "Minimum articles",
+    "days": "Days back",
+    "settings": "Settings",
+    "bias": "Bias",
+    "similarity": "Similarity",
+    "noClusters": "No clusters yet",
+    "selectCluster": "Select a cluster from the list",
+    "clustersFound": "{count} clusters found"
   }
 }

@@ -1031,6 +1031,31 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         );
     }
 
+    // Migration 28: Create story_clusters tables for article clustering
+    // Groups related articles by topic for perspective comparison
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS story_clusters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            summary TEXT,
+            perspective_comparison TEXT,
+            article_count INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS story_cluster_articles (
+            cluster_id INTEGER NOT NULL REFERENCES story_clusters(id) ON DELETE CASCADE,
+            fnord_id INTEGER NOT NULL REFERENCES fnords(id) ON DELETE CASCADE,
+            similarity_score REAL NOT NULL DEFAULT 0.0,
+            PRIMARY KEY (cluster_id, fnord_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_sca_fnord ON story_cluster_articles(fnord_id);
+        "#,
+    )?;
+
     Ok(())
 }
 

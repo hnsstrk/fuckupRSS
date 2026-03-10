@@ -17,11 +17,13 @@
     onnetwork?: () => void;
     onfnord?: () => void;
     onmindfuck?: () => void;
+    onstoryClusters?: () => void;
     onerisianArchives?: () => void;
     settingsActive?: boolean;
     networkActive?: boolean;
     fnordActive?: boolean;
     mindfuckActive?: boolean;
+    storyClustersActive?: boolean;
     erisianArchivesActive?: boolean;
   }
 
@@ -30,11 +32,13 @@
     onnetwork,
     onfnord,
     onmindfuck,
+    onstoryClusters,
     onerisianArchives,
     settingsActive = false,
     networkActive = false,
     fnordActive = false,
     mindfuckActive = false,
+    storyClustersActive = false,
     erisianArchivesActive = true,
   }: Props = $props();
 
@@ -312,6 +316,14 @@
         aria-label={$_("mindfuck.title")}
       >
         <i class="icon fa-solid fa-brain"></i>
+      </button>
+      <button
+        onclick={onstoryClusters}
+        class="nav-btn {storyClustersActive ? 'active' : ''}"
+        title={$_("storyClusters.title")}
+        aria-label={$_("storyClusters.title")}
+      >
+        <i class="icon fa-solid fa-layer-group"></i>
       </button>
       <button
         onclick={onfnord}

@@ -6,6 +6,7 @@
   import KeywordNetwork from "./lib/components/KeywordNetwork.svelte";
   import FnordView from "./lib/components/FnordView.svelte";
   import MindfuckView from "./lib/components/MindfuckView.svelte";
+  import StoryClusterView from "./lib/components/StoryClusterView.svelte";
   import SettingsView from "./lib/components/SettingsView.svelte";
   import Toast from "./lib/components/Toast.svelte";
   import StatusBar from "./lib/components/StatusBar.svelte";
@@ -14,9 +15,9 @@
   import { initLocaleFromDb } from "./lib/i18n";
   import { networkStore, appState } from "./lib/stores/state.svelte";
 
-  let mainView = $state<"erisianArchives" | "network" | "fnord" | "mindfuck" | "settings">(
-    "erisianArchives",
-  );
+  let mainView = $state<
+    "erisianArchives" | "network" | "fnord" | "mindfuck" | "storyClusters" | "settings"
+  >("erisianArchives");
 
   // Listen for navigation events from other components
   function handleNavigateToNetwork(event: CustomEvent<{ keywordId?: number }>) {
@@ -77,11 +78,13 @@
         onfnord={() => (mainView = "fnord")}
         onnetwork={() => (mainView = "network")}
         onmindfuck={() => (mainView = "mindfuck")}
+        onstoryClusters={() => (mainView = "storyClusters")}
         onsettings={() => (mainView = "settings")}
         erisianArchivesActive={mainView === "erisianArchives"}
         fnordActive={mainView === "fnord"}
         networkActive={mainView === "network"}
         mindfuckActive={mainView === "mindfuck"}
+        storyClustersActive={mainView === "storyClusters"}
         settingsActive={mainView === "settings"}
       />
 
@@ -99,6 +102,9 @@
         {:else if mainView === "mindfuck"}
           <!-- Operation Mindfuck (Bias Mirror) -->
           <MindfuckView />
+        {:else if mainView === "storyClusters"}
+          <!-- Story Clustering (Perspective Comparison) -->
+          <StoryClusterView />
         {:else if mainView === "settings"}
           <!-- Settings View -->
           <SettingsView />

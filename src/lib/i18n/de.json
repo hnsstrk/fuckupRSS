@@ -1144,5 +1144,27 @@
     "noSentenceAvailable": "Kein Satz-Kontext verfuegbar",
     "contextLoadError": "Kontext konnte nicht geladen werden",
     "clickToOpenNetwork": "Klicken um im Netzwerk zu oeffnen"
+  },
+  "storyClusters": {
+    "title": "Story-Clustering",
+    "discover": "Cluster entdecken",
+    "discovering": "Suche nach Story-Clustern...",
+    "noResults": "Keine Story-Cluster gefunden. Versuche einen längeren Zeitraum.",
+    "articles": "Artikel",
+    "sources": "Quellen",
+    "perspectives": "Perspektiven vergleichen",
+    "comparing": "Vergleiche Perspektiven...",
+    "comparison": "Perspektiven-Vergleich",
+    "noComparison": "Noch kein Vergleich erstellt",
+    "delete": "Cluster löschen",
+    "deleteConfirm": "Story-Cluster wirklich löschen?",
+    "minArticles": "Mindestens Artikel",
+    "days": "Tage zurück",
+    "settings": "Einstellungen",
+    "bias": "Tendenz",
+    "similarity": "Ähnlichkeit",
+    "noClusters": "Noch keine Cluster vorhanden",
+    "selectCluster": "Wähle einen Cluster aus der Liste",
+    "clustersFound": "{count} Cluster gefunden"
   }
 }

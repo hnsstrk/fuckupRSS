@@ -416,6 +416,12 @@ pub fn run() {
             commands::keyword_type_detection::count_untyped_keywords,
             commands::keyword_type_detection::update_untyped_keywords,
             commands::keyword_type_detection::get_prototype_stats,
+            // Story Clustering (Perspective Comparison)
+            commands::story_clusters::discover_story_clusters,
+            commands::story_clusters::get_story_clusters,
+            commands::story_clusters::get_story_cluster_detail,
+            commands::story_clusters::compare_perspectives,
+            commands::story_clusters::delete_story_cluster,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
