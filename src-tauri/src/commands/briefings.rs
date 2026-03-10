@@ -179,7 +179,7 @@ pub async fn generate_briefing(
     };
 
     let result = provider
-        .generate_text(&model, &prompt, false)
+        .generate_text(&model, &prompt, None)
         .await
         .map_err(|e| format!("AI-Fehler: {}", e))?;
 

@@ -18,12 +18,14 @@
     onfnord?: () => void;
     onmindfuck?: () => void;
     onbriefings?: () => void;
+    onstoryClusters?: () => void;
     onerisianArchives?: () => void;
     settingsActive?: boolean;
     networkActive?: boolean;
     fnordActive?: boolean;
     mindfuckActive?: boolean;
     briefingsActive?: boolean;
+    storyClustersActive?: boolean;
     erisianArchivesActive?: boolean;
   }
 
@@ -33,12 +35,14 @@
     onfnord,
     onmindfuck,
     onbriefings,
+    onstoryClusters,
     onerisianArchives,
     settingsActive = false,
     networkActive = false,
     fnordActive = false,
     mindfuckActive = false,
     briefingsActive = false,
+    storyClustersActive = false,
     erisianArchivesActive = true,
   }: Props = $props();
 
@@ -316,6 +320,14 @@
         aria-label={$_("mindfuck.title")}
       >
         <i class="icon fa-solid fa-brain"></i>
+      </button>
+      <button
+        onclick={onstoryClusters}
+        class="nav-btn {storyClustersActive ? 'active' : ''}"
+        title={$_("storyClusters.title")}
+        aria-label={$_("storyClusters.title")}
+      >
+        <i class="icon fa-solid fa-layer-group"></i>
       </button>
       <button
         onclick={onfnord}
