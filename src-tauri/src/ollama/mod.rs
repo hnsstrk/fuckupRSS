@@ -73,7 +73,6 @@ mod flexible_deser {
             ))),
         }
     }
-
 }
 
 /// Safely truncate a string to at most `max_bytes` bytes at a character boundary
@@ -523,10 +522,13 @@ impl OllamaClient {
         model: &str,
         text: &str,
     ) -> Result<Vec<f32>, OllamaError> {
-        let result = self.generate_embeddings_batch(model, &[text.to_string()]).await?;
-        result.into_iter().next().ok_or_else(|| {
-            OllamaError::GenerationFailed("Empty embedding response".to_string())
-        })
+        let result = self
+            .generate_embeddings_batch(model, &[text.to_string()])
+            .await?;
+        result
+            .into_iter()
+            .next()
+            .ok_or_else(|| OllamaError::GenerationFailed("Empty embedding response".to_string()))
     }
 
     /// Generate embedding vectors for multiple texts in a single request
@@ -554,9 +556,15 @@ impl OllamaClient {
         );
         let request_start = Instant::now();
 
-        let resp = self.client().post(&url).json(&request).send().await.map_err(|e| {
-            OllamaError::GenerationFailed(format!("Batch embedding request failed: {}", e))
-        })?;
+        let resp = self
+            .client()
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| {
+                OllamaError::GenerationFailed(format!("Batch embedding request failed: {}", e))
+            })?;
 
         let status = resp.status();
         if !status.is_success() {

@@ -2704,7 +2704,10 @@ fn perform_merge(conn: &rusqlite::Connection, keep_id: i64, remove_id: i64) -> R
            ON CONFLICT(immanentize_id, date) DO UPDATE SET count = count + excluded.count"#,
         params![keep_id, remove_id],
     ) {
-        warn!("Failed to merge daily stats for keyword {}: {}", remove_id, e);
+        warn!(
+            "Failed to merge daily stats for keyword {}: {}",
+            remove_id, e
+        );
     }
     if let Err(e) = conn.execute(
         "DELETE FROM immanentize_daily WHERE immanentize_id = ?",

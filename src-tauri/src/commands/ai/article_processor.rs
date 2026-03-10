@@ -21,8 +21,9 @@ use super::data_persistence::{
 use super::helpers::{
     analyze_bias_via_provider, create_embedding_provider_from_db, create_text_provider,
     determine_category_sources, determine_keyword_sources, discordian_analysis_via_provider,
-    get_analysis_prompt, get_discordian_prompt, get_locale_from_db, get_summary_prompt,
-    log_generation_cost, merge_keywords, summarize_via_provider, validate_and_merge_categories,
+    get_analysis_prompt, get_discordian_prompt, get_embedding_max_chars, get_locale_from_db,
+    get_summary_prompt, log_generation_cost, merge_keywords, summarize_via_provider,
+    validate_and_merge_categories,
 };
 use super::types::{AnalysisResponse, DiscordianResponse, SummaryResponse};
 
@@ -363,6 +364,9 @@ pub async fn process_article_discordian(
         article_date,
         bias_weights,
         corpus_stats,
+        summary_text,
+        content_raw_text,
+        embedding_max_chars,
     ): (
         Arc<dyn AiTextProvider>,
         String,
@@ -372,20 +376,35 @@ pub async fn process_article_discordian(
         Option<String>,
         BiasWeights,
         Option<CorpusStats>,
+        Option<String>,
+        Option<String>,
+        usize,
     ) = {
         let db = state.db_conn()?;
         let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager));
         let embedding_provider = create_embedding_provider_from_db(&db, Some(&state.proxy_manager));
-        let (title, content, article_date) = db
+        let (title, content, article_date, summary, content_raw) = db
             .conn()
             .query_row(
-                "SELECT title, COALESCE(content_full, ''), DATE(COALESCE(published_at, fetched_at)) FROM fnords WHERE id = ?1",
+                r#"SELECT title, COALESCE(content_full, ''),
+                   DATE(COALESCE(published_at, fetched_at)),
+                   summary, content_raw
+                   FROM fnords WHERE id = ?1"#,
                 [fnord_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                        row.get::<_, Option<String>>(3)?,
+                        row.get::<_, Option<String>>(4)?,
+                    ))
+                },
             )
             .map_err(|e| e.to_string())?;
         let bias = BiasWeights::load_from_db(db.conn()).unwrap_or_default();
         let corpus = CorpusStats::load_from_db(db.conn()).ok();
+        let max_chars = get_embedding_max_chars(&db);
         let effective_model = crate::ai_provider::resolve_effective_model(
             provider.provider_name(),
             &model,
@@ -400,6 +419,9 @@ pub async fn process_article_discordian(
             article_date,
             bias,
             corpus,
+            summary,
+            content_raw,
+            max_chars,
         )
     };
 
@@ -595,6 +617,9 @@ pub async fn process_article_discordian(
                 fnord_id,
                 &title,
                 &content,
+                summary_text.as_deref(),
+                content_raw_text.as_deref(),
+                embedding_max_chars,
             )
             .await
             {
@@ -663,6 +688,9 @@ pub async fn process_article_discordian(
                 fnord_id,
                 &title,
                 &content,
+                summary_text.as_deref(),
+                content_raw_text.as_deref(),
+                embedding_max_chars,
             )
             .await
             {

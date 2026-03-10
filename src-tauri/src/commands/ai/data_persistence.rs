@@ -395,6 +395,50 @@ pub fn save_article_embedding(
     Ok(())
 }
 
+/// Default maximum characters for embedding input text
+pub const DEFAULT_EMBEDDING_MAX_CHARS: usize = 4000;
+
+/// Build the embedding input text from article data.
+///
+/// Combines title, summary (if available), and content body,
+/// truncating to `max_chars` to stay within the embedding model's
+/// context window (snowflake-arctic-embed2 supports 8192 tokens).
+pub fn build_embedding_text(
+    title: &str,
+    summary: Option<&str>,
+    content_full: &str,
+    content_raw: Option<&str>,
+    max_chars: usize,
+) -> String {
+    let mut parts = Vec::with_capacity(3);
+    parts.push(title.to_string());
+
+    if let Some(s) = summary {
+        if !s.is_empty() {
+            parts.push(s.to_string());
+        }
+    }
+
+    // Use content_full if available, otherwise fall back to content_raw
+    let content = if !content_full.is_empty() {
+        content_full
+    } else {
+        content_raw.unwrap_or("")
+    };
+
+    if !content.is_empty() {
+        // Calculate remaining char budget after title + summary
+        let used: usize = parts.iter().map(|p| p.len() + 2).sum(); // +2 for "\n\n"
+        let remaining = max_chars.saturating_sub(used);
+        let content_preview: String = content.chars().take(remaining).collect();
+        if !content_preview.is_empty() {
+            parts.push(content_preview);
+        }
+    }
+
+    parts.join("\n\n")
+}
+
 /// Generate and save embedding for an article
 pub async fn generate_and_save_article_embedding(
     provider: &dyn EmbeddingProvider,
@@ -402,9 +446,11 @@ pub async fn generate_and_save_article_embedding(
     fnord_id: i64,
     title: &str,
     content: &str,
+    summary: Option<&str>,
+    content_raw: Option<&str>,
+    max_chars: usize,
 ) -> Result<(), String> {
-    let content_preview: String = content.chars().take(500).collect();
-    let embedding_text = format!("{}\n\n{}", title, content_preview);
+    let embedding_text = build_embedding_text(title, summary, content, content_raw, max_chars);
 
     let embedding = provider
         .generate_embedding(&embedding_text)
@@ -416,6 +462,10 @@ pub async fn generate_and_save_article_embedding(
         save_article_embedding(db_guard.conn(), fnord_id, &embedding)?;
     }
 
-    debug!("Generated embedding for article {}", fnord_id);
+    debug!(
+        "Generated embedding for article {} ({} chars input)",
+        fnord_id,
+        embedding_text.len()
+    );
     Ok(())
 }

@@ -32,7 +32,7 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_j
                 serde_json::Value::Bool(value == "true")
             }
             // Numeric settings (integer)
-            "syncInterval" | "ollama_num_ctx" | "embedding_dimensions" => {
+            "syncInterval" | "ollama_num_ctx" | "embedding_dimensions" | "embedding_max_chars" => {
                 if let Ok(num) = value.parse::<i64>() {
                     serde_json::Value::Number(num.into())
                 } else {
@@ -187,6 +187,12 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_j
         result.insert(
             "embedding_dimensions".to_string(),
             serde_json::Value::Number(1024.into()),
+        );
+    }
+    if !result.contains_key("embedding_max_chars") {
+        result.insert(
+            "embedding_max_chars".to_string(),
+            serde_json::Value::Number(4000.into()),
         );
     }
 

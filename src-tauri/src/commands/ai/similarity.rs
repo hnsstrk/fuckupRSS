@@ -1,6 +1,6 @@
 //! Similar articles and semantic search commands
 
-use crate::commands::ai::helpers::create_embedding_provider_from_db;
+use crate::commands::ai::helpers::{create_embedding_provider_from_db, get_embedding_max_chars};
 use crate::embeddings::embedding_to_blob;
 use crate::AppState;
 use log::info;
@@ -279,6 +279,10 @@ pub fn get_article_embedding_stats(
     })
 }
 
+/// Article data for embedding generation
+/// (id, title, content_full, summary, content_raw)
+type ArticleForEmbedding = (i64, String, String, Option<String>, Option<String>);
+
 /// Generate embeddings for processed articles that don't have one
 #[tauri::command]
 pub async fn generate_article_embeddings_batch(
@@ -288,12 +292,14 @@ pub async fn generate_article_embeddings_batch(
 ) -> Result<ArticleEmbeddingBatchResult, String> {
     let limit = limit.unwrap_or(1000);
 
-    let articles: Vec<(i64, String, String)> = {
+    let (articles, max_chars): (Vec<ArticleForEmbedding>, usize) = {
         let db = state.db_conn()?;
+        let max_chars = get_embedding_max_chars(&db);
         let mut stmt = db
             .conn()
             .prepare(
-                r#"SELECT id, title, content_full
+                r#"SELECT id, title, COALESCE(content_full, ''),
+                   summary, content_raw
                    FROM fnords
                    WHERE embedding IS NULL
                    AND processed_at IS NOT NULL
@@ -304,12 +310,20 @@ pub async fn generate_article_embeddings_batch(
             )
             .map_err(|e| e.to_string())?;
 
-        let result: Vec<(i64, String, String)> = stmt
-            .query_map([limit], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        let result: Vec<ArticleForEmbedding> = stmt
+            .query_map([limit], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            })
             .map_err(|e| e.to_string())?
             .filter_map(|r| r.ok())
             .collect();
-        result
+        (result, max_chars)
     };
 
     let total = articles.len() as i64;
@@ -340,13 +354,17 @@ pub async fn generate_article_embeddings_batch(
     let mut succeeded = 0i64;
     let mut failed = 0i64;
 
-    for (idx, (fnord_id, title, content)) in articles.into_iter().enumerate() {
+    for (idx, (fnord_id, title, content, summary, content_raw)) in articles.into_iter().enumerate()
+    {
         let result = generate_and_save_article_embedding(
             provider.as_ref(),
             &state.db,
             fnord_id,
             &title,
             &content,
+            summary.as_deref(),
+            content_raw.as_deref(),
+            max_chars,
         )
         .await;
 
@@ -384,4 +402,30 @@ pub async fn generate_article_embeddings_batch(
         succeeded,
         failed,
     })
+}
+
+/// Invalidate all article embeddings by setting them to NULL.
+/// This forces re-generation with the current embedding settings.
+/// Returns the number of invalidated embeddings.
+#[tauri::command]
+pub fn invalidate_all_embeddings(state: State<AppState>) -> Result<i64, String> {
+    let db = state.db_conn()?;
+
+    // Clear embeddings from fnords table
+    let count = db
+        .conn()
+        .execute(
+            r#"UPDATE fnords
+               SET embedding = NULL, embedding_at = NULL
+               WHERE embedding IS NOT NULL"#,
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+
+    // Clear the vec_fnords virtual table
+    let _ = db.conn().execute("DELETE FROM vec_fnords", []);
+
+    info!("Invalidated {} article embeddings for re-generation", count);
+
+    Ok(count as i64)
 }

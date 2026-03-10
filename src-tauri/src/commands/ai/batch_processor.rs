@@ -38,14 +38,14 @@ fn truncate_str(s: &str, max_bytes: usize) -> &str {
 }
 
 use super::data_persistence::{
-    generate_and_save_article_embedding, recalculate_keyword_weights,
+    build_embedding_text, generate_and_save_article_embedding, recalculate_keyword_weights,
     save_article_categories_with_source, save_article_keywords_with_source,
 };
 use super::helpers::{
     check_analysis_cache, compute_content_hash, determine_keyword_sources,
-    discordian_analysis_via_provider, get_embedding_provider_config, get_locale_from_db,
-    get_num_ctx_setting, log_generation_cost, merge_categories_stat_primary, merge_keywords,
-    store_analysis_cache, TokenUsage,
+    discordian_analysis_via_provider, get_embedding_max_chars, get_embedding_provider_config,
+    get_locale_from_db, get_num_ctx_setting, log_generation_cost, merge_categories_stat_primary,
+    merge_keywords, store_analysis_cache, TokenUsage,
 };
 #[cfg(feature = "clustering")]
 use super::helpers::{create_text_provider, get_provider_config};
@@ -1213,19 +1213,32 @@ pub async fn process_batch(
             );
 
             // Load articles for embedding generation
-            let articles_for_embedding: Vec<(i64, String, String)> = {
+            // Tuple: (id, title, content_full, summary, content_raw)
+            type EmbedArticle = (i64, String, String, Option<String>, Option<String>);
+            let (articles_for_embedding, embed_max_chars): (Vec<EmbedArticle>, usize) = {
                 let db = state.db_conn()?;
+                let max_chars = get_embedding_max_chars(&db);
                 let mut result = Vec::new();
                 for &fnord_id in &successful_fnord_ids {
-                    if let Ok((title, content)) = db.conn().query_row(
-                        "SELECT title, COALESCE(content_full, '') FROM fnords WHERE id = ? AND embedding IS NULL",
+                    if let Ok(row) = db.conn().query_row(
+                        r#"SELECT title, COALESCE(content_full, ''),
+                           summary, content_raw
+                           FROM fnords
+                           WHERE id = ? AND embedding IS NULL"#,
                         [fnord_id],
-                        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, Option<String>>(2)?,
+                                row.get::<_, Option<String>>(3)?,
+                            ))
+                        },
                     ) {
-                        result.push((fnord_id, title, content));
+                        result.push((fnord_id, row.0, row.1, row.2, row.3));
                     }
                 }
-                result
+                (result, max_chars)
             };
 
             // Generate embeddings via batch request (uses embedding model, not LLM)
@@ -1238,20 +1251,28 @@ pub async fn process_batch(
                 let mut embed_succeeded = 0;
                 let embed_total = articles_for_embedding.len();
 
-                // Prepare batch: collect embedding texts
+                // Prepare batch: collect embedding texts using enhanced input
                 let embedding_texts: Vec<String> = articles_for_embedding
                     .iter()
-                    .map(|(_id, title, content)| {
-                        let content_preview: String = content.chars().take(500).collect();
-                        format!("{}\n\n{}", title, content_preview)
+                    .map(|(_id, title, content, summary, content_raw)| {
+                        build_embedding_text(
+                            title,
+                            summary.as_deref(),
+                            content,
+                            content_raw.as_deref(),
+                            embed_max_chars,
+                        )
                     })
                     .collect();
 
                 // Generate all embeddings in one batch request
-                match embedding_provider.generate_embeddings_batch(&embedding_texts).await {
+                match embedding_provider
+                    .generate_embeddings_batch(&embedding_texts)
+                    .await
+                {
                     Ok(embeddings) => {
                         let db = state.db_conn()?;
-                        for (embedding, (fnord_id, _title, _content)) in
+                        for (embedding, (fnord_id, ..)) in
                             embeddings.iter().zip(articles_for_embedding.iter())
                         {
                             match crate::commands::ai::data_persistence::save_article_embedding(
@@ -1274,7 +1295,9 @@ pub async fn process_batch(
                             "[Embedding] Batch embedding failed, falling back to sequential: {}",
                             e
                         );
-                        for (fnord_id, title, content) in &articles_for_embedding {
+                        for (fnord_id, title, content, summary, content_raw) in
+                            &articles_for_embedding
+                        {
                             if state.batch_cancel.load(Ordering::SeqCst) {
                                 break;
                             }
@@ -1284,6 +1307,9 @@ pub async fn process_batch(
                                 *fnord_id,
                                 title,
                                 content,
+                                summary.as_deref(),
+                                content_raw.as_deref(),
+                                embed_max_chars,
                             )
                             .await
                             {
@@ -1325,16 +1351,14 @@ pub async fn process_batch(
     // Trigger WAL checkpoint if many changes were made
     if succeeded_final >= 100 {
         if let Ok(db) = state.db.lock() {
-            match db.conn().query_row(
-                "PRAGMA wal_checkpoint(PASSIVE)",
-                [],
-                |row| {
+            match db
+                .conn()
+                .query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |row| {
                     let busy: i32 = row.get(0)?;
                     let log: i32 = row.get(1)?;
                     let checkpointed: i32 = row.get(2)?;
                     Ok((busy, log, checkpointed))
-                },
-            ) {
+                }) {
                 Ok((busy, log, checkpointed)) => {
                     info!(
                         "WAL checkpoint after processing {} articles: busy={}, log={}, checkpointed={}",

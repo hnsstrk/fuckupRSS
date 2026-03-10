@@ -49,10 +49,7 @@ pub fn get_ollama_url(db: &Database) -> String {
 
 /// Get effective Ollama URL considering proxy state.
 /// Returns the proxy local URL if the proxy is active, otherwise falls back to the DB setting.
-pub fn get_effective_ollama_url(
-    db: &Database,
-    proxy: &crate::proxy::ProxyManager,
-) -> String {
+pub fn get_effective_ollama_url(db: &Database, proxy: &crate::proxy::ProxyManager) -> String {
     if let Some(local_url) = proxy.get_local_url() {
         local_url
     } else {
@@ -76,6 +73,19 @@ pub fn get_setting(db: &Database, key: &str, default: &str) -> String {
             row.get::<_, String>(0)
         })
         .unwrap_or_else(|_| default.to_string())
+}
+
+/// Get the embedding_max_chars setting from database.
+/// Returns the configured value or DEFAULT_EMBEDDING_MAX_CHARS.
+pub fn get_embedding_max_chars(db: &Database) -> usize {
+    use super::data_persistence::DEFAULT_EMBEDDING_MAX_CHARS;
+    get_setting(
+        db,
+        "embedding_max_chars",
+        &DEFAULT_EMBEDDING_MAX_CHARS.to_string(),
+    )
+    .parse()
+    .unwrap_or(DEFAULT_EMBEDDING_MAX_CHARS)
 }
 
 /// Parse the openai_temperature setting from DB.
@@ -102,7 +112,9 @@ pub fn get_provider_config(
         ollama_url: resolve_ollama_url(db, proxy),
         ollama_model: get_setting(db, "main_model", RECOMMENDED_MAIN_MODEL),
         ollama_num_ctx: get_num_ctx_setting(db),
-        ollama_concurrency: get_setting(db, "ollama_concurrency", "1").parse().unwrap_or(1),
+        ollama_concurrency: get_setting(db, "ollama_concurrency", "1")
+            .parse()
+            .unwrap_or(1),
         openai_base_url: get_setting(db, "openai_base_url", "https://api.openai.com"),
         openai_api_key: get_setting(db, "openai_api_key", ""),
         openai_model: get_setting(db, "openai_model", DEFAULT_OPENAI_MODEL),

@@ -11,9 +11,9 @@ mod embeddings;
 mod keywords;
 mod logging;
 pub mod ollama;
+mod proxy;
 mod retrieval;
 mod similarity;
-mod proxy;
 mod sync;
 mod text_analysis;
 
@@ -177,9 +177,7 @@ pub fn run() {
 
                 if let Some((remote_host, remote_port)) = proxy_enabled {
                     if !remote_host.is_empty() {
-                        if let Err(e) =
-                            state.proxy_manager.start(&remote_host, remote_port)
-                        {
+                        if let Err(e) = state.proxy_manager.start(&remote_host, remote_port) {
                             error!("Failed to auto-start Ollama proxy: {}", e);
                         } else {
                             info!(
@@ -261,6 +259,7 @@ pub fn run() {
             commands::ai::similarity::find_similar_articles,
             commands::ai::similarity::get_article_embedding_stats,
             commands::ai::similarity::generate_article_embeddings_batch,
+            commands::ai::similarity::invalidate_all_embeddings,
             commands::ai::similarity::semantic_search,
             commands::categories::get_all_categories,
             commands::categories::get_main_categories,
