@@ -6,6 +6,7 @@
   import KeywordNetwork from "./lib/components/KeywordNetwork.svelte";
   import FnordView from "./lib/components/FnordView.svelte";
   import MindfuckView from "./lib/components/MindfuckView.svelte";
+  import BriefingView from "./lib/components/BriefingView.svelte";
   import SettingsView from "./lib/components/SettingsView.svelte";
   import Toast from "./lib/components/Toast.svelte";
   import StatusBar from "./lib/components/StatusBar.svelte";
@@ -14,9 +15,9 @@
   import { initLocaleFromDb } from "./lib/i18n";
   import { networkStore, appState } from "./lib/stores/state.svelte";
 
-  let mainView = $state<"erisianArchives" | "network" | "fnord" | "mindfuck" | "settings">(
-    "erisianArchives",
-  );
+  let mainView = $state<
+    "erisianArchives" | "network" | "fnord" | "mindfuck" | "briefings" | "settings"
+  >("erisianArchives");
 
   // Listen for navigation events from other components
   function handleNavigateToNetwork(event: CustomEvent<{ keywordId?: number }>) {
@@ -77,11 +78,13 @@
         onfnord={() => (mainView = "fnord")}
         onnetwork={() => (mainView = "network")}
         onmindfuck={() => (mainView = "mindfuck")}
+        onbriefings={() => (mainView = "briefings")}
         onsettings={() => (mainView = "settings")}
         erisianArchivesActive={mainView === "erisianArchives"}
         fnordActive={mainView === "fnord"}
         networkActive={mainView === "network"}
         mindfuckActive={mainView === "mindfuck"}
+        briefingsActive={mainView === "briefings"}
         settingsActive={mainView === "settings"}
       />
 
@@ -99,6 +102,9 @@
         {:else if mainView === "mindfuck"}
           <!-- Operation Mindfuck (Bias Mirror) -->
           <MindfuckView />
+        {:else if mainView === "briefings"}
+          <!-- AI Briefings -->
+          <BriefingView />
         {:else if mainView === "settings"}
           <!-- Settings View -->
           <SettingsView />

@@ -408,6 +408,11 @@ pub fn run() {
             commands::proxy::get_ollama_proxy_status,
             // Pentacle Article Stats
             commands::pentacles::count_pentacle_articles,
+            // Briefings (AI-generated news summaries)
+            commands::briefings::generate_briefing,
+            commands::briefings::get_briefings,
+            commands::briefings::get_latest_briefing,
+            commands::briefings::delete_briefing,
             // Keyword Type Detection (Semantic)
             commands::keyword_type_detection::init_keyword_type_prototypes,
             commands::keyword_type_detection::generate_keyword_type_prototypes,

@@ -17,11 +17,13 @@
     onnetwork?: () => void;
     onfnord?: () => void;
     onmindfuck?: () => void;
+    onbriefings?: () => void;
     onerisianArchives?: () => void;
     settingsActive?: boolean;
     networkActive?: boolean;
     fnordActive?: boolean;
     mindfuckActive?: boolean;
+    briefingsActive?: boolean;
     erisianArchivesActive?: boolean;
   }
 
@@ -30,11 +32,13 @@
     onnetwork,
     onfnord,
     onmindfuck,
+    onbriefings,
     onerisianArchives,
     settingsActive = false,
     networkActive = false,
     fnordActive = false,
     mindfuckActive = false,
+    briefingsActive = false,
     erisianArchivesActive = true,
   }: Props = $props();
 
@@ -320,6 +324,14 @@
         aria-label={$_("fnordView.title")}
       >
         <i class="icon fa-solid fa-clipboard-list"></i>
+      </button>
+      <button
+        onclick={onbriefings}
+        class="nav-btn {briefingsActive ? 'active' : ''}"
+        title={$_("briefing.title")}
+        aria-label={$_("briefing.title")}
+      >
+        <i class="icon fa-solid fa-file-lines"></i>
       </button>
       <button
         onclick={onsettings}

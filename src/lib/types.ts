@@ -333,7 +333,7 @@ export interface NetworkGraph {
   edges: GraphEdge[];
 }
 
-export type MainView = "articles" | "network" | "fnord" | "mindfuck";
+export type MainView = "articles" | "network" | "fnord" | "mindfuck" | "briefings";
 
 // Operation Mindfuck (Bias Mirror)
 export interface SubCategoryReadStats {
