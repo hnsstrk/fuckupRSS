@@ -413,6 +413,13 @@ pub fn run() {
             commands::briefings::get_briefings,
             commands::briefings::get_latest_briefing,
             commands::briefings::delete_briefing,
+            // Named Entity Recognition (NER)
+            commands::entities::extract_entities,
+            commands::entities::extract_entities_batch,
+            commands::entities::get_article_entities,
+            commands::entities::search_entities,
+            commands::entities::get_entity_articles,
+            commands::entities::get_top_entities,
             // Keyword Type Detection (Semantic)
             commands::keyword_type_detection::init_keyword_type_prototypes,
             commands::keyword_type_detection::generate_keyword_type_prototypes,

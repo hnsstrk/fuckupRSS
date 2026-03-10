@@ -500,6 +500,24 @@
         "cancel": "Cancel"
       }
     },
+    "entities": {
+      "title": "Entities",
+      "person": "Person",
+      "organization": "Organization",
+      "location": "Location",
+      "event": "Event",
+      "mentions": "Mentions",
+      "articles": "Articles",
+      "extract": "Extract entities",
+      "extracting": "Extracting entities...",
+      "extractBatch": "Batch extraction",
+      "extractBatchDesc": "Extract entities for all articles",
+      "noEntities": "No entities found",
+      "search": "Search entities...",
+      "all": "All",
+      "relatedArticles": "Related articles",
+      "topEntities": "Top entities"
+    },
     "stopwords": {
       "title": "Stopwords",
       "description": "Manage words that should be ignored during keyword extraction",

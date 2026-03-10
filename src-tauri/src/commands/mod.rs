@@ -3,6 +3,7 @@ pub mod article_analysis;
 pub mod briefings;
 pub mod categories;
 pub mod embedding;
+pub mod entities;
 pub mod fnords;
 pub mod immanentize;
 pub mod keyword_type_detection;
