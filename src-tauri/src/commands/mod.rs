@@ -2,6 +2,7 @@ pub mod ai;
 pub mod article_analysis;
 pub mod categories;
 pub mod embedding;
+pub mod entities;
 pub mod fnords;
 pub mod immanentize;
 pub mod keyword_type_detection;

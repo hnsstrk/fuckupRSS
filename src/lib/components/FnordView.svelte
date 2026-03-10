@@ -19,6 +19,7 @@
   import FnordBiasHeatmap from "./FnordBiasHeatmap.svelte";
   import FnordCategoryCards from "./FnordCategoryCards.svelte";
   import FnordTrendsSection from "./FnordTrendsSection.svelte";
+  import EntityExplorer from "./EntityExplorer.svelte";
 
   // State
   let stats = $state<FnordStats | null>(null);
@@ -55,6 +56,7 @@
       label: $_("fnordView.articlesTab") || "Geänderte Artikel",
       badge: changedFnords.length || undefined,
     },
+    { id: "entities", label: $_("entities.title") || "Entitäten" },
   ]);
 
   async function handleBatchComplete() {
@@ -229,6 +231,10 @@
           </div>
         {/if}
       </div>
+    {:else if activeTab === "entities"}
+      <div class="entities-view">
+        <EntityExplorer />
+      </div>
     {/if}
   </div>
 
@@ -359,6 +365,11 @@
 
   /* Articles View */
   .articles-view {
+    height: 100%;
+  }
+
+  /* Entities View */
+  .entities-view {
     height: 100%;
   }
 

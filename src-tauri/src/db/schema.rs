@@ -1031,6 +1031,34 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         );
     }
 
+    // Migration 29: Create entities and fnord_entities tables for Named Entity Recognition
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS entities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            entity_type TEXT NOT NULL CHECK(entity_type IN ('person', 'organization', 'location', 'event')),
+            normalized_name TEXT NOT NULL,
+            article_count INTEGER NOT NULL DEFAULT 0,
+            first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(normalized_name, entity_type)
+        );
+
+        CREATE TABLE IF NOT EXISTS fnord_entities (
+            fnord_id INTEGER NOT NULL REFERENCES fnords(id) ON DELETE CASCADE,
+            entity_id INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+            mention_count INTEGER NOT NULL DEFAULT 1,
+            confidence REAL NOT NULL DEFAULT 0.8,
+            PRIMARY KEY (fnord_id, entity_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(entity_type);
+        CREATE INDEX IF NOT EXISTS idx_entities_normalized ON entities(normalized_name);
+        CREATE INDEX IF NOT EXISTS idx_fnord_entities_entity ON fnord_entities(entity_id);
+        "#,
+    )?;
+
     Ok(())
 }
 

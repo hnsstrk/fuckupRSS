@@ -1248,7 +1248,10 @@ pub async fn process_batch(
                     .collect();
 
                 // Generate all embeddings in one batch request
-                match embedding_provider.generate_embeddings_batch(&embedding_texts).await {
+                match embedding_provider
+                    .generate_embeddings_batch(&embedding_texts)
+                    .await
+                {
                     Ok(embeddings) => {
                         let db = state.db_conn()?;
                         for (embedding, (fnord_id, _title, _content)) in
@@ -1325,16 +1328,14 @@ pub async fn process_batch(
     // Trigger WAL checkpoint if many changes were made
     if succeeded_final >= 100 {
         if let Ok(db) = state.db.lock() {
-            match db.conn().query_row(
-                "PRAGMA wal_checkpoint(PASSIVE)",
-                [],
-                |row| {
+            match db
+                .conn()
+                .query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |row| {
                     let busy: i32 = row.get(0)?;
                     let log: i32 = row.get(1)?;
                     let checkpointed: i32 = row.get(2)?;
                     Ok((busy, log, checkpointed))
-                },
-            ) {
+                }) {
                 Ok((busy, log, checkpointed)) => {
                     info!(
                         "WAL checkpoint after processing {} articles: busy={}, log={}, checkpointed={}",

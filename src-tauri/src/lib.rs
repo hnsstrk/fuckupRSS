@@ -11,9 +11,9 @@ mod embeddings;
 mod keywords;
 mod logging;
 mod ollama;
+mod proxy;
 mod retrieval;
 mod similarity;
-mod proxy;
 mod sync;
 mod text_analysis;
 
@@ -177,9 +177,7 @@ pub fn run() {
 
                 if let Some((remote_host, remote_port)) = proxy_enabled {
                     if !remote_host.is_empty() {
-                        if let Err(e) =
-                            state.proxy_manager.start(&remote_host, remote_port)
-                        {
+                        if let Err(e) = state.proxy_manager.start(&remote_host, remote_port) {
                             error!("Failed to auto-start Ollama proxy: {}", e);
                         } else {
                             info!(
@@ -408,6 +406,13 @@ pub fn run() {
             commands::proxy::get_ollama_proxy_status,
             // Pentacle Article Stats
             commands::pentacles::count_pentacle_articles,
+            // Named Entity Recognition (NER)
+            commands::entities::extract_entities,
+            commands::entities::extract_entities_batch,
+            commands::entities::get_article_entities,
+            commands::entities::search_entities,
+            commands::entities::get_entity_articles,
+            commands::entities::get_top_entities,
             // Keyword Type Detection (Semantic)
             commands::keyword_type_detection::init_keyword_type_prototypes,
             commands::keyword_type_detection::generate_keyword_type_prototypes,

@@ -1,9 +1,21 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
+  import { invoke } from "@tauri-apps/api/core";
   import type { ArticleCategory, Tag } from "../stores/state.svelte";
   import type { ArticleKeyword, ArticleCategoryDetailed } from "$lib/types";
   import { ArticleKeywords, ArticleCategories } from "./article";
   import { getCategoryColorVar } from "$lib/utils/articleFormat";
+  import EntityBadge from "./EntityBadge.svelte";
+
+  interface EntityInfo {
+    id: number;
+    name: string;
+    entity_type: string;
+    normalized_name: string;
+    article_count: number;
+    mention_count: number | null;
+    confidence: number | null;
+  }
 
   let {
     fnordId,
@@ -32,6 +44,55 @@
     onToggleEditingCategories: () => void;
     onNavigateToKeyword: (tagId: number) => void;
   } = $props();
+
+  // Entity state
+  let entities = $state<EntityInfo[]>([]);
+  let extractingEntities = $state(false);
+  let lastEntityFnordId = $state<number | null>(null);
+
+  // Group entities by type for display
+  let entityGroups = $derived(
+    entities.reduce(
+      (groups, entity) => {
+        const type = entity.entity_type;
+        if (!groups[type]) groups[type] = [];
+        groups[type].push(entity);
+        return groups;
+      },
+      {} as Record<string, EntityInfo[]>,
+    ),
+  );
+
+  const typeOrder = ["person", "organization", "location", "event"];
+
+  // Load entities when fnordId changes
+  $effect(() => {
+    const currentId = fnordId;
+    if (currentId && currentId !== lastEntityFnordId) {
+      lastEntityFnordId = currentId;
+      loadEntities(currentId);
+    }
+  });
+
+  async function loadEntities(id: number) {
+    try {
+      entities = await invoke<EntityInfo[]>("get_article_entities", { fnordId: id });
+    } catch {
+      entities = [];
+    }
+  }
+
+  async function extractEntities() {
+    extractingEntities = true;
+    try {
+      await invoke("extract_entities", { fnordId });
+      await loadEntities(fnordId);
+    } catch (e) {
+      console.error("Failed to extract entities:", e);
+    } finally {
+      extractingEntities = false;
+    }
+  }
 </script>
 
 <div class="meta-section">
@@ -123,6 +184,45 @@
         </div>
       </div>
     {/if}
+
+    <!-- Entities Section -->
+    <div class="meta-row">
+      <div class="meta-label">
+        {$_("entities.title")}
+      </div>
+      <div class="meta-content">
+        {#if entities.length > 0}
+          <div class="entity-badges">
+            {#each typeOrder as type}
+              {#if entityGroups[type]}
+                {#each entityGroups[type] as entity (entity.id)}
+                  <EntityBadge
+                    name={entity.name}
+                    entityType={entity.entity_type}
+                    mentionCount={entity.mention_count ?? undefined}
+                    articleCount={entity.article_count}
+                  />
+                {/each}
+              {/if}
+            {/each}
+          </div>
+        {:else}
+          <button
+            class="extract-btn"
+            onclick={extractEntities}
+            disabled={extractingEntities}
+          >
+            {#if extractingEntities}
+              <i class="fa-solid fa-spinner fa-spin"></i>
+              {$_("entities.extracting")}
+            {:else}
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+              {$_("entities.extract")}
+            {/if}
+          </button>
+        {/if}
+      </div>
+    </div>
   </div>
 </div>
 
@@ -224,6 +324,37 @@
   .tag-badge.clickable:hover {
     background-color: var(--accent-primary);
     color: var(--text-on-accent);
+  }
+
+  .entity-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .extract-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.375rem;
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .extract-btn:hover:not(:disabled) {
+    background: var(--bg-overlay);
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+  }
+
+  .extract-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   @media print {

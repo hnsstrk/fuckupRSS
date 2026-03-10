@@ -192,8 +192,7 @@ pub async fn process_embedding_queue(
 
         match provider.generate_embeddings_batch(&texts).await {
             Ok(embeddings) => {
-                for (embedding, (queue_id, keyword_id, name)) in
-                    embeddings.iter().zip(chunk.iter())
+                for (embedding, (queue_id, keyword_id, name)) in embeddings.iter().zip(chunk.iter())
                 {
                     if let Err(e) =
                         save_embedding_and_dequeue(&db, *queue_id, *keyword_id, embedding)
