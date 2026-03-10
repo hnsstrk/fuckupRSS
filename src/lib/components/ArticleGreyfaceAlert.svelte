@@ -1,16 +1,56 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
-  import { getBiasColor, getSachlichkeitColor, getSachlichkeitIcon } from "$lib/utils/articleFormat";
+  import {
+    getBiasColor,
+    getSachlichkeitColor,
+    getSachlichkeitIcon,
+  } from "$lib/utils/articleFormat";
 
   let {
     politicalBias,
     sachlichkeit,
     qualityScore,
+    articleType = "unknown",
   }: {
     politicalBias: number | null;
     sachlichkeit: number | null;
     qualityScore: number | null;
+    articleType?: string;
   } = $props();
+
+  function getArticleTypeColor(type_: string): string {
+    switch (type_) {
+      case "news":
+        return "type-news";
+      case "analysis":
+        return "type-analysis";
+      case "opinion":
+        return "type-opinion";
+      case "satire":
+        return "type-satire";
+      case "ad":
+        return "type-ad";
+      default:
+        return "type-unknown";
+    }
+  }
+
+  function getArticleTypeIcon(type_: string): string {
+    switch (type_) {
+      case "news":
+        return "fa-newspaper";
+      case "analysis":
+        return "fa-magnifying-glass-chart";
+      case "opinion":
+        return "fa-comment";
+      case "satire":
+        return "fa-face-grin-squint";
+      case "ad":
+        return "fa-bullhorn";
+      default:
+        return "fa-question";
+    }
+  }
 
   function getBiasLabel(bias: number | null): string {
     if (bias === null) return $_("articleView.notRated");
@@ -56,7 +96,7 @@
   }
 </script>
 
-{#if politicalBias !== null || sachlichkeit !== null || qualityScore !== null}
+{#if politicalBias !== null || sachlichkeit !== null || qualityScore !== null || (articleType && articleType !== "unknown")}
   <div class="greyface-section">
     <div class="section-content">
       <div class="greyface-row">
@@ -64,6 +104,15 @@
           {$_("articleView.greyface.title")}
         </div>
         <div class="greyface-indicators">
+          {#if articleType && articleType !== "unknown"}
+            <span
+              class="indicator {getArticleTypeColor(articleType)}"
+              title="{$_('articleType.label')}: {$_(`articleType.${articleType}`)}"
+            >
+              <i class="fa-solid {getArticleTypeIcon(articleType)}"></i>
+              <span class="indicator-text">{$_(`articleType.${articleType}`)}</span>
+            </span>
+          {/if}
           {#if politicalBias !== null}
             <span
               class="indicator bias-{getBiasColor(politicalBias, 'class')}"
@@ -76,7 +125,9 @@
           {#if sachlichkeit !== null}
             <span
               class="indicator sach-{getSachlichkeitColor(sachlichkeit)}"
-              title="{$_('articleView.greyface.sachlichkeit')}: {getSachlichkeitLabel(sachlichkeit)}"
+              title="{$_('articleView.greyface.sachlichkeit')}: {getSachlichkeitLabel(
+                sachlichkeit,
+              )}"
             >
               <i class="fa-solid {getSachlichkeitIcon(sachlichkeit)}"></i>
               <span class="indicator-text">{getSachlichkeitLabel(sachlichkeit)}</span>
@@ -84,8 +135,8 @@
           {/if}
           {#if qualityScore !== null}
             <span class="indicator quality" title={$_("articleView.greyface.quality")}>
-              {#each Array(qualityScore) as _, i (i)}<i class="fa-solid fa-star"></i>{/each}{#each Array(5 - qualityScore) as _, i (i)}<i
-                  class="fa-regular fa-star"
+              {#each Array(qualityScore) as _, i (i)}<i class="fa-solid fa-star"
+                ></i>{/each}{#each Array(5 - qualityScore) as _, i (i)}<i class="fa-regular fa-star"
                 ></i>{/each}
             </span>
           {/if}
@@ -186,5 +237,25 @@
   .indicator.quality {
     color: var(--golden-apple-color);
     gap: 0.125rem;
+  }
+
+  /* Article type colors */
+  .indicator.type-news {
+    color: var(--accent-info, #3b82f6);
+  }
+  .indicator.type-analysis {
+    color: #8b5cf6;
+  }
+  .indicator.type-opinion {
+    color: #f97316;
+  }
+  .indicator.type-satire {
+    color: #eab308;
+  }
+  .indicator.type-ad {
+    color: var(--accent-error, #ef4444);
+  }
+  .indicator.type-unknown {
+    color: var(--text-muted);
   }
 </style>

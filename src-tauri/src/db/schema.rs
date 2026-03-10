@@ -966,6 +966,7 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
             keywords TEXT,            -- JSON array of keywords
             political_bias INTEGER,
             sachlichkeit INTEGER,
+            article_type TEXT DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             hit_count INTEGER DEFAULT 0
         );
@@ -1011,6 +1012,42 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         END;
         "#,
     )?;
+
+    // Migration 26: Add article_type column to fnords and analysis_cache tables
+    // Stores the article type classification from LLM analysis
+    // (news/analysis/opinion/satire/ad/unknown)
+    let has_article_type: bool = conn
+        .prepare(
+            "SELECT COUNT(*) FROM pragma_table_info('fnords') \
+             WHERE name = 'article_type'",
+        )?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_article_type {
+        conn.execute_batch(
+            r#"
+            ALTER TABLE fnords ADD COLUMN article_type TEXT DEFAULT 'unknown';
+            CREATE INDEX idx_fnords_article_type ON fnords(article_type);
+            "#,
+        )?;
+        info!("Migration 26: Added article_type column to fnords");
+    }
+
+    // Also add article_type to analysis_cache if missing
+    let has_cache_article_type: bool = conn
+        .prepare(
+            "SELECT COUNT(*) FROM pragma_table_info('analysis_cache') \
+             WHERE name = 'article_type'",
+        )?
+        .query_row([], |row| row.get(0))?;
+
+    if !has_cache_article_type {
+        conn.execute_batch(
+            "ALTER TABLE analysis_cache \
+             ADD COLUMN article_type TEXT DEFAULT NULL;",
+        )?;
+        info!("Migration 26: Added article_type column to analysis_cache");
+    }
 
     // One-time cleanup: remove orphaned vec_immanentize entries
     // (entries where the parent keyword no longer exists)
@@ -1120,6 +1157,9 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
 
             -- Full-text fetch error tracking
             full_text_fetch_error TEXT DEFAULT NULL,
+
+            -- Article type classification (from LLM analysis)
+            article_type TEXT DEFAULT 'unknown',
 
             -- Constraints
             FOREIGN KEY (pentacle_id) REFERENCES pentacles(id) ON DELETE CASCADE,

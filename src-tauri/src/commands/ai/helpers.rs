@@ -49,10 +49,7 @@ pub fn get_ollama_url(db: &Database) -> String {
 
 /// Get effective Ollama URL considering proxy state.
 /// Returns the proxy local URL if the proxy is active, otherwise falls back to the DB setting.
-pub fn get_effective_ollama_url(
-    db: &Database,
-    proxy: &crate::proxy::ProxyManager,
-) -> String {
+pub fn get_effective_ollama_url(db: &Database, proxy: &crate::proxy::ProxyManager) -> String {
     if let Some(local_url) = proxy.get_local_url() {
         local_url
     } else {
@@ -102,7 +99,9 @@ pub fn get_provider_config(
         ollama_url: resolve_ollama_url(db, proxy),
         ollama_model: get_setting(db, "main_model", RECOMMENDED_MAIN_MODEL),
         ollama_num_ctx: get_num_ctx_setting(db),
-        ollama_concurrency: get_setting(db, "ollama_concurrency", "1").parse().unwrap_or(1),
+        ollama_concurrency: get_setting(db, "ollama_concurrency", "1")
+            .parse()
+            .unwrap_or(1),
         openai_base_url: get_setting(db, "openai_base_url", "https://api.openai.com"),
         openai_api_key: get_setting(db, "openai_api_key", ""),
         openai_model: get_setting(db, "openai_model", DEFAULT_OPENAI_MODEL),
@@ -1867,6 +1866,7 @@ pub struct CachedAnalysis {
     pub keywords: Vec<String>,
     pub political_bias: i32,
     pub sachlichkeit: i32,
+    pub article_type: Option<String>,
 }
 
 /// Compute a content hash for caching
@@ -1881,7 +1881,8 @@ pub fn compute_content_hash(title: &str, content: &str) -> String {
 /// Check if we have a cached analysis for the given content hash
 pub fn check_analysis_cache(conn: &Connection, content_hash: &str) -> Option<CachedAnalysis> {
     let result = conn.query_row(
-        r#"SELECT summary, categories, keywords, political_bias, sachlichkeit
+        r#"SELECT summary, categories, keywords, political_bias,
+                  sachlichkeit, article_type
            FROM analysis_cache WHERE content_hash = ?1"#,
         rusqlite::params![content_hash],
         |row| {
@@ -1893,6 +1894,7 @@ pub fn check_analysis_cache(conn: &Connection, content_hash: &str) -> Option<Cac
                 keywords: serde_json::from_str(&keywords_json).unwrap_or_default(),
                 political_bias: row.get(3)?,
                 sachlichkeit: row.get(4)?,
+                article_type: row.get(5)?,
             })
         },
     );
@@ -1917,21 +1919,24 @@ pub fn store_analysis_cache(
     keywords: &[String],
     political_bias: i32,
     sachlichkeit: i32,
+    article_type: &str,
 ) -> Result<(), rusqlite::Error> {
     let categories_json = serde_json::to_string(categories).unwrap_or_else(|_| "[]".to_string());
     let keywords_json = serde_json::to_string(keywords).unwrap_or_else(|_| "[]".to_string());
 
     conn.execute(
         r#"INSERT OR REPLACE INTO analysis_cache
-           (content_hash, summary, categories, keywords, political_bias, sachlichkeit, created_at, hit_count)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, CURRENT_TIMESTAMP, 0)"#,
+           (content_hash, summary, categories, keywords, political_bias,
+            sachlichkeit, article_type, created_at, hit_count)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, CURRENT_TIMESTAMP, 0)"#,
         rusqlite::params![
             content_hash,
             summary,
             categories_json,
             keywords_json,
             political_bias,
-            sachlichkeit
+            sachlichkeit,
+            article_type
         ],
     )?;
 

@@ -11,9 +11,9 @@ mod embeddings;
 mod keywords;
 mod logging;
 mod ollama;
+mod proxy;
 mod retrieval;
 mod similarity;
-mod proxy;
 mod sync;
 mod text_analysis;
 
@@ -177,9 +177,7 @@ pub fn run() {
 
                 if let Some((remote_host, remote_port)) = proxy_enabled {
                     if !remote_host.is_empty() {
-                        if let Err(e) =
-                            state.proxy_manager.start(&remote_host, remote_port)
-                        {
+                        if let Err(e) = state.proxy_manager.start(&remote_host, remote_port) {
                             error!("Failed to auto-start Ollama proxy: {}", e);
                         } else {
                             info!(
@@ -207,6 +205,7 @@ pub fn run() {
             commands::fnords::get_changed_count,
             commands::fnords::reset_all_changes,
             commands::fnords::get_fnord_stats,
+            commands::fnords::get_article_type_counts,
             commands::fnords::get_subcategory_stats,
             // Extended Fnord Statistics (Plan 4)
             commands::fnords::get_article_timeline,

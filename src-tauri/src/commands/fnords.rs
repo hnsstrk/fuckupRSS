@@ -37,6 +37,8 @@ pub struct Fnord {
     pub categories: Vec<FnordCategoryInfo>,
     /// Error type from full-text fetch: NULL (no error), "404", "timeout", "parse_error", "blocked", etc.
     pub full_text_fetch_error: Option<String>,
+    /// Article type classification from LLM analysis: news/analysis/opinion/satire/ad/unknown
+    pub article_type: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -58,6 +60,7 @@ pub struct FnordFilter {
     pub sephiroth_id: Option<i64>,
     pub main_sephiroth_id: Option<i64>, // Filter by main category (includes all subcategories)
     pub status: Option<String>,
+    pub article_type: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -85,6 +88,9 @@ fn fnord_from_row(row: &Row) -> Result<Fnord, rusqlite::Error> {
         changed_at: row.get(18)?,
         revision_count: row.get(19)?,
         full_text_fetch_error: row.get(20)?,
+        article_type: row
+            .get::<_, Option<String>>(21)?
+            .unwrap_or_else(|| "unknown".to_string()),
         categories: vec![],
     })
 }
@@ -157,7 +163,8 @@ const FNORD_SELECT_COLUMNS: &str = r#"
     COALESCE(f.has_changes, FALSE) as has_changes,
     f.changed_at,
     COALESCE(f.revision_count, 0) as revision_count,
-    f.full_text_fetch_error
+    f.full_text_fetch_error,
+    f.article_type
 "#;
 
 #[tauri::command]
@@ -169,6 +176,7 @@ pub fn get_fnords(state: State<AppState>, filter: Option<FnordFilter>) -> CmdRes
         sephiroth_id: None,
         main_sephiroth_id: None,
         status: None,
+        article_type: None,
         limit: Some(50),
         offset: None,
     });
@@ -203,6 +211,11 @@ pub fn get_fnords(state: State<AppState>, filter: Option<FnordFilter>) -> CmdRes
     if let Some(status) = &filter.status {
         sql.push_str(" AND f.status = ?");
         params.push(Box::new(status.clone()));
+    }
+
+    if let Some(article_type) = &filter.article_type {
+        sql.push_str(" AND f.article_type = ?");
+        params.push(Box::new(article_type.clone()));
     }
 
     sql.push_str(" ORDER BY f.published_at DESC");
@@ -460,6 +473,26 @@ pub struct SourceRevisionStats {
     pub title: Option<String>,
     pub revision_count: i64,
     pub article_count: i64,
+}
+
+/// Get article type counts for filter dropdown
+#[tauri::command]
+pub fn get_article_type_counts(state: State<AppState>) -> CmdResult<Vec<(String, i64)>> {
+    let db = state.db_conn()?;
+
+    let mut stmt = db.conn().prepare(
+        r#"SELECT COALESCE(article_type, 'unknown') as atype,
+                  COUNT(*) as cnt
+           FROM fnords
+           GROUP BY atype
+           ORDER BY cnt DESC"#,
+    )?;
+
+    let counts: Vec<(String, i64)> = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(counts)
 }
 
 /// Get Fnord statistics: revision counts by category and source
@@ -1886,6 +1919,7 @@ mod tests {
             revision_count: 0,
             categories: vec![],
             full_text_fetch_error: None,
+            article_type: "unknown".to_string(),
         };
 
         assert_eq!(fnord.status, "concealed");
@@ -1925,6 +1959,7 @@ mod tests {
                 icon: Some("fa-landmark".to_string()),
             }],
             full_text_fetch_error: Some("404".to_string()),
+            article_type: "news".to_string(),
         };
 
         let json = serde_json::to_string(&fnord).expect("Serialization failed");
