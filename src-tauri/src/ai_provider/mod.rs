@@ -102,12 +102,16 @@ pub struct GenerationResult {
 pub trait AiTextProvider: Send + Sync {
     /// Generate text from a prompt
     ///
-    /// If `json_mode` is true, the provider should request structured JSON output.
+    /// If `json_schema` is Some, the provider should request structured
+    /// JSON output validated against the given schema.
+    /// The schema value can be a full JSON Schema object (for providers
+    /// that support schema validation like Ollama 2025+ and OpenAI)
+    /// or will fall back to plain JSON mode.
     async fn generate_text(
         &self,
         model: &str,
         prompt: &str,
-        json_mode: bool,
+        json_schema: Option<serde_json::Value>,
     ) -> Result<GenerationResult, AiProviderError>;
 
     /// Check if the provider is currently available

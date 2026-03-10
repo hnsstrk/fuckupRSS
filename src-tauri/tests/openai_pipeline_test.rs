@@ -249,6 +249,7 @@ async fn test_openai_discordian_analysis_pipeline() {
         ollama_url: String::new(),
         ollama_model: String::new(),
         ollama_num_ctx: 4096,
+        ollama_concurrency: 1,
         openai_base_url: base_url.clone(),
         openai_api_key: api_key.clone(),
         openai_model: model.clone(),
@@ -298,7 +299,8 @@ async fn test_openai_discordian_analysis_pipeline() {
         let prompt = build_discordian_prompt(&article.title, &article.content);
         let start = std::time::Instant::now();
 
-        match provider.generate_text(&model, &prompt, true).await {
+        let schema = fuckuprss_lib::ollama::discordian_schema();
+        match provider.generate_text(&model, &prompt, Some(schema)).await {
             Ok(result) => {
                 let elapsed = start.elapsed();
                 total_time_secs += elapsed.as_secs_f64();
@@ -422,7 +424,7 @@ async fn test_openai_discordian_analysis_pipeline() {
     let summary_prompt = build_summary_prompt(&articles[0].content);
     let start = std::time::Instant::now();
 
-    match provider.generate_text(&model, &summary_prompt, false).await {
+    match provider.generate_text(&model, &summary_prompt, None).await {
         Ok(result) => {
             let elapsed = start.elapsed();
             total_time_secs += elapsed.as_secs_f64();
@@ -560,6 +562,7 @@ async fn test_openai_provider_config_isolation() {
         ollama_url: String::new(),
         ollama_model: String::new(),
         ollama_num_ctx: 4096,
+        ollama_concurrency: 1,
         openai_base_url: base_url.clone(),
         openai_api_key: api_key.clone(),
         openai_model: model.clone(),
@@ -596,6 +599,7 @@ async fn test_openai_provider_config_isolation() {
         ollama_url: "http://localhost:11434".to_string(),
         ollama_model: "ministral-3:latest".to_string(),
         ollama_num_ctx: 8192,
+        ollama_concurrency: 1,
         openai_base_url: base_url,
         openai_api_key: api_key,
         openai_model: model.clone(),
@@ -645,6 +649,7 @@ async fn test_openai_no_truncation() {
         ollama_url: String::new(),
         ollama_model: String::new(),
         ollama_num_ctx: 4096,
+        ollama_concurrency: 1,
         openai_base_url: base_url,
         openai_api_key: api_key,
         openai_model: model.clone(),
@@ -666,7 +671,7 @@ async fn test_openai_no_truncation() {
 
     let start = std::time::Instant::now();
     let result = provider
-        .generate_text(&model, &prompt, true)
+        .generate_text(&model, &prompt, Some(fuckuprss_lib::ollama::discordian_schema()))
         .await
         .expect("API call failed for long article");
     let elapsed = start.elapsed();
@@ -739,7 +744,7 @@ async fn test_openai_no_truncation() {
     let start = std::time::Instant::now();
 
     let summary_result = provider
-        .generate_text(&model, &summary_prompt, false)
+        .generate_text(&model, &summary_prompt, None)
         .await
         .expect("Summary API call failed");
     let elapsed = start.elapsed();
@@ -803,6 +808,7 @@ async fn test_openai_provider_stability() {
         ollama_url: String::new(),
         ollama_model: String::new(),
         ollama_num_ctx: 4096,
+        ollama_concurrency: 1,
         openai_base_url: base_url,
         openai_api_key: api_key,
         openai_model: model.clone(),
@@ -834,7 +840,7 @@ async fn test_openai_provider_stability() {
         let start = std::time::Instant::now();
 
         let result = provider
-            .generate_text(&model, &prompt, true)
+            .generate_text(&model, &prompt, Some(fuckuprss_lib::ollama::discordian_schema()))
             .await
             .unwrap_or_else(|e| panic!("Request {} failed: {}", i + 1, e));
         let elapsed = start.elapsed();

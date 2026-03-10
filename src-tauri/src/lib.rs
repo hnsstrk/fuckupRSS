@@ -10,7 +10,7 @@ mod embedding_worker;
 mod embeddings;
 mod keywords;
 mod logging;
-mod ollama;
+pub mod ollama;
 mod retrieval;
 mod similarity;
 mod proxy;

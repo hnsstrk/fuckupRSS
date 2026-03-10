@@ -53,9 +53,25 @@ struct ChatMessage {
 }
 
 #[derive(Serialize, Clone)]
-struct ResponseFormat {
-    #[serde(rename = "type")]
-    format_type: String,
+#[serde(untagged)]
+enum ResponseFormat {
+    /// Simple format: `{"type": "json_object"}`
+    Simple {
+        #[serde(rename = "type")]
+        format_type: String,
+    },
+    /// Schema-based format: `{"type": "json_schema", "json_schema": {...}}`
+    JsonSchema {
+        #[serde(rename = "type")]
+        format_type: String,
+        json_schema: JsonSchemaWrapper,
+    },
+}
+
+#[derive(Serialize, Clone)]
+struct JsonSchemaWrapper {
+    name: String,
+    schema: serde_json::Value,
 }
 
 #[derive(Deserialize)]
@@ -255,9 +271,10 @@ impl AiTextProvider for OpenAiCompatibleProvider {
         &self,
         model: &str,
         prompt: &str,
-        json_mode: bool,
+        json_schema: Option<serde_json::Value>,
     ) -> Result<GenerationResult, AiProviderError> {
         let url = self.endpoint_url();
+        let json_mode = json_schema.is_some();
 
         let mut messages = Vec::new();
 
@@ -265,12 +282,17 @@ impl AiTextProvider for OpenAiCompatibleProvider {
         if json_mode {
             messages.push(ChatMessage {
                 role: "system".to_string(),
-                content: "You are a professional news article analyst. Always respond with valid JSON matching the exact schema specified in the user message. Be concise and factual.".to_string(),
+                content: "You are a professional news article analyst. \
+                    Always respond with valid JSON matching the exact \
+                    schema specified in the user message. Be concise \
+                    and factual."
+                    .to_string(),
             });
         } else {
             messages.push(ChatMessage {
                 role: "system".to_string(),
-                content: "You are a professional news article analyst. Be concise and factual."
+                content: "You are a professional news article analyst. \
+                    Be concise and factual."
                     .to_string(),
             });
         }
@@ -280,24 +302,42 @@ impl AiTextProvider for OpenAiCompatibleProvider {
             content: prompt.to_string(),
         });
 
+        // Build response_format based on schema
+        let response_format = match json_schema {
+            Some(schema) if schema.is_object() => {
+                // Full JSON Schema provided - use structured output
+                Some(ResponseFormat::JsonSchema {
+                    format_type: "json_schema".to_string(),
+                    json_schema: JsonSchemaWrapper {
+                        name: "response".to_string(),
+                        schema,
+                    },
+                })
+            }
+            Some(_) => {
+                // Schema is a string like "json" - fall back to
+                // json_object
+                Some(ResponseFormat::Simple {
+                    format_type: "json_object".to_string(),
+                })
+            }
+            None => None,
+        };
+
         let request = ChatCompletionRequest {
             model: model.to_string(),
             messages,
-            response_format: if json_mode {
-                Some(ResponseFormat {
-                    format_type: "json_object".to_string(),
-                })
-            } else {
-                None
-            },
+            response_format,
             max_completion_tokens: Some(MAX_COMPLETION_TOKENS),
             temperature: self.temperature,
         };
 
         let prompt_len = prompt.len();
         debug!(
-            "[OpenAI] Sending request to '{}' model '{}' (prompt: {} chars, json_mode: {}, max_tokens: {})",
-            self.base_url, model, prompt_len, json_mode, MAX_COMPLETION_TOKENS
+            "[OpenAI] Sending request to '{}' model '{}' \
+             (prompt: {} chars, json_mode: {}, max_tokens: {})",
+            self.base_url, model, prompt_len, json_mode,
+            MAX_COMPLETION_TOKENS
         );
         let request_start = Instant::now();
 
@@ -630,7 +670,7 @@ mod tests {
     }
 
     #[test]
-    fn test_request_serialization_json_mode() {
+    fn test_request_serialization_json_mode_simple() {
         let request = ChatCompletionRequest {
             model: "gpt-5-nano".to_string(),
             messages: vec![
@@ -643,7 +683,7 @@ mod tests {
                     content: "Hello".to_string(),
                 },
             ],
-            response_format: Some(ResponseFormat {
+            response_format: Some(ResponseFormat::Simple {
                 format_type: "json_object".to_string(),
             }),
             max_completion_tokens: Some(MAX_COMPLETION_TOKENS),
@@ -654,6 +694,39 @@ mod tests {
         assert!(json.contains("\"max_completion_tokens\":4096"));
         assert!(json.contains("\"json_object\""));
         assert!(json.contains("\"temperature\":0.3"));
+    }
+
+    #[test]
+    fn test_request_serialization_json_schema_mode() {
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "political_bias": { "type": "integer" }
+            },
+            "required": ["political_bias"]
+        });
+
+        let request = ChatCompletionRequest {
+            model: "gpt-5-nano".to_string(),
+            messages: vec![ChatMessage {
+                role: "user".to_string(),
+                content: "Analyze this".to_string(),
+            }],
+            response_format: Some(ResponseFormat::JsonSchema {
+                format_type: "json_schema".to_string(),
+                json_schema: JsonSchemaWrapper {
+                    name: "response".to_string(),
+                    schema,
+                },
+            }),
+            max_completion_tokens: Some(MAX_COMPLETION_TOKENS),
+            temperature: None,
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("\"json_schema\""));
+        assert!(json.contains("\"name\":\"response\""));
+        assert!(json.contains("\"political_bias\""));
     }
 
     #[test]

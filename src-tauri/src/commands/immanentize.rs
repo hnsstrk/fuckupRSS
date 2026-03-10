@@ -2006,9 +2006,10 @@ Keywords: "{}" and "{}""#,
         keyword_a, keyword_b, keyword_a, keyword_b
     );
 
-    // Generate response via provider (JSON mode)
+    // Generate response via provider (JSON schema mode)
+    let schema = crate::ollama::synonym_schema();
     let result = provider
-        .generate_text(&model, &prompt, true)
+        .generate_text(&model, &prompt, Some(schema))
         .await
         .map_err(|e| format!("LLM error: {}", e))?;
     let response = result.text;

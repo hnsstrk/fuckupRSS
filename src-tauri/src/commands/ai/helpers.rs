@@ -2079,8 +2079,11 @@ pub async fn discordian_analysis_via_provider(
         .replace("{stat_keywords}", &stat_keywords_str)
         .replace("{stat_categories}", &stat_categories_str);
 
-    // Call provider with JSON mode
-    let result = provider.generate_text(model, &prompt, true).await?;
+    // Call provider with Discordian JSON schema
+    let schema = crate::ollama::discordian_schema();
+    let result = provider
+        .generate_text(model, &prompt, Some(schema))
+        .await?;
     let usage = TokenUsage::from(&result);
 
     // Parse the JSON response (same parsing as OllamaClient)
@@ -2120,7 +2123,8 @@ pub async fn summarize_via_provider(
     let truncated_content: String = content.chars().take(8000).collect();
 
     let prompt = prompt_template.replace("{content}", &truncated_content);
-    let result = provider.generate_text(model, &prompt, false).await?;
+    // Freetext: no JSON schema
+    let result = provider.generate_text(model, &prompt, None).await?;
     let usage = TokenUsage::from(&result);
 
     Ok((result.text, usage))
@@ -2142,7 +2146,11 @@ pub async fn analyze_bias_via_provider(
         .replace("{title}", title)
         .replace("{content}", &truncated_content);
 
-    let result = provider.generate_text(model, &prompt, true).await?;
+    // Call provider with Bias JSON schema
+    let schema = crate::ollama::bias_schema();
+    let result = provider
+        .generate_text(model, &prompt, Some(schema))
+        .await?;
     let usage = TokenUsage::from(&result);
 
     let raw: RawBiasAnalysis = serde_json::from_str(&result.text).map_err(|e| {
@@ -2196,7 +2204,10 @@ Content: {}"#,
             .replace("{content}", &truncated_content)
     };
 
-    let result = provider.generate_text(model, &prompt, true).await?;
+    let schema = crate::ollama::discordian_simple_schema();
+    let result = provider
+        .generate_text(model, &prompt, Some(schema))
+        .await?;
     let usage = TokenUsage::from(&result);
 
     let raw: crate::ollama::RawDiscordianAnalysis =

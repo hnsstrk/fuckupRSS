@@ -145,6 +145,7 @@ async fn test_openai_discordian_analysis_5_articles() {
         ollama_url: String::new(),
         ollama_model: String::new(),
         ollama_num_ctx: 4096,
+        ollama_concurrency: 1,
         openai_base_url: base_url.clone(),
         openai_api_key: api_key.clone(),
         openai_model: model.clone(),
@@ -187,7 +188,8 @@ async fn test_openai_discordian_analysis_5_articles() {
         let prompt = build_discordian_prompt(&article.title, &article.content);
         let start = std::time::Instant::now();
 
-        match provider.generate_text(&model, &prompt, true).await {
+        let schema = fuckuprss_lib::ollama::discordian_schema();
+        match provider.generate_text(&model, &prompt, Some(schema)).await {
             Ok(result) => {
                 let elapsed = start.elapsed();
                 println!(
@@ -269,7 +271,7 @@ async fn test_openai_discordian_analysis_5_articles() {
     let summary_prompt = build_summary_prompt(&articles[0].content);
     let start = std::time::Instant::now();
 
-    match provider.generate_text(&model, &summary_prompt, false).await {
+    match provider.generate_text(&model, &summary_prompt, None).await {
         Ok(result) => {
             let elapsed = start.elapsed();
             println!(

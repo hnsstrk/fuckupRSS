@@ -30,20 +30,21 @@ impl AiTextProvider for OllamaTextProvider {
         &self,
         model: &str,
         prompt: &str,
-        json_mode: bool,
+        json_schema: Option<serde_json::Value>,
     ) -> Result<GenerationResult, AiProviderError> {
-        // Prepend /no_think for Ollama models (optimizes thinking-capable models)
-        let full_prompt = if prompt.starts_with("/no_think") {
-            prompt.to_string()
-        } else {
-            format!("/no_think\n{}", prompt)
-        };
+        // Prepend /no_think to the system message for Ollama models
+        // (optimizes thinking-capable models)
+        let no_think_system = "/no_think";
 
-        let result = if json_mode {
-            self.client.generate_simple(model, &full_prompt).await
-        } else {
+        let result = if let Some(schema) = json_schema {
+            // JSON mode: pass schema as format, prompt as user message
             self.client
-                .summarize_with_prompt(model, "", &full_prompt)
+                .chat(model, Some(no_think_system), prompt, Some(schema))
+                .await
+        } else {
+            // Freetext mode: no schema
+            self.client
+                .chat(model, Some(no_think_system), prompt, None)
                 .await
         };
 
@@ -55,7 +56,9 @@ impl AiTextProvider for OllamaTextProvider {
                 output_tokens: None,
             }),
             Err(e) => Err(match e {
-                crate::ollama::OllamaError::NotAvailable(msg) => AiProviderError::NotAvailable(msg),
+                crate::ollama::OllamaError::NotAvailable(msg) => {
+                    AiProviderError::NotAvailable(msg)
+                }
                 crate::ollama::OllamaError::GenerationFailed(msg) => {
                     AiProviderError::GenerationFailed(msg)
                 }

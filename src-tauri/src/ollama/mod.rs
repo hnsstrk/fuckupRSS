@@ -107,23 +107,125 @@ struct GenerateOptions {
     num_predict: i32,
 }
 
+// ============================================================
+// Chat API structs (/api/chat)
+// ============================================================
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
+}
+
 #[derive(Serialize)]
-struct GenerateRequest {
+struct ChatRequest {
     model: String,
-    prompt: String,
+    messages: Vec<ChatMessage>,
     stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    format: Option<String>,
+    format: Option<Value>,
     options: GenerateOptions,
     keep_alive: String,
 }
 
 #[derive(Deserialize)]
-struct GenerateResponse {
-    response: String,
+struct ChatResponse {
+    message: ChatMessage,
     /// Whether generation completed successfully
     #[serde(default)]
     done: bool,
+}
+
+// ============================================================
+// JSON Schema constants for structured outputs
+// ============================================================
+
+/// JSON Schema for DiscordianAnalysis (with rejections)
+///
+/// Ollama validates the response against this schema when passed as `format`.
+/// Fields: political_bias, sachlichkeit, summary, keywords, categories,
+///         rejected_keywords, rejected_categories
+pub fn discordian_schema() -> Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "political_bias": { "type": "integer" },
+            "sachlichkeit": { "type": "integer" },
+            "summary": { "type": "string" },
+            "keywords": {
+                "type": "array",
+                "items": { "type": "string" }
+            },
+            "categories": {
+                "type": "array",
+                "items": { "type": "string" }
+            },
+            "rejected_keywords": {
+                "type": "array",
+                "items": { "type": "string" }
+            },
+            "rejected_categories": {
+                "type": "array",
+                "items": { "type": "string" }
+            }
+        },
+        "required": [
+            "political_bias", "sachlichkeit", "summary",
+            "keywords", "categories",
+            "rejected_keywords", "rejected_categories"
+        ]
+    })
+}
+
+/// JSON Schema for BiasAnalysis
+///
+/// Fields: political_bias, sachlichkeit
+pub fn bias_schema() -> Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "political_bias": { "type": "integer" },
+            "sachlichkeit": { "type": "integer" }
+        },
+        "required": ["political_bias", "sachlichkeit"]
+    })
+}
+
+/// JSON Schema for simple DiscordianAnalysis (without rejections, legacy)
+pub fn discordian_simple_schema() -> Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "political_bias": { "type": "integer" },
+            "sachlichkeit": { "type": "integer" },
+            "summary": { "type": "string" },
+            "keywords": {
+                "type": "array",
+                "items": { "type": "string" }
+            },
+            "categories": {
+                "type": "array",
+                "items": { "type": "string" }
+            }
+        },
+        "required": [
+            "political_bias", "sachlichkeit", "summary",
+            "keywords", "categories"
+        ]
+    })
+}
+
+/// JSON Schema for synonym verification
+pub fn synonym_schema() -> Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "is_synonym": { "type": "boolean" },
+            "confidence": { "type": "number" },
+            "explanation": { "type": "string" }
+        },
+        "required": ["is_synonym", "confidence"]
+    })
 }
 
 #[derive(Deserialize)]
@@ -170,6 +272,9 @@ pub const RECOMMENDED_MAIN_MODEL: &str = "ministral-3:latest";
 pub const RECOMMENDED_EMBEDDING_MODEL: &str = "snowflake-arctic-embed2:latest";
 
 /// Default prompts (English prompts with {language} placeholder for output language)
+///
+/// Legacy combined prompt (kept for backward compatibility with custom prompts in DB).
+/// Internally, the system/user split is used via DEFAULT_SUMMARY_SYSTEM/USER.
 pub const DEFAULT_SUMMARY_PROMPT: &str = r#"You are a news article analyst. Create a brief, factual summary of the following article in 2-3 sentences.
 
 IMPORTANT: Respond ONLY in {language}. Do not use any other language.
@@ -243,6 +348,56 @@ Return ONLY valid JSON:
 
 Title: {title}
 Content: {content}"#;
+
+// ============================================================
+// System/User message split for /api/chat
+// ============================================================
+
+/// System message for summary generation
+#[allow(dead_code)] // Available for future prompt customization
+pub const DEFAULT_SUMMARY_SYSTEM: &str =
+    "You are a news article analyst. Create brief, factual summaries \
+     in 2-3 sentences. Respond ONLY in {language}. Do not use any other \
+     language. Respond ONLY with the summary, without introduction or \
+     explanation.";
+
+/// User message template for summary generation
+#[allow(dead_code)] // Available for future prompt customization
+pub const DEFAULT_SUMMARY_USER: &str = "Article:\n{content}\n\nSummary:";
+
+/// System message for Discordian analysis with statistical pre-analysis
+#[allow(dead_code)] // Available for future prompt customization
+pub const DEFAULT_DISCORDIAN_SYSTEM: &str =
+    "You are a professional media analyst. Analyze news articles for \
+     political bias, objectivity, keywords, and categories. Statistical \
+     pre-analysis has already computed keyword and category suggestions. \
+     Validate and refine them. Respond ONLY in {language} for the summary. \
+     Return ONLY valid JSON matching the specified schema.";
+
+/// User message template for Discordian analysis with stats
+#[allow(dead_code)] // Available for future prompt customization
+pub const DEFAULT_DISCORDIAN_USER: &str = r#"PRE-COMPUTED: keywords={stat_keywords}, categories={stat_categories}
+
+YOUR TASKS:
+1. Write summary (2-3 factual sentences in {language})
+2. Assess political_bias: -2=strong left, -1=left, 0=neutral, 1=right, 2=strong right
+3. Assess sachlichkeit: 0=emotional/sensational, 2=mixed, 4=objective/factual
+4. Review keywords: keep good ones, add max 2 important missing ones
+5. Categories: only provide if pre-computed ones are clearly wrong (empty [] is fine)
+
+Title: {title}
+Content: {content}"#;
+
+/// System message for bias analysis
+#[allow(dead_code)] // Available for future prompt customization
+pub const DEFAULT_BIAS_SYSTEM: &str =
+    "You are a professional media analyst specialized in detecting \
+     political bias and objectivity in news articles. Be precise with \
+     your ratings. Return ONLY valid JSON matching the specified schema.";
+
+/// User message template for bias analysis
+#[allow(dead_code)] // Available for future prompt customization
+pub const DEFAULT_BIAS_USER: &str = "Title: {title}\nContent: {content}";
 
 /// Get language name for prompt based on locale
 pub fn get_language_for_locale(locale: &str) -> &'static str {
@@ -426,7 +581,8 @@ impl OllamaClient {
         Ok(result.embeddings)
     }
 
-    /// Generate a summary with custom prompt template
+    /// Generate a summary with custom prompt template (no JSON schema)
+    #[allow(dead_code)] // Public API for external callers
     pub async fn summarize_with_prompt(
         &self,
         model: &str,
@@ -435,34 +591,65 @@ impl OllamaClient {
     ) -> Result<String, OllamaError> {
         let truncated_content = content.chars().take(8000).collect::<String>();
         let prompt = prompt_template.replace("{content}", &truncated_content);
-        self.generate(model, &prompt, None).await
+        // Freetext: use chat with no schema, prompt as user message
+        self.chat(model, None, &prompt, None).await
     }
 
-    /// Simple text generation (public API for synonym verification etc.)
-    pub async fn generate_simple(&self, model: &str, prompt: &str) -> Result<String, OllamaError> {
-        self.generate(model, prompt, Some("json".to_string())).await
-    }
-
-    /// Generate text with Ollama
-    async fn generate(
+    /// Simple text generation with JSON schema
+    /// (public API for synonym verification etc.)
+    #[allow(dead_code)] // Public API for external callers
+    pub async fn generate_simple(
         &self,
         model: &str,
         prompt: &str,
-        format: Option<String>,
+        json_schema: Option<Value>,
     ) -> Result<String, OllamaError> {
-        let url = format!("{}/api/generate", self.base_url);
+        let format = json_schema
+            .or_else(|| Some(Value::String("json".to_string())));
+        self.chat(model, None, prompt, format).await
+    }
+
+    /// Chat-based generation via /api/chat endpoint
+    ///
+    /// Uses system + user message split for better prompt control.
+    /// If `format` is Some, Ollama validates the response against it
+    /// (JSON schema or `"json"` string for plain JSON mode).
+    pub async fn chat(
+        &self,
+        model: &str,
+        system_message: Option<&str>,
+        user_message: &str,
+        format: Option<Value>,
+    ) -> Result<String, OllamaError> {
+        let url = format!("{}/api/chat", self.base_url);
         let client = self.client();
 
-        let prompt_len = prompt.len();
+        let mut messages = Vec::new();
+        if let Some(sys) = system_message {
+            messages.push(ChatMessage {
+                role: "system".to_string(),
+                content: sys.to_string(),
+            });
+        }
+        messages.push(ChatMessage {
+            role: "user".to_string(),
+            content: user_message.to_string(),
+        });
+
+        let total_len: usize = messages.iter().map(|m| m.content.len()).sum();
         debug!(
-            "[Ollama] Sending request to model '{}' (prompt: {} chars, num_ctx: {})",
-            model, prompt_len, self.num_ctx
+            "[Ollama] Sending chat request to model '{}' \
+             ({} messages, {} chars, num_ctx: {})",
+            model,
+            messages.len(),
+            total_len,
+            self.num_ctx
         );
         let request_start = Instant::now();
 
-        let request = GenerateRequest {
+        let request = ChatRequest {
             model: model.to_string(),
-            prompt: prompt.to_string(),
+            messages,
             stream: false,
             format,
             options: GenerateOptions {
@@ -483,7 +670,7 @@ impl OllamaClient {
                 .await
                 .map_err(|e: reqwest_new::Error| {
                     warn!(
-                        "[Ollama] Request failed after {:.2}s: {}",
+                        "[Ollama] Chat request failed after {:.2}s: {}",
                         request_start.elapsed().as_secs_f64(),
                         e
                     );
@@ -497,7 +684,7 @@ impl OllamaClient {
                 .await
                 .unwrap_or_else(|_: reqwest_new::Error| "Unknown error".to_string());
             warn!(
-                "[Ollama] Request failed after {:.2}s with status {}: {}",
+                "[Ollama] Chat request failed after {:.2}s with status {}: {}",
                 request_start.elapsed().as_secs_f64(),
                 status,
                 truncate_str(&body, 200)
@@ -511,34 +698,41 @@ impl OllamaClient {
         let bytes: bytes::Bytes = resp
             .bytes()
             .await
-            .map_err(|e: reqwest_new::Error| OllamaError::GenerationFailed(e.to_string()))?;
+            .map_err(|e: reqwest_new::Error| {
+                OllamaError::GenerationFailed(e.to_string())
+            })?;
 
-        let result: GenerateResponse = serde_json::from_slice(&bytes)
+        let result: ChatResponse = serde_json::from_slice(&bytes)
             .map_err(|e| OllamaError::GenerationFailed(e.to_string()))?;
 
         let duration = request_start.elapsed();
-        let response_len = result.response.len();
+        let response_len = result.message.content.len();
 
         // Warn if generation was incomplete (output truncated)
         if !result.done {
-            warn!("[Ollama] Generation incomplete (done=false) after {:.2}s - response may be truncated", duration.as_secs_f64());
+            warn!(
+                "[Ollama] Chat generation incomplete (done=false) after \
+                 {:.2}s - response may be truncated",
+                duration.as_secs_f64()
+            );
         } else {
             debug!(
-                "[Ollama] Request completed in {:.2}s (response: {} chars)",
+                "[Ollama] Chat request completed in {:.2}s \
+                 (response: {} chars)",
                 duration.as_secs_f64(),
                 response_len
             );
         }
 
-        Ok(result.response)
+        Ok(result.message.content)
     }
 
-    /// Unload a model from VRAM by sending a generate request with keep_alive: "0"
+    /// Unload a model from VRAM by sending a chat request with keep_alive: "0"
     pub async fn unload_model(&self, model: &str) -> Result<(), OllamaError> {
-        let url = format!("{}/api/generate", self.base_url);
-        let request = GenerateRequest {
+        let url = format!("{}/api/chat", self.base_url);
+        let request = ChatRequest {
             model: model.to_string(),
-            prompt: String::new(),
+            messages: vec![],
             stream: false,
             format: None,
             options: GenerateOptions {
@@ -549,7 +743,11 @@ impl OllamaClient {
         };
 
         let resp = self.client().post(&url).json(&request).send().await
-            .map_err(|e| OllamaError::GenerationFailed(format!("Unload request failed: {}", e)))?;
+            .map_err(|e| {
+                OllamaError::GenerationFailed(
+                    format!("Unload request failed: {}", e),
+                )
+            })?;
 
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
