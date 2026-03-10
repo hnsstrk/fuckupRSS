@@ -160,19 +160,15 @@
       <div class="briefing-list">
         {#each briefings as briefing (briefing.id)}
           <div class="briefing-card" class:expanded={expandedId === briefing.id}>
-            <button
-              class="briefing-card-header"
-              onclick={() => toggleExpand(briefing.id)}
-            >
+            <button class="briefing-card-header" onclick={() => toggleExpand(briefing.id)}>
               <div class="card-left">
                 <span class="period-badge {getPeriodBadgeClass(briefing.period_type)}">
-                  {briefing.period_type === "daily"
-                    ? $_("briefing.daily")
-                    : $_("briefing.weekly")}
+                  {briefing.period_type === "daily" ? $_("briefing.daily") : $_("briefing.weekly")}
                 </span>
                 <span class="card-meta">
                   <i class="fa-solid fa-newspaper"></i>
-                  {briefing.article_count} {$_("briefing.articles")}
+                  {briefing.article_count}
+                  {$_("briefing.articles")}
                 </span>
                 {#if briefing.model_used}
                   <span class="card-meta model-meta">
@@ -216,7 +212,7 @@
                 {/if}
 
                 <div class="briefing-text">
-                  {#each briefing.content.split("\n") as line}
+                  {#each briefing.content.split("\n") as line, i (i)}
                     {#if line.trim()}
                       <p>{line}</p>
                     {/if}
@@ -226,7 +222,10 @@
                 <div class="briefing-card-actions">
                   <button
                     class="btn btn-danger btn-sm"
-                    onclick={(e: MouseEvent) => { e.stopPropagation(); handleDelete(briefing.id); }}
+                    onclick={(e: MouseEvent) => {
+                      e.stopPropagation();
+                      handleDelete(briefing.id);
+                    }}
                   >
                     <i class="fa-solid fa-trash"></i>
                     {$_("briefing.delete")}

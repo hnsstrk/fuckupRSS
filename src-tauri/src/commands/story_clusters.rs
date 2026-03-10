@@ -174,12 +174,9 @@ pub async fn discover_story_clusters(
     // Step 2: For each article, find similar via vec_fnords
     // Build similarity edges using Union-Find
     let mut uf = UnionFind::new();
-    let article_pentacles: HashMap<i64, i64> = articles
-        .iter()
-        .map(|(id, pid, _)| (*id, *pid))
-        .collect();
-    let article_ids: HashSet<i64> =
-        articles.iter().map(|(id, _, _)| *id).collect();
+    let article_pentacles: HashMap<i64, i64> =
+        articles.iter().map(|(id, pid, _)| (*id, *pid)).collect();
+    let article_ids: HashSet<i64> = articles.iter().map(|(id, _, _)| *id).collect();
 
     // Store similarity scores for cluster articles
     let mut similarity_pairs: Vec<(i64, i64, f64)> = Vec::new();
@@ -204,10 +201,7 @@ pub async fn discover_story_clusters(
                     Ok((row.get::<_, i64>(0)?, similarity))
                 })?
                 .filter_map(|r| r.ok())
-                .filter(|(nid, sim)| {
-                    *sim >= SIMILARITY_THRESHOLD
-                        && article_ids.contains(nid)
-                })
+                .filter(|(nid, sim)| *sim >= SIMILARITY_THRESHOLD && article_ids.contains(nid))
                 .collect();
             result
         };
@@ -333,9 +327,7 @@ pub async fn discover_story_clusters(
                    ORDER BY p.title"#,
             )?;
             let result: Vec<String> = stmt
-                .query_map(params![cluster_id], |row| {
-                    row.get::<_, String>(0)
-                })?
+                .query_map(params![cluster_id], |row| row.get::<_, String>(0))?
                 .filter_map(|r| r.ok())
                 .collect();
             result
@@ -353,10 +345,7 @@ pub async fn discover_story_clusters(
         });
     }
 
-    info!(
-        "Created {} story clusters",
-        result_clusters.len()
-    );
+    info!("Created {} story clusters", result_clusters.len());
 
     Ok(DiscoverResult {
         clusters_found: result_clusters.len(),
@@ -409,9 +398,7 @@ pub fn get_story_clusters(
                ORDER BY p.title"#,
         )?;
         cluster.source_names = stmt
-            .query_map(params![cluster.id], |row| {
-                row.get::<_, String>(0)
-            })?
+            .query_map(params![cluster.id], |row| row.get::<_, String>(0))?
             .filter_map(|r| r.ok())
             .collect();
         enriched.push(cluster);
@@ -458,9 +445,7 @@ pub fn get_story_cluster_detail(
            ORDER BY p.title"#,
     )?;
     let source_names: Vec<String> = source_stmt
-        .query_map(params![cluster_id], |row| {
-            row.get::<_, String>(0)
-        })?
+        .query_map(params![cluster_id], |row| row.get::<_, String>(0))?
         .filter_map(|r| r.ok())
         .collect();
 
@@ -507,10 +492,7 @@ pub async fn compare_perspectives(
     state: State<'_, AppState>,
     cluster_id: i64,
 ) -> CmdResult<String> {
-    info!(
-        "Comparing perspectives for cluster {}",
-        cluster_id
-    );
+    info!("Comparing perspectives for cluster {}", cluster_id);
 
     // Load cluster info and articles
     let (cluster_title, articles): (String, Vec<StoryClusterArticle>) = {
@@ -598,12 +580,7 @@ Antworte auf Deutsch, strukturiert mit Überschriften."#,
     let result = provider
         .generate_text(&model, &prompt, None)
         .await
-        .map_err(|e| {
-            crate::error::FuckupError::Generic(format!(
-                "LLM generation failed: {}",
-                e
-            ))
-        })?;
+        .map_err(|e| crate::error::FuckupError::Generic(format!("LLM generation failed: {}", e)))?;
 
     let comparison_text = result.text;
 
@@ -629,10 +606,7 @@ Antworte auf Deutsch, strukturiert mit Überschriften."#,
 
 /// Delete a story cluster
 #[tauri::command]
-pub fn delete_story_cluster(
-    state: State<AppState>,
-    cluster_id: i64,
-) -> CmdResult<()> {
+pub fn delete_story_cluster(state: State<AppState>, cluster_id: i64) -> CmdResult<()> {
     let db = state.db_conn()?;
     db.conn().execute(
         "DELETE FROM story_clusters WHERE id = ?1",
@@ -679,20 +653,17 @@ fn generate_cluster_title(
     let mut stmt = conn.prepare(&query)?;
 
     // Build params: article_ids + min_articles threshold
-    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> =
-        article_ids
-            .iter()
-            .map(|id| Box::new(*id) as Box<dyn rusqlite::types::ToSql>)
-            .collect();
+    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = article_ids
+        .iter()
+        .map(|id| Box::new(*id) as Box<dyn rusqlite::types::ToSql>)
+        .collect();
     param_values.push(Box::new(min_articles));
 
     let params_refs: Vec<&dyn rusqlite::types::ToSql> =
         param_values.iter().map(|p| p.as_ref()).collect();
 
     let keywords: Vec<String> = stmt
-        .query_map(params_refs.as_slice(), |row| {
-            row.get::<_, String>(0)
-        })?
+        .query_map(params_refs.as_slice(), |row| row.get::<_, String>(0))?
         .filter_map(|r| r.ok())
         .collect();
 

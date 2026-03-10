@@ -441,7 +441,12 @@
       <h4>
         <i class="fa-solid fa-bug"></i>
         Diagnose
-        <button type="button" class="close-btn" aria-label="Schließen" onclick={() => (showDiagnostics = false)}>
+        <button
+          type="button"
+          class="close-btn"
+          aria-label="Schließen"
+          onclick={() => (showDiagnostics = false)}
+        >
           <i class="fa-solid fa-xmark"></i>
         </button>
       </h4>

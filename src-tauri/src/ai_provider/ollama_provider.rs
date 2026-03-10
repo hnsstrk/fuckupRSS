@@ -56,9 +56,7 @@ impl AiTextProvider for OllamaTextProvider {
                 output_tokens: None,
             }),
             Err(e) => Err(match e {
-                crate::ollama::OllamaError::NotAvailable(msg) => {
-                    AiProviderError::NotAvailable(msg)
-                }
+                crate::ollama::OllamaError::NotAvailable(msg) => AiProviderError::NotAvailable(msg),
                 crate::ollama::OllamaError::GenerationFailed(msg) => {
                     AiProviderError::GenerationFailed(msg)
                 }

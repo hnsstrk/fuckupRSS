@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
+  import { SvelteSet } from "svelte/reactivity";
   import { getBiasColor } from "$lib/utils/articleFormat";
 
   // Types matching backend structs
@@ -52,7 +53,7 @@
   let days = $state(7);
 
   // Expanded summaries
-  let expandedArticles = $state<Set<number>>(new Set());
+  let expandedArticles = new SvelteSet<number>();
 
   onMount(async () => {
     window.addEventListener("batch-complete", handleBatchComplete);
@@ -154,13 +155,11 @@
   }
 
   function toggleArticleSummary(fnordId: number) {
-    const newSet = new Set(expandedArticles);
-    if (newSet.has(fnordId)) {
-      newSet.delete(fnordId);
+    if (expandedArticles.has(fnordId)) {
+      expandedArticles.delete(fnordId);
     } else {
-      newSet.add(fnordId);
+      expandedArticles.add(fnordId);
     }
-    expandedArticles = newSet;
   }
 
   function biasIndicator(bias: number | null): string {
@@ -190,7 +189,6 @@
       return dateStr;
     }
   }
-
 </script>
 
 <div class="story-cluster-view">
@@ -213,11 +211,7 @@
       >
         <i class="fa-solid fa-sliders"></i>
       </button>
-      <button
-        class="btn-primary"
-        onclick={discoverClusters}
-        disabled={discovering}
-      >
+      <button class="btn-primary" onclick={discoverClusters} disabled={discovering}>
         {#if discovering}
           <i class="fa-solid fa-spinner fa-spin"></i>
           {$_("storyClusters.discovering")}
@@ -234,13 +228,7 @@
     <div class="sc-settings">
       <div class="setting-row">
         <label for="sc-min-articles">{$_("storyClusters.minArticles")}</label>
-        <input
-          id="sc-min-articles"
-          type="number"
-          min="2"
-          max="20"
-          bind:value={minArticles}
-        />
+        <input id="sc-min-articles" type="number" min="2" max="20" bind:value={minArticles} />
       </div>
       <div class="setting-row">
         <label for="sc-days">{$_("storyClusters.days")}</label>
@@ -284,7 +272,7 @@
                 </span>
               </div>
               <div class="sc-card-sources">
-                {#each cluster.source_names as source}
+                {#each cluster.source_names as source, i (i)}
                   <span class="sc-source-badge">{source}</span>
                 {/each}
               </div>
@@ -320,11 +308,7 @@
           <div class="sc-detail-header">
             <h3>{clusterDetail.cluster.title}</h3>
             <div class="sc-detail-actions">
-              <button
-                class="btn-primary"
-                onclick={comparePerspectives}
-                disabled={comparing}
-              >
+              <button class="btn-primary" onclick={comparePerspectives} disabled={comparing}>
                 {#if comparing}
                   <i class="fa-solid fa-spinner fa-spin"></i>
                   {$_("storyClusters.comparing")}
@@ -351,7 +335,7 @@
                 {$_("storyClusters.comparison")}
               </h4>
               <div class="sc-comparison-text">
-                {#each clusterDetail.cluster.perspective_comparison.split("\n") as line}
+                {#each clusterDetail.cluster.perspective_comparison.split("\n") as line, i (i)}
                   {#if line.startsWith("##")}
                     <h5>{line.replace(/^#+\s*/, "")}</h5>
                   {:else if line.startsWith("#")}

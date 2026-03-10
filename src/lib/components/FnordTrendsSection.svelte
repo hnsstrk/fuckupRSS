@@ -1,11 +1,6 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
-  import type {
-    ArticleTimeline,
-    KeywordStats,
-    FeedActivity,
-    KeywordCloudEntry,
-  } from "../types";
+  import type { ArticleTimeline, KeywordStats, FeedActivity, KeywordCloudEntry } from "../types";
 
   let {
     timeline,
@@ -196,7 +191,9 @@
               <span class="keyword-rank">#{i + 1}</span>
               <span
                 class="keyword-name"
-                style="border-left: 3px solid {getKeywordTypeColor(kw.keyword_type)}; padding-left: 0.5rem;"
+                style="border-left: 3px solid {getKeywordTypeColor(
+                  kw.keyword_type,
+                )}; padding-left: 0.5rem;"
               >
                 {kw.name}
               </span>

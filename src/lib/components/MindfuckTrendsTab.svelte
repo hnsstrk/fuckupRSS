@@ -71,8 +71,7 @@
                 class="trend-bar"
                 style="height: {Math.max(
                   4,
-                  (trend.read_count / Math.max(...readingTrends.map((t) => t.read_count))) *
-                    100,
+                  (trend.read_count / Math.max(...readingTrends.map((t) => t.read_count))) * 100,
                 )}%"
                 title="{trend.read_count} {$_('mindfuck.trends.articlesRead')}"
               ></div>

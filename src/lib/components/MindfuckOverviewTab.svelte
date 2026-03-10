@@ -110,9 +110,8 @@
                     {/if}
                     <span class="subcategory-name">{sub.name}</span>
                     {#if sub.percentage < 30 && sub.total_count > 5}
-                      <span
-                        class="warning-badge"
-                        title={$_("mindfuck.blindSpots.lowReadRate")}>!</span
+                      <span class="warning-badge" title={$_("mindfuck.blindSpots.lowReadRate")}
+                        >!</span
                       >
                     {/if}
                   </div>
@@ -121,10 +120,7 @@
                       {sub.read_count}
                     </span>
                     <span class="subcategory-divider">/</span>
-                    <span
-                      class="subcategory-count"
-                      title={$_("mindfuck.categories.available")}
-                    >
+                    <span class="subcategory-count" title={$_("mindfuck.categories.available")}>
                       {sub.total_count}
                     </span>
                   </div>
@@ -150,10 +146,7 @@
 
       <!-- Main Spectrum Bar -->
       {#if readingProfile.by_bias.reduce((sum, b) => sum + b.read_count, 0) > 0}
-        {@const totalBiasReads = readingProfile.by_bias.reduce(
-          (sum, b) => sum + b.read_count,
-          0,
-        )}
+        {@const totalBiasReads = readingProfile.by_bias.reduce((sum, b) => sum + b.read_count, 0)}
         <div class="spectrum-bar-container">
           <div class="spectrum-bar">
             {#each readingProfile.by_bias as bias (bias.bias_value)}
@@ -260,9 +253,7 @@
         <span class="sachlichkeit-label-header emotional"
           >{$_("mindfuck.sachlichkeit.emotional")}</span
         >
-        <span class="sachlichkeit-label-header mixed"
-          >{$_("mindfuck.sachlichkeit.mixed")}</span
-        >
+        <span class="sachlichkeit-label-header mixed">{$_("mindfuck.sachlichkeit.mixed")}</span>
         <span class="sachlichkeit-label-header objective"
           >{$_("mindfuck.sachlichkeit.objective")}</span
         >

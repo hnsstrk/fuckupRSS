@@ -17,6 +17,12 @@ pub struct ProxyManager {
     active_remote: Mutex<Option<(String, u16)>>,
 }
 
+impl Default for ProxyManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProxyManager {
     pub fn new() -> Self {
         Self {

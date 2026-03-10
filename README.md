@@ -36,14 +36,18 @@ Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
 - **Automatische Zusammenfassungen** – 2-3 Sätze pro Artikel
 - **Kategorisierung** – Artikel werden Themen zugeordnet
 - **Stichwort-Extraktion** – Wichtige Begriffe, Personen, Orte
+- **Artikeltyp-Klassifikation** – LLM-basierte Erkennung (news, opinion, analysis, interview, review, editorial, feature, satire, press_release, other)
+- **Named Entity Recognition (NER)** – Entitäten-Extraktion (Personen, Organisationen, Orte, Events)
 - **Semantische Suche** – Finde Artikel nach Bedeutung, nicht nur Keywords
+- **Erweiterte Embeddings** – snowflake-arctic-embed2 mit bis zu 8.192 Token Kontext (title + summary + content)
 - **Flexible KI-Backends** – Ollama (lokal) oder OpenAI-kompatible APIs (OpenAI, Together.ai, Mistral, Groq etc.)
+- **Structured Outputs** – JSON Schema-basierte Antworten via `/api/chat` für zuverlässigere KI-Ergebnisse
 
 ### ⚠️ Bias-Erkennung (Greyface Alert)
 - **Politische Tendenz** – Links ↔ Rechts Spektrum
 - **Sachlichkeit** – Emotional vs. faktenbasiert
 - **Quellenqualität** – Sterne-Bewertung
-- **Artikeltyp** – Nachricht, Meinung, Analyse, Satire
+- **Artikeltyp** – Nachricht, Meinung, Analyse, Satire u.v.m.
 
 ### 📰 Volltext-Abruf (Hagbard's Retrieval)
 - Automatisches Nachladen für alle neuen Artikel
@@ -65,10 +69,21 @@ Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
 - Quellenvielfalt durch Diversity-Reranking
 - Artikel speichern und ausblenden für Feedback-Loop
 
-### 🔗 Ähnliche Artikel
+### 🔗 Ähnliche Artikel & Story Clustering
 - Vektorbasierte Ähnlichkeitssuche mit snowflake-arctic-embed2
-- Thematisch verwandte Artikel entdecken
-- Auch ohne gemeinsame Keywords
+- **Story Clustering** – Union-Find Algorithmus gruppiert Artikel zum selben Thema (Embedding-Ähnlichkeit > 0.78)
+- **Perspektiven-Vergleich** – Verschiedene Quellen zum selben Thema nebeneinander sehen
+- Thematisch verwandte Artikel entdecken, auch ohne gemeinsame Keywords
+
+### 📋 Tägliche Briefings
+- **KI-generierte Zusammenfassungen** der wichtigsten Artikel des Tages
+- Überblick über die Top-Themen auf einen Blick
+- Automatische Generierung basierend auf verarbeiteten Artikeln
+
+### 🏷️ Named Entity Recognition (NER)
+- **Entitäten-Extraktion** – Personen, Organisationen, Orte, Events
+- **EntityBadge** – Visuelle Darstellung erkannter Entitäten in Artikeln
+- **EntityExplorer** – Entitäten durchsuchen und verwandte Artikel finden
 
 ---
 
@@ -88,6 +103,8 @@ fuckupRSS verwendet durchgängig Begriffe aus der Illuminatus!-Trilogie:
 | **Greyface Alert** | Bias-Warnung |
 | **Hagbard's Retrieval** | Volltext-Abruf |
 | **Discordian Analysis** | KI-Zusammenfassung |
+| **Briefing** | Tägliche KI-Zusammenfassung der Top-Artikel |
+| **Story Cluster** | Thematisch gruppierte Artikel aus verschiedenen Quellen |
 | **Operation Mindfuck** | Interessen-Profil |
 
 ---
@@ -150,6 +167,8 @@ brew install ollama
 ollama pull ministral-3:latest
 ollama pull snowflake-arctic-embed2
 ```
+
+> **Hinweis:** fuckupRSS nutzt die Ollama `/api/chat` API mit **Structured Outputs** (JSON Schema). Dies erfordert Ollama 0.5.0+ und sorgt für zuverlässigere, schema-konforme KI-Antworten. Das Embedding-Modell snowflake-arctic-embed2 unterstützt bis zu 8.192 Tokens und wird mit erweitertem Kontext (Titel + Zusammenfassung + Artikeltext) gefüttert.
 
 ### 3. Ollama konfigurieren (Linux)
 
@@ -266,8 +285,8 @@ Die Einstellungen können direkt in der App unter "Einstellungen" geändert werd
 | Frontend | Svelte 5 |
 | Datenbank | SQLite + sqlite-vec |
 | i18n | [svelte-i18n](https://github.com/kaisermann/svelte-i18n) |
-| KI | [Ollama](https://ollama.com/) (lokal) + OpenAI-kompatible APIs |
-| Modelle | ministral-3:latest, snowflake-arctic-embed2:latest |
+| KI | [Ollama](https://ollama.com/) (lokal, `/api/chat` + Structured Outputs) + OpenAI-kompatible APIs |
+| Modelle | ministral-3:latest, snowflake-arctic-embed2:latest (8.192 Token Kontext) |
 
 ### Mehrsprachigkeit
 
@@ -291,7 +310,7 @@ Die Sprache kann in den Einstellungen gewechselt werden.
 
 ## Roadmap
 
-**Aktueller Status:** Phase 3 abgeschlossen, Phase 4 (Polish) in Entwicklung
+**Aktueller Status:** Phase 4 (Polish & Advanced Features) in Entwicklung – Ollama Modernization, Briefings, Story Clustering, NER, Article Type Classification abgeschlossen
 
 Detaillierte Planung und Phasen-Übersicht: siehe [`docs/ANFORDERUNGEN.md`](docs/ANFORDERUNGEN.md#5-roadmap-nächste-schritte)
 

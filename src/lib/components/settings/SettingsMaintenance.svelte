@@ -481,9 +481,7 @@
         <button
           type="button"
           class="btn-danger-solid"
-          onclick={confirmAction === "prune"
-            ? handlePruneLowQuality
-            : handleResetForReprocessing}
+          onclick={confirmAction === "prune" ? handlePruneLowQuality : handleResetForReprocessing}
         >
           {$_("confirm.yes")}
         </button>

@@ -3,9 +3,7 @@
 //! Generates structured briefings from recent articles using the configured
 //! AI text provider, stores them in the database, and provides retrieval.
 
-use crate::commands::ai::helpers::{
-    create_text_provider, log_generation_cost, TokenUsage,
-};
+use crate::commands::ai::helpers::{create_text_provider, log_generation_cost, TokenUsage};
 use crate::AppState;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
@@ -248,10 +246,7 @@ pub async fn generate_briefing(
 
 /// Get the most recent briefings
 #[tauri::command]
-pub fn get_briefings(
-    state: State<AppState>,
-    limit: Option<i32>,
-) -> Result<Vec<Briefing>, String> {
+pub fn get_briefings(state: State<AppState>, limit: Option<i32>) -> Result<Vec<Briefing>, String> {
     let db = state.db_conn()?;
     let conn = db.conn();
     let limit = limit.unwrap_or(10).min(50);
@@ -326,10 +321,7 @@ pub fn get_latest_briefing(
 
 /// Delete a briefing by ID
 #[tauri::command]
-pub fn delete_briefing(
-    state: State<AppState>,
-    id: i64,
-) -> Result<bool, String> {
+pub fn delete_briefing(state: State<AppState>, id: i64) -> Result<bool, String> {
     let db = state.db_conn()?;
     let conn = db.conn();
 

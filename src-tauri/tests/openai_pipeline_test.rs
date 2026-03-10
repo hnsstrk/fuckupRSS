@@ -671,7 +671,11 @@ async fn test_openai_no_truncation() {
 
     let start = std::time::Instant::now();
     let result = provider
-        .generate_text(&model, &prompt, Some(fuckuprss_lib::ollama::discordian_schema()))
+        .generate_text(
+            &model,
+            &prompt,
+            Some(fuckuprss_lib::ollama::discordian_schema()),
+        )
         .await
         .expect("API call failed for long article");
     let elapsed = start.elapsed();
@@ -840,7 +844,11 @@ async fn test_openai_provider_stability() {
         let start = std::time::Instant::now();
 
         let result = provider
-            .generate_text(&model, &prompt, Some(fuckuprss_lib::ollama::discordian_schema()))
+            .generate_text(
+                &model,
+                &prompt,
+                Some(fuckuprss_lib::ollama::discordian_schema()),
+            )
             .await
             .unwrap_or_else(|e| panic!("Request {} failed: {}", i + 1, e));
         let elapsed = start.elapsed();

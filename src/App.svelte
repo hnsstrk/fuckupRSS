@@ -17,7 +17,13 @@
   import { networkStore, appState } from "./lib/stores/state.svelte";
 
   let mainView = $state<
-    "erisianArchives" | "network" | "fnord" | "mindfuck" | "briefings" | "storyClusters" | "settings"
+    | "erisianArchives"
+    | "network"
+    | "fnord"
+    | "mindfuck"
+    | "briefings"
+    | "storyClusters"
+    | "settings"
   >("erisianArchives");
 
   // Listen for navigation events from other components

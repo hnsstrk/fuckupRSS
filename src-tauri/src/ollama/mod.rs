@@ -616,8 +616,7 @@ impl OllamaClient {
         prompt: &str,
         json_schema: Option<Value>,
     ) -> Result<String, OllamaError> {
-        let format = json_schema
-            .or_else(|| Some(Value::String("json".to_string())));
+        let format = json_schema.or_else(|| Some(Value::String("json".to_string())));
         self.chat(model, None, prompt, format).await
     }
 
@@ -710,9 +709,7 @@ impl OllamaClient {
         let bytes: bytes::Bytes = resp
             .bytes()
             .await
-            .map_err(|e: reqwest_new::Error| {
-                OllamaError::GenerationFailed(e.to_string())
-            })?;
+            .map_err(|e: reqwest_new::Error| OllamaError::GenerationFailed(e.to_string()))?;
 
         let result: ChatResponse = serde_json::from_slice(&bytes)
             .map_err(|e| OllamaError::GenerationFailed(e.to_string()))?;
@@ -754,12 +751,13 @@ impl OllamaClient {
             keep_alive: "0".to_string(),
         };
 
-        let resp = self.client().post(&url).json(&request).send().await
-            .map_err(|e| {
-                OllamaError::GenerationFailed(
-                    format!("Unload request failed: {}", e),
-                )
-            })?;
+        let resp = self
+            .client()
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| OllamaError::GenerationFailed(format!("Unload request failed: {}", e)))?;
 
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();

@@ -40,19 +40,14 @@
               1,
             )}
             <tr>
-              <td class="source-cell"
-                >{entry.pentacle_title || `Feed #${entry.pentacle_id}`}</td
-              >
+              <td class="source-cell">{entry.pentacle_title || `Feed #${entry.pentacle_id}`}</td>
               <td class="heatmap-cell" style="--intensity: {entry.bias_minus_2 / maxCell}">
                 {entry.bias_minus_2 || ""}
               </td>
               <td class="heatmap-cell" style="--intensity: {entry.bias_minus_1 / maxCell}">
                 {entry.bias_minus_1 || ""}
               </td>
-              <td
-                class="heatmap-cell neutral-cell"
-                style="--intensity: {entry.bias_0 / maxCell}"
-              >
+              <td class="heatmap-cell neutral-cell" style="--intensity: {entry.bias_0 / maxCell}">
                 {entry.bias_0 || ""}
               </td>
               <td class="heatmap-cell" style="--intensity: {entry.bias_plus_1 / maxCell}">

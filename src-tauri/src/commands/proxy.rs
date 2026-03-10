@@ -25,7 +25,7 @@ pub async fn start_ollama_proxy(
     state
         .proxy_manager
         .start(&remote_host, remote_port)
-        .map_err(|e| crate::error::FuckupError::Generic(e))?;
+        .map_err(crate::error::FuckupError::Generic)?;
 
     // Save proxy settings to DB
     {
@@ -64,7 +64,7 @@ pub async fn stop_ollama_proxy(state: State<'_, AppState>) -> CmdResult<ProxySta
     state
         .proxy_manager
         .stop()
-        .map_err(|e| crate::error::FuckupError::Generic(e))?;
+        .map_err(crate::error::FuckupError::Generic)?;
 
     // Update DB
     {

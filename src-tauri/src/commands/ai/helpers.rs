@@ -2099,9 +2099,7 @@ pub async fn discordian_analysis_via_provider(
 
     // Call provider with Discordian JSON schema
     let schema = crate::ollama::discordian_schema();
-    let result = provider
-        .generate_text(model, &prompt, Some(schema))
-        .await?;
+    let result = provider.generate_text(model, &prompt, Some(schema)).await?;
     let usage = TokenUsage::from(&result);
 
     // Parse the JSON response (same parsing as OllamaClient)
@@ -2166,9 +2164,7 @@ pub async fn analyze_bias_via_provider(
 
     // Call provider with Bias JSON schema
     let schema = crate::ollama::bias_schema();
-    let result = provider
-        .generate_text(model, &prompt, Some(schema))
-        .await?;
+    let result = provider.generate_text(model, &prompt, Some(schema)).await?;
     let usage = TokenUsage::from(&result);
 
     let raw: RawBiasAnalysis = serde_json::from_str(&result.text).map_err(|e| {
@@ -2223,9 +2219,7 @@ Content: {}"#,
     };
 
     let schema = crate::ollama::discordian_simple_schema();
-    let result = provider
-        .generate_text(model, &prompt, Some(schema))
-        .await?;
+    let result = provider.generate_text(model, &prompt, Some(schema)).await?;
     let usage = TokenUsage::from(&result);
 
     let raw: crate::ollama::RawDiscordianAnalysis =

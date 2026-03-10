@@ -96,8 +96,8 @@
 
   // Reload when tab changes
   $effect(() => {
-    // Track activeTab
-    const _tab = activeTab;
+    // Track activeTab to trigger reload on tab change
+    void activeTab;
     if (searchQuery.trim()) {
       searchEntities();
     } else {
@@ -152,11 +152,7 @@
   <!-- Tabs -->
   <div class="tab-bar">
     {#each tabs as tab (tab)}
-      <button
-        class="tab-btn"
-        class:active={activeTab === tab}
-        onclick={() => (activeTab = tab)}
-      >
+      <button class="tab-btn" class:active={activeTab === tab} onclick={() => (activeTab = tab)}>
         {getTabLabel(tab)}
       </button>
     {/each}
@@ -221,10 +217,7 @@
       <div class="entity-list">
         {#each entities as entity (entity.id)}
           <button class="entity-row" onclick={() => selectEntity(entity)}>
-            <EntityBadge
-              name={entity.name}
-              entityType={entity.entity_type}
-            />
+            <EntityBadge name={entity.name} entityType={entity.entity_type} />
             <span class="entity-count">
               {entity.article_count}
             </span>

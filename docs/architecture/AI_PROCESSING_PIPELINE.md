@@ -20,7 +20,7 @@
 
 ## Pipeline Overview
 
-The AI processing pipeline consists of 5 sequential stages that transform raw RSS content into analyzed, categorized, and searchable articles:
+The AI processing pipeline consists of 7 sequential stages that transform raw RSS content into analyzed, categorized, and searchable articles. Additional features (Briefings, Story Clustering) operate on already-processed articles.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -32,15 +32,23 @@ The AI processing pipeline consists of 5 sequential stages that transform raw RS
 │                                                                             │
 │  2. DISCORDIAN ANALYSIS                                                     │
 │     └─ Summarize, categorize, extract keywords via AiTextProvider           │
+│     └─ Includes Article Type Classification (news/analysis/opinion/...)     │
 │                                                                             │
-│  3. ARTICLE EMBEDDING                                                       │
-│     └─ Generate embedding for similarity search                             │
+│  3. ARTICLE EMBEDDING (Extended)                                            │
+│     └─ title + summary + content_full (bis 4000 chars) → Embedding          │
 │                                                                             │
 │  4. GREYFACE ALERT                                                          │
 │     └─ Bias detection (political_bias: -2 to +2, sachlichkeit: 0-4)        │
 │                                                                             │
 │  5. IMMANENTIZE NETWORK                                                     │
 │     └─ Keyword graph processing                                             │
+│                                                                             │
+│  6. NAMED ENTITY RECOGNITION (NER)                                          │
+│     └─ Extract persons, organizations, locations, events via LLM            │
+│                                                                             │
+│  7. POST-PROCESSING FEATURES                                                │
+│     ├─ Briefings: AI-generated news summaries (daily/weekly)                │
+│     └─ Story Clusters: Group similar articles for perspective comparison    │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -63,17 +71,18 @@ Full-text extraction for all articles after RSS sync.
 
 ### Stage 2: Discordian Analysis
 
-AI-powered summarization, bias detection, and keyword validation.
+AI-powered summarization, bias detection, keyword validation, and article type classification.
 
 | Aspect | Details |
 |--------|---------|
 | **Provider** | Configurable via `AiTextProvider` (Ollama or OpenAI-compatible) |
 | **Default Model** | ministral-3:latest (Ollama) or configurable (OpenAI-compatible) |
 | **Input** | `content_full` ONLY (no fallback) |
-| **Primary Output** | Summary, political_bias, sachlichkeit |
+| **Primary Output** | Summary, political_bias, sachlichkeit, article_type |
 | **Secondary Output** | Validated keywords |
 | **Optional Output** | Categories (only if statistical derivation seems wrong) |
-| **Mode** | Native JSON mode for stability |
+| **Ollama API** | `/api/chat` mit System/User Message Split |
+| **Structured Output** | JSON Schema Validierung (statt `format: "json"`) |
 | **keep_alive** | `5m` (Modell wird nach 5 Minuten Inaktivitaet entladen) |
 | **Concurrency** | Konfigurierbar via `ollama_concurrency` Setting (Standard: 1) |
 
@@ -83,23 +92,37 @@ AI-powered summarization, bias detection, and keyword validation.
 - "Re-analyze all" available in Settings with progress display
 - **Categories are primarily derived from keyword network** (statistical)
 - LLM categories serve only as optional validation/fallback
+- **Article Type Classification:** Jeder Artikel wird als `news`, `analysis`, `opinion`, `satire`, `ad` oder `unknown` klassifiziert (gespeichert in `fnords.article_type`)
 
-### Stage 3: Article Embedding
+### Stage 3: Article Embedding (Extended)
 
-Vector embedding generation for semantic similarity search.
+Vector embedding generation for semantic similarity search. Uses extended embedding input that combines title, summary, and article content for better semantic representation.
 
 | Aspect | Details |
 |--------|---------|
-| **Model** | snowflake-arctic-embed2 |
+| **Model** | snowflake-arctic-embed2 (oder konfigurierbar via `EmbeddingProvider`) |
 | **Dimensions** | 1024 |
-| **Input** | Title + first 500 characters of content |
+| **Input** | `build_embedding_text()`: Title + Summary + content_full (bis 4000 chars) |
+| **Max Input** | 4000 Zeichen (DEFAULT_EMBEDDING_MAX_CHARS), nutzt snowflake-arctic-embed2 8.192 Token Kontext |
+| **Fallback** | Falls `content_full` leer: `content_raw` als Fallback |
 | **Storage** | `fnords.embedding` + `vec_fnords` virtual table |
 | **Index** | sqlite-vec with O(log n) KNN |
 | **API** | `/api/embed` (Batch-Endpunkt, mehrere Texte pro Request) |
+| **Provider** | Konfigurierbar via `EmbeddingProvider` Trait (Ollama oder OpenAI-compatible) |
+
+**Extended Embedding Input (`build_embedding_text`):**
+```
+Title
+\n\n
+Summary (falls vorhanden)
+\n\n
+Content (bis zum verbleibenden Zeichenbudget)
+```
 
 - Automatic after successful Discordian Analysis
-- Enables similar article discovery and semantic search
+- Enables similar article discovery, semantic search, and **Story Clustering**
 - Vor dem Embedding-Schritt wird das LLM-Modell explizit aus dem VRAM entladen (`unload_model()`), damit das Embedding-Modell ausreichend VRAM hat
+- Die erweiterte Embedding-Berechnung (`build_embedding_text`) ist in `data_persistence.rs` definiert
 
 ### Stage 4: Greyface Alert
 
@@ -124,6 +147,93 @@ Processing steps:
 3. **Neighbor Update**: Calculate co-occurrence + embedding similarity
 4. **Synonym Detection**: Flag pairs with `embedding_similarity > 0.92`
 
+### Stage 6: Named Entity Recognition (NER)
+
+LLM-basierte Extraktion von benannten Entitäten aus Artikeln.
+
+| Aspect | Details |
+|--------|---------|
+| **Provider** | Configurable via `AiTextProvider` (wie Discordian Analysis) |
+| **Input** | Title + content_full (bis 3000 chars) |
+| **Output** | Entities mit Name, Typ, Mention-Count |
+| **Entity-Typen** | `person`, `organization`, `location`, `event` |
+| **Storage** | `entities` + `fnord_entities` Tabellen |
+| **Structured Output** | JSON Schema mit `ner_schema()` |
+| **Batch** | `extract_entities_batch` verarbeitet bis zu 50 Artikel |
+
+**NER-Workflow:**
+1. Artikel ohne Entities werden identifiziert (nur bereits LLM-analysierte Artikel)
+2. LLM extrahiert Entities mit Typ und Mention-Count pro Artikel
+3. Entity-Namen werden normalisiert (lowercase, Titel entfernt, Whitespace bereinigt)
+4. Deduplizierung über `(normalized_name, entity_type)` UNIQUE Constraint
+5. `article_count` und `last_seen` werden bei wiederholter Erkennung aktualisiert
+
+**Entity-Typen und Beispiele:**
+
+| Typ | Beispiele |
+|-----|-----------|
+| `person` | Angela Merkel, Elon Musk |
+| `organization` | Bundestag, EU, Microsoft |
+| `location` | Berlin, Washington D.C. |
+| `event` | Klimagipfel 2025, Bundestagswahl |
+
+### Stage 7: Post-Processing Features
+
+Features, die auf bereits verarbeiteten Artikeln aufbauen.
+
+#### Briefings (KI-generierte Nachrichten-Zusammenfassungen)
+
+| Aspect | Details |
+|--------|---------|
+| **Trigger** | Manuell vom Benutzer (daily/weekly) |
+| **Input** | Top 15 Artikel mit Zusammenfassung + Top 20 Trending Keywords |
+| **Output** | Strukturiertes Briefing (Überblick, Top-5 Themen, Trends) |
+| **Storage** | `briefings` Tabelle |
+| **Provider** | Configurable via `AiTextProvider` |
+| **Sprache** | Deutsch |
+
+**Briefing-Workflow:**
+1. Zeitraum berechnen (daily: 24h, weekly: 7 Tage)
+2. Top-15 Artikel mit Zusammenfassung aus dem Zeitraum laden
+3. Trending Keywords aus `immanentize_daily` für den Zeitraum laden
+4. Prompt mit Artikel-Liste und Keywords zusammenbauen
+5. LLM generiert strukturiertes Briefing
+6. Briefing in `briefings` Tabelle speichern (UNIQUE per Typ+Zeitraum)
+
+#### Story Clustering (Thematische Artikel-Gruppierung)
+
+| Aspect | Details |
+|--------|---------|
+| **Trigger** | Manuell vom Benutzer |
+| **Input** | Artikel mit Embeddings der letzten N Tage |
+| **Output** | Cluster verwandter Artikel mit optionalem Perspektivvergleich |
+| **Storage** | `story_clusters` + `story_cluster_articles` |
+| **Similarity Threshold** | 0.78 (Cosine Similarity) |
+| **Min. Cluster-Größe** | 3 Artikel, 2 verschiedene Quellen |
+| **Algorithmus** | Union-Find auf Embedding-Ähnlichkeitsgraph |
+
+**Clustering-Workflow:**
+```
+1. Artikel mit Embeddings laden (letzte N Tage)
+       │
+2. Für jeden Artikel: KNN-Suche via vec_fnords (k=50)
+       │
+3. Ähnlichkeitspaare filtern (similarity >= 0.78)
+       │
+4. Union-Find: Transitiv verbundene Artikel gruppieren
+       │
+5. Cluster filtern (>= 3 Artikel, >= 2 Quellen)
+       │
+6. Cluster-Titel aus gemeinsamen Keywords generieren
+       │
+7. Optional: LLM-Perspektivvergleich (compare_perspectives)
+```
+
+**Perspektivvergleich:**
+- Vergleicht die Berichterstattung verschiedener Quellen über dasselbe Thema
+- Analysiert übereinstimmende Fakten, Schwerpunkte, Widersprüche
+- Ergebnis wird in `story_clusters.perspective_comparison` gespeichert
+
 ---
 
 ## AI Provider Abstraction
@@ -137,9 +247,10 @@ Text generation is decoupled from any specific backend through the `AiTextProvid
 │                                                                             │
 │  ┌──────────────────────────────────────────────┐                          │
 │  │         AiTextProvider (trait)                 │                          │
-│  │  generate_text(model, prompt, json_mode)       │                          │
+│  │  generate_text(model, prompt, json_schema)     │                          │
 │  │  is_available()                                │                          │
 │  │  provider_name()                               │                          │
+│  │  suggested_concurrency()                       │                          │
 │  └──────────────┬───────────────┬────────────────┘                          │
 │                 │               │                                            │
 │    ┌────────────▼──┐   ┌───────▼───────────────┐                           │
@@ -148,16 +259,50 @@ Text generation is decoupled from any specific backend through the `AiTextProvid
 │    │               │   │                        │                           │
 │    │ - wraps       │   │ - reqwest HTTP client  │                           │
 │    │   OllamaClient│   │ - /v1/chat/completions │                           │
-│    │ - auto-       │   │ - token usage tracking │                           │
-│    │   prepends    │   │ - supports OpenAI,     │                           │
-│    │   /no_think   │   │   Together.ai, Mistral,│                           │
-│    └───────────────┘   │   Groq, etc.           │                           │
-│                        └────────────────────────┘                           │
+│    │ - /api/chat   │   │ - token usage tracking │                           │
+│    │   endpoint    │   │ - supports OpenAI,     │                           │
+│    │ - auto-       │   │   Together.ai, Mistral,│                           │
+│    │   prepends    │   │   Groq, etc.           │                           │
+│    │   /no_think   │   │                        │                           │
+│    └───────────────┘   └────────────────────────┘                           │
 │                                                                             │
-│  EMBEDDINGS: Always go through OllamaClient directly (unchanged)           │
+│  ┌──────────────────────────────────────────────┐                          │
+│  │         EmbeddingProvider (trait)              │                          │
+│  │  generate_embedding(text)                      │                          │
+│  │  generate_embeddings_batch(texts)              │                          │
+│  │  embedding_dimensions()                        │                          │
+│  │  provider_name()                               │                          │
+│  └──────────────┬───────────────┬────────────────┘                          │
+│                 │               │                                            │
+│    ┌────────────▼──┐   ┌───────▼───────────────┐                           │
+│    │ OllamaEmbed-  │   │ OpenAiEmbed-          │                           │
+│    │ dingProvider   │   │ dingProvider           │                           │
+│    │ /api/embed     │   │ /v1/embeddings         │                           │
+│    └───────────────┘   └────────────────────────┘                           │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Trait-Signaturen
+
+**AiTextProvider:**
+```rust
+async fn generate_text(
+    &self,
+    model: &str,
+    prompt: &str,
+    json_schema: Option<serde_json::Value>,  // JSON Schema statt bool json_mode
+) -> Result<GenerationResult, AiProviderError>;
+```
+
+**EmbeddingProvider:**
+```rust
+async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>, AiProviderError>;
+async fn generate_embeddings_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, AiProviderError>;
+fn embedding_dimensions(&self) -> usize;
+```
+
+**Wichtig:** `json_schema` ersetzt den früheren `json_mode: bool` Parameter. Provider, die JSON Schema Validierung unterstützen (Ollama 2025+, OpenAI), validieren die Antwort direkt gegen das Schema. Für andere Provider wird auf plain JSON Mode zurückgefallen.
 
 ### Provider Selection
 
@@ -179,7 +324,14 @@ When using the OpenAI-compatible provider, token usage is tracked for cost estim
 
 ### Embeddings
 
-Embeddings are **not** part of the `AiTextProvider` trait. They always go through `OllamaClient` directly using the `snowflake-arctic-embed2` model, regardless of which text generation provider is active.
+Embeddings werden über das separate `EmbeddingProvider` Trait verwaltet. Es unterstützt sowohl Ollama als auch OpenAI-kompatible Embedding-APIs:
+
+| Provider | Modell | Dimensionen | API-Endpunkt |
+|----------|--------|-------------|--------------|
+| `OllamaEmbeddingProvider` | snowflake-arctic-embed2:latest | 1024 | `/api/embed` (Batch) |
+| `OpenAiEmbeddingProvider` | text-embedding-3-small | konfigurierbar (default: 1024) | `/v1/embeddings` |
+
+Die Konfiguration erfolgt über `EmbeddingProviderConfig` und `create_embedding_provider()`.
 
 ### Source Modules
 

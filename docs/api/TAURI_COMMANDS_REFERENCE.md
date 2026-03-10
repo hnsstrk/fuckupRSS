@@ -33,6 +33,10 @@ This document provides a comprehensive reference for all Tauri commands availabl
 - [OPML Import/Export](#opml-importexport)
 - [Settings (Extended)](#settings-extended)
 - [Prompts (Extended)](#prompts-extended)
+- [Briefings (AI-generated News Summaries)](#briefings-ai-generated-news-summaries)
+- [Named Entity Recognition (NER)](#named-entity-recognition-ner)
+- [Story Clusters (Perspective Comparison)](#story-clusters-perspective-comparison)
+- [Database Maintenance](#database-maintenance)
 - [Data Structures](#data-structures)
 
 ---
@@ -44,6 +48,7 @@ This document provides a comprehensive reference for all Tauri commands availabl
 | `get_pentacles` | - | `Vec<Pentacle>` | Get all feeds with article counts |
 | `add_pentacle` | `url`, `title?` | `Pentacle` | Add a new feed |
 | `delete_pentacle` | `id` | - | Delete a feed |
+| `count_pentacle_articles` | `pentacle_id` | `PentacleArticleStats` | Get article count and favorites for a feed |
 
 ---
 
@@ -74,7 +79,13 @@ This document provides a comprehensive reference for all Tauri commands availabl
 | Command | Parameter | Return | Description |
 |---------|-----------|--------|-------------|
 | `fetch_full_content` | `fnord_id` | `RetrievalResponse` | Fetch full article content |
-| `fetch_truncated_articles` | `pentacle_id?`, `limit?` | `Vec<RetrievalResponse>` | Fetch truncated articles |
+| `fetch_truncated_articles` | `pentacle_id?` | `Vec<RetrievalResponse>` | Fetch truncated articles |
+| `refetch_short_articles` | `min_content_length?`, `limit?` | - | Re-fetch articles with short content (emits progress events) |
+| `refetch_feed_short_articles` | `pentacle_id`, `min_content_length?` | - | Re-fetch short articles for a specific feed |
+| `get_short_content_stats` | - | `ShortContentStats` | Get statistics about short/missing content |
+| `delete_null_content_articles` | - | `DeleteResponse` | Delete articles without any content |
+| `exclude_short_from_ai` | `max_length?` | `i64` | Exclude articles with short content from AI processing |
+| `fetch_fulltext_batch` | `limit?`, `concurrency?` | - | Batch full-text fetch with concurrency (emits progress events) |
 
 ---
 
@@ -87,6 +98,7 @@ This document provides a comprehensive reference for all Tauri commands availabl
 | `generate_summary` | `fnord_id`, `model` | `SummaryResponse` | Generate article summary |
 | `analyze_article` | `fnord_id`, `model` | `AnalysisResponse` | Perform bias analysis |
 | `process_article` | `fnord_id`, `model` | `(Summary, Analysis)` | Combined summary and analysis |
+| `process_article_discordian` | `fnord_id`, `model` | `DiscordianResponse` | Discordian analysis (summary, categories, keywords, bias) |
 | `get_unprocessed_count` | - | `UnprocessedCount` | Count unprocessed articles |
 | `process_batch` | `model`, `limit?` | `BatchResult` | Batch processing |
 | `pull_model` | `model` | `ModelPullResult` | Download a model |
@@ -133,10 +145,26 @@ interface ProviderTestResult {
 | `auto_prune_low_quality` | `quality_threshold`, `min_age_days`, `dry_run` | `PruneResult` | Prune low-quality keywords |
 | `queue_missing_embeddings` | - | `i64` | Queue missing embeddings |
 | `find_synonym_candidates` | `threshold?`, `limit?` | `Vec<SynonymCandidate>` | Find synonym candidates |
+| `find_true_synonyms` | `string_threshold?`, `embedding_threshold?`, `limit?` | `Vec<TrueSynonymCandidate>` | Find true synonyms using combined string + embedding similarity |
+| `verify_synonym_pair` | `keyword_a`, `keyword_b` | `SynonymVerificationResult` | Verify synonym pair using LLM |
+| `verify_synonym_pairs_batch` | `pairs` | `Vec<SynonymVerificationResult>` | Batch-verify synonym pairs using LLM |
 | `merge_keyword_pair` | `keep_id`, `remove_id` | `MergeSynonymsResult` | Merge keywords |
 | `dismiss_synonym_pair` | `keyword_a_id`, `keyword_b_id` | - | Dismiss synonym suggestion |
-| `split_compound_keywords` | `dry_run?` | `CompoundSplitResult` | Split compound keywords (e.g. "Ukraine-Krieg" → "Ukraine" + "Krieg") |
+| `assign_synonym` | `synonym_id`, `canonical_id` | - | Assign keyword as synonym of canonical keyword |
+| `unassign_synonym` | `keyword_id` | - | Remove synonym assignment from keyword |
+| `split_compound_keywords` | `dry_run?` | `CompoundSplitResult` | Split compound keywords (e.g. "Ukraine-Krieg" -> "Ukraine" + "Krieg") |
 | `preview_compound_splits` | - | `Vec<CompoundSplitDetail>` | Preview which compounds would be split |
+| `split_single_compound` | `keyword_id` | `CompoundSplitDetail` | Split a single compound keyword |
+| `preserve_compound_keyword` | `keyword_id` | - | Mark compound keyword as preserved (no splitting) |
+| `unpreserve_compound_keyword` | `keyword_id` | - | Remove preservation from compound keyword |
+| `get_preserved_compounds` | - | `Vec<Keyword>` | Get all preserved compound keywords |
+| `set_compound_decision` | `keyword_id`, `decision` | - | Set decision for compound keyword ("preserve" or "split") |
+| `get_compound_decisions` | - | `Vec<CompoundDecision>` | Get all compound keyword decisions |
+| `clear_compound_decision` | `keyword_id` | - | Remove decision for compound keyword |
+| `batch_set_compound_decisions` | `keyword_ids`, `decision` | `i64` | Set decision for multiple compound keywords |
+| `get_compound_decision_stats` | - | `CompoundDecisionStats` | Get compound decision statistics |
+| `update_keyword_type` | `keyword_id`, `keyword_type` | - | Update type of a single keyword |
+| `get_keyword_context` | `keyword_id` | `KeywordContext` | Get keyword context (articles, categories, neighbors) for tooltips |
 
 ### CompoundSplitResult Structure
 
@@ -192,7 +220,8 @@ struct HardwareProfile {
 |---------|-----------|--------|-------------|
 | `find_similar_articles` | `fnord_id`, `limit?` | `SimilarArticlesResponse` | Find similar articles |
 | `get_article_embedding_stats` | - | `ArticleEmbeddingCount` | Embedding statistics |
-| `generate_article_embeddings_batch` | `limit?` | `ArticleEmbeddingBatchResult` | Batch embedding generation |
+| `generate_article_embeddings_batch` | `limit?` | `ArticleEmbeddingBatchResult` | Batch embedding generation (emits progress events) |
+| `invalidate_all_embeddings` | - | `i64` | Set all article embeddings to NULL for re-generation |
 | `semantic_search` | `query`, `limit?` | `SemanticSearchResponse` | Semantic search (threshold >= 0.3) |
 
 ### SimilarArticle Structure
@@ -221,8 +250,14 @@ struct SimilarArticle {
 | `add_article_category` | `fnord_id`, `sephiroth_id` | - | Add category |
 | `remove_article_category` | `fnord_id`, `sephiroth_id` | - | Remove category |
 | `analyze_article_statistical` | `fnord_id` | `StatisticalAnalysis` | Statistical analysis only |
+| `get_unprocessed_statistical_count` | - | `i64` | Count articles without statistical analysis |
+| `process_statistical_batch` | `limit?` | `BatchStatisticalResult` | Batch statistical analysis (emits progress events) |
 | `record_correction` | `correction` | - | Record correction for bias learning |
 | `get_bias_stats` | - | `BiasStats` | Get bias statistics |
+| `get_similar_keywords` | `keyword_id`, `limit?`, `method?` | `Vec<SimilarKeywordInfo>` | Find similar keywords by method (embedding/cooccurrence) |
+| `get_keyword_suggestions_from_network` | `fnord_id`, `limit?` | `Vec<SimilarKeywordInfo>` | Suggest keywords from network neighbors |
+| `score_keywords_semantically` | `fnord_id`, `keywords`, `semantic_weight?` | `Vec<SemanticKeywordScore>` | Score keywords by semantic relevance |
+| `fix_category_assignments` | - | `CategoryFixResult` | Re-derive categories from keyword-category associations |
 
 ### ArticleKeyword Structure
 
@@ -300,10 +335,10 @@ struct ArticleKeyword {
 | `get_network_stats` | - | `NetworkStats` | Get network statistics |
 | `search_keywords` | `query`, `limit?` | `Vec<Keyword>` | Search keywords |
 | `get_keyword_trend` | `id`, `days?` | `Vec<TrendPoint>` | Get keyword trend |
-| `get_network_graph` | `limit?` | `NetworkGraph` | Get graph data for visualization |
-| `get_trending_comparison` | `keyword_ids`, `days?` | `TrendComparison` | Compare trends |
-| `get_keyword_articles` | `id`, `limit?` | `Vec<Fnord>` | Get articles of a keyword |
-| `get_cooccurring_keywords` | `id`, `limit?` | `Vec<CooccurringKeyword>` | Get co-occurring keywords |
+| `get_network_graph` | `limit?`, `min_weight?`, `min_article_count?` | `NetworkGraph` | Get graph data for visualization |
+| `get_trending_comparison` | `ids`, `days?` | `TrendComparison` | Compare trends |
+| `get_keyword_articles` | `id`, `limit?`, `offset?` | `Vec<Fnord>` | Get articles of a keyword |
+| `get_cooccurring_keywords` | `id`, `days?`, `limit?` | `Vec<CooccurringKeyword>` | Get co-occurring keywords |
 | `create_keyword` | `name` | `CreateKeywordResult` | Create keyword |
 | `delete_keyword` | `id` | - | Delete keyword |
 | `rename_keyword` | `id`, `new_name` | `String` | Rename keyword |
@@ -311,8 +346,8 @@ struct ArticleKeyword {
 | `get_keyword_health` | - | `KeywordHealthStats` | Get health statistics |
 | `merge_synonym_keywords` | - | `MergeResult` | Auto-merge synonyms |
 | `cleanup_garbage_keywords` | - | `CleanupResult` | Remove garbage keywords |
-| `find_similar_keywords` | `id`, `threshold?` | `Vec<SimilarKeyword>` | Find similar keywords |
-| `auto_merge_similar_keywords` | `threshold?`, `dry_run?` | `AutoMergeResult` | Auto-merge similar |
+| `find_similar_keywords` | `keyword_id`, `threshold?`, `limit?` | `Vec<SimilarKeyword>` | Find similar keywords |
+| `auto_merge_similar_keywords` | `threshold?`, `limit?`, `dry_run?` | `AutoMergeResult` | Auto-merge similar |
 | `update_keyword_types` | - | `KeywordTypeUpdateResult` | Update keyword types |
 | `cleanup_keywords` | - | `KeywordCleanupResult` | Complete cleanup |
 
@@ -340,6 +375,7 @@ struct ArticleKeyword {
 | `get_changed_count` | - | `i64` | Count changed articles |
 | `reset_all_changes` | - | `i64` | Reset all changes |
 | `get_fnord_stats` | - | `FnordStats` | Get general statistics |
+| `get_article_type_counts` | - | `Vec<(String, i64)>` | Get article count per type (news/analysis/opinion/...) |
 | `get_subcategory_stats` | `sephiroth_id` | `Vec<SubcategoryStat>` | Get subcategory stats |
 | `get_article_timeline` | `days?` | `Vec<TimelineEntry>` | Get article timeline |
 | `get_greyface_index` | - | `GreyfaceIndex` | Get bias index |
@@ -437,8 +473,12 @@ interface CostEntry {
 | `get_unprocessed_count` | - | `UnprocessedCount` | Count unprocessed |
 | `get_failed_count` | - | `FailedCount` | Count failed |
 | `get_hopeless_count` | - | `HopelessCount` | Count hopeless |
+| `get_failed_articles` | `limit?`, `offset?` | `Vec<AnalysisStatusArticle>` | Get articles with failed analysis attempts |
+| `get_hopeless_articles` | `limit?`, `offset?` | `Vec<AnalysisStatusArticle>` | Get articles marked as hopeless |
 | `process_batch` | `limit?` | `BatchResult` | Process batch (async) |
 | `cancel_batch` | - | - | Cancel batch |
+| `reset_failed_articles` | - | `i64` | Reset failed articles for retry |
+| `reset_hopeless_articles` | - | `i64` | Reset hopeless articles for retry |
 
 ---
 
@@ -490,6 +530,7 @@ interface ProxyStatus {
 | `get_system_theme` | - | `String` | Get system theme |
 | `get_log_levels` | - | `Vec<String>` | Get available log levels |
 | `set_log_level` | `level` | - | Set log level |
+| `get_platform` | - | `String` | Get OS platform ("macos", "linux", "windows") |
 
 ---
 

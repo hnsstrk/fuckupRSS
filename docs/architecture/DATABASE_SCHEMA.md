@@ -48,9 +48,13 @@ Stores articles/entries from feeds (named after Illuminatus! terminology for art
 | `summary` | TEXT | AI-generated summary |
 | `political_bias` | INTEGER | -2 to +2 (left to right) |
 | `sachlichkeit` | INTEGER | 0-4 (objectivity score) |
+| `article_type` | TEXT | Article type classification: `news`, `analysis`, `opinion`, `satire`, `ad`, `unknown` (Default: `unknown`) |
 | `embedding` | BLOB | 1024-dim article embedding |
 | `processed_at` | TEXT | AI processing timestamp |
 | `created_at` | TEXT | Creation timestamp |
+
+**Indizes:**
+- `idx_fnords_article_type` auf `article_type`
 
 ### `fnord_revisions` - Article Version History
 
@@ -419,6 +423,125 @@ Tracks token usage and estimated costs for OpenAI-compatible API providers. Used
 
 ---
 
+## Briefings (KI-generierte Nachrichten-Zusammenfassungen)
+
+### `briefings` - AI-generated Briefings
+
+Stores AI-generated news briefings (daily/weekly) that summarize the most important articles and trending keywords of a given period.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER | Primary key (autoincrement) |
+| `period_type` | TEXT | `'daily'` or `'weekly'` (CHECK constraint) |
+| `period_start` | DATETIME | Start of the summarized period |
+| `period_end` | DATETIME | End of the summarized period |
+| `content` | TEXT | AI-generated briefing text (markdown) |
+| `top_keywords` | TEXT | Comma-separated trending keywords for the period |
+| `article_count` | INTEGER | Number of articles used for the briefing |
+| `model_used` | TEXT | AI model used for generation |
+| `created_at` | DATETIME | Creation timestamp (default: current datetime) |
+
+**Constraints:**
+- `UNIQUE(period_type, period_start)` - Nur ein Briefing pro Typ und Zeitraum
+
+**Indizes:**
+- `idx_briefings_created` auf `created_at DESC`
+- `idx_briefings_period` auf `(period_type, period_start DESC)`
+
+**Generierung:**
+- Bis zu 15 aktuelle Artikel mit Zusammenfassung als Input
+- Trending Keywords aus `immanentize_daily` als zusätzlicher Kontext
+- Prompt erzeugt strukturiertes Briefing (Überblick, Top-5 Themen, Trends)
+
+---
+
+## Story Clusters (Themenbezogene Artikel-Gruppen)
+
+### `story_clusters` - Topic Clusters
+
+Groups related articles by topic for perspective comparison. Clusters are discovered automatically by analyzing article embedding similarities using a Union-Find algorithm.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER | Primary key (autoincrement) |
+| `title` | TEXT | Cluster title (generated from common keywords) |
+| `summary` | TEXT | Optional cluster summary |
+| `perspective_comparison` | TEXT | AI-generated perspective comparison text |
+| `article_count` | INTEGER | Number of articles in the cluster |
+| `created_at` | DATETIME | Creation timestamp (default: current datetime) |
+| `updated_at` | DATETIME | Last update timestamp (default: current datetime) |
+
+### `story_cluster_articles` - Cluster-Article Mapping
+
+Links articles to their story cluster with similarity scores.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `cluster_id` | INTEGER | FK to story_clusters (ON DELETE CASCADE) |
+| `fnord_id` | INTEGER | FK to fnords (ON DELETE CASCADE) |
+| `similarity_score` | REAL | Cosine similarity score to cluster (0.0-1.0) |
+
+**Primary Key:** `(cluster_id, fnord_id)`
+
+**Indizes:**
+- `idx_sca_fnord` auf `fnord_id`
+
+**Clustering-Algorithmus:**
+- Artikel mit Embeddings der letzten N Tage werden geladen
+- Ähnlichkeitspaare via `vec_fnords` KNN-Suche (k=50) identifiziert
+- Cosine-Similarity-Threshold: **0.78** (nur Paare darüber werden verbunden)
+- Union-Find-Algorithmus gruppiert transitiv verbundene Artikel
+- Cluster müssen mindestens 3 Artikel und 2 verschiedene Quellen haben
+- Cluster älter als 30 Tage werden automatisch gelöscht
+
+---
+
+## Named Entity Recognition (NER)
+
+### `entities` - Named Entities
+
+Stores named entities (persons, organizations, locations, events) extracted from articles via LLM-based NER.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER | Primary key (autoincrement) |
+| `name` | TEXT | Entity name (original form) |
+| `entity_type` | TEXT | `'person'`, `'organization'`, `'location'`, or `'event'` (CHECK constraint) |
+| `normalized_name` | TEXT | Normalized name for deduplication (lowercase, titles removed) |
+| `article_count` | INTEGER | Number of articles mentioning this entity |
+| `first_seen` | DATETIME | First occurrence timestamp |
+| `last_seen` | DATETIME | Last occurrence timestamp |
+
+**Constraints:**
+- `UNIQUE(normalized_name, entity_type)` - Deduplizierung über normalisierte Form + Typ
+
+**Indizes:**
+- `idx_entities_type` auf `entity_type`
+- `idx_entities_normalized` auf `normalized_name`
+
+**Normalisierung:**
+- Kleinschreibung, Trimming
+- Entfernung gängiger Titel/Prefixe (Dr., Prof., Mr., Herr, etc.)
+- Zusammenfassung mehrerer Leerzeichen
+
+### `fnord_entities` - Article-Entity Mapping
+
+Links articles to their extracted named entities with mention counts.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `fnord_id` | INTEGER | FK to fnords (ON DELETE CASCADE) |
+| `entity_id` | INTEGER | FK to entities (ON DELETE CASCADE) |
+| `mention_count` | INTEGER | How often the entity is mentioned in the article |
+| `confidence` | REAL | Extraction confidence (default: 0.8) |
+
+**Primary Key:** `(fnord_id, entity_id)`
+
+**Indizes:**
+- `idx_fnord_entities_entity` auf `entity_id`
+
+---
+
 ## Settings & Configuration
 
 ### `settings` - Application Settings
@@ -482,7 +605,9 @@ pentacles (Feeds)
             +-- fnord_sephiroth (Category Mappings)
             +-- fnord_immanentize (Keyword Mappings)
             +-- fnord_tags (User Tags)
+            +-- fnord_entities (Entity Mappings)
             +-- recommendation_feedback (User Feedback)
+            +-- story_cluster_articles (Cluster Membership)
             +-- vec_fnords (Vector Index)
 
 sephiroth (Categories)
@@ -500,10 +625,19 @@ immanentize (Keywords)
     +-- vec_immanentize (Vector Index)
     +-- embedding_queue
 
+entities (Named Entities)
+    |
+    +-- fnord_entities
+
+story_clusters (Topic Clusters)
+    |
+    +-- story_cluster_articles
+
 tags
     |
     +-- fnord_tags
 
+briefings (Standalone)
 stopwords (Standalone)
 corpus_stats (Standalone)
 bias_weights (Standalone)
@@ -536,3 +670,7 @@ The `source` field in mapping tables indicates provenance:
 5. **Settings persistence:** Alle Einstellungen werden in der `settings`-Tabelle gespeichert (Key-Value-Store)
 6. **Revisionsverwaltung:** Artikeländerungen werden vollständig in `fnord_revisions` protokolliert
 7. **AI cost tracking:** Token usage and estimated costs for OpenAI-compatible providers are logged in `ai_cost_log`, with monthly limits enforced via `cost_limit_monthly` setting
+8. **Article type:** Artikel werden durch LLM-Analyse als `news`, `analysis`, `opinion`, `satire`, `ad` oder `unknown` klassifiziert (Migration 26)
+9. **Briefings:** KI-generierte Nachrichten-Zusammenfassungen (täglich/wöchentlich) werden in `briefings` gespeichert (Migration 27)
+10. **Story Clusters:** Thematisch verwandte Artikel werden via Embedding-Ähnlichkeit (>0.78) und Union-Find zu Clustern gruppiert (Migration 28)
+11. **Named Entities:** Personen, Organisationen, Orte und Events werden via LLM-basierter NER extrahiert und in `entities`/`fnord_entities` gespeichert (Migration 29)

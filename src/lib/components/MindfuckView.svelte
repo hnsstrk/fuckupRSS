@@ -146,16 +146,9 @@
 
   <div class="tab-content">
     {#if activeTab === "overview"}
-      <MindfuckOverviewTab
-        {readingProfile}
-        {loadingProfile}
-        {biasIndicator}
-      />
+      <MindfuckOverviewTab {readingProfile} {loadingProfile} {biasIndicator} />
     {:else if activeTab === "blindSpots"}
-      <MindfuckBlindSpotsTab
-        {blindSpots}
-        {loadingBlindSpots}
-      />
+      <MindfuckBlindSpotsTab {blindSpots} {loadingBlindSpots} />
     {:else if activeTab === "recommendations"}
       <RecommendationList onArticleClick={handleReadArticle} />
     {:else if activeTab === "trends"}

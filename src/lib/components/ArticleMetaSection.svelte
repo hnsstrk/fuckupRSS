@@ -193,7 +193,7 @@
       <div class="meta-content">
         {#if entities.length > 0}
           <div class="entity-badges">
-            {#each typeOrder as type}
+            {#each typeOrder as type (type)}
               {#if entityGroups[type]}
                 {#each entityGroups[type] as entity (entity.id)}
                   <EntityBadge
@@ -207,11 +207,7 @@
             {/each}
           </div>
         {:else}
-          <button
-            class="extract-btn"
-            onclick={extractEntities}
-            disabled={extractingEntities}
-          >
+          <button class="extract-btn" onclick={extractEntities} disabled={extractingEntities}>
             {#if extractingEntities}
               <i class="fa-solid fa-spinner fa-spin"></i>
               {$_("entities.extracting")}

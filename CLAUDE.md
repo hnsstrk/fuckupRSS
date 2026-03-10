@@ -49,7 +49,7 @@ Die `TODO.md` enthaelt nur noch erledigte Items als Referenz und einen Verweis a
 
 fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U.C.K.U.P. from the Illuminatus! trilogy. It supports both Ollama (local) and OpenAI-compatible APIs for text generation. Ollama remains required for embeddings. The AI provider is configurable via Settings.
 
-**Status:** Phase 3 abgeschlossen, Phase 4 (Polish) in Entwicklung
+**Status:** Phase 4 (Polish & Advanced Features) in Entwicklung – Ollama Modernization, Briefings, Story Clustering, NER, Article Type Classification abgeschlossen
 
 **Planung:** Alle Phasen und Tasks sind in [`docs/ANFORDERUNGEN.md`](docs/ANFORDERUNGEN.md#5-roadmap-nächste-schritte) dokumentiert.
 
@@ -385,7 +385,11 @@ fuckupRSS/
 │   │   ├── components/           # UI-Komponenten
 │   │   │   ├── Sidebar.svelte    # Feed-Liste (Pentacles)
 │   │   │   ├── ArticleList.svelte # Artikel-Liste (Fnords)
-│   │   │   └── ArticleView.svelte # Artikel-Ansicht
+│   │   │   ├── ArticleView.svelte # Artikel-Ansicht
+│   │   │   ├── BriefingView.svelte # Taegliche KI-Briefings
+│   │   │   ├── StoryClusterView.svelte # Story Cluster Ansicht
+│   │   │   ├── EntityBadge.svelte # NER Entitaeten-Badge
+│   │   │   └── EntityExplorer.svelte # NER Entitaeten-Explorer
 │   │   └── stores/
 │   │       ├── state.svelte.ts   # Runes-basiertes State Management
 │   │       └── network.svelte.ts # Immanentize Network Store (Keywords, Trending, Graph)
@@ -407,7 +411,10 @@ fuckupRSS/
 │   │       ├── ai/               # KI-Provider Commands (Test, Kosten)
 │   │       ├── proxy.rs          # Ollama LAN-Proxy Commands
 │   │       ├── pentacles.rs      # Feed-Operationen
-│   │       └── fnords.rs         # Artikel-Operationen
+│   │       ├── fnords.rs         # Artikel-Operationen
+│   │       ├── briefings.rs      # Taegl. KI-Briefings (generate, get, list, delete)
+│   │       ├── story_clusters.rs # Story Clustering (Union-Find, Perspektiven)
+│   │       └── entities.rs       # NER Entitaeten (CRUD, Suche)
 │   ├── Cargo.toml
 │   ├── rustfmt.toml              # Rust Formatierung (max_width=100)
 │   └── clippy.toml               # Clippy Config (threshold=8)
@@ -417,10 +424,14 @@ fuckupRSS/
 │   ├── architecture/
 │   │   ├── AI_PROCESSING_PIPELINE.md
 │   │   └── DATABASE_SCHEMA.md
-│   └── guides/
-│       ├── TESTING.md
-│       ├── QUALITY_CHECKLIST.md
-│       └── CI_CD_SETUP.md
+│   ├── guides/
+│   │   ├── TESTING.md
+│   │   ├── QUALITY_CHECKLIST.md
+│   │   └── CI_CD_SETUP.md
+│   ├── plans/
+│   │   └── 2026-03-10-ollama-potenzial-tier1-tier2-design.md
+│   └── reports/
+│       └── OLLAMA_KI_RECHERCHE_2026.md
 ├── .claude/                      # Claude Code Konfiguration
 │   └── skills/
 │       └── playwright-cli/       # Playwright CLI Skills
@@ -518,6 +529,24 @@ await invoke('get_cost_history', { months });
 await invoke('start_ollama_proxy', { remoteHost, remotePort });
 await invoke('stop_ollama_proxy');
 await invoke('get_ollama_proxy_status');
+
+// Briefings
+await invoke('generate_briefing', { date });
+await invoke('get_briefing', { date });
+await invoke('list_briefings', { limit });
+await invoke('delete_briefing', { id });
+
+// Story Clustering
+await invoke('run_story_clustering');
+await invoke('get_story_clusters', { filter });
+await invoke('get_cluster_articles', { clusterId });
+await invoke('get_cluster_perspectives', { clusterId });
+
+// Named Entity Recognition (NER)
+await invoke('extract_entities', { fnordId });
+await invoke('get_entities', { filter });
+await invoke('get_fnord_entities', { fnordId });
+await invoke('search_entities', { query });
 ```
 
 ## Database Schema
@@ -526,10 +555,15 @@ Siehe [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.m
 
 **Kern-Tabellen:**
 - `pentacles` - Feed-Quellen
-- `fnords` - Artikel
+- `fnords` - Artikel (inkl. `article_type` Spalte fuer LLM-basierte Klassifikation)
 - `sephiroth` - Kategorien (13 fest definiert)
 - `immanentize` - Keywords mit Embeddings
 - `ai_cost_log` - Kostenprotokoll fuer OpenAI-kompatible API-Aufrufe
+- `briefings` - Taegliche KI-generierte Zusammenfassungen der Top-Artikel
+- `story_clusters` - Thematische Artikel-Gruppen (Union-Find, Embedding-Aehnlichkeit > 0.78)
+- `story_cluster_articles` - Zuordnung Artikel zu Story Clusters
+- `entities` - Erkannte Entitaeten (person, organization, location, event)
+- `fnord_entities` - Verknuepfung Artikel ↔ Entitaeten (n:m)
 
 Schema-Definition: `src-tauri/src/db/schema.rs`
 
@@ -674,6 +708,9 @@ Folgende kritische Bugs wurden in den Datenbank-Operationen behoben:
 | `src-tauri/src/sync/mod.rs` | Feed-Sync | store_feed Transaction |
 | `src-tauri/src/commands/batch_processor.rs` | Batch-Verarbeitung | Per-Item Locks |
 | `src-tauri/src/commands/article_analysis.rs` | Artikel-Analyse | Statistical Batch |
+| `src-tauri/src/commands/briefings.rs` | Briefing-Generierung | Taegl. KI-Zusammenfassungen |
+| `src-tauri/src/commands/story_clusters.rs` | Story Clustering | Union-Find, Perspektiven |
+| `src-tauri/src/commands/entities.rs` | NER Entitaeten | CRUD, Suche |
 
 ## Frontend Event-System (Daten-Refresh)
 
@@ -711,10 +748,13 @@ Siehe [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESS
 
 **Kurzuebersicht:**
 1. **Hagbard's Retrieval** - Volltext abrufen (automatisch nach Sync)
-2. **Discordian Analysis** - Zusammenfassung, Kategorien, Keywords via ministral
-3. **Article Embedding** - 1024-dim Embedding fuer Aehnlichkeitssuche
+2. **Discordian Analysis** - Zusammenfassung, Kategorien, Keywords, Artikeltyp, NER via ministral (Structured Outputs mit JSON Schema)
+3. **Article Embedding** - 1024-dim Embedding fuer Aehnlichkeitssuche (erweiterter Kontext: title + summary + content_full bis 4000 chars, snowflake-arctic-embed2 mit 8.192 Token Limit)
 4. **Greyface Alert** - Bias-Erkennung (political_bias: -2 bis +2)
 5. **Immanentize Network** - Schlagwort-Verarbeitung und Synonym-Erkennung
+6. **Story Clustering** - Union-Find Gruppierung thematisch verwandter Artikel (Embedding-Aehnlichkeit > 0.78)
+7. **Briefing Generation** - Taegliche KI-Zusammenfassung der Top-Artikel
+8. **Named Entity Recognition** - Entitaeten-Extraktion (person, organization, location, event)
 
 **Content-Felder:**
 | Feld | Zweck | Quelle |
@@ -736,7 +776,9 @@ ollama pull snowflake-arctic-embed2:latest
 
 **Hinweis:** Bei Modellwechsel muessen alle Keywords neu eingebettet werden (Settings -> Wartung -> Embeddings generieren).
 
-**Embedding-API:** Embeddings werden ueber den `/api/embed` Batch-Endpunkt in einem einzigen Request erzeugt (nicht mehr `/api/embeddings` pro Text). Nach der LLM-Analyse wird das LLM-Modell explizit entladen (`keep_alive: 5m`), bevor das Embedding-Modell geladen wird.
+**Ollama API Modernisierung (Maerz 2026):** Textgenerierung nutzt jetzt `/api/chat` (statt `/api/generate`) mit System/User Messages und **Structured Outputs** (JSON Schema statt `format: "json"` bool). Die `generate_text()` Signatur im `AiTextProvider` Trait ist jetzt `json_schema: Option<serde_json::Value>` statt `json_mode: bool`. Dies erfordert Ollama 0.5.0+.
+
+**Embedding-API:** Embeddings werden ueber den `/api/embed` Batch-Endpunkt in einem einzigen Request erzeugt (nicht mehr `/api/embeddings` pro Text). `build_embedding_text()` nutzt jetzt title + summary + content_full (bis 4000 chars) fuer reichhaltigeren Kontext. snowflake-arctic-embed2 unterstuetzt bis zu 8.192 Tokens. Nach der LLM-Analyse wird das LLM-Modell explizit entladen (`keep_alive: 5m`), bevor das Embedding-Modell geladen wird.
 
 **Alternative Text-Generation:** Anstelle von Ollama kann fuer Textgenerierung (Zusammenfassungen, Kategorisierung, Bias-Erkennung) auch eine OpenAI-kompatible API verwendet werden. Die Konfiguration erfolgt in Settings -> KI-Provider (API-URL, API-Key, Modellname). Ollama bleibt weiterhin erforderlich fuer Embeddings (snowflake-arctic-embed2).
 

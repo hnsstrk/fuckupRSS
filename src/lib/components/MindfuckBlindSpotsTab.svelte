@@ -52,9 +52,7 @@
     <div class="blind-spots-grid">
       {#each blindSpots as spot (spot.name)}
         {@const readPercentage =
-          spot.available_count > 0
-            ? Math.round((spot.read_count / spot.available_count) * 100)
-            : 0}
+          spot.available_count > 0 ? Math.round((spot.read_count / spot.available_count) * 100) : 0}
         {@const severityColor = getSeverityColor(spot.severity)}
         {@const categoryColor = spot.main_category_color || severityColor}
         <div

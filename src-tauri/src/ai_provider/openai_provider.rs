@@ -336,8 +336,7 @@ impl AiTextProvider for OpenAiCompatibleProvider {
         debug!(
             "[OpenAI] Sending request to '{}' model '{}' \
              (prompt: {} chars, json_mode: {}, max_tokens: {})",
-            self.base_url, model, prompt_len, json_mode,
-            MAX_COMPLETION_TOKENS
+            self.base_url, model, prompt_len, json_mode, MAX_COMPLETION_TOKENS
         );
         let request_start = Instant::now();
 

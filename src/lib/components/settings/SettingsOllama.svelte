@@ -768,7 +768,8 @@
                   embeddingServerDropdownOpen = !embeddingServerDropdownOpen;
                 }}
               >
-                <i class="fa-solid {embeddingServerDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"></i>
+                <i class="fa-solid {embeddingServerDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"
+                ></i>
               </button>
             </div>
             {#if embeddingServerDropdownOpen && serverHistory.length > 0}

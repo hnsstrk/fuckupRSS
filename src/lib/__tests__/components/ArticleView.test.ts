@@ -654,11 +654,7 @@ describe("ArticleView Component Logic", () => {
       ];
       vi.mocked(appState.findSimilarArticles).mockResolvedValue(mockSimilar);
 
-      const loadSimilarArticles = async (
-        fnordId: number,
-        hasEmbedding: boolean,
-        limit: number,
-      ) => {
+      const loadSimilarArticles = async (fnordId: number, hasEmbedding: boolean, limit: number) => {
         if (hasEmbedding) {
           return await appState.findSimilarArticles(fnordId, limit);
         }
@@ -672,11 +668,7 @@ describe("ArticleView Component Logic", () => {
     });
 
     it("does not load similar articles without embedding", async () => {
-      const loadSimilarArticles = async (
-        fnordId: number,
-        hasEmbedding: boolean,
-        limit: number,
-      ) => {
+      const loadSimilarArticles = async (fnordId: number, hasEmbedding: boolean, limit: number) => {
         if (hasEmbedding) {
           return await appState.findSimilarArticles(fnordId, limit);
         }

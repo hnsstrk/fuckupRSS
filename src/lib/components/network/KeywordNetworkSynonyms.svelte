@@ -181,7 +181,6 @@
       onCreateNewKeyword();
     }
   }
-
 </script>
 
 <div class="synonyms-view">
@@ -628,7 +627,6 @@
       </div>
     {/if}
   </div>
-
 </div>
 
 <style>
