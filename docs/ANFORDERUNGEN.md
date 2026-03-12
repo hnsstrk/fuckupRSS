@@ -1,8 +1,8 @@
 # fuckupRSS – Anforderungsdokument
 
-**Version:** 0.7
-**Datum:** 2026-01-18
-**Status:** Phase 4 (Polish) in Entwicklung
+**Version:** 0.8
+**Datum:** 2026-03-12
+**Status:** Phase 4 (Polish & Advanced Features) weitgehend abgeschlossen, Phase 5 (Release) in Planung
 
 > Dieses Dokument ist der zentrale Roadmap- und Governance-Index für fuckupRSS.
 > Technische Details wurden in modulare Dokumentation ausgelagert.
@@ -119,7 +119,7 @@ Für eine vollständige Übersicht aller Dokumente: **[README.md](README.md)**
 | **Frontend** | Svelte 5 |
 | **Backend** | Rust |
 | **Datenbank** | SQLite + sqlite-vec |
-| **KI-Backend** | Ollama (lokal) |
+| **KI-Backend** | Ollama (lokal) oder OpenAI-kompatible API |
 | **Hauptmodell** | ministral-3:latest (6 GB) |
 | **Embedding-Modell** | snowflake-arctic-embed2 (1.2 GB, 1024-dim) |
 | **Bias: Politisch** | Skala -2 bis +2 |
@@ -160,27 +160,48 @@ Für eine vollständige Übersicht aller Dokumente: **[README.md](README.md)**
 - [x] Artikel-Embeddings + sqlite-vec
 - [x] Ähnliche Artikel (Vektor-Ähnlichkeit)
 - [x] Semantische Suche
+- [x] Artikeltyp-Klassifikation (news, analysis, opinion, satire, ad, unknown)
 
-### Phase 4: Polish (Aktuell)
+### Phase 4: Polish & Advanced Features ✅
 - [x] Operation Mindfuck (Personalisierte Empfehlungen)
 - [x] OPML Import/Export
-- [ ] Performance-Optimierung für >10K Artikel
-- ~~Erweiterte Keyboard-Shortcuts~~ (gestrichen)
+- [x] Erweiterte Keyboard-Shortcuts (Vim-Style: j/k, o/Enter, v, r/u, s, a, /, f)
+- [x] Tägliche Briefings (KI-generierte Zusammenfassungen der Top-Artikel)
+- [x] Story Clustering (Union-Find Algorithmus, Embedding-Ähnlichkeit > 0.78, Perspektiven-Vergleich)
+- [x] Named Entity Recognition (NER) – Personen, Organisationen, Orte, Events
+- [x] OpenAI-kompatible API als Alternative zu Ollama für Textgenerierung
+- [x] Ollama API Modernisierung (Structured Outputs, /api/chat, /api/embed Batch)
+- [ ] Performance-Optimierung für >10K Artikel (PRAGMA-Settings, Indexierung)
 - ~~Desktop-Notifications~~ (gestrichen)
 
+### Phase 4.5: Refactoring & Tech Debt (Laufend)
+- [ ] Große Frontend-Komponenten aufteilen (CompoundKeywordManager, KeywordNetworkSynonyms, KeywordNetworkDetail, ArticleKeywords, SettingsOllama – je >1400 Zeilen)
+- [ ] Deprecated KeywordWithSource durch KeywordWithMetadata ersetzen
+- [ ] Orphaned immanentize_clusters nach Keyword-Deletion bereinigen
+- [ ] E2E-Tests: Mock-System verbessern oder Limitationen dokumentieren (9 skipped)
+- [ ] ollama-rs Crate evaluieren (aktuell manuelle reqwest-Aufrufe)
+
 ### Phase 5: Release
-- [ ] Linux-Paketierung (.deb, .rpm, AppImage)
-- [ ] macOS-Build + Signierung
+- [ ] Linux-Paketierung (.deb, AppImage – vorhanden; .rpm – ausstehend)
+- [ ] macOS-Build (vorhanden) + Code-Signing + Notarization
+- [ ] CI/CD-Optimierung (Caching: Rust-Toolchain, Semgrep, Cargo-Tools; Runner-Image pinnen; Dependency-Automation)
+- [ ] API-Versionierung und CHANGELOG
+- [ ] Performance Benchmarks (criterion.rs)
 - [ ] Dokumentation finalisieren
 - [ ] Release v1.0
 
 ### Technische Schulden
 
+Details in [DB_INFRASTRUCTURE_DEBT.md](DB_INFRASTRUCTURE_DEBT.md) und [TECH_DEBT_REPORT.md](TECH_DEBT_REPORT.md).
+
 | Priorität | Thema | Beschreibung |
 |-----------|-------|--------------|
+| Hoch | Race Condition | `selectView("changed")` kopiert Daten vor async Load |
 | Mittel | Hardware-Dokumentation | Konfigurationsrichtlinien aktualisieren |
+| Mittel | GTK3-Bindings | cargo-audit Warnings durch transitive Tauri-Dependencies |
 | Niedrig | Test-Coverage | E2E-Tests für KI-Features erweitern |
-| Niedrig | Clustering | Batch-Optimierung evaluieren |
+| Niedrig | SQLite-Tuning | PRAGMA-Settings, Indexierung für >10K Artikel |
+| Niedrig | Clustering Feature Flag | `#[cfg(feature = "clustering")]` Aktivierung prüfen |
 
 ---
 
@@ -200,9 +221,12 @@ Für eine vollständige Übersicht aller Dokumente: **[README.md](README.md)**
 | Hagbard's Retrieval | Volltext-Abruf |
 | Discordian Analysis | KI-Zusammenfassung |
 | Fnord Processing | Batch-Verarbeitung |
+| Briefing | Tägliche/wöchentliche KI-Zusammenfassung der Top-Artikel |
+| Story Cluster | Thematisch gruppierte Artikel aus verschiedenen Quellen |
+| Entity / NER | Erkannte Entitäten (Person, Organization, Location, Event) |
 
 ---
 
 *Dokument erstellt: 2025-01-04*
-*Letzte Konsolidierung: 2026-01-18*
+*Letzte Aktualisierung: 2026-03-12*
 *fuckupRSS – "Immanentize the Eschaton, one feed at a time."*

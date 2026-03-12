@@ -36,7 +36,7 @@ Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
 - **Automatische Zusammenfassungen** – 2-3 Sätze pro Artikel
 - **Kategorisierung** – Artikel werden Themen zugeordnet
 - **Stichwort-Extraktion** – Wichtige Begriffe, Personen, Orte
-- **Artikeltyp-Klassifikation** – LLM-basierte Erkennung (news, opinion, analysis, interview, review, editorial, feature, satire, press_release, other)
+- **Artikeltyp-Klassifikation** – LLM-basierte Erkennung (news, analysis, opinion, satire, ad, unknown)
 - **Named Entity Recognition (NER)** – Entitäten-Extraktion (Personen, Organisationen, Orte, Events)
 - **Semantische Suche** – Finde Artikel nach Bedeutung, nicht nur Keywords
 - **Erweiterte Embeddings** – snowflake-arctic-embed2 mit bis zu 8.192 Token Kontext (title + summary + content)
@@ -47,7 +47,7 @@ Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
 - **Politische Tendenz** – Links ↔ Rechts Spektrum
 - **Sachlichkeit** – Emotional vs. faktenbasiert
 - **Quellenqualität** – Sterne-Bewertung
-- **Artikeltyp** – Nachricht, Meinung, Analyse, Satire u.v.m.
+- **Artikeltyp** – Nachricht, Analyse, Meinung, Satire, Werbung
 
 ### 📰 Volltext-Abruf (Hagbard's Retrieval)
 - Automatisches Nachladen für alle neuen Artikel
