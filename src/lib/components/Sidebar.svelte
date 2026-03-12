@@ -222,11 +222,17 @@
     const result = await appState.startBatchProcessing();
 
     if (result) {
-      toasts.success(
-        $_("batch.complete", {
-          values: { succeeded: result.succeeded, failed: result.failed },
-        }),
-      );
+      const message = $_("batch.complete", {
+        values: { succeeded: result.succeeded, failed: result.failed },
+      });
+
+      if (result.failed === 0) {
+        toasts.success(message);
+      } else if (result.failed > result.succeeded) {
+        toasts.error(message);
+      } else {
+        toasts.warning(message);
+      }
     } else if (appState.error) {
       toasts.error($_("toast.analyzeError", { values: { error: appState.error } }));
     }
@@ -705,7 +711,7 @@
   .nav-bar {
     display: flex;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.125rem;
     margin-top: 0.75rem;
     padding-top: 0.75rem;
     border-top: 1px solid var(--border-muted);
@@ -715,7 +721,7 @@
     color: var(--text-muted);
     background: none;
     border: none;
-    padding: 0.5rem;
+    padding: 0.375rem;
     cursor: pointer;
     transition: all 0.2s;
     display: flex;

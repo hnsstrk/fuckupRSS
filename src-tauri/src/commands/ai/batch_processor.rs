@@ -619,7 +619,34 @@ async fn process_single_article(
                 );
 
                 let error_msg = e.to_string();
-                let is_rate_limit = matches!(e, crate::ai_provider::AiProviderError::RateLimited);
+
+                // Classify error: transient infrastructure errors should NOT
+                // count towards the hopeless limit, only content-specific
+                // errors (JSON parse failures, empty responses) should.
+                let is_transient = match &e {
+                    // Rate limits, provider offline, cost limits, auth issues
+                    // are never the article's fault
+                    crate::ai_provider::AiProviderError::RateLimited
+                    | crate::ai_provider::AiProviderError::NotAvailable(_)
+                    | crate::ai_provider::AiProviderError::CostLimitReached { .. }
+                    | crate::ai_provider::AiProviderError::AuthenticationFailed(_) => true,
+                    // GenerationFailed can be transient (network) or content-specific;
+                    // check the error message for infrastructure indicators
+                    crate::ai_provider::AiProviderError::GenerationFailed(msg) => {
+                        let lower = msg.to_lowercase();
+                        lower.contains("not available")
+                            || lower.contains("error sending request")
+                            || lower.contains("connection")
+                            || lower.contains("timeout")
+                            || lower.contains("database lock")
+                            || lower.contains("timed out")
+                            || lower.contains("refused")
+                            || lower.contains("unreachable")
+                    }
+                    // JSON parse errors are content-specific
+                    crate::ai_provider::AiProviderError::JsonParseError { .. } => false,
+                };
+
                 let is_json_error = matches!(
                     e,
                     crate::ai_provider::AiProviderError::JsonParseError { .. }
@@ -631,9 +658,13 @@ async fn process_single_article(
                         Err(e) => return (false, Some(format!("Database lock failed: {}", e))),
                     };
 
-                    if is_rate_limit {
-                        // Rate limits are NOT article-specific failures.
+                    if is_transient {
+                        // Transient/infrastructure errors are NOT article-specific.
                         // Store error message but do NOT increment attempts.
+                        warn!(
+                            "Transient error for article {} (not counting towards hopeless): {}",
+                            fnord_id, error_msg
+                        );
                         let _ = db.conn().execute(
                             r#"UPDATE fnords SET
                                 analysis_error = ?1
@@ -641,7 +672,7 @@ async fn process_single_article(
                             rusqlite::params![&error_msg, fnord_id],
                         );
                     } else {
-                        // Actual article-specific failure: increment attempts
+                        // Content-specific failure: increment attempts
                         let attempts: i32 = db
                             .conn()
                             .query_row(
@@ -652,7 +683,19 @@ async fn process_single_article(
                             .unwrap_or(0);
 
                         let new_attempts = attempts + 1;
-                        let is_hopeless = new_attempts >= 3;
+                        let is_hopeless = new_attempts >= 5;
+
+                        if is_hopeless {
+                            warn!(
+                                "Article {} marked as hopeless after {} content errors. Last error: {}",
+                                fnord_id, new_attempts, error_msg
+                            );
+                        } else {
+                            warn!(
+                                "Content error for article {} (attempt {}/5): {}",
+                                fnord_id, new_attempts, error_msg
+                            );
+                        }
 
                         let _ = db.conn().execute(
                             r#"UPDATE fnords SET

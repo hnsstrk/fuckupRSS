@@ -594,6 +594,7 @@ class AppState {
       return status;
     } catch (e) {
       console.error("Failed to check Ollama:", e);
+      this.error = `Ollama-Verbindung fehlgeschlagen: ${String(e)}`;
       this.ollamaStatus = {
         available: false,
         models: [],

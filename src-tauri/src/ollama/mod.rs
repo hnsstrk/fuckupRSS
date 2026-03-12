@@ -38,12 +38,16 @@ mod flexible_deser {
         }
     }
 
-    /// Deserialize a string that might be an object with a text field
+    /// Deserialize a string that might be an object with a text field.
+    /// Returns an empty string for `null` values (LLMs sometimes return `"field": null`).
     pub fn flexible_string<'de, D>(deserializer: D) -> Result<String, D::Error>
     where
         D: Deserializer<'de>,
     {
         let v = Value::deserialize(deserializer)?;
+        if v.is_null() {
+            return Ok(String::new());
+        }
         extract_string_from_value(&v)
             .ok_or_else(|| serde::de::Error::custom(format!("cannot extract string from {:?}", v)))
     }
@@ -94,6 +98,8 @@ pub enum OllamaError {
     NotAvailable(String),
     #[error("Generation failed: {0}")]
     GenerationFailed(String),
+    #[error("Incomplete response: generation stopped before completion (done=false), output likely truncated")]
+    IncompleteResponse,
     #[error("Model pull failed: {0}")]
     PullFailed(String),
 }
@@ -166,12 +172,17 @@ pub fn discordian_schema() -> Value {
             "rejected_categories": {
                 "type": "array",
                 "items": { "type": "string" }
+            },
+            "article_type": {
+                "type": "string",
+                "enum": ["news", "analysis", "opinion", "satire", "ad", "unknown"]
             }
         },
         "required": [
             "political_bias", "sachlichkeit", "summary",
             "keywords", "categories",
-            "rejected_keywords", "rejected_categories"
+            "rejected_keywords", "rejected_categories",
+            "article_type"
         ]
     })
 }
@@ -205,11 +216,16 @@ pub fn discordian_simple_schema() -> Value {
             "categories": {
                 "type": "array",
                 "items": { "type": "string" }
+            },
+            "article_type": {
+                "type": "string",
+                "enum": ["news", "analysis", "opinion", "satire", "ad", "unknown"]
             }
         },
         "required": [
             "political_bias", "sachlichkeit", "summary",
-            "keywords", "categories"
+            "keywords", "categories",
+            "article_type"
         ]
     })
 }
@@ -717,21 +733,23 @@ impl OllamaClient {
         let duration = request_start.elapsed();
         let response_len = result.message.content.len();
 
-        // Warn if generation was incomplete (output truncated)
+        // Return error if generation was incomplete (output truncated)
         if !result.done {
             warn!(
                 "[Ollama] Chat generation incomplete (done=false) after \
-                 {:.2}s - response may be truncated",
-                duration.as_secs_f64()
-            );
-        } else {
-            debug!(
-                "[Ollama] Chat request completed in {:.2}s \
-                 (response: {} chars)",
+                 {:.2}s - response truncated ({} chars), likely context overflow",
                 duration.as_secs_f64(),
                 response_len
             );
+            return Err(OllamaError::IncompleteResponse);
         }
+
+        debug!(
+            "[Ollama] Chat request completed in {:.2}s \
+             (response: {} chars)",
+            duration.as_secs_f64(),
+            response_len
+        );
 
         Ok(result.message.content)
     }

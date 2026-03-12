@@ -11,6 +11,8 @@
         return "fa-solid fa-xmark";
       case "info":
         return "fa-solid fa-circle-info";
+      case "warning":
+        return "fa-solid fa-triangle-exclamation";
       default:
         return "";
     }
@@ -92,6 +94,14 @@
 
   .toast-info .toast-icon {
     color: var(--blue);
+  }
+
+  .toast-warning {
+    border-left: 4px solid var(--accent-warning);
+  }
+
+  .toast-warning .toast-icon {
+    color: var(--accent-warning);
   }
 
   .toast-icon {

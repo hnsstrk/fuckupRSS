@@ -31,6 +31,10 @@ class ToastStore {
   info(message: string, duration = 4000): void {
     this.add("info", message, duration);
   }
+
+  warning(message: string, duration = 5000): void {
+    this.add("warning", message, duration);
+  }
 }
 
 export const toasts = new ToastStore();
