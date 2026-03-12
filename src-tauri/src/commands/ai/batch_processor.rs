@@ -647,6 +647,16 @@ async fn process_single_article(
                     crate::ai_provider::AiProviderError::JsonParseError { .. } => false,
                 };
 
+                // Context overflow: Ollama ran out of context window
+                // (done_reason: "length", incomplete response).
+                // Attempts MUST be incremented so num_ctx scales up on retry,
+                // but the article must NEVER be marked hopeless.
+                let is_context_overflow = matches!(
+                    &e,
+                    crate::ai_provider::AiProviderError::GenerationFailed(msg)
+                        if msg.to_lowercase().contains("incomplete response")
+                );
+
                 let is_json_error = matches!(
                     e,
                     crate::ai_provider::AiProviderError::JsonParseError { .. }
@@ -670,6 +680,33 @@ async fn process_single_article(
                                 analysis_error = ?1
                             WHERE id = ?2"#,
                             rusqlite::params![&error_msg, fnord_id],
+                        );
+                    } else if is_context_overflow {
+                        // Context overflow: increment attempts (to trigger num_ctx
+                        // scaling) but NEVER mark as hopeless — the article is
+                        // analysable with a larger context window.
+                        let attempts: i32 = db
+                            .conn()
+                            .query_row(
+                                "SELECT COALESCE(analysis_attempts, 0) FROM fnords WHERE id = ?1",
+                                [fnord_id],
+                                |row| row.get(0),
+                            )
+                            .unwrap_or(0);
+
+                        let new_attempts = attempts + 1;
+                        warn!(
+                            "Context overflow for article {} (attempt {}, will retry with larger num_ctx): {}",
+                            fnord_id, new_attempts, error_msg
+                        );
+
+                        let _ = db.conn().execute(
+                            r#"UPDATE fnords SET
+                                analysis_attempts = ?1,
+                                analysis_error = ?2,
+                                analysis_hopeless = false
+                            WHERE id = ?3"#,
+                            rusqlite::params![new_attempts, &error_msg, fnord_id],
                         );
                     } else {
                         // Content-specific failure: increment attempts

@@ -139,6 +139,12 @@ struct ChatResponse {
     /// Whether generation completed successfully
     #[serde(default)]
     done: bool,
+    /// Reason for stopping: "stop" (normal) or "length" (truncated)
+    #[serde(default)]
+    pub done_reason: Option<String>,
+    /// Number of tokens generated (for logging)
+    #[serde(default)]
+    pub eval_count: Option<u64>,
 }
 
 // ============================================================
@@ -740,6 +746,18 @@ impl OllamaClient {
                  {:.2}s - response truncated ({} chars), likely context overflow",
                 duration.as_secs_f64(),
                 response_len
+            );
+            return Err(OllamaError::IncompleteResponse);
+        }
+
+        // With stream: false, Ollama always returns done=true.
+        // Truncation is signaled via done_reason="length" instead.
+        if result.done_reason.as_deref() == Some("length") {
+            warn!(
+                "[Ollama] Chat generation truncated (done_reason=length). \
+                 Output likely contains incomplete JSON. \
+                 num_ctx={}, eval_count={:?}",
+                self.num_ctx, result.eval_count
             );
             return Err(OllamaError::IncompleteResponse);
         }
