@@ -249,6 +249,46 @@ pub fn synonym_schema() -> Value {
     })
 }
 
+/// JSON Schema for structured Briefing output
+///
+/// Fields: tldr (overview, trends, conclusion), topics (title, body, article_indices, keywords)
+pub fn briefing_schema() -> Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "tldr": {
+                "type": "object",
+                "properties": {
+                    "overview": { "type": "string" },
+                    "trends": { "type": "string" },
+                    "conclusion": { "type": "string" }
+                },
+                "required": ["overview", "trends", "conclusion"]
+            },
+            "topics": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": { "type": "string" },
+                        "body": { "type": "string" },
+                        "article_indices": {
+                            "type": "array",
+                            "items": { "type": "integer" }
+                        },
+                        "keywords": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        }
+                    },
+                    "required": ["title", "body", "article_indices", "keywords"]
+                }
+            }
+        },
+        "required": ["tldr", "topics"]
+    })
+}
+
 #[derive(Deserialize)]
 struct ModelsResponse {
     models: Vec<ModelInfo>,
