@@ -184,7 +184,7 @@ pub async fn generate_briefing(
          Trending-Keywords: {}\n\n\
          Erstelle ein JSON mit:\n\
          - tldr.overview: Ueberblick in 2-3 Saetzen\n\
-         - tldr.trends: Bemerkenswerte Trends und Muster\n\
+         - tldr.trends: Bemerkenswerte Trends als Markdown-Liste (z.B. '1. **Trend**: Beschreibung'), ein Trend pro Zeile\n\
          - tldr.conclusion: Fazit und Einordnung\n\
          - topics: Array mit den 5 wichtigsten Themen, je:\n\
            - title: Themenueberschrift\n\

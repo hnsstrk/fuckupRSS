@@ -722,6 +722,22 @@
     margin-bottom: 0;
   }
 
+  .tldr-content :global(ol),
+  .tldr-content :global(ul) {
+    margin: 0.375rem 0 0.5rem;
+    padding-left: 1.5rem;
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+
+  .tldr-content :global(li) {
+    margin-bottom: 0.25rem;
+  }
+
+  .tldr-content :global(li:last-child) {
+    margin-bottom: 0;
+  }
+
   .tldr-trends,
   .tldr-conclusion {
     color: var(--text-secondary);
