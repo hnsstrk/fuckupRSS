@@ -1195,7 +1195,9 @@
     "empty": "No briefings yet. Create your first briefing!",
     "error": "Error generating briefing",
     "model": "Model",
-    "createdAt": "Created"
+    "createdAt": "Created",
+    "trends": "Trends",
+    "conclusion": "Conclusion"
   },
   "storyClusters": {
     "title": "Story Clustering",
