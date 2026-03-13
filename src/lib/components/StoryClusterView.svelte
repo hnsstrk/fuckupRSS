@@ -4,6 +4,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { SvelteSet } from "svelte/reactivity";
   import { getBiasColor } from "$lib/utils/articleFormat";
+  import { renderMarkdown } from "$lib/utils/sanitizer";
 
   // Types matching backend structs
   interface StoryCluster {
@@ -334,18 +335,8 @@
                 <i class="fa-solid fa-scale-balanced"></i>
                 {$_("storyClusters.comparison")}
               </h4>
-              <div class="sc-comparison-text">
-                {#each clusterDetail.cluster.perspective_comparison.split("\n") as line, i (i)}
-                  {#if line.startsWith("##")}
-                    <h5>{line.replace(/^#+\s*/, "")}</h5>
-                  {:else if line.startsWith("#")}
-                    <h4>{line.replace(/^#+\s*/, "")}</h4>
-                  {:else if line.trim() === ""}
-                    <br />
-                  {:else}
-                    <p>{line}</p>
-                  {/if}
-                {/each}
+              <div class="sc-comparison-text markdown-content">
+                {@html renderMarkdown(clusterDetail.cluster.perspective_comparison)}
               </div>
             </div>
           {/if}
@@ -399,8 +390,8 @@
                 </button>
 
                 {#if expandedArticles.has(article.fnord_id) && article.summary}
-                  <div class="sc-article-summary">
-                    {article.summary}
+                  <div class="sc-article-summary markdown-content">
+                    {@html renderMarkdown(article.summary)}
                   </div>
                 {/if}
               </div>

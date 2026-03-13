@@ -6,6 +6,167 @@
 @tailwind utilities;
 
 /* ===========================================
+   Markdown Content (LLM-generierte Texte)
+   Einheitliches Rendering via marked + DOMPurify
+   =========================================== */
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+}
+
+.markdown-content h1 { font-size: 1.125rem; }
+.markdown-content h2 { font-size: 1.0625rem; }
+.markdown-content h3 { font-size: 1rem; }
+.markdown-content h4 { font-size: 0.9375rem; }
+
+.markdown-content h1:first-child,
+.markdown-content h2:first-child,
+.markdown-content h3:first-child {
+  margin-top: 0;
+}
+
+.markdown-content strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.markdown-content em {
+  font-style: italic;
+}
+
+.markdown-content p {
+  margin: 0 0 0.625rem;
+}
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.markdown-content li {
+  margin-bottom: 0.25rem;
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid var(--border-default, var(--border-color));
+  margin: 0.75rem 0;
+}
+
+.markdown-content blockquote {
+  border-left: 3px solid var(--accent-primary, var(--accent-color));
+  margin: 0.5rem 0;
+  padding: 0.25rem 0.75rem;
+  color: var(--text-secondary);
+  background-color: var(--bg-overlay, var(--bg-secondary));
+  border-radius: 0 0.25rem 0.25rem 0;
+}
+
+.markdown-content code {
+  background-color: var(--bg-overlay, var(--bg-secondary));
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.8125rem;
+}
+
+.markdown-content table {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid var(--border-default, var(--border-color));
+  padding: 0.375rem 0.625rem;
+}
+
+.markdown-content th {
+  background-color: var(--bg-overlay, var(--bg-secondary));
+  font-weight: 600;
+}
+
+/* Links */
+.markdown-content a {
+  color: var(--accent-info, var(--accent-color));
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.markdown-content a:hover {
+  color: var(--accent-primary, var(--accent-color));
+  text-decoration: underline;
+}
+
+.markdown-content a:visited {
+  color: var(--accent-secondary);
+}
+
+.markdown-content a[target="_blank"]::after {
+  content: " \2197";
+  font-size: 0.75em;
+}
+
+/* Images */
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+  display: block;
+  margin: 0.75rem auto;
+}
+
+/* Nested lists */
+.markdown-content ul ul,
+.markdown-content ol ul {
+  list-style-type: circle;
+  margin: 0.25rem 0;
+}
+
+.markdown-content ul ul ul,
+.markdown-content ol ul ul {
+  list-style-type: square;
+}
+
+.markdown-content ol ol,
+.markdown-content ul ol {
+  list-style-type: lower-alpha;
+  margin: 0.25rem 0;
+}
+
+/* Nested blockquotes */
+.markdown-content blockquote blockquote {
+  margin: 0.5rem 0;
+  border-left-color: var(--accent-secondary, var(--accent-color));
+}
+
+/* Code blocks (pre > code) */
+.markdown-content pre {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  background-color: var(--bg-surface, var(--bg-secondary));
+  border: 1px solid var(--border-muted, var(--border-color));
+  border-radius: 0.375rem;
+  overflow-x: auto;
+}
+
+.markdown-content pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.8125rem;
+}
+
+/* ===========================================
    Theme System
    Supports: Catppuccin, Ayu, Gruvbox, Tokyo Night, Solarized
    Default: Mocha (Catppuccin darkest)

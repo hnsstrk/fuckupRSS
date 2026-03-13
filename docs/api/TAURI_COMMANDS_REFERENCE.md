@@ -331,7 +331,7 @@ struct ArticleKeyword {
 | `get_keyword_neighbors` | `id`, `limit?` | `Vec<KeywordNeighbor>` | Get neighbor keywords |
 | `get_keyword_categories` | `id` | `Vec<KeywordCategory>` | Get keyword categories |
 | `get_category_keywords` | `sephiroth_id`, `limit?` | `Vec<Keyword>` | Get keywords of a category |
-| `get_trending_keywords` | `days?`, `limit?` | `Vec<TrendingKeyword>` | Get trending keywords |
+| `get_trending_keywords` | `days?`, `limit?`, `sort_by?` | `Vec<TrendingKeyword>` | Get trending keywords |
 | `get_network_stats` | - | `NetworkStats` | Get network statistics |
 | `search_keywords` | `query`, `limit?` | `Vec<Keyword>` | Search keywords |
 | `get_keyword_trend` | `id`, `days?` | `Vec<TrendPoint>` | Get keyword trend |
@@ -546,6 +546,217 @@ interface ProxyStatus {
 
 ---
 
+## Briefings (AI-generated News Summaries)
+
+| Command | Parameter | Return | Description |
+|---------|-----------|--------|-------------|
+| `generate_briefing` | `period_type` | `Briefing` | Generate AI briefing ("daily" or "weekly") |
+| `get_briefings` | `limit?` | `Vec<Briefing>` | Get most recent briefings (default: 10, max: 50) |
+| `get_latest_briefing` | `period_type` | `Option<Briefing>` | Get latest briefing of a specific type |
+| `delete_briefing` | `id` | `bool` | Delete a briefing by ID |
+
+### Briefing Structure
+
+```typescript
+interface Briefing {
+  id: number;
+  period_type: string;       // "daily" or "weekly"
+  period_start: string;      // ISO datetime start of period
+  period_end: string;        // ISO datetime end of period
+  content: string;           // AI-generated briefing text
+  top_keywords: string | null; // Comma-separated trending keywords
+  article_count: number;     // Number of articles included
+  model_used: string | null; // AI model used for generation
+  created_at: string;        // ISO timestamp
+}
+```
+
+**Notes:**
+- `period_type` must be `"daily"` (last 24h) or `"weekly"` (last 7 days)
+- Uses up to 15 top articles with summaries from the period
+- Includes trending keywords from the `immanentize_daily` table
+- Briefing text is generated in German
+- Cost is logged to `ai_cost_log`
+
+```typescript
+// Generate daily briefing
+const briefing = await invoke<Briefing>('generate_briefing', { periodType: 'daily' });
+
+// Get latest weekly briefing
+const latest = await invoke<Briefing | null>('get_latest_briefing', { periodType: 'weekly' });
+
+// List recent briefings
+const briefings = await invoke<Briefing[]>('get_briefings', { limit: 5 });
+```
+
+---
+
+## Named Entity Recognition (NER)
+
+| Command | Parameter | Return | Description |
+|---------|-----------|--------|-------------|
+| `extract_entities` | `fnord_id` | `ExtractionResult` | Extract entities from a single article using AI |
+| `extract_entities_batch` | `limit?` | `BatchExtractionResult` | Batch-extract entities for unprocessed articles (default: 50) |
+| `get_article_entities` | `fnord_id` | `Vec<EntityInfo>` | Get entities for a specific article |
+| `search_entities` | `query`, `entity_type?` | `Vec<EntityInfo>` | Search entities by name with optional type filter |
+| `get_entity_articles` | `entity_id` | `Vec<EntityArticleInfo>` | Get all articles containing a specific entity |
+| `get_top_entities` | `entity_type?`, `limit?` | `Vec<EntityInfo>` | Get top entities by article count (default: 20) |
+
+### EntityInfo Structure
+
+```typescript
+interface EntityInfo {
+  id: number;
+  name: string;                   // Display name (e.g. "Angela Merkel")
+  entity_type: string;            // "person", "organization", "location", "event"
+  normalized_name: string;        // Normalized for dedup (lowercase, without titles)
+  article_count: number;          // Total articles mentioning this entity
+  mention_count: number | null;   // Mentions in specific article (only in article context)
+  confidence: number | null;      // Confidence score (only in article context)
+}
+```
+
+### ExtractionResult Structure
+
+```typescript
+interface ExtractionResult {
+  fnord_id: number;
+  entities_found: number;   // Total entities extracted
+  entities_new: number;     // Newly created entities
+  success: boolean;
+  error: string | null;
+}
+```
+
+### BatchExtractionResult Structure
+
+```typescript
+interface BatchExtractionResult {
+  processed: number;        // Articles successfully processed
+  total_entities: number;   // Total entities extracted
+  errors: number;           // Articles with errors
+}
+```
+
+**Notes:**
+- Entity types: `person`, `organization`, `location`, `event`
+- Entity names are normalized (lowercase, common titles removed) for deduplication
+- Batch extraction processes only articles with `content_full` that have not been processed yet
+- LLM extraction uses structured JSON output (schema-based)
+- Cost is logged per extraction
+
+```typescript
+// Extract entities for a single article
+const result = await invoke<ExtractionResult>('extract_entities', { fnordId: 42 });
+
+// Batch extract for unprocessed articles
+const batch = await invoke<BatchExtractionResult>('extract_entities_batch', { limit: 100 });
+
+// Search for persons
+const persons = await invoke<EntityInfo[]>('search_entities', {
+  query: 'Merkel',
+  entityType: 'person'
+});
+
+// Get top organizations
+const orgs = await invoke<EntityInfo[]>('get_top_entities', {
+  entityType: 'organization',
+  limit: 10
+});
+```
+
+---
+
+## Story Clusters (Perspective Comparison)
+
+| Command | Parameter | Return | Description |
+|---------|-----------|--------|-------------|
+| `discover_story_clusters` | `min_articles?`, `days?` | `DiscoverResult` | Discover article clusters by embedding similarity |
+| `get_story_clusters` | `limit?` | `Vec<StoryCluster>` | Get all story clusters (default: 50) |
+| `get_story_cluster_detail` | `cluster_id` | `StoryClusterDetail` | Get cluster detail with all articles |
+| `compare_perspectives` | `cluster_id` | `String` | Generate LLM perspective comparison for cluster |
+| `delete_story_cluster` | `cluster_id` | - | Delete a story cluster |
+
+### StoryCluster Structure
+
+```typescript
+interface StoryCluster {
+  id: number;
+  title: string;                          // Generated from common keywords
+  summary: string | null;
+  perspective_comparison: string | null;   // LLM-generated comparison text
+  article_count: number;
+  source_names: string[];                  // Feed titles in this cluster
+  created_at: string | null;
+  updated_at: string | null;
+}
+```
+
+### StoryClusterDetail Structure
+
+```typescript
+interface StoryClusterDetail {
+  cluster: StoryCluster;
+  articles: StoryClusterArticle[];
+}
+
+interface StoryClusterArticle {
+  fnord_id: number;
+  title: string;
+  summary: string | null;
+  political_bias: number | null;     // -2 to +2
+  sachlichkeit: number | null;       // 0 to 4
+  source_name: string;               // Feed title
+  published_at: string | null;
+  similarity_score: number;          // 0.0-1.0, best similarity to cluster
+}
+```
+
+### DiscoverResult Structure
+
+```typescript
+interface DiscoverResult {
+  clusters_found: number;
+  clusters: StoryCluster[];
+}
+```
+
+**Notes:**
+- Clustering uses embedding similarity (cosine distance) with Union-Find algorithm
+- Similarity threshold: >= 0.78 for cluster membership
+- Clusters require at minimum 3 articles (configurable) from at least 2 different sources
+- Cluster titles are generated from common keywords across articles
+- Old clusters (> 30 days) are automatically cleaned up during discovery
+- `compare_perspectives` generates a German-language analysis of reporting differences using LLM
+
+```typescript
+// Discover clusters from last 7 days
+const result = await invoke<DiscoverResult>('discover_story_clusters', {
+  minArticles: 3,
+  days: 7
+});
+
+// Get cluster detail
+const detail = await invoke<StoryClusterDetail>('get_story_cluster_detail', {
+  clusterId: 42
+});
+
+// Generate perspective comparison
+const comparison = await invoke<string>('compare_perspectives', { clusterId: 42 });
+```
+
+---
+
+## Database Maintenance
+
+| Command | Parameter | Return | Description |
+|---------|-----------|--------|-------------|
+| `vacuum_database` | - | `VacuumResult` | Run VACUUM on SQLite database to reclaim space |
+| `find_orphaned_articles` | - | `OrphanedArticleStats` | Find articles whose feed has been deleted |
+| `delete_orphaned_articles` | `include_favorites` | `i64` | Delete orphaned articles (optionally keep favorites) |
+
+---
+
 ## Data Structures
 
 ### Source Types and Weights
@@ -596,10 +807,22 @@ const searchResults = await invoke<SemanticSearchResponse>('semantic_search', {
   query: 'artificial intelligence',
   limit: 20
 });
+
+// Generate daily briefing
+const briefing = await invoke<Briefing>('generate_briefing', { periodType: 'daily' });
+
+// Extract entities for an article
+const ner = await invoke<ExtractionResult>('extract_entities', { fnordId: 42 });
+
+// Discover story clusters
+const clusters = await invoke<DiscoverResult>('discover_story_clusters', {
+  minArticles: 3,
+  days: 7
+});
 ```
 
 ---
 
-*Last updated: March 2026*
+*Last updated: 10. March 2026*
 
 *For development guidelines, database patterns, and project architecture, see [CLAUDE.md](../../CLAUDE.md).*

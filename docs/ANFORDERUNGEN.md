@@ -190,6 +190,24 @@ Für eine vollständige Übersicht aller Dokumente: **[README.md](README.md)**
 - [ ] Dokumentation finalisieren
 - [ ] Release v1.0
 
+### Phase 6: KI-Erweiterungen (Tier 3+4)
+
+> Basierend auf der [Ollama-Potenzialanalyse](../reports/OLLAMA_KI_RECHERCHE_2026.md). Tier 1+2 wurden in Phase 4 implementiert (März 2026). Design-Dokument: [plans/2026-03-10-ollama-potenzial-tier1-tier2-design.md](plans/2026-03-10-ollama-potenzial-tier1-tier2-design.md)
+
+#### Tier 3: Fortgeschrittene Features (höherer Aufwand)
+
+- [ ] **Argumentationsanalyse** — Pro/Contra-Argumente aus Meinungsartikeln extrahieren; kombiniert mit Story-Clustering-Perspektiven ("Welche Argumente bringt die FAZ, welche die taz?")
+- [ ] **Claim Detection / Fact-Check-Hints** — Zentrale Behauptungen extrahieren, prüfen ob andere Artikel stützen oder widersprechen ("Diese Behauptung wird in 3 anderen Quellen anders dargestellt")
+- [ ] **Bias-Drift-Erkennung über Zeit** — `political_bias` pro Feed über Monate tracken und visualisieren ("Feed X ist 0.5 Punkte nach rechts gedriftet"); Daten vorhanden, Auswertung/Visualisierung fehlt
+- [ ] **Bild-Analyse mit Vision-Modellen** — Artikelbilder analysieren (Symbolbild vs. echtes Foto, Manipulation); `image_url` bei vielen Artikeln vorhanden; Gemma 3 / Llama 3.2 Vision
+- [ ] **RAG: "Frag deine Artikel"** — Nutzer stellt Frage → semantische Suche via sqlite-vec → LLM antwortet mit Quellenverweisen; Embedding-Infrastruktur bereits vorhanden, Chat-Schnittstelle fehlt
+
+#### Tier 4: Langfrist-Vision (experimentell)
+
+- [ ] **Agentic Workflows** — Multi-Step-Analyse über Ollama Tool Calling; LLM entscheidet selbst ob tiefere Analyse, Ähnlichkeitssuche oder Fact-Check nötig ist
+- [ ] **Vorhersage-Modelle auf Trending-Daten** — Frühwarnung für aufkommende Themen aus `immanentize_daily` Zeitreihen ("Keyword X zeigt exponentielles Wachstum")
+- [ ] **Feed-übergreifende Quellen-Analyse** — Welche Quellen berichten über dieselben Keyword-Cluster? Welche haben exklusive Themen? Nützlich für bewusste Feed-Kuratierung
+
 ### Technische Schulden
 
 Details in [DB_INFRASTRUCTURE_DEBT.md](DB_INFRASTRUCTURE_DEBT.md) und [TECH_DEBT_REPORT.md](TECH_DEBT_REPORT.md).

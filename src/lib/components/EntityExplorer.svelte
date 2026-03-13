@@ -3,6 +3,7 @@
   import { onMount, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import EntityBadge from "./EntityBadge.svelte";
+  import { renderMarkdown } from "$lib/utils/sanitizer";
 
   interface EntityInfo {
     id: number;
@@ -120,6 +121,7 @@
   }
 
   onMount(() => {
+    loadTopEntities();
     window.addEventListener("batch-complete", handleBatchComplete);
   });
 
@@ -191,7 +193,7 @@
             <div class="article-item">
               <div class="article-title">{article.title}</div>
               {#if article.summary}
-                <div class="article-summary">{article.summary}</div>
+                <div class="article-summary markdown-content">{@html renderMarkdown(article.summary)}</div>
               {/if}
               <div class="article-meta">
                 {#if article.published_at}

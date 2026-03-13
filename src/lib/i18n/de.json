@@ -461,6 +461,12 @@
       "fixCategoriesDesc": "Leitet Kategorien aus Keyword-Netzwerk ab (gewichtet nach Spezifität und Häufigkeit)",
       "fixCategoriesResult": "{fixed} Kategorien bei {categories} korrigiert",
       "fixCategoriesNone": "Keine Korrekturen notwendig",
+      "extractEntities": "Entitäten extrahieren",
+      "extractEntitiesDesc": "Extrahiert Personen, Organisationen, Orte und Ereignisse aus Artikeln ohne NER-Daten (benötigt KI-Provider)",
+      "extractEntitiesRunning": "Extrahiere Entitäten...",
+      "extractEntitiesResult": "{processed} Artikel verarbeitet, {entities} Entitäten gefunden",
+      "extractEntitiesResultWithErrors": "{processed} Artikel verarbeitet, {entities} Entitäten gefunden ({errors} Fehler)",
+      "extractEntitiesNone": "Keine Artikel ohne Entitäten gefunden",
       "compoundKeywords": "Zusammengesetzte Keywords",
       "compoundKeywordsLinkDesc": "Verwalte zusammengesetzte Keywords (aufteilen oder erhalten)",
       "compoundKeywordsLocation": "Immanentize Network > Compounds Tab",
@@ -500,24 +506,6 @@
         "cancel": "Abbrechen"
       }
     },
-    "entities": {
-      "title": "Entitäten",
-      "person": "Person",
-      "organization": "Organisation",
-      "location": "Ort",
-      "event": "Ereignis",
-      "mentions": "Erwähnungen",
-      "articles": "Artikel",
-      "extract": "Entitäten extrahieren",
-      "extracting": "Extrahiere Entitäten...",
-      "extractBatch": "Batch-Extraktion",
-      "extractBatchDesc": "Entitäten für alle Artikel extrahieren",
-      "noEntities": "Keine Entitäten gefunden",
-      "search": "Entitäten suchen...",
-      "all": "Alle",
-      "relatedArticles": "Zugehörige Artikel",
-      "topEntities": "Top-Entitäten"
-    },
     "stopwords": {
       "title": "Stopwörter",
       "description": "Verwalten Sie Wörter, die bei der Stichwort-Extraktion ignoriert werden sollen",
@@ -548,6 +536,24 @@
       "exportError": "Export fehlgeschlagen: {error}",
       "noStopwordsToExport": "Keine benutzerdefinierten Stopwörter zum Exportieren vorhanden"
     }
+  },
+  "entities": {
+    "title": "Entitäten",
+    "person": "Person",
+    "organization": "Organisation",
+    "location": "Ort",
+    "event": "Ereignis",
+    "mentions": "Erwähnungen",
+    "articles": "Artikel",
+    "extract": "Entitäten extrahieren",
+    "extracting": "Extrahiere Entitäten...",
+    "extractBatch": "Batch-Extraktion",
+    "extractBatchDesc": "Entitäten für alle Artikel extrahieren",
+    "noEntities": "Keine Entitäten gefunden",
+    "search": "Entitäten suchen...",
+    "all": "Alle",
+    "relatedArticles": "Zugehörige Artikel",
+    "topEntities": "Top-Entitäten"
   },
   "articleType": {
     "label": "Artikeltyp",

@@ -111,11 +111,11 @@ pub async fn generate_briefing(
         // Load trending keywords from the period
         let mut kw_stmt = conn
             .prepare(
-                r#"SELECT i.keyword, SUM(d.count) AS total
+                r#"SELECT i.name, SUM(d.count) AS total
                    FROM immanentize_daily d
                    JOIN immanentize i ON i.id = d.immanentize_id
                    WHERE d.date >= date(?1)
-                   GROUP BY i.keyword
+                   GROUP BY i.name
                    ORDER BY total DESC
                    LIMIT 20"#,
             )

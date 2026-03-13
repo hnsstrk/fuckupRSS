@@ -426,6 +426,41 @@
     }
   }
 
+  async function handleExtractEntities() {
+    maintenanceRunning = "entities";
+    maintenanceResult = null;
+    try {
+      const result = await invoke<{
+        processed: number;
+        total_entities: number;
+        errors: number;
+      }>("extract_entities_batch", { limit: 50 });
+
+      if (result.processed === 0) {
+        maintenanceResult = $_("settings.maintenance.extractEntitiesNone");
+      } else if (result.errors > 0) {
+        maintenanceResult = $_("settings.maintenance.extractEntitiesResultWithErrors", {
+          values: {
+            processed: result.processed,
+            entities: result.total_entities,
+            errors: result.errors,
+          },
+        });
+      } else {
+        maintenanceResult = $_("settings.maintenance.extractEntitiesResult", {
+          values: {
+            processed: result.processed,
+            entities: result.total_entities,
+          },
+        });
+      }
+    } catch (e) {
+      maintenanceResult = `Error: ${e}`;
+    } finally {
+      maintenanceRunning = null;
+    }
+  }
+
   function handleShortContentResult(msg: string) {
     maintenanceResult = msg;
   }
@@ -635,6 +670,33 @@
       mode="indeterminate"
       label={$_("settings.maintenance.fixCategories")}
       message={$_("settings.maintenance.running")}
+    />
+  {/if}
+
+  <div class="maintenance-action">
+    <div class="action-info">
+      <span class="action-title">{$_("settings.maintenance.extractEntities")}</span>
+      <p class="action-desc">
+        {$_("settings.maintenance.extractEntitiesDesc")}
+      </p>
+    </div>
+    {#if maintenanceRunning !== "entities"}
+      <button
+        type="button"
+        class="btn-action"
+        onclick={handleExtractEntities}
+        disabled={maintenanceRunning !== null}
+      >
+        {$_("settings.maintenance.extractEntities")}
+      </button>
+    {/if}
+  </div>
+
+  {#if maintenanceRunning === "entities"}
+    <MaintenanceProgress
+      mode="indeterminate"
+      label={$_("settings.maintenance.extractEntities")}
+      message={$_("settings.maintenance.extractEntitiesRunning")}
     />
   {/if}
 

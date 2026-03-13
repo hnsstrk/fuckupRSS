@@ -337,9 +337,10 @@ Die Konfiguration erfolgt über `EmbeddingProviderConfig` und `create_embedding_
 
 | Module | Purpose |
 |--------|---------|
-| `src-tauri/src/ai_provider/mod.rs` | `AiTextProvider` trait, `ProviderType` enum, factory |
-| `src-tauri/src/ai_provider/ollama_provider.rs` | `OllamaTextProvider` (wraps OllamaClient) |
+| `src-tauri/src/ai_provider/mod.rs` | `AiTextProvider` + `EmbeddingProvider` Traits, Factory-Funktionen |
+| `src-tauri/src/ai_provider/ollama_provider.rs` | `OllamaTextProvider` + `OllamaEmbeddingProvider` |
 | `src-tauri/src/ai_provider/openai_provider.rs` | `OpenAiCompatibleProvider` (reqwest-based) |
+| `src-tauri/src/ai_provider/openai_embedding_provider.rs` | `OpenAiEmbeddingProvider` (reqwest-based) |
 
 ---
 
@@ -541,66 +542,102 @@ Kritiker bemängeln, dass die Regeln Innovation bremsen könnten.
 
 ### JSON-Output-Format
 
-Das LLM gibt ein strukturiertes JSON-Objekt zurück:
+Das LLM gibt ein strukturiertes JSON-Objekt zurück (validiert gegen `discordian_schema()`):
 
 | Feld | Typ | Beschreibung |
 |------|-----|--------------|
 | `summary` | String | 2-3 Sätze Zusammenfassung auf Deutsch |
-| `categories` | Array<String> | 1-3 Kategorien aus fester Liste |
-| `keywords` | Array<String> | 3-7 spezifische Schlagwörter |
-| `greyface.political_bias` | Integer | -2 bis +2 |
-| `greyface.sachlichkeit` | Integer | 0 bis 4 |
-| `greyface.article_type` | String | news, analysis, opinion, satire, ad, unknown |
+| `categories` | Array<String> | 0-1 Kategorien (nur bei Korrektur der statistischen Analyse) |
+| `keywords` | Array<String> | 3-5 spezifische Schlagwörter |
+| `political_bias` | Integer | -2 bis +2 |
+| `sachlichkeit` | Integer | 0 bis 4 |
+| `article_type` | String | news, analysis, opinion, satire, ad, unknown |
+| `rejected_keywords` | Array<String> | Abgelehnte statistische Keywords (für Bias Learning) |
+| `rejected_categories` | Array<String> | Abgelehnte statistische Kategorien (für Bias Learning) |
 
 ### Parsing im Rust-Backend
 
 ```rust
+/// Raw-Struct mit flexibler Deserialisierung (akzeptiert Floats vom LLM)
 #[derive(Deserialize)]
-struct DiscordianAnalysis {
+struct RawDiscordianAnalysisWithRejections {
+    summary: String,          // flexible_deser: akzeptiert auch {name: "..."}-Objekte
+    categories: Vec<String>,  // flexible_deser: akzeptiert auch Objekt-Arrays
+    keywords: Vec<String>,
+    rejected_keywords: Vec<String>,
+    rejected_categories: Vec<String>,
+    political_bias: f64,      // Floats werden gerundet
+    sachlichkeit: f64,
+    article_type: String,     // Default: "unknown"
+}
+
+/// Normalisierter Struct mit Integer-Werten
+#[derive(Serialize)]
+struct DiscordianAnalysisWithRejections {
     summary: String,
     categories: Vec<String>,
     keywords: Vec<String>,
-    greyface: GreyfaceAlert,
+    rejected_keywords: Vec<String>,
+    rejected_categories: Vec<String>,
+    political_bias: i32,      // Gerundet aus f64
+    sachlichkeit: i32,
+    article_type: String,     // Normalisiert via normalize_article_type()
 }
 
-#[derive(Deserialize)]
-struct GreyfaceAlert {
-    political_bias: i8,
-    sachlichkeit: u8,
-    article_type: String,
-}
+// Provider-Aufruf mit JSON Schema statt json_mode
+let result = provider.generate_text(
+    model,
+    &prompt,
+    Some(discordian_schema()),  // JSON Schema für Validierung
+).await?;
+```
 
-async fn analyze_article(
-    provider: &dyn AiTextProvider,
-    model: &str,
-    fnord: &Fnord,
-) -> Result<DiscordianAnalysis> {
-    let prompt = format!(
-        r#"Du bist ein Nachrichtenanalyst...
+### Ollama API: Chat Endpoint mit System/User Messages
 
-        ARTIKEL:
-        Titel: {}
-        Quelle: {}
-        Inhalt: {}
-        "#,
-        fnord.title,
-        fnord.source_name,
-        fnord.content_full.as_ref().unwrap_or(&fnord.content_raw)
-    );
+Die Ollama-Kommunikation verwendet den `/api/chat` Endpoint (statt `/api/generate`) mit System/User Message Split für bessere Prompt-Kontrolle:
 
-    let result = provider.generate_text(model, &prompt, true).await?;
-    let analysis: DiscordianAnalysis = serde_json::from_str(&result.text)?;
-
-    Ok(analysis)
+```
+POST /api/chat
+{
+  "model": "ministral-3:latest",
+  "messages": [
+    {"role": "system", "content": "You are a professional media analyst..."},
+    {"role": "user", "content": "PRE-COMPUTED: keywords=...\n\nTitle: ...\nContent: ..."}
+  ],
+  "format": <JSON Schema>,
+  "stream": false,
+  "options": {"num_ctx": 4096, "num_predict": 4096},
+  "keep_alive": "5m"
 }
 ```
 
+**System/User Message Templates (in `ollama/mod.rs`):**
+- `DEFAULT_DISCORDIAN_SYSTEM` - System-Rolle für Analyse
+- `DEFAULT_DISCORDIAN_USER` - User-Prompt mit statistischen Vordaten
+- `DEFAULT_BIAS_SYSTEM` / `DEFAULT_BIAS_USER` - Bias-Analyse
+- `DEFAULT_SUMMARY_SYSTEM` / `DEFAULT_SUMMARY_USER` - Zusammenfassung
+
+### Structured Outputs (JSON Schema Validierung)
+
+Statt des einfachen `format: "json"` Modus werden jetzt **JSON Schemas** als `format`-Parameter übergeben. Ollama validiert die Antwort direkt gegen das Schema.
+
+**Definierte Schemas (in `ollama/mod.rs`):**
+
+| Schema-Funktion | Felder | Verwendung |
+|-----------------|--------|------------|
+| `discordian_schema()` | political_bias, sachlichkeit, summary, keywords, categories, rejected_keywords, rejected_categories | Batch-Analyse mit statistischer Voranalyse |
+| `discordian_simple_schema()` | political_bias, sachlichkeit, summary, keywords, categories | Einzelartikel-Analyse (ohne Rejections) |
+| `bias_schema()` | political_bias, sachlichkeit | Reine Bias-Analyse |
+| `synonym_schema()` | is_synonym, confidence, explanation | Synonym-Verifikation |
+| `ner_schema()` | entities (array of {name, type, mentions}) | Named Entity Recognition |
+
 ### Parsing-Regeln
 
-1. **Native JSON Mode:** Provider wird mit `json_mode: true` aufgerufen (Ollama: native JSON mode, OpenAI-compatible: `response_format: json_object`)
+1. **JSON Schema Validierung:** Provider wird mit `json_schema: Some(schema)` aufgerufen. Ollama validiert die Antwort gegen das Schema, OpenAI-compatible nutzt `response_format: json_schema`
 2. **Validierung:** Alle Werte werden auf gültige Bereiche geprüft (z.B. political_bias zwischen -2 und +2)
-3. **Fallback:** Bei ungültigen Werten werden Defaults verwendet (political_bias=0, sachlichkeit=2, article_type="unknown")
-4. **Error Handling:** Bei komplettem Parse-Fehler wird der Artikel als "nicht analysiert" markiert
+3. **Flexible Deserialization:** `flexible_deser` Module behandelt LLM-Antworten, die Objekte statt Strings zurückgeben (z.B. `{"name": "keyword"}` statt `"keyword"`)
+4. **Fallback:** Bei ungültigen Werten werden Defaults verwendet (political_bias=0, sachlichkeit=2, article_type="unknown")
+5. **Error Handling:** Bei komplettem Parse-Fehler wird der Artikel als "nicht analysiert" markiert
 
 ---
 
@@ -911,10 +948,11 @@ await invoke('process_batch_clustered', {
 
 | Module | Purpose |
 |--------|---------|
-| `src-tauri/src/ai_provider/mod.rs` | `AiTextProvider` trait, provider factory |
-| `src-tauri/src/ai_provider/ollama_provider.rs` | Ollama text generation (wraps OllamaClient) |
+| `src-tauri/src/ai_provider/mod.rs` | `AiTextProvider` + `EmbeddingProvider` Traits, Factory-Funktionen |
+| `src-tauri/src/ai_provider/ollama_provider.rs` | `OllamaTextProvider` + `OllamaEmbeddingProvider` |
 | `src-tauri/src/ai_provider/openai_provider.rs` | OpenAI-compatible text generation (reqwest) |
-| `src-tauri/src/ollama/mod.rs` | OllamaClient for embeddings and direct Ollama API access |
+| `src-tauri/src/ai_provider/openai_embedding_provider.rs` | OpenAI-compatible embedding generation |
+| `src-tauri/src/ollama/mod.rs` | OllamaClient: `/api/chat`, JSON Schemas, Embedding-API, Prompt-Konstanten |
 | `src-tauri/src/retrieval/mod.rs` | Hagbard's Retrieval (full-text fetching) |
 
 ### AI Commands
@@ -926,13 +964,16 @@ await invoke('process_batch_clustered', {
 | `src-tauri/src/commands/ai/article_processor.rs` | Single-article AI processing |
 | `src-tauri/src/commands/ai/model_management.rs` | Model listing, pulling, provider testing |
 | `src-tauri/src/commands/ai/prompts.rs` | Prompt templates |
+| `src-tauri/src/commands/entities.rs` | NER Pipeline (Named Entity Recognition) |
+| `src-tauri/src/commands/briefings.rs` | Briefing-Generierung (daily/weekly) |
+| `src-tauri/src/commands/story_clusters.rs` | Story Clustering + Perspektivvergleich |
 
 ### Database Operations
 
 | Module | Purpose |
 |--------|---------|
 | `src-tauri/src/immanentize.rs` | Keyword network operations |
-| `src-tauri/src/commands/ai/data_persistence.rs` | AI result persistence, cost logging |
+| `src-tauri/src/commands/ai/data_persistence.rs` | AI result persistence, cost logging, `build_embedding_text()` |
 | `src-tauri/src/commands/article_analysis.rs` | Statistical article analysis |
 
 ---

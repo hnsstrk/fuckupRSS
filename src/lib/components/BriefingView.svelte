@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
+  import { renderMarkdown } from "$lib/utils/sanitizer";
   import { formatError } from "$lib/utils/formatError";
 
   interface Briefing {
@@ -211,12 +212,8 @@
                   </div>
                 {/if}
 
-                <div class="briefing-text">
-                  {#each briefing.content.split("\n") as line, i (i)}
-                    {#if line.trim()}
-                      <p>{line}</p>
-                    {/if}
-                  {/each}
+                <div class="briefing-text markdown-content">
+                  {@html renderMarkdown(briefing.content)}
                 </div>
 
                 <div class="briefing-card-actions">
@@ -543,6 +540,7 @@
   .briefing-text p:last-child {
     margin-bottom: 0;
   }
+
 
   .briefing-card-actions {
     display: flex;

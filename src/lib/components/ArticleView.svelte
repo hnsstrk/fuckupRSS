@@ -20,6 +20,7 @@
   import ArticleGreyfaceAlert from "./ArticleGreyfaceAlert.svelte";
   import ArticleMetaSection from "./ArticleMetaSection.svelte";
   import ArticleContent from "./ArticleContent.svelte";
+  import { renderMarkdown } from "$lib/utils/sanitizer";
 
   // Track component mount state to prevent state updates after unmount
   let mounted = $state(true);
@@ -201,14 +202,6 @@
   onDestroy(() => {
     window.removeEventListener("batch-complete", handleBatchComplete);
   });
-
-  // stripHtml uses DOMParser to safely extract text from HTML
-  // DOMParser does not execute scripts and textContent is read-only extraction
-  function stripHtml(html: string): string {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-    return doc.body.textContent || "";
-  }
 
   async function openInBrowser() {
     if (appState.selectedFnord) {
@@ -525,7 +518,7 @@
           <div class="section-header">
             {$_("terminology.discordian.term")}
           </div>
-          <p class="summary-text">{stripHtml(fnord.summary)}</p>
+          <div class="summary-text markdown-content">{@html renderMarkdown(fnord.summary)}</div>
         </div>
       </div>
     {/if}

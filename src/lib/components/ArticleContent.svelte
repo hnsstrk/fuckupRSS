@@ -159,13 +159,6 @@
     color: var(--text-muted);
   }
 
-  .article-body :global(ins) {
-    text-decoration: none;
-    background-color: var(--diff-added-bg);
-    padding: 0 0.125rem;
-    border-radius: 2px;
-  }
-
   .article-body :global(mark) {
     background-color: var(--golden-apple-color);
     color: var(--text-on-accent);
@@ -192,12 +185,6 @@
 
   .article-body :global(sub) {
     bottom: -0.25em;
-  }
-
-  .article-body :global(abbr[title]) {
-    text-decoration: underline dotted;
-    text-decoration-color: var(--text-muted);
-    cursor: help;
   }
 
   .article-body :global(cite) {
@@ -242,7 +229,7 @@
   }
 
   /* ===========================================
-     Lists - Unordered, Ordered, Definition
+     Lists - Unordered, Ordered
      =========================================== */
   .article-body :global(ul),
   .article-body :global(ol) {
@@ -285,27 +272,6 @@
     margin: 0.375rem 0;
   }
 
-  /* Definition lists */
-  .article-body :global(dl) {
-    margin: 1rem 0 1.25rem 0;
-  }
-
-  .article-body :global(dt) {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-top: 0.75rem;
-  }
-
-  .article-body :global(dt:first-child) {
-    margin-top: 0;
-  }
-
-  .article-body :global(dd) {
-    margin-left: 1.5rem;
-    margin-top: 0.25rem;
-    color: var(--text-secondary);
-  }
-
   /* ===========================================
      Blockquotes
      =========================================== */
@@ -346,60 +312,6 @@
   }
 
   /* ===========================================
-     Code - Inline and Blocks
-     =========================================== */
-  .article-body :global(code) {
-    font-family: "SF Mono", "Fira Code", "Consolas", "Monaco", monospace;
-    font-size: 0.875em;
-    background-color: var(--bg-overlay);
-    color: var(--accent-warning);
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    word-break: break-word;
-  }
-
-  .article-body :global(pre) {
-    margin: 1.25rem 0;
-    padding: 1rem;
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-muted);
-    border-radius: 0.5rem;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .article-body :global(pre code) {
-    background: none;
-    padding: 0;
-    font-size: 0.8125rem;
-    color: var(--text-primary);
-    line-height: 1.6;
-    word-break: normal;
-  }
-
-  .article-body :global(kbd) {
-    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
-    font-size: 0.8125em;
-    background-color: var(--bg-overlay);
-    border: 1px solid var(--border-default);
-    border-radius: 0.25rem;
-    padding: 0.125rem 0.375rem;
-    box-shadow: 0 1px 0 var(--border-default);
-  }
-
-  .article-body :global(samp) {
-    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
-    font-size: 0.875em;
-    color: var(--accent-success);
-  }
-
-  .article-body :global(var) {
-    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
-    font-style: italic;
-    color: var(--accent-info);
-  }
-
-  /* ===========================================
      Images and Figures
      =========================================== */
   .article-body :global(img) {
@@ -432,92 +344,12 @@
   }
 
   /* ===========================================
-     Tables
-     =========================================== */
-  .article-body :global(table) {
-    width: 100%;
-    margin: 1.25rem 0;
-    border-collapse: collapse;
-    font-size: 0.9375rem;
-    overflow-x: auto;
-    display: block;
-  }
-
-  @media (min-width: 640px) {
-    .article-body :global(table) {
-      display: table;
-    }
-  }
-
-  .article-body :global(thead) {
-    background-color: var(--bg-surface);
-  }
-
-  .article-body :global(th) {
-    font-weight: 600;
-    color: var(--text-primary);
-    text-align: left;
-    padding: 0.75rem;
-    border-bottom: 2px solid var(--border-default);
-  }
-
-  .article-body :global(td) {
-    padding: 0.625rem 0.75rem;
-    border-bottom: 1px solid var(--border-muted);
-    color: var(--text-secondary);
-  }
-
-  .article-body :global(tr:last-child td) {
-    border-bottom: none;
-  }
-
-  .article-body :global(tbody tr:hover) {
-    background-color: var(--bg-overlay);
-  }
-
-  .article-body :global(caption) {
-    padding: 0.75rem;
-    font-size: 0.875rem;
-    color: var(--text-muted);
-    caption-side: bottom;
-    text-align: left;
-  }
-
-  /* ===========================================
      Horizontal Rules
      =========================================== */
   .article-body :global(hr) {
     margin: 2rem 0;
     border: none;
     border-top: 1px solid var(--border-default);
-  }
-
-  /* ===========================================
-     Details/Summary (Collapsible)
-     =========================================== */
-  .article-body :global(details) {
-    margin: 1rem 0;
-    padding: 0.75rem 1rem;
-    background-color: var(--bg-surface);
-    border-radius: 0.375rem;
-    border: 1px solid var(--border-muted);
-  }
-
-  .article-body :global(summary) {
-    cursor: pointer;
-    font-weight: 500;
-    color: var(--text-primary);
-    padding: 0.25rem 0;
-  }
-
-  .article-body :global(summary:hover) {
-    color: var(--accent-primary);
-  }
-
-  .article-body :global(details[open] > summary) {
-    margin-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border-muted);
-    padding-bottom: 0.5rem;
   }
 
   /* ===========================================
@@ -573,7 +405,6 @@
       page-break-inside: avoid;
     }
 
-    .article-body :global(pre),
     .article-body :global(blockquote) {
       page-break-inside: avoid;
       border-color: #ccc;
@@ -585,15 +416,6 @@
     .article-body :global(h4) {
       page-break-after: avoid;
       color: black;
-    }
-
-    .article-body :global(table) {
-      border: 1px solid #ccc;
-    }
-
-    .article-body :global(th),
-    .article-body :global(td) {
-      border: 1px solid #ccc;
     }
   }
 </style>

@@ -41,6 +41,7 @@
     "chart.js": "^4.5.1",
     "cytoscape": "^3.33.1",
     "dompurify": "^3.3.1",
+    "marked": "^17.0.4",
     "svelte-i18n": "^4.0.1"
   },
   "devDependencies": {
