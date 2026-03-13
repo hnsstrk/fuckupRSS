@@ -285,6 +285,24 @@ Nutzung:
 
 Verfuegbare Styles: `fa-solid`, `fa-regular`, `fa-light`, `fa-thin`, `fa-brands`, `fa-duotone`
 
+## Markdown-Rendering (LLM-Texte)
+
+Alle LLM-generierten Texte (Briefings, Perspektiven, Summaries) werden ueber eine zentrale Pipeline gerendert:
+
+**Pipeline:** Markdown → `marked` (HTML) → DOMPurify (Sanitization)
+
+**Zentrale Funktion:** `src/lib/utils/sanitizer.ts` → `renderMarkdown(markdown: string): string`
+
+```svelte
+<div class="markdown-content">
+  {@html renderMarkdown(text)}
+</div>
+```
+
+**Globales CSS:** Die Klasse `.markdown-content` in `src/app.css` steuert die einheitliche Darstellung (Ueberschriften, Listen, Code-Bloecke, Tabellen, Blockquotes, Links).
+
+**WICHTIG:** Fuer LLM-generierte Texte immer `renderMarkdown()` verwenden, nie `sanitizeArticleContent()` direkt. `sanitizeArticleContent()` ist nur fuer RSS-Feed-HTML (bereits HTML, kein Markdown).
+
 ## Git Workflow & Commit-Strategie
 
 ### Branch-Strategie
@@ -500,6 +518,15 @@ Siehe [README.md](README.md#illuminatus-terminology) fuer die vollstaendige Term
 | Vector Search | `sqlite-vec` | aktiv (bundled, O(log n) KNN) |
 | OPML Parsing | `opml` | aktiv |
 | Async Traits | `async-trait` | aktiv (AiTextProvider Trait) |
+
+## Key Frontend Libraries
+
+| Purpose | Package | Status |
+|---------|---------|--------|
+| Markdown→HTML | `marked` | aktiv (GFM, breaks) |
+| HTML Sanitization | `dompurify` | aktiv (XSS-Schutz) |
+| i18n | `svelte-i18n` | aktiv |
+| Tauri IPC | `@tauri-apps/api` | aktiv |
 
 ## Tauri Commands
 
