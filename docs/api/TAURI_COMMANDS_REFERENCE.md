@@ -563,9 +563,10 @@ interface Briefing {
   period_type: string;       // "daily" or "weekly"
   period_start: string;      // ISO datetime start of period
   period_end: string;        // ISO datetime end of period
-  content: string;           // AI-generated briefing text
+  content: string;           // AI-generated briefing text (structured JSON or legacy markdown)
   top_keywords: string | null; // Comma-separated trending keywords
   article_count: number;     // Number of articles included
+  article_refs: string | null; // JSON-Array mit Artikel-Referenzen (index, fnord_id, title, source)
   model_used: string | null; // AI model used for generation
   created_at: string;        // ISO timestamp
 }
@@ -823,6 +824,6 @@ const clusters = await invoke<DiscoverResult>('discover_story_clusters', {
 
 ---
 
-*Last updated: 10. March 2026*
+*Last updated: 13. March 2026*
 
 *For development guidelines, database patterns, and project architecture, see [CLAUDE.md](../../CLAUDE.md).*
