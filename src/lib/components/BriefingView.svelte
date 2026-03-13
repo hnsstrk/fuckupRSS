@@ -4,6 +4,32 @@
   import { invoke } from "@tauri-apps/api/core";
   import { renderMarkdown } from "$lib/utils/sanitizer";
   import { formatError } from "$lib/utils/formatError";
+  import { networkStore } from "$lib/stores/state.svelte";
+
+  interface ArticleRef {
+    index: number;
+    fnord_id: number;
+    title: string;
+    source: string;
+  }
+
+  interface BriefingTldr {
+    overview: string;
+    trends: string;
+    conclusion: string;
+  }
+
+  interface BriefingTopic {
+    title: string;
+    body: string;
+    article_indices: number[];
+    keywords: string[];
+  }
+
+  interface StructuredBriefing {
+    tldr: BriefingTldr;
+    topics: BriefingTopic[];
+  }
 
   interface Briefing {
     id: number;
@@ -15,6 +41,7 @@
     article_count: number;
     model_used: string | null;
     created_at: string;
+    article_refs: string | null;
   }
 
   // State
@@ -100,6 +127,48 @@
 
   function getPeriodBadgeClass(periodType: string): string {
     return periodType === "daily" ? "badge-daily" : "badge-weekly";
+  }
+
+  function parseStructuredContent(content: string): StructuredBriefing | null {
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed.tldr && parsed.topics) {
+        return parsed as StructuredBriefing;
+      }
+    } catch {
+      // Legacy markdown briefing
+    }
+    return null;
+  }
+
+  function parseArticleRefs(refsJson: string | null): ArticleRef[] {
+    if (!refsJson) return [];
+    try {
+      return JSON.parse(refsJson) as ArticleRef[];
+    } catch {
+      return [];
+    }
+  }
+
+  function navigateToArticle(fnordId: number) {
+    window.dispatchEvent(
+      new CustomEvent("navigate-to-article", { detail: { articleId: fnordId } }),
+    );
+  }
+
+  function navigateToKeyword(keywordName: string) {
+    const keyword = networkStore.keywords?.find(
+      (k: { name: string }) => k.name.toLowerCase() === keywordName.toLowerCase(),
+    );
+    if (keyword) {
+      window.dispatchEvent(
+        new CustomEvent("navigate-to-network", { detail: { keywordId: keyword.id } }),
+      );
+    } else {
+      window.dispatchEvent(
+        new CustomEvent("navigate-to-network", { detail: {} }),
+      );
+    }
   }
 </script>
 
@@ -191,6 +260,8 @@
             </button>
 
             {#if expandedId === briefing.id}
+              {@const structured = parseStructuredContent(briefing.content)}
+              {@const articleRefs = parseArticleRefs(briefing.article_refs)}
               <div class="briefing-card-body">
                 <div class="briefing-period-info">
                   <span class="period-label">
@@ -202,19 +273,87 @@
                   </span>
                 </div>
 
-                {#if briefing.top_keywords}
-                  <div class="briefing-keywords">
-                    <span class="keywords-label">
-                      <i class="fa-solid fa-tags"></i>
-                      {$_("briefing.topKeywords")}:
-                    </span>
-                    <span class="keywords-value">{briefing.top_keywords}</span>
+                {#if structured}
+                  <!-- Strukturiertes Briefing (neues Format) -->
+                  <div class="briefing-tldr">
+                    <h3 class="tldr-title">
+                      <i class="fa-solid fa-bolt"></i>
+                      TL;DR
+                    </h3>
+                    <div class="tldr-content">
+                      <p class="tldr-overview">{structured.tldr.overview}</p>
+                      {#if structured.tldr.trends}
+                        <p class="tldr-trends">
+                          <strong>{$_("briefing.trends")}:</strong>
+                          {structured.tldr.trends}
+                        </p>
+                      {/if}
+                      {#if structured.tldr.conclusion}
+                        <p class="tldr-conclusion">
+                          <strong>{$_("briefing.conclusion")}:</strong>
+                          {structured.tldr.conclusion}
+                        </p>
+                      {/if}
+                    </div>
+                  </div>
+
+                  <div class="briefing-topics">
+                    {#each structured.topics as topic, topicIdx (topicIdx)}
+                      <div class="briefing-topic">
+                        <h4 class="topic-title">{topic.title}</h4>
+                        <div class="topic-body markdown-content">
+                          {@html renderMarkdown(topic.body)}
+                        </div>
+
+                        {#if topic.article_indices.length > 0 && articleRefs.length > 0}
+                          <div class="topic-articles">
+                            <i class="fa-solid fa-newspaper topic-articles-icon"></i>
+                            {#each topic.article_indices as idx (idx)}
+                              {@const ref = articleRefs.find((r) => r.index === idx)}
+                              {#if ref}
+                                <button
+                                  class="article-link"
+                                  onclick={() => navigateToArticle(ref.fnord_id)}
+                                  title={ref.source}
+                                >
+                                  {ref.title}
+                                </button>
+                              {/if}
+                            {/each}
+                          </div>
+                        {/if}
+
+                        {#if topic.keywords.length > 0}
+                          <div class="topic-keywords">
+                            {#each topic.keywords as keyword (keyword)}
+                              <button
+                                class="keyword-badge"
+                                onclick={() => navigateToKeyword(keyword)}
+                              >
+                                {keyword}
+                              </button>
+                            {/each}
+                          </div>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                {:else}
+                  <!-- Legacy Briefing (reiner Markdown) -->
+                  {#if briefing.top_keywords}
+                    <div class="briefing-keywords">
+                      <span class="keywords-label">
+                        <i class="fa-solid fa-tags"></i>
+                        {$_("briefing.topKeywords")}:
+                      </span>
+                      <span class="keywords-value">{briefing.top_keywords}</span>
+                    </div>
+                  {/if}
+
+                  <div class="briefing-text markdown-content">
+                    {@html renderMarkdown(briefing.content)}
                   </div>
                 {/if}
-
-                <div class="briefing-text markdown-content">
-                  {@html renderMarkdown(briefing.content)}
-                </div>
 
                 <div class="briefing-card-actions">
                   <button
@@ -533,11 +672,11 @@
     font-size: 0.875rem;
   }
 
-  .briefing-text p {
+  .briefing-text :global(p) {
     margin: 0 0 0.625rem;
   }
 
-  .briefing-text p:last-child {
+  .briefing-text :global(p:last-child) {
     margin-bottom: 0;
   }
 
@@ -547,5 +686,133 @@
     justify-content: flex-end;
     padding-top: 0.75rem;
     border-top: 1px solid var(--border-default);
+  }
+
+  /* TL;DR Block */
+  .briefing-tldr {
+    margin: 0.75rem 0;
+    padding: 0.875rem 1rem;
+    background-color: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent);
+    border-radius: 0.5rem;
+  }
+
+  .tldr-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.625rem;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .tldr-content p {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+  }
+
+  .tldr-content p:last-child {
+    margin-bottom: 0;
+  }
+
+  .tldr-trends,
+  .tldr-conclusion {
+    color: var(--text-secondary);
+  }
+
+  /* Topics */
+  .briefing-topics {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .briefing-topic {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .briefing-topic:last-child {
+    border-bottom: none;
+  }
+
+  .topic-title {
+    margin: 0 0 0.375rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .topic-body {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+  }
+
+  /* Artikel-Links */
+  .topic-articles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    margin-top: 0.5rem;
+  }
+
+  .topic-articles-icon {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  .article-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1875rem 0.5rem;
+    border: 1px solid var(--border-default);
+    border-radius: 0.25rem;
+    background: none;
+    color: var(--accent-primary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    max-width: 20rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .article-link:hover {
+    background-color: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+    border-color: var(--accent-primary);
+  }
+
+  /* Keyword-Badges */
+  .topic-keywords {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.375rem;
+  }
+
+  .keyword-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.4375rem;
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 30%, transparent);
+    border-radius: 1rem;
+    background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .keyword-badge:hover {
+    background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+    color: var(--text-primary);
   }
 </style>

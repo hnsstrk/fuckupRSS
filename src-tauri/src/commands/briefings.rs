@@ -25,10 +25,12 @@ pub struct Briefing {
     pub article_count: i64,
     pub model_used: Option<String>,
     pub created_at: String,
+    pub article_refs: Option<String>,
 }
 
 /// Article data used to build briefing prompts
 struct BriefingArticle {
+    id: i64,
     title: String,
     source: String,
     summary: String,
@@ -77,7 +79,7 @@ pub async fn generate_briefing(
         // Load top articles with summaries from the period
         let mut stmt = conn
             .prepare(
-                r#"SELECT f.title, COALESCE(p.title, p.url) AS source, f.summary
+                r#"SELECT f.id, f.title, COALESCE(p.title, p.url) AS source, f.summary
                    FROM fnords f
                    JOIN pentacles p ON f.pentacle_id = p.id
                    WHERE f.processed_at IS NOT NULL
@@ -92,9 +94,10 @@ pub async fn generate_briefing(
         let articles: Vec<BriefingArticle> = stmt
             .query_map([&p_start], |row| {
                 Ok(BriefingArticle {
-                    title: row.get(0)?,
-                    source: row.get(1)?,
-                    summary: row.get(2)?,
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    source: row.get(2)?,
+                    summary: row.get(3)?,
                 })
             })
             .map_err(|e| e.to_string())?
@@ -138,12 +141,29 @@ pub async fn generate_briefing(
         "7 Tage"
     };
 
+    // Build article_refs JSON for frontend navigation
+    let article_refs_json = {
+        let refs: Vec<serde_json::Value> = articles
+            .iter()
+            .enumerate()
+            .map(|(i, a)| {
+                serde_json::json!({
+                    "index": i,
+                    "fnord_id": a.id,
+                    "title": a.title,
+                    "source": a.source
+                })
+            })
+            .collect();
+        serde_json::to_string(&refs).unwrap_or_default()
+    };
+
     // Step 2: Build prompt
     let mut article_list = String::new();
     for (i, article) in articles.iter().enumerate() {
         article_list.push_str(&format!(
-            "{}. [{}] ({}) — {}\n",
-            i + 1,
+            "{}: [{}] ({}) — {}\n",
+            i,
             article.title,
             article.source,
             article.summary,
@@ -157,16 +177,21 @@ pub async fn generate_briefing(
     };
 
     let prompt = format!(
-        "System: Du bist ein Nachrichten-Redakteur. \
-         Erstelle ein kompaktes Briefing der wichtigsten Themen.\n\n\
+        "Du bist ein Nachrichten-Redakteur. Erstelle ein kompaktes Briefing \
+         der wichtigsten Themen als JSON.\n\n\
          Hier sind die {} wichtigsten Artikel der letzten {}:\n\n\
          {}\n\
          Trending-Keywords: {}\n\n\
-         Erstelle ein strukturiertes Briefing mit:\n\
-         - Ueberblick (2-3 Saetze)\n\
-         - Die 5 wichtigsten Themen mit jeweils 1-2 Saetzen\n\
-         - Bemerkenswerte Trends oder Muster\n\n\
-         Antworte auf Deutsch.",
+         Erstelle ein JSON mit:\n\
+         - tldr.overview: Ueberblick in 2-3 Saetzen\n\
+         - tldr.trends: Bemerkenswerte Trends und Muster\n\
+         - tldr.conclusion: Fazit und Einordnung\n\
+         - topics: Array mit den 5 wichtigsten Themen, je:\n\
+           - title: Themenueberschrift\n\
+           - body: 2-4 Saetze als Markdown-Text\n\
+           - article_indices: Array der relevanten Artikel-Nummern (0-basiert)\n\
+           - keywords: Array relevanter Keywords aus der Trending-Liste\n\n\
+         Kein Redaktionshinweis. Antworte auf Deutsch.",
         article_count, period_label, article_list, keywords_str,
     );
 
@@ -176,8 +201,9 @@ pub async fn generate_briefing(
         create_text_provider(&db, Some(&state.proxy_manager))
     };
 
+    let schema = crate::ollama::briefing_schema();
     let result = provider
-        .generate_text(&model, &prompt, None)
+        .generate_text(&model, &prompt, Some(schema))
         .await
         .map_err(|e| format!("AI-Fehler: {}", e))?;
 
@@ -202,8 +228,8 @@ pub async fn generate_briefing(
         conn.execute(
             r#"INSERT OR REPLACE INTO briefings
                (period_type, period_start, period_end, content,
-                top_keywords, article_count, model_used)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"#,
+                top_keywords, article_count, model_used, article_refs)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"#,
             rusqlite::params![
                 &period_type,
                 &period_start,
@@ -212,6 +238,7 @@ pub async fn generate_briefing(
                 &keywords_str,
                 article_count,
                 &model,
+                &article_refs_json,
             ],
         )
         .map_err(|e| e.to_string())?;
@@ -221,7 +248,7 @@ pub async fn generate_briefing(
         // Read back the inserted briefing
         conn.query_row(
             r#"SELECT id, period_type, period_start, period_end, content,
-                      top_keywords, article_count, model_used, created_at
+                      top_keywords, article_count, model_used, created_at, article_refs
                FROM briefings WHERE id = ?1"#,
             [id],
             |row| {
@@ -235,6 +262,7 @@ pub async fn generate_briefing(
                     article_count: row.get(6)?,
                     model_used: row.get(7)?,
                     created_at: row.get(8)?,
+                    article_refs: row.get(9)?,
                 })
             },
         )
@@ -254,7 +282,7 @@ pub fn get_briefings(state: State<AppState>, limit: Option<i32>) -> Result<Vec<B
     let mut stmt = conn
         .prepare(
             r#"SELECT id, period_type, period_start, period_end, content,
-                      top_keywords, article_count, model_used, created_at
+                      top_keywords, article_count, model_used, created_at, article_refs
                FROM briefings
                ORDER BY created_at DESC
                LIMIT ?1"#,
@@ -273,6 +301,7 @@ pub fn get_briefings(state: State<AppState>, limit: Option<i32>) -> Result<Vec<B
                 article_count: row.get(6)?,
                 model_used: row.get(7)?,
                 created_at: row.get(8)?,
+                article_refs: row.get(9)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -294,7 +323,7 @@ pub fn get_latest_briefing(
     let result = conn
         .query_row(
             r#"SELECT id, period_type, period_start, period_end, content,
-                      top_keywords, article_count, model_used, created_at
+                      top_keywords, article_count, model_used, created_at, article_refs
                FROM briefings
                WHERE period_type = ?1
                ORDER BY created_at DESC
@@ -311,6 +340,7 @@ pub fn get_latest_briefing(
                     article_count: row.get(6)?,
                     model_used: row.get(7)?,
                     created_at: row.get(8)?,
+                    article_refs: row.get(9)?,
                 })
             },
         )

@@ -435,9 +435,10 @@ Stores AI-generated news briefings (daily/weekly) that summarize the most import
 | `period_type` | TEXT | `'daily'` or `'weekly'` (CHECK constraint) |
 | `period_start` | DATETIME | Start of the summarized period |
 | `period_end` | DATETIME | End of the summarized period |
-| `content` | TEXT | AI-generated briefing text (markdown) |
+| `content` | TEXT | AI-generated briefing text (structured JSON or legacy markdown) |
 | `top_keywords` | TEXT | Comma-separated trending keywords for the period |
 | `article_count` | INTEGER | Number of articles used for the briefing |
+| `article_refs` | TEXT | JSON-Array mit Artikel-Referenzen fuer Frontend-Navigation (index, fnord_id, title, source) |
 | `model_used` | TEXT | AI model used for generation |
 | `created_at` | DATETIME | Creation timestamp (default: current datetime) |
 

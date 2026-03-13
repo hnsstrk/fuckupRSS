@@ -344,3 +344,46 @@ fn test_flexible_deserializer_with_rejections() {
     assert_eq!(analysis.rejected_keywords, vec!["bad_keyword"]);
     assert_eq!(analysis.rejected_categories, vec!["BadCategory"]);
 }
+
+// ============================================================
+// Briefing schema tests
+// ============================================================
+
+#[test]
+fn test_briefing_schema_is_valid_json() {
+    let schema = briefing_schema();
+    assert_eq!(schema["type"], "object");
+    assert!(schema["properties"]["tldr"].is_object());
+    assert!(schema["properties"]["topics"].is_object());
+}
+
+#[test]
+fn test_briefing_schema_required_fields() {
+    let schema = briefing_schema();
+    let required = schema["required"].as_array().unwrap();
+    assert!(required.contains(&serde_json::json!("tldr")));
+    assert!(required.contains(&serde_json::json!("topics")));
+}
+
+#[test]
+fn test_briefing_response_parses_correctly() {
+    let sample = serde_json::json!({
+        "tldr": {
+            "overview": "Test overview",
+            "trends": "Test trends",
+            "conclusion": "Test conclusion"
+        },
+        "topics": [
+            {
+                "title": "Topic 1",
+                "body": "Some **markdown** text.",
+                "article_indices": [0, 2],
+                "keywords": ["DAX", "EZB"]
+            }
+        ]
+    });
+    let json_str = serde_json::to_string(&sample).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+    assert_eq!(parsed["tldr"]["overview"], "Test overview");
+    assert_eq!(parsed["topics"][0]["article_indices"][1], 2);
+}
