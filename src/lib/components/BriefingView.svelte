@@ -281,18 +281,20 @@
                       TL;DR
                     </h3>
                     <div class="tldr-content">
-                      <p class="tldr-overview">{structured.tldr.overview}</p>
+                      <div class="tldr-overview markdown-content">
+                        {@html renderMarkdown(structured.tldr.overview)}
+                      </div>
                       {#if structured.tldr.trends}
-                        <p class="tldr-trends">
+                        <div class="tldr-trends markdown-content">
                           <strong>{$_("briefing.trends")}:</strong>
-                          {structured.tldr.trends}
-                        </p>
+                          {@html renderMarkdown(structured.tldr.trends)}
+                        </div>
                       {/if}
                       {#if structured.tldr.conclusion}
-                        <p class="tldr-conclusion">
+                        <div class="tldr-conclusion markdown-content">
                           <strong>{$_("briefing.conclusion")}:</strong>
-                          {structured.tldr.conclusion}
-                        </p>
+                          {@html renderMarkdown(structured.tldr.conclusion)}
+                        </div>
                       {/if}
                     </div>
                   </div>
@@ -709,14 +711,14 @@
     letter-spacing: 0.03em;
   }
 
-  .tldr-content p {
+  .tldr-content :global(p) {
     margin: 0 0 0.5rem;
     font-size: 0.875rem;
     line-height: 1.6;
     color: var(--text-primary);
   }
 
-  .tldr-content p:last-child {
+  .tldr-content :global(p:last-child) {
     margin-bottom: 0;
   }
 
