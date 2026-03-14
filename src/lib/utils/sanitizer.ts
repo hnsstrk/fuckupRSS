@@ -292,3 +292,13 @@ export function renderMarkdown(markdown: string): string {
   const html = marked.parse(markdown) as string;
   return sanitizeArticleContent(html);
 }
+
+/**
+ * Rendert Inline-Markdown (bold, italic, code, links) ohne Block-Elemente.
+ * Fuer Ueberschriften und andere Inline-Kontexte wo kein <p>/<ol>/<ul> erwuenscht ist.
+ */
+export function renderMarkdownInline(markdown: string): string {
+  if (!markdown) return "";
+  const html = marked.parseInline(markdown) as string;
+  return sanitizeArticleContent(html);
+}

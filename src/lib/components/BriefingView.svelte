@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
-  import { renderMarkdown } from "$lib/utils/sanitizer";
+  import { renderMarkdown, renderMarkdownInline } from "$lib/utils/sanitizer";
   import { formatError } from "$lib/utils/formatError";
   import { networkStore } from "$lib/stores/state.svelte";
 
@@ -302,7 +302,7 @@
                   <div class="briefing-topics">
                     {#each structured.topics as topic, topicIdx (topicIdx)}
                       <div class="briefing-topic">
-                        <h4 class="topic-title">{topic.title}</h4>
+                        <h4 class="topic-title">{@html renderMarkdownInline(topic.title)}</h4>
                         <div class="topic-body markdown-content">
                           {@html renderMarkdown(topic.body)}
                         </div>
