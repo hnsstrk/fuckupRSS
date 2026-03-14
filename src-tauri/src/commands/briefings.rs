@@ -55,14 +55,24 @@ const CANDIDATE_MULTIPLIER: usize = 3;
 
 /// Spike threshold: recent_count must be > avg * this factor to count as spike
 const SPIKE_FACTOR: f64 = 2.0;
-/// Score weight for trending keyword matches
-const WEIGHT_TREND: f64 = 1.0;
+/// Min recent_count for a keyword to count as trending (filters noise)
+const MIN_KEYWORD_COUNT: i64 = 2;
 /// Score weight for strong spike keywords
 const WEIGHT_SPIKE: f64 = 3.0;
-/// Score weight for story cluster membership
+/// Score weight for regular trending keyword matches
+const WEIGHT_TREND: f64 = 1.0;
+/// Max log2 scaling cap for normalized trend score
+const TREND_LOG_CAP: f64 = 4.0;
+/// Score weight for story cluster membership (compact clusters only)
 const WEIGHT_CLUSTER: f64 = 2.0;
+/// Max cluster size to count as signal (larger clusters are too noisy)
+const MAX_CLUSTER_SIZE: i64 = 30;
 /// Score weight for sachlichkeit (0-4 mapped to 0-1)
 const WEIGHT_QUALITY: f64 = 0.5;
+/// Category bonus for high-relevance categories (Politik, Sicherheit, etc.)
+const CATEGORY_BONUS: f64 = 1.5;
+/// Category malus for low-relevance categories (Sport)
+const CATEGORY_MALUS: f64 = -3.0;
 
 /// Scored article candidate before diversity filtering
 #[derive(Debug, Clone)]
@@ -114,7 +124,30 @@ fn select_briefing_articles(
             JOIN immanentize i ON i.id = d.immanentize_id
             WHERE d.date >= date(?1, '-{baseline_days} days')
             GROUP BY i.id
-            HAVING recent_count > 0
+            HAVING recent_count >= {min_kw}
+        ),
+        article_keyword_stats AS (
+            SELECT
+                f.id AS fnord_id,
+                -- Normalized trend: AVG(per-keyword score) * min(log2(match_count+1), cap)
+                -- Rewards quality of keywords over quantity
+                COALESCE(
+                    AVG(CASE
+                        WHEN t.recent_count > t.avg_count * {spike} THEN {w_spike}
+                        WHEN t.recent_count > 0 THEN {w_trend}
+                        ELSE NULL
+                    END)
+                    * MIN(LOG2(COUNT(CASE WHEN t.recent_count > 0 THEN 1 END) + 1), {log_cap}),
+                    0.0
+                ) AS trend_score
+            FROM fnords f
+            LEFT JOIN fnord_immanentize fi ON fi.fnord_id = f.id
+            LEFT JOIN trending t ON t.keyword_id = fi.immanentize_id
+            WHERE f.processed_at IS NOT NULL
+              AND f.summary IS NOT NULL
+              AND f.summary != ''
+              AND f.processed_at >= ?1
+            GROUP BY f.id
         ),
         article_scores AS (
             SELECT
@@ -126,34 +159,40 @@ fn select_briefing_articles(
                 (SELECT fs.sephiroth_id FROM fnord_sephiroth fs
                  WHERE fs.fnord_id = f.id
                  ORDER BY fs.confidence DESC LIMIT 1) AS category_id,
-                -- Dimension 1: Trending keyword matches with spike weighting
-                COALESCE(SUM(
-                    CASE
-                        WHEN t.recent_count > t.avg_count * {spike} THEN {w_spike}
-                        WHEN t.recent_count > 0 THEN {w_trend}
-                        ELSE 0.0
-                    END
-                ), 0.0) AS trend_score,
-                -- Dimension 2: Story cluster membership
+                -- Dimension 1: Normalized trending score
+                aks.trend_score,
+                -- Dimension 2: Story cluster membership (compact clusters only)
                 CASE WHEN EXISTS(
                     SELECT 1 FROM story_cluster_articles sca
+                    JOIN story_clusters sc ON sc.id = sca.cluster_id
                     WHERE sca.fnord_id = f.id
+                      AND sc.article_count <= {max_cluster}
                 ) THEN {w_cluster} ELSE 0.0 END AS cluster_score,
                 -- Dimension 3: Quality (sachlichkeit 0-4 -> 0-1)
-                COALESCE(f.sachlichkeit, 2) * 0.25 * {w_quality} AS quality_score
+                COALESCE(f.sachlichkeit, 2) * 0.25 * {w_quality} AS quality_score,
+                -- Dimension 4: Category relevance
+                CASE
+                    WHEN (SELECT fs.sephiroth_id FROM fnord_sephiroth fs
+                          WHERE fs.fnord_id = f.id
+                          ORDER BY fs.confidence DESC LIMIT 1)
+                         IN (201, 202, 203, 501, 502) THEN {cat_bonus}
+                    WHEN (SELECT fs.sephiroth_id FROM fnord_sephiroth fs
+                          WHERE fs.fnord_id = f.id
+                          ORDER BY fs.confidence DESC LIMIT 1)
+                         = 602 THEN {cat_malus}
+                    ELSE 0.0
+                END AS category_score
             FROM fnords f
             JOIN pentacles p ON p.id = f.pentacle_id
-            LEFT JOIN fnord_immanentize fi ON fi.fnord_id = f.id
-            LEFT JOIN trending t ON t.keyword_id = fi.immanentize_id
+            JOIN article_keyword_stats aks ON aks.fnord_id = f.id
             WHERE f.processed_at IS NOT NULL
               AND f.summary IS NOT NULL
               AND f.summary != ''
               AND f.processed_at >= ?1
-            GROUP BY f.id
         )
         SELECT
             id, title, source, summary, pentacle_id, category_id,
-            (trend_score + cluster_score + quality_score) AS total_score
+            (trend_score + cluster_score + quality_score + category_score) AS total_score
         FROM article_scores
         ORDER BY total_score DESC, id DESC
         LIMIT ?2
@@ -164,6 +203,11 @@ fn select_briefing_articles(
         w_cluster = WEIGHT_CLUSTER,
         w_quality = WEIGHT_QUALITY,
         baseline_days = baseline_days,
+        min_kw = MIN_KEYWORD_COUNT,
+        log_cap = TREND_LOG_CAP,
+        max_cluster = MAX_CLUSTER_SIZE,
+        cat_bonus = CATEGORY_BONUS,
+        cat_malus = CATEGORY_MALUS,
     );
 
     let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
@@ -715,5 +759,10 @@ mod tests {
         assert!(MIN_CATEGORIES > 0);
         assert!(CANDIDATE_MULTIPLIER >= 2);
         assert!(SPIKE_FACTOR > 1.0);
+        assert!(MIN_KEYWORD_COUNT >= 1);
+        assert!(TREND_LOG_CAP > 1.0);
+        assert!(MAX_CLUSTER_SIZE > 0);
+        assert!(CATEGORY_BONUS > 0.0);
+        assert!(CATEGORY_MALUS < 0.0);
     }
 }
