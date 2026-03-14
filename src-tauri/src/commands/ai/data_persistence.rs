@@ -122,6 +122,11 @@ pub fn save_article_keywords_with_source(
     let mut tag_ids: Vec<i64> = Vec::new();
     let mut new_keyword_ids: Vec<i64> = Vec::new();
 
+    // Ensure atomicity of all keyword operations for this article
+    if let Err(e) = conn.execute("SAVEPOINT kw_save", []) {
+        warn!("Failed to create savepoint: {}", e);
+    }
+
     // Load DB stopwords for filtering (includes news sources like "deutschlandfunk", "bbc", etc.)
     let db_stopwords: HashSet<String> = load_all_db_stopwords(conn).unwrap_or_default();
 
@@ -326,6 +331,11 @@ pub fn save_article_keywords_with_source(
                 trace!("Failed to update keyword co-occurrence: {}", e);
             }
         }
+    }
+
+    // Commit all keyword operations atomically
+    if let Err(e) = conn.execute("RELEASE kw_save", []) {
+        warn!("Failed to release savepoint: {}", e);
     }
 
     (tags_saved, tag_ids)
