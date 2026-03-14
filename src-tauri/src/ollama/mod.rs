@@ -328,7 +328,7 @@ struct EmbedResponse {
 /// Recommended models for fuckupRSS
 /// Note: qwen3-vl is a Vision-Language model (slow for text-only tasks)
 /// ministral-3 is faster for pure text analysis
-pub const RECOMMENDED_MAIN_MODEL: &str = "ministral-3:latest";
+pub const RECOMMENDED_MAIN_MODEL: &str = "qwen3.5:latest";
 /// snowflake-arctic-embed2: Multilingual (74 languages incl. German/English), 1024-dim
 pub const RECOMMENDED_EMBEDDING_MODEL: &str = "snowflake-arctic-embed2:latest";
 
@@ -474,7 +474,10 @@ pub fn get_language_for_locale(locale: &str) -> &'static str {
 }
 
 /// Default context length - optimized for 12GB GPU (100% GPU, ~1.5s/article)
-pub const DEFAULT_NUM_CTX: u32 = 4096;
+pub const DEFAULT_NUM_CTX: u32 = 8192;
+
+/// Higher context for briefing generation (more articles in prompt)
+pub const BRIEFING_NUM_CTX: u32 = 16384;
 
 /// Ollama API client for local LLM inference
 pub struct OllamaClient {

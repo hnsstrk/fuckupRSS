@@ -76,7 +76,7 @@ AI-powered summarization, bias detection, keyword validation, and article type c
 | Aspect | Details |
 |--------|---------|
 | **Provider** | Configurable via `AiTextProvider` (Ollama or OpenAI-compatible) |
-| **Default Model** | ministral-3:latest (Ollama) or configurable (OpenAI-compatible) |
+| **Default Model** | qwen3.5:latest (Ollama) or configurable (OpenAI-compatible) |
 | **Input** | `content_full` ONLY (no fallback) |
 | **Primary Output** | Summary, political_bias, sachlichkeit, article_type |
 | **Secondary Output** | Validated keywords |
@@ -186,19 +186,47 @@ Features, die auf bereits verarbeiteten Artikeln aufbauen.
 | Aspect | Details |
 |--------|---------|
 | **Trigger** | Manuell vom Benutzer (daily/weekly) |
-| **Input** | Top 15 Artikel mit Zusammenfassung + Top 20 Trending Keywords |
-| **Output** | Strukturiertes Briefing (Überblick, Top-5 Themen, Trends) |
+| **Input** | Hybrid-Scoring selektierte Artikel + Top 20 Trending Keywords |
+| **Output** | Strukturiertes Briefing (Überblick, Top-5-7 Themen, Trends) |
 | **Storage** | `briefings` Tabelle |
 | **Provider** | Configurable via `AiTextProvider` |
+| **Context** | `BRIEFING_NUM_CTX = 16384` (groesserer Kontext fuer mehr Artikel) |
 | **Sprache** | Deutsch |
+
+**Hybrid-Scoring Artikelselektion:**
+
+Die Artikelauswahl verwendet ein mehrdimensionales Scoring statt einfacher Recency-Selektion:
+
+| Dimension | Gewicht | Beschreibung |
+|-----------|---------|--------------|
+| **Trending Keywords (Spike)** | 3.0 | Keywords mit Spike-Erkennung: `recent_count > avg * 2.0` (gegen 14/28-Tage Baseline) |
+| **Trending Keywords (normal)** | 1.0 | Keywords mit erhoehter Frequenz, aber ohne Spike |
+| **Story Cluster Membership** | 2.0 | Artikel gehoert zu einem Story Cluster (thematisch relevant) |
+| **Sachlichkeit/Qualitaet** | 0.5 | Sachlichkeitswert (0-4) normalisiert auf 0-1 |
+
+**Diversitaets-Postprocessing:**
+
+| Regel | Wert | Beschreibung |
+|-------|------|--------------|
+| **Max pro Quelle** | 3 | Maximal 3 Artikel vom selben Feed |
+| **Min Kategorien** | 3 | Mindestens 3 verschiedene Kategorien im Briefing |
+| **Kandidaten-Pool** | 3x Limit | Es werden 3x so viele Kandidaten geladen, dann gefiltert |
+
+**Artikellimits:**
+
+| Briefing-Typ | Artikellimit | Baseline-Tage |
+|--------------|-------------|---------------|
+| daily | 20 | 14 |
+| weekly | 35 | 28 |
 
 **Briefing-Workflow:**
 1. Zeitraum berechnen (daily: 24h, weekly: 7 Tage)
-2. Top-15 Artikel mit Zusammenfassung aus dem Zeitraum laden
-3. Trending Keywords aus `immanentize_daily` für den Zeitraum laden
-4. Prompt mit Artikel-Liste und Keywords zusammenbauen
-5. LLM generiert strukturiertes Briefing
-6. Briefing in `briefings` Tabelle speichern (UNIQUE per Typ+Zeitraum)
+2. `select_briefing_articles()`: SQL CTE-Query mit Hybrid-Scoring (Trending, Cluster, Qualitaet)
+3. `diversify_articles()`: Rust-Postprocessing fuer Quellen- und Kategorie-Diversitaet
+4. Trending Keywords aus `immanentize_daily` fuer den Zeitraum laden
+5. Prompt mit Artikel-Liste und Keywords zusammenbauen (Provider mit BRIEFING_NUM_CTX)
+6. LLM generiert strukturiertes Briefing
+7. Briefing in `briefings` Tabelle speichern (UNIQUE per Typ+Zeitraum)
 
 #### Story Clustering (Thematische Artikel-Gruppierung)
 
@@ -457,7 +485,7 @@ fn calculate_quality(pentacle: &Pentacle, fnord: &Fnord) -> i32 {
 | Unbekannt | `unknown` | Nicht einordbar |
 
 **Datentyp:** TEXT (enum)
-**Ermittlung:** Durch KI (ministral-3)
+**Ermittlung:** Durch KI (qwen3.5)
 
 ### UI-Darstellung
 
@@ -599,7 +627,7 @@ Die Ollama-Kommunikation verwendet den `/api/chat` Endpoint (statt `/api/generat
 ```
 POST /api/chat
 {
-  "model": "ministral-3:latest",
+  "model": "qwen3.5:latest",
   "messages": [
     {"role": "system", "content": "You are a professional media analyst..."},
     {"role": "user", "content": "PRE-COMPUTED: keywords=...\n\nTitle: ...\nContent: ..."}
