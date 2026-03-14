@@ -236,6 +236,11 @@ fn diversify_articles(candidates: Vec<ScoredArticle>, limit: usize) -> Vec<Score
             })
             .collect();
 
+        // Replace from the end of the first-pass results (lowest scored)
+        // Track how many we've replaced so we don't replace diversity articles
+        let original_len = result.len();
+        let mut replace_idx = original_len;
+
         for diverse_article in missing_cat_articles {
             if categories_seen.len() >= MIN_CATEGORIES {
                 break;
@@ -246,10 +251,10 @@ fn diversify_articles(candidates: Vec<ScoredArticle>, limit: usize) -> Vec<Score
             if result.len() < limit {
                 // List has room -- just append
                 result.push(diverse_article.clone());
-            } else {
-                // List full -- replace lowest-scored (last) article
-                result.pop();
-                result.push(diverse_article.clone());
+            } else if replace_idx > 0 {
+                // List full -- replace lowest-scored original article (from end)
+                replace_idx -= 1;
+                result[replace_idx] = diverse_article.clone();
             }
         }
     }
@@ -584,4 +589,130 @@ pub fn delete_briefing(state: State<AppState>, id: i64) -> Result<bool, String> 
     }
 
     Ok(deleted > 0)
+}
+
+// ============================================================
+// TESTS
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_article(
+        id: i64,
+        pentacle_id: i64,
+        category_id: Option<i64>,
+        score: f64,
+    ) -> ScoredArticle {
+        ScoredArticle {
+            id,
+            title: format!("Article {}", id),
+            source: format!("Source {}", pentacle_id),
+            summary: format!("Summary for article {}", id),
+            pentacle_id,
+            category_id,
+            score,
+        }
+    }
+
+    #[test]
+    fn test_diversify_empty() {
+        let result = diversify_articles(vec![], 10);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_diversify_respects_limit() {
+        let candidates: Vec<ScoredArticle> = (1..=10)
+            .map(|i| make_article(i, i, Some(1), 10.0 - i as f64))
+            .collect();
+        let result = diversify_articles(candidates, 5);
+        assert_eq!(result.len(), 5);
+    }
+
+    #[test]
+    fn test_diversify_source_limit() {
+        // 6 articles from same source, limit should cap at MAX_PER_SOURCE
+        let mut candidates = vec![];
+        for i in 1..=6 {
+            candidates.push(make_article(i, 1, Some(1), 10.0 - i as f64)); // all pentacle_id=1
+        }
+        // Add 2 from different source
+        candidates.push(make_article(7, 2, Some(2), 1.0));
+        candidates.push(make_article(8, 3, Some(3), 0.5));
+
+        let result = diversify_articles(candidates, 5);
+
+        // Count articles from pentacle_id=1
+        let from_source_1 = result.iter().filter(|a| a.pentacle_id == 1).count();
+        assert!(
+            from_source_1 <= MAX_PER_SOURCE,
+            "Expected max {} from same source, got {}",
+            MAX_PER_SOURCE,
+            from_source_1
+        );
+        assert_eq!(result.len(), 5);
+    }
+
+    #[test]
+    fn test_diversify_preserves_score_order() {
+        let candidates = vec![
+            make_article(1, 1, Some(1), 10.0),
+            make_article(2, 2, Some(2), 8.0),
+            make_article(3, 3, Some(3), 5.0),
+        ];
+        let result = diversify_articles(candidates, 3);
+        assert_eq!(result[0].id, 1);
+        assert_eq!(result[1].id, 2);
+        assert_eq!(result[2].id, 3);
+    }
+
+    #[test]
+    fn test_diversify_fewer_than_limit() {
+        let candidates = vec![
+            make_article(1, 1, Some(1), 10.0),
+            make_article(2, 2, Some(2), 8.0),
+        ];
+        let result = diversify_articles(candidates, 10);
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_diversify_category_diversity() {
+        // All articles from category 1 (high score), one from category 2 (low score)
+        let candidates = vec![
+            make_article(1, 1, Some(1), 10.0),
+            make_article(2, 2, Some(1), 9.0),
+            make_article(3, 3, Some(1), 8.0),
+            make_article(4, 4, Some(1), 7.0),
+            make_article(5, 5, Some(1), 6.0),
+            // Low-scored but different categories
+            make_article(6, 6, Some(2), 1.0),
+            make_article(7, 7, Some(3), 0.5),
+            make_article(8, 8, Some(4), 0.1),
+        ];
+        let result = diversify_articles(candidates, 5);
+
+        // Should include articles from at least MIN_CATEGORIES categories
+        let cat_count: std::collections::HashSet<i64> =
+            result.iter().filter_map(|a| a.category_id).collect();
+        assert!(
+            cat_count.len() >= MIN_CATEGORIES,
+            "Expected >= {} categories, got {} ({:?})",
+            MIN_CATEGORIES,
+            cat_count.len(),
+            cat_count,
+        );
+    }
+
+    #[test]
+    fn test_constants_valid() {
+        assert!(DAILY_ARTICLE_LIMIT > 0);
+        assert!(WEEKLY_ARTICLE_LIMIT > DAILY_ARTICLE_LIMIT);
+        assert!(MAX_PER_SOURCE > 0);
+        assert!(MIN_CATEGORIES > 0);
+        assert!(CANDIDATE_MULTIPLIER >= 2);
+        assert!(SPIKE_FACTOR > 1.0);
+    }
 }
