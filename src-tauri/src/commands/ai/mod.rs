@@ -36,7 +36,7 @@ pub use types::{
     FailedCount,
     HopelessCount,
     // Source Tracking Types
-    KeywordWithSource,
+    KeywordWithMetadata,
     LoadedModel,
     LoadedModelsResponse,
     ModelPullResult,

@@ -17,7 +17,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tauri::State;
 
-use super::types::{CategoryWithSource, KeywordWithSource};
+use super::types::{CategoryWithSource, KeywordWithMetadata};
 
 // ============================================================
 // DATABASE SETTINGS HELPERS
@@ -376,7 +376,7 @@ pub struct StatKeywordInfo {
 pub fn determine_keyword_sources(
     final_keywords: &[String],
     stat_keywords: &[String],
-) -> Vec<KeywordWithSource> {
+) -> Vec<KeywordWithMetadata> {
     use crate::keywords::types::KeywordSource;
 
     let stat_lower: HashSet<String> = stat_keywords.iter().map(|k| k.to_lowercase()).collect();
@@ -385,7 +385,7 @@ pub fn determine_keyword_sources(
         .iter()
         .map(|k| {
             let is_statistical = stat_lower.contains(&k.to_lowercase());
-            KeywordWithSource {
+            KeywordWithMetadata {
                 name: k.clone(),
                 source: if is_statistical {
                     KeywordSource::Statistical
@@ -404,7 +404,7 @@ pub fn determine_keyword_sources(
 pub fn determine_keyword_sources_with_types(
     final_keywords: &[String],
     stat_keywords_with_types: &[StatKeywordInfo],
-) -> Vec<KeywordWithSource> {
+) -> Vec<KeywordWithMetadata> {
     use crate::keywords::types::KeywordSource;
 
     let stat_map: HashMap<String, &StatKeywordInfo> = stat_keywords_with_types
@@ -417,7 +417,7 @@ pub fn determine_keyword_sources_with_types(
         .map(|k| {
             let lower = k.to_lowercase();
             if let Some(stat_info) = stat_map.get(&lower) {
-                KeywordWithSource {
+                KeywordWithMetadata {
                     name: k.clone(),
                     source: KeywordSource::Statistical,
                     confidence: 0.8,
@@ -426,7 +426,7 @@ pub fn determine_keyword_sources_with_types(
             } else {
                 // For AI-only keywords, try to detect type from patterns
                 let keyword_type = detect_keyword_type(k);
-                KeywordWithSource {
+                KeywordWithMetadata {
                     name: k.clone(),
                     source: KeywordSource::Ai,
                     confidence: 1.0,

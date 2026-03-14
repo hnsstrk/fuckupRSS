@@ -9,7 +9,7 @@ use log::{debug, trace, warn};
 use rusqlite::Connection;
 use std::collections::HashSet;
 
-use super::types::{CategoryWithSource, KeywordWithSource};
+use super::types::{CategoryWithSource, KeywordWithMetadata};
 
 // ============================================================
 // CATEGORY PERSISTENCE
@@ -92,9 +92,9 @@ pub fn save_article_keywords_and_network(
 ) -> (Vec<String>, Vec<i64>) {
     use crate::commands::ai::helpers::detect_keyword_type;
     use crate::keywords::types::KeywordSource;
-    let kws_with_source: Vec<KeywordWithSource> = keywords
+    let kws_with_source: Vec<KeywordWithMetadata> = keywords
         .iter()
-        .map(|k| KeywordWithSource {
+        .map(|k| KeywordWithMetadata {
             name: k.clone(),
             source: KeywordSource::Ai,
             confidence: 1.0,
@@ -114,7 +114,7 @@ pub fn save_article_keywords_and_network(
 pub fn save_article_keywords_with_source(
     conn: &Connection,
     fnord_id: i64,
-    keywords: &[KeywordWithSource],
+    keywords: &[KeywordWithMetadata],
     categories_saved: &[String],
     article_date: Option<&str>,
 ) -> (Vec<String>, Vec<i64>) {
@@ -149,13 +149,13 @@ pub fn save_article_keywords_with_source(
     }
 
     // Expand compound keywords (e.g., "Trump-Zölle" → ["Trump-Zölle", "Trump", "Zölle"])
-    let expanded_keywords: Vec<KeywordWithSource> = keywords
+    let expanded_keywords: Vec<KeywordWithMetadata> = keywords
         .iter()
         .flat_map(|kw| {
             let split_parts = split_compound_keyword(&kw.name);
             let original_name = kw.name.clone();
             let keyword_type = kw.keyword_type.clone();
-            split_parts.into_iter().map(move |part| KeywordWithSource {
+            split_parts.into_iter().map(move |part| KeywordWithMetadata {
                 confidence: if part != original_name {
                     kw.confidence * 0.8
                 } else {
