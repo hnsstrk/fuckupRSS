@@ -273,7 +273,7 @@ pub async fn generate_briefing(
 
     info!("Generating {} briefing...", period_type);
 
-    // Step 1: Calculate time range and load articles + keywords (short lock)
+    // Step 1: Load scored + diversified articles and trending keywords (short lock)
     let (articles, trending_keywords, period_start, period_end) = {
         let db = state.db_conn()?;
         let conn = db.conn();
@@ -297,42 +297,28 @@ pub async fn generate_briefing(
             )
             .map_err(|e| e.to_string())?;
 
-        // Load top articles with summaries from the period
-        let mut stmt = conn
-            .prepare(
-                r#"SELECT f.id, f.title, COALESCE(p.title, p.url) AS source, f.summary
-                   FROM fnords f
-                   JOIN pentacles p ON f.pentacle_id = p.id
-                   WHERE f.processed_at IS NOT NULL
-                     AND f.summary IS NOT NULL
-                     AND f.summary != ''
-                     AND f.processed_at >= ?1
-                   ORDER BY f.processed_at DESC
-                   LIMIT 15"#,
-            )
-            .map_err(|e| e.to_string())?;
+        // Use hybrid scoring for article selection
+        let scored_articles = select_briefing_articles(conn, &p_start, &period_type)?;
 
-        let articles: Vec<BriefingArticle> = stmt
-            .query_map([&p_start], |row| {
-                Ok(BriefingArticle {
-                    id: row.get(0)?,
-                    title: row.get(1)?,
-                    source: row.get(2)?,
-                    summary: row.get(3)?,
-                })
-            })
-            .map_err(|e| e.to_string())?
-            .filter_map(|r| r.ok())
-            .collect();
-
-        if articles.is_empty() {
+        if scored_articles.is_empty() {
             return Err(format!(
                 "Keine Artikel mit Zusammenfassung in den letzten {} gefunden",
                 period_label
             ));
         }
 
-        // Load trending keywords from the period
+        // Convert to BriefingArticle format
+        let articles: Vec<BriefingArticle> = scored_articles
+            .iter()
+            .map(|sa| BriefingArticle {
+                id: sa.id,
+                title: sa.title.clone(),
+                source: sa.source.clone(),
+                summary: sa.summary.clone(),
+            })
+            .collect();
+
+        // Load trending keywords from the period (for LLM context)
         let mut kw_stmt = conn
             .prepare(
                 r#"SELECT i.name, SUM(d.count) AS total
@@ -400,14 +386,15 @@ pub async fn generate_briefing(
     let prompt = format!(
         "Du bist ein Nachrichten-Redakteur. Erstelle ein kompaktes Briefing \
          der wichtigsten Themen als JSON.\n\n\
-         Hier sind die {} wichtigsten Artikel der letzten {}:\n\n\
+         Hier sind die {} relevantesten Artikel der letzten {} \
+         (vorselektiert nach Trending-Relevanz, Themen-Clustering und Quellenvielfalt):\n\n\
          {}\n\
          Trending-Keywords: {}\n\n\
          Erstelle ein JSON mit:\n\
          - tldr.overview: Ueberblick in 2-3 Saetzen\n\
          - tldr.trends: Bemerkenswerte Trends als Markdown-Liste (z.B. '1. **Trend**: Beschreibung'), ein Trend pro Zeile\n\
          - tldr.conclusion: Fazit und Einordnung\n\
-         - topics: Array mit den 5 wichtigsten Themen, je:\n\
+         - topics: Array mit den 5-7 wichtigsten Themen, je:\n\
            - title: Themenueberschrift\n\
            - body: 2-4 Saetze als Markdown-Text\n\
            - article_indices: Array der relevanten Artikel-Nummern (0-basiert)\n\
