@@ -474,7 +474,10 @@ pub fn get_language_for_locale(locale: &str) -> &'static str {
 }
 
 /// Default context length - optimized for 12GB GPU (100% GPU, ~1.5s/article)
-pub const DEFAULT_NUM_CTX: u32 = 4096;
+pub const DEFAULT_NUM_CTX: u32 = 8192;
+
+/// Higher context for briefing generation (more articles in prompt)
+pub const BRIEFING_NUM_CTX: u32 = 16384;
 
 /// Ollama API client for local LLM inference
 pub struct OllamaClient {
