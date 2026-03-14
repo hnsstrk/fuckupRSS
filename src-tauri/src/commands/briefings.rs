@@ -129,15 +129,20 @@ fn select_briefing_articles(
         article_keyword_stats AS (
             SELECT
                 f.id AS fnord_id,
-                -- Normalized trend: AVG(per-keyword score) * min(log2(match_count+1), cap)
-                -- Rewards quality of keywords over quantity
+                -- Normalized trend: AVG(per-keyword score) * step_scale(match_count)
+                -- Rewards quality of keywords over quantity (diminishing returns)
                 COALESCE(
                     AVG(CASE
                         WHEN t.recent_count > t.avg_count * {spike} THEN {w_spike}
                         WHEN t.recent_count > 0 THEN {w_trend}
                         ELSE NULL
                     END)
-                    * MIN(LOG2(COUNT(CASE WHEN t.recent_count > 0 THEN 1 END) + 1), {log_cap}),
+                    * (CASE
+                        WHEN COUNT(CASE WHEN t.recent_count > 0 THEN 1 END) >= 9 THEN {log_cap}
+                        WHEN COUNT(CASE WHEN t.recent_count > 0 THEN 1 END) >= 5 THEN 3.0
+                        WHEN COUNT(CASE WHEN t.recent_count > 0 THEN 1 END) >= 3 THEN 2.0
+                        ELSE 1.0
+                    END),
                     0.0
                 ) AS trend_score
             FROM fnords f
