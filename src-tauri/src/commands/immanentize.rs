@@ -878,52 +878,21 @@ pub fn prune_keywords(
         .unwrap_or(0);
 
     conn.execute(
-        r#"DELETE FROM immanentize 
-           WHERE article_count <= ?1 
+        r#"DELETE FROM immanentize
+           WHERE article_count <= ?1
            AND last_used < datetime('now', '-' || ?2 || ' days')"#,
         rusqlite::params![min_articles, days],
     )
     .map_err(|e| e.to_string())?;
 
-    let removed_orphan_relations: i64 = conn
-        .query_row(
-            r#"SELECT COUNT(*) FROM immanentize_neighbors 
-               WHERE immanentize_id_a NOT IN (SELECT id FROM immanentize)
-               OR immanentize_id_b NOT IN (SELECT id FROM immanentize)"#,
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-
-    // Cleanup orphaned relations after pruning keywords
-    if let Err(e) = conn.execute(
-        r#"DELETE FROM immanentize_neighbors
-           WHERE immanentize_id_a NOT IN (SELECT id FROM immanentize)
-           OR immanentize_id_b NOT IN (SELECT id FROM immanentize)"#,
-        [],
-    ) {
-        trace!("Failed to clean orphan neighbors: {}", e);
-    }
-
-    if let Err(e) = conn.execute(
-        r#"DELETE FROM immanentize_sephiroth
-           WHERE immanentize_id NOT IN (SELECT id FROM immanentize)"#,
-        [],
-    ) {
-        trace!("Failed to clean orphan category associations: {}", e);
-    }
-
-    if let Err(e) = conn.execute(
-        r#"DELETE FROM immanentize_daily
-           WHERE immanentize_id NOT IN (SELECT id FROM immanentize)"#,
-        [],
-    ) {
-        trace!("Failed to clean orphan daily stats: {}", e);
-    }
+    // Note: CASCADE on immanentize FKs automatically cleans up
+    // immanentize_neighbors, immanentize_sephiroth, immanentize_daily,
+    // embedding_queue, dismissed_synonyms, preserved_compounds, compound_decisions.
+    // Trigger immanentize_delete_vec handles vec_immanentize.
 
     Ok(PruneResult {
         removed_keywords,
-        removed_orphan_relations,
+        removed_orphan_relations: 0,
     })
 }
 
@@ -1097,6 +1066,63 @@ pub fn merge_synonym_keywords(state: State<AppState>) -> Result<MergeResult, Str
                     rusqlite::params![can_id, id],
                 ) {
                     warn!("Failed to update merged keyword counts: {}", e);
+                }
+
+                // Transfer category associations (sephiroth) from source to target
+                if let Err(e) = conn.execute(
+                    r#"INSERT INTO immanentize_sephiroth (immanentize_id, sephiroth_id, weight, article_count, first_seen, updated_at)
+                       SELECT ?1, sephiroth_id, weight, article_count, first_seen, updated_at
+                       FROM immanentize_sephiroth WHERE immanentize_id = ?2
+                       ON CONFLICT(immanentize_id, sephiroth_id) DO UPDATE SET
+                           article_count = article_count + excluded.article_count,
+                           updated_at = CURRENT_TIMESTAMP"#,
+                    rusqlite::params![can_id, id],
+                ) {
+                    warn!("Failed to transfer sephiroth for keyword {}: {}", id, e);
+                }
+
+                // Transfer neighbor edges (re-wire, respecting CHECK constraint)
+                // Case 1: source is id_a
+                if let Err(e) = conn.execute(
+                    r#"INSERT INTO immanentize_neighbors (immanentize_id_a, immanentize_id_b, cooccurrence, embedding_similarity, combined_weight, first_seen, last_seen)
+                       SELECT
+                           CASE WHEN ?1 < immanentize_id_b THEN ?1 ELSE immanentize_id_b END,
+                           CASE WHEN ?1 < immanentize_id_b THEN immanentize_id_b ELSE ?1 END,
+                           cooccurrence, embedding_similarity, combined_weight, first_seen, last_seen
+                       FROM immanentize_neighbors
+                       WHERE immanentize_id_a = ?2 AND immanentize_id_b != ?1
+                       ON CONFLICT(immanentize_id_a, immanentize_id_b) DO UPDATE SET
+                           cooccurrence = cooccurrence + excluded.cooccurrence,
+                           last_seen = MAX(last_seen, excluded.last_seen)"#,
+                    rusqlite::params![can_id, id],
+                ) {
+                    warn!("Failed to transfer neighbor edges (a) for keyword {}: {}", id, e);
+                }
+                // Case 2: source is id_b
+                if let Err(e) = conn.execute(
+                    r#"INSERT INTO immanentize_neighbors (immanentize_id_a, immanentize_id_b, cooccurrence, embedding_similarity, combined_weight, first_seen, last_seen)
+                       SELECT
+                           CASE WHEN immanentize_id_a < ?1 THEN immanentize_id_a ELSE ?1 END,
+                           CASE WHEN immanentize_id_a < ?1 THEN ?1 ELSE immanentize_id_a END,
+                           cooccurrence, embedding_similarity, combined_weight, first_seen, last_seen
+                       FROM immanentize_neighbors
+                       WHERE immanentize_id_b = ?2 AND immanentize_id_a != ?1
+                       ON CONFLICT(immanentize_id_a, immanentize_id_b) DO UPDATE SET
+                           cooccurrence = cooccurrence + excluded.cooccurrence,
+                           last_seen = MAX(last_seen, excluded.last_seen)"#,
+                    rusqlite::params![can_id, id],
+                ) {
+                    warn!("Failed to transfer neighbor edges (b) for keyword {}: {}", id, e);
+                }
+
+                // Merge daily trend data before deleting
+                if let Err(e) = conn.execute(
+                    r#"INSERT INTO immanentize_daily (immanentize_id, date, count)
+                       SELECT ?1, date, count FROM immanentize_daily WHERE immanentize_id = ?2
+                       ON CONFLICT(immanentize_id, date) DO UPDATE SET count = count + excluded.count"#,
+                    rusqlite::params![can_id, id],
+                ) {
+                    warn!("Failed to merge daily stats for keyword {}: {}", id, e);
                 }
 
                 // Delete neighbor relationships BEFORE deleting the keyword to prevent orphaned relationships
@@ -2144,6 +2170,47 @@ pub fn merge_keyword_pair(
             [keep_id],
         )?;
 
+        // Transfer category associations before deleting
+        conn.execute(
+            r#"INSERT INTO immanentize_sephiroth (immanentize_id, sephiroth_id, weight, article_count, first_seen, updated_at)
+               SELECT ?1, sephiroth_id, weight, article_count, first_seen, updated_at
+               FROM immanentize_sephiroth WHERE immanentize_id = ?2
+               ON CONFLICT(immanentize_id, sephiroth_id) DO UPDATE SET
+                   article_count = article_count + excluded.article_count,
+                   updated_at = CURRENT_TIMESTAMP"#,
+            params![keep_id, remove_id],
+        )?;
+
+        // Transfer neighbor edges (re-wire to keep_id, respecting CHECK constraint)
+        // Case 1: remove_id is id_a
+        conn.execute(
+            r#"INSERT INTO immanentize_neighbors (immanentize_id_a, immanentize_id_b, cooccurrence, embedding_similarity, combined_weight, first_seen, last_seen)
+               SELECT
+                   CASE WHEN ?1 < immanentize_id_b THEN ?1 ELSE immanentize_id_b END,
+                   CASE WHEN ?1 < immanentize_id_b THEN immanentize_id_b ELSE ?1 END,
+                   cooccurrence, embedding_similarity, combined_weight, first_seen, last_seen
+               FROM immanentize_neighbors
+               WHERE immanentize_id_a = ?2 AND immanentize_id_b != ?1
+               ON CONFLICT(immanentize_id_a, immanentize_id_b) DO UPDATE SET
+                   cooccurrence = cooccurrence + excluded.cooccurrence,
+                   last_seen = MAX(last_seen, excluded.last_seen)"#,
+            params![keep_id, remove_id],
+        )?;
+        // Case 2: remove_id is id_b
+        conn.execute(
+            r#"INSERT INTO immanentize_neighbors (immanentize_id_a, immanentize_id_b, cooccurrence, embedding_similarity, combined_weight, first_seen, last_seen)
+               SELECT
+                   CASE WHEN immanentize_id_a < ?1 THEN immanentize_id_a ELSE ?1 END,
+                   CASE WHEN immanentize_id_a < ?1 THEN ?1 ELSE immanentize_id_a END,
+                   cooccurrence, embedding_similarity, combined_weight, first_seen, last_seen
+               FROM immanentize_neighbors
+               WHERE immanentize_id_b = ?2 AND immanentize_id_a != ?1
+               ON CONFLICT(immanentize_id_a, immanentize_id_b) DO UPDATE SET
+                   cooccurrence = cooccurrence + excluded.cooccurrence,
+                   last_seen = MAX(last_seen, excluded.last_seen)"#,
+            params![keep_id, remove_id],
+        )?;
+
         conn.execute(
             "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
             params![remove_id, remove_id],
@@ -2338,66 +2405,34 @@ pub fn create_keyword(state: State<AppState>, name: String) -> Result<CreateKeyw
 /// Delete a keyword and all its associations
 #[tauri::command]
 pub fn delete_keyword(state: State<AppState>, id: i64) -> Result<(), String> {
+    use crate::db::transaction::with_transaction_result;
+
     let db = state.db_conn()?;
-    let conn = db.conn();
 
-    // Delete all associations before deleting the keyword itself
-    if let Err(e) = conn.execute(
-        "DELETE FROM fnord_immanentize WHERE immanentize_id = ?",
-        [id],
-    ) {
-        trace!("Failed to delete article refs for keyword {}: {}", id, e);
-    }
+    with_transaction_result(db.conn(), |conn| {
+        // Verify keyword exists
+        let exists: bool = conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM immanentize WHERE id = ?",
+                [id],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
 
-    if let Err(e) = conn.execute(
-        "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
-        params![id, id],
-    ) {
-        trace!("Failed to delete neighbors for keyword {}: {}", id, e);
-    }
+        if !exists {
+            return Err(crate::db::transaction::TransactionError::Failed(
+                format!("Keyword mit ID {} nicht gefunden.", id),
+            ));
+        }
 
-    if let Err(e) = conn.execute(
-        "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
-        [id],
-    ) {
-        trace!("Failed to delete category refs for keyword {}: {}", id, e);
-    }
+        // Single DELETE — CASCADE handles fnord_immanentize, immanentize_neighbors,
+        // immanentize_sephiroth, immanentize_daily, embedding_queue, dismissed_synonyms,
+        // preserved_compounds, compound_decisions.
+        // Trigger immanentize_delete_vec handles vec_immanentize.
+        conn.execute("DELETE FROM immanentize WHERE id = ?", [id])?;
 
-    if let Err(e) = conn.execute(
-        "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
-        [id],
-    ) {
-        trace!("Failed to delete daily stats for keyword {}: {}", id, e);
-    }
-
-    if let Err(e) = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id]) {
-        trace!("Failed to delete keyword {} from vec table: {}", id, e);
-    }
-
-    if let Err(e) = conn.execute("DELETE FROM embedding_queue WHERE immanentize_id = ?", [id]) {
-        trace!(
-            "Failed to delete keyword {} from embedding queue: {}",
-            id,
-            e
-        );
-    }
-
-    if let Err(e) = conn.execute(
-        "DELETE FROM dismissed_synonyms WHERE keyword_a_id = ? OR keyword_b_id = ?",
-        params![id, id],
-    ) {
-        trace!(
-            "Failed to delete dismissed synonyms for keyword {}: {}",
-            id,
-            e
-        );
-    }
-
-    // Finally delete the keyword itself
-    conn.execute("DELETE FROM immanentize WHERE id = ?", [id])
-        .map_err(|e| format!("Fehler beim Löschen des Keywords: {}", e))?;
-
-    Ok(())
+        Ok(())
+    })
 }
 
 /// Rename a keyword
@@ -2437,6 +2472,28 @@ pub fn rename_keyword(state: State<AppState>, id: i64, new_name: String) -> Resu
         params![&new_name, id],
     )
     .map_err(|e| format!("Fehler beim Umbenennen: {}", e))?;
+
+    // Invalidate old embedding and re-queue for regeneration
+    // The embedding was generated from the old name, so it's no longer accurate
+    let _ = conn.execute(
+        "UPDATE immanentize SET embedding = NULL WHERE id = ?",
+        [id],
+    );
+
+    // Remove from vec search index
+    let _ = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id]);
+
+    // Queue for re-embedding with high priority
+    let _ = conn.execute(
+        r#"INSERT INTO embedding_queue (immanentize_id, priority, queued_at)
+           VALUES (?1, 10, CURRENT_TIMESTAMP)
+           ON CONFLICT(immanentize_id) DO UPDATE SET
+               priority = 10,
+               queued_at = CURRENT_TIMESTAMP,
+               attempts = 0,
+               last_error = NULL"#,
+        [id],
+    );
 
     log::info!("Keyword {} renamed to '{}'", id, new_name);
 
@@ -2639,6 +2696,31 @@ pub fn auto_merge_similar_keywords(
 
 /// Internal helper to perform the actual merge operation
 fn perform_merge(conn: &rusqlite::Connection, keep_id: i64, remove_id: i64) -> Result<i64, String> {
+    // Use SAVEPOINT for nested transaction support (caller may already have a transaction)
+    conn.execute("SAVEPOINT merge_op", [])
+        .map_err(|e| e.to_string())?;
+
+    let result = perform_merge_inner(conn, keep_id, remove_id);
+
+    match &result {
+        Ok(_) => {
+            conn.execute("RELEASE merge_op", [])
+                .map_err(|e| e.to_string())?;
+        }
+        Err(_) => {
+            let _ = conn.execute("ROLLBACK TO merge_op", []);
+            let _ = conn.execute("RELEASE merge_op", []);
+        }
+    }
+
+    result
+}
+
+fn perform_merge_inner(
+    conn: &rusqlite::Connection,
+    keep_id: i64,
+    remove_id: i64,
+) -> Result<i64, String> {
     // Count articles that will be affected
     let affected: i64 = conn
         .query_row(
@@ -2648,8 +2730,8 @@ fn perform_merge(conn: &rusqlite::Connection, keep_id: i64, remove_id: i64) -> R
         )
         .unwrap_or(0);
 
-    // Update fnord_immanentize - move articles from source to target
-    // First, delete any that would create duplicates
+    // --- MERGE fnord_immanentize ---
+    // Delete duplicates first (articles that reference both keywords)
     conn.execute(
         r#"DELETE FROM fnord_immanentize
            WHERE immanentize_id = ?1
@@ -2658,99 +2740,78 @@ fn perform_merge(conn: &rusqlite::Connection, keep_id: i64, remove_id: i64) -> R
     )
     .map_err(|e| e.to_string())?;
 
-    // Then update remaining to point to target
+    // Move remaining to target
     conn.execute(
         "UPDATE fnord_immanentize SET immanentize_id = ?1 WHERE immanentize_id = ?2",
         params![keep_id, remove_id],
     )
     .map_err(|e| e.to_string())?;
 
-    // Update article_count for the target keyword
-    if let Err(e) = conn.execute(
+    // Update article_count
+    conn.execute(
         r#"UPDATE immanentize SET
            article_count = (SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = ?1),
            last_used = CURRENT_TIMESTAMP
            WHERE id = ?1"#,
         [keep_id],
-    ) {
-        warn!("Failed to update article count after merge: {}", e);
-    }
+    )
+    .map_err(|e| e.to_string())?;
 
-    // Clean up source keyword's associations
-    if let Err(e) = conn.execute(
-        "DELETE FROM immanentize_neighbors WHERE immanentize_id_a = ? OR immanentize_id_b = ?",
-        params![remove_id, remove_id],
-    ) {
-        trace!(
-            "Failed to delete neighbors for merged keyword {}: {}",
-            remove_id,
-            e
-        );
-    }
-    if let Err(e) = conn.execute(
-        "DELETE FROM immanentize_sephiroth WHERE immanentize_id = ?",
-        [remove_id],
-    ) {
-        trace!(
-            "Failed to delete category refs for merged keyword {}: {}",
-            remove_id,
-            e
-        );
-    }
-    // Merge daily trend data into keep_id before deleting remove_id's records
-    if let Err(e) = conn.execute(
+    // --- MERGE immanentize_sephiroth (transfer category associations) ---
+    conn.execute(
+        r#"INSERT INTO immanentize_sephiroth (immanentize_id, sephiroth_id, weight, article_count, first_seen, updated_at)
+           SELECT ?1, sephiroth_id, weight, article_count, first_seen, updated_at
+           FROM immanentize_sephiroth WHERE immanentize_id = ?2
+           ON CONFLICT(immanentize_id, sephiroth_id) DO UPDATE SET
+               article_count = article_count + excluded.article_count,
+               updated_at = CURRENT_TIMESTAMP"#,
+        params![keep_id, remove_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // --- MERGE immanentize_neighbors edges (re-wire, respecting CHECK id_a < id_b) ---
+    // Case 1: remove_id is id_a — re-wire to keep_id
+    conn.execute(
+        r#"INSERT INTO immanentize_neighbors (immanentize_id_a, immanentize_id_b, cooccurrence, embedding_similarity, combined_weight, first_seen, last_seen)
+           SELECT
+               CASE WHEN ?1 < immanentize_id_b THEN ?1 ELSE immanentize_id_b END,
+               CASE WHEN ?1 < immanentize_id_b THEN immanentize_id_b ELSE ?1 END,
+               cooccurrence, embedding_similarity, combined_weight, first_seen, last_seen
+           FROM immanentize_neighbors
+           WHERE immanentize_id_a = ?2 AND immanentize_id_b != ?1
+           ON CONFLICT(immanentize_id_a, immanentize_id_b) DO UPDATE SET
+               cooccurrence = cooccurrence + excluded.cooccurrence,
+               last_seen = MAX(last_seen, excluded.last_seen)"#,
+        params![keep_id, remove_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Case 2: remove_id is id_b — re-wire to keep_id
+    conn.execute(
+        r#"INSERT INTO immanentize_neighbors (immanentize_id_a, immanentize_id_b, cooccurrence, embedding_similarity, combined_weight, first_seen, last_seen)
+           SELECT
+               CASE WHEN immanentize_id_a < ?1 THEN immanentize_id_a ELSE ?1 END,
+               CASE WHEN immanentize_id_a < ?1 THEN ?1 ELSE immanentize_id_a END,
+               cooccurrence, embedding_similarity, combined_weight, first_seen, last_seen
+           FROM immanentize_neighbors
+           WHERE immanentize_id_b = ?2 AND immanentize_id_a != ?1
+           ON CONFLICT(immanentize_id_a, immanentize_id_b) DO UPDATE SET
+               cooccurrence = cooccurrence + excluded.cooccurrence,
+               last_seen = MAX(last_seen, excluded.last_seen)"#,
+        params![keep_id, remove_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // --- MERGE immanentize_daily (transfer trending data) ---
+    conn.execute(
         r#"INSERT INTO immanentize_daily (immanentize_id, date, count)
            SELECT ?1, date, count FROM immanentize_daily WHERE immanentize_id = ?2
            ON CONFLICT(immanentize_id, date) DO UPDATE SET count = count + excluded.count"#,
         params![keep_id, remove_id],
-    ) {
-        warn!(
-            "Failed to merge daily stats for keyword {}: {}",
-            remove_id, e
-        );
-    }
-    if let Err(e) = conn.execute(
-        "DELETE FROM immanentize_daily WHERE immanentize_id = ?",
-        [remove_id],
-    ) {
-        trace!(
-            "Failed to delete daily stats for merged keyword {}: {}",
-            remove_id,
-            e
-        );
-    }
-    if let Err(e) = conn.execute(
-        "DELETE FROM vec_immanentize WHERE immanentize_id = ?",
-        [remove_id],
-    ) {
-        trace!(
-            "Failed to delete merged keyword {} from vec table: {}",
-            remove_id,
-            e
-        );
-    }
-    if let Err(e) = conn.execute(
-        "DELETE FROM embedding_queue WHERE immanentize_id = ?",
-        [remove_id],
-    ) {
-        trace!(
-            "Failed to delete merged keyword {} from embedding queue: {}",
-            remove_id,
-            e
-        );
-    }
-    if let Err(e) = conn.execute(
-        "DELETE FROM dismissed_synonyms WHERE keyword_a_id = ? OR keyword_b_id = ?",
-        params![remove_id, remove_id],
-    ) {
-        trace!(
-            "Failed to delete dismissed synonyms for merged keyword {}: {}",
-            remove_id,
-            e
-        );
-    }
+    )
+    .map_err(|e| e.to_string())?;
 
-    // Delete the source keyword
+    // --- DELETE source keyword (CASCADE handles remaining dependent rows) ---
     conn.execute("DELETE FROM immanentize WHERE id = ?", [remove_id])
         .map_err(|e| e.to_string())?;
 
