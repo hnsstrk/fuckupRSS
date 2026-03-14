@@ -950,6 +950,39 @@ pub async fn process_statistical_batch(
                 }
             }
 
+            // Build co-occurrence network for statistical keywords
+            let stored_keyword_ids: Vec<i64> = keyword_ops
+                .iter()
+                .filter_map(|(keyword_name, _)| {
+                    conn.query_row(
+                        "SELECT id FROM immanentize WHERE LOWER(name) = LOWER(?)",
+                        [keyword_name],
+                        |row| row.get(0),
+                    )
+                    .ok()
+                })
+                .collect();
+
+            for i in 0..stored_keyword_ids.len() {
+                for j in (i + 1)..stored_keyword_ids.len() {
+                    let (id_a, id_b) = if stored_keyword_ids[i] < stored_keyword_ids[j] {
+                        (stored_keyword_ids[i], stored_keyword_ids[j])
+                    } else {
+                        (stored_keyword_ids[j], stored_keyword_ids[i])
+                    };
+
+                    let _ = conn.execute(
+                        r#"INSERT INTO immanentize_neighbors
+                           (immanentize_id_a, immanentize_id_b, cooccurrence, first_seen, last_seen)
+                           VALUES (?1, ?2, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                           ON CONFLICT(immanentize_id_a, immanentize_id_b) DO UPDATE SET
+                               cooccurrence = cooccurrence + 1,
+                               last_seen = CURRENT_TIMESTAMP"#,
+                        params![id_a, id_b],
+                    );
+                }
+            }
+
             // Store categories (only subcategories)
             for (sephiroth_id, confidence) in &category_ops {
                 let is_subcategory: bool = conn
