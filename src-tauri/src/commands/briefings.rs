@@ -77,6 +77,187 @@ struct ScoredArticle {
 }
 
 // ============================================================
+// ARTICLE SELECTION
+// ============================================================
+
+/// Select articles for briefing using hybrid scoring.
+///
+/// Scoring dimensions:
+/// 1. Trending keywords with spike detection (immanentize_daily)
+/// 2. Story cluster membership (story_cluster_articles)
+/// 3. Article quality/sachlichkeit
+/// 4. Post-processing: source diversity + category diversity
+fn select_briefing_articles(
+    conn: &Connection,
+    period_start: &str,
+    period_type: &str,
+) -> Result<Vec<ScoredArticle>, String> {
+    let article_limit = if period_type == "weekly" {
+        WEEKLY_ARTICLE_LIMIT
+    } else {
+        DAILY_ARTICLE_LIMIT
+    };
+    let candidate_limit = article_limit * CANDIDATE_MULTIPLIER;
+
+    // Lookback for spike baseline: 14 days for daily, 28 for weekly
+    let baseline_days = if period_type == "weekly" { 28 } else { 14 };
+
+    let query = format!(
+        r#"
+        WITH trending AS (
+            SELECT
+                i.id AS keyword_id,
+                SUM(CASE WHEN d.date >= date(?1) THEN d.count ELSE 0 END) AS recent_count,
+                AVG(d.count) AS avg_count
+            FROM immanentize_daily d
+            JOIN immanentize i ON i.id = d.immanentize_id
+            WHERE d.date >= date(?1, '-{baseline_days} days')
+            GROUP BY i.id
+            HAVING recent_count > 0
+        ),
+        article_scores AS (
+            SELECT
+                f.id,
+                f.title,
+                COALESCE(p.title, p.url) AS source,
+                f.summary,
+                f.pentacle_id,
+                (SELECT fs.sephiroth_id FROM fnord_sephiroth fs
+                 WHERE fs.fnord_id = f.id
+                 ORDER BY fs.confidence DESC LIMIT 1) AS category_id,
+                -- Dimension 1: Trending keyword matches with spike weighting
+                COALESCE(SUM(
+                    CASE
+                        WHEN t.recent_count > t.avg_count * {spike} THEN {w_spike}
+                        WHEN t.recent_count > 0 THEN {w_trend}
+                        ELSE 0.0
+                    END
+                ), 0.0) AS trend_score,
+                -- Dimension 2: Story cluster membership
+                CASE WHEN EXISTS(
+                    SELECT 1 FROM story_cluster_articles sca
+                    WHERE sca.fnord_id = f.id
+                ) THEN {w_cluster} ELSE 0.0 END AS cluster_score,
+                -- Dimension 3: Quality (sachlichkeit 0-4 -> 0-1)
+                COALESCE(f.sachlichkeit, 2) * 0.25 * {w_quality} AS quality_score
+            FROM fnords f
+            JOIN pentacles p ON p.id = f.pentacle_id
+            LEFT JOIN fnord_immanentize fi ON fi.fnord_id = f.id
+            LEFT JOIN trending t ON t.keyword_id = fi.immanentize_id
+            WHERE f.processed_at IS NOT NULL
+              AND f.summary IS NOT NULL
+              AND f.summary != ''
+              AND f.processed_at >= ?1
+            GROUP BY f.id
+        )
+        SELECT
+            id, title, source, summary, pentacle_id, category_id,
+            (trend_score + cluster_score + quality_score) AS total_score
+        FROM article_scores
+        ORDER BY total_score DESC, id DESC
+        LIMIT ?2
+        "#,
+        spike = SPIKE_FACTOR,
+        w_spike = WEIGHT_SPIKE,
+        w_trend = WEIGHT_TREND,
+        w_cluster = WEIGHT_CLUSTER,
+        w_quality = WEIGHT_QUALITY,
+        baseline_days = baseline_days,
+    );
+
+    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
+    let candidates: Vec<ScoredArticle> = stmt
+        .query_map(
+            rusqlite::params![period_start, candidate_limit as i64],
+            |row| {
+                Ok(ScoredArticle {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    source: row.get(2)?,
+                    summary: row.get(3)?,
+                    pentacle_id: row.get(4)?,
+                    category_id: row.get(5)?,
+                    score: row.get(6)?,
+                })
+            },
+        )
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Diversity post-processing
+    Ok(diversify_articles(candidates, article_limit))
+}
+
+/// Post-process scored candidates for source and category diversity.
+///
+/// Rules:
+/// - Max MAX_PER_SOURCE articles from same feed
+/// - At least MIN_CATEGORIES different categories
+/// - Maintains score ordering within constraints
+fn diversify_articles(candidates: Vec<ScoredArticle>, limit: usize) -> Vec<ScoredArticle> {
+    use std::collections::{HashMap, HashSet};
+
+    if candidates.is_empty() {
+        return candidates;
+    }
+
+    let mut result: Vec<ScoredArticle> = Vec::with_capacity(limit);
+    let mut source_count: HashMap<i64, usize> = HashMap::new();
+    let mut categories_seen: HashSet<i64> = HashSet::new();
+
+    // First pass: select articles respecting source limits
+    for article in &candidates {
+        if result.len() >= limit {
+            break;
+        }
+        let count = source_count.entry(article.pentacle_id).or_insert(0);
+        if *count >= MAX_PER_SOURCE {
+            continue;
+        }
+        *count += 1;
+        if let Some(cat) = article.category_id {
+            categories_seen.insert(cat);
+        }
+        result.push(article.clone());
+    }
+
+    // Second pass: if category diversity is too low, add articles from missing categories
+    if categories_seen.len() < MIN_CATEGORIES && result.len() >= MIN_CATEGORIES {
+        // Find articles from categories not yet represented (skip those already in result)
+        let result_ids: HashSet<i64> = result.iter().map(|a| a.id).collect();
+        let missing_cat_articles: Vec<&ScoredArticle> = candidates
+            .iter()
+            .filter(|a| {
+                !result_ids.contains(&a.id)
+                    && a.category_id
+                        .map(|c| !categories_seen.contains(&c))
+                        .unwrap_or(false)
+            })
+            .collect();
+
+        for diverse_article in missing_cat_articles {
+            if categories_seen.len() >= MIN_CATEGORIES {
+                break;
+            }
+            if let Some(cat) = diverse_article.category_id {
+                categories_seen.insert(cat);
+            }
+            if result.len() < limit {
+                // List has room -- just append
+                result.push(diverse_article.clone());
+            } else {
+                // List full -- replace lowest-scored (last) article
+                result.pop();
+                result.push(diverse_article.clone());
+            }
+        }
+    }
+
+    result
+}
+
+// ============================================================
 // COMMANDS
 // ============================================================
 
