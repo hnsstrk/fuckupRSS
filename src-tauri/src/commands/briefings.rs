@@ -7,6 +7,7 @@ use crate::commands::ai::helpers::{log_generation_cost, TokenUsage};
 use crate::ollama::BRIEFING_NUM_CTX;
 use crate::AppState;
 use log::{info, warn};
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -35,6 +36,44 @@ struct BriefingArticle {
     title: String,
     source: String,
     summary: String,
+}
+
+// ============================================================
+// BRIEFING ARTICLE SELECTION CONSTANTS
+// ============================================================
+
+/// Max articles for daily briefing (sent to LLM)
+const DAILY_ARTICLE_LIMIT: usize = 20;
+/// Max articles for weekly briefing (sent to LLM)
+const WEEKLY_ARTICLE_LIMIT: usize = 35;
+/// Max articles from same source (diversity)
+const MAX_PER_SOURCE: usize = 3;
+/// Min different categories required
+const MIN_CATEGORIES: usize = 3;
+/// Candidate pool multiplier (fetch more, then filter for diversity)
+const CANDIDATE_MULTIPLIER: usize = 3;
+
+/// Spike threshold: recent_count must be > avg * this factor to count as spike
+const SPIKE_FACTOR: f64 = 2.0;
+/// Score weight for trending keyword matches
+const WEIGHT_TREND: f64 = 1.0;
+/// Score weight for strong spike keywords
+const WEIGHT_SPIKE: f64 = 3.0;
+/// Score weight for story cluster membership
+const WEIGHT_CLUSTER: f64 = 2.0;
+/// Score weight for sachlichkeit (0-4 mapped to 0-1)
+const WEIGHT_QUALITY: f64 = 0.5;
+
+/// Scored article candidate before diversity filtering
+#[derive(Debug, Clone)]
+struct ScoredArticle {
+    id: i64,
+    title: String,
+    source: String,
+    summary: String,
+    pentacle_id: i64,
+    category_id: Option<i64>,
+    score: f64,
 }
 
 // ============================================================
