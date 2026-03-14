@@ -429,7 +429,7 @@
 
   <!-- Context Length (num_ctx) -->
   <div class="setting-group">
-    <span class="label">{$_("settings.ollama.contextLength") || "Kontext-Lange (num_ctx)"}</span>
+    <span class="label">{$_("settings.ollama.contextLength") || "Kontext-Länge (num_ctx)"}</span>
     <div class="custom-select">
       <button
         type="button"
@@ -463,7 +463,7 @@
     </div>
     <p class="setting-description">
       {$_("settings.ollama.contextLengthDescription") ||
-        "Hohere Werte erlauben langere Artikel, benotigen aber mehr VRAM. 4K ist fur die meisten Artikel ausreichend."}
+        "Höhere Werte erlauben längere Artikel, benötigen aber mehr VRAM. 4K ist für die meisten Artikel ausreichend."}
     </p>
   </div>
 
@@ -503,7 +503,7 @@
     </button>
     <p class="setting-description">
       {$_("settings.ollama.loadModelsDescription") ||
-        "Ladt die ausgewahlten Modelle in den Grafikspeicher. Die Auswahl wird automatisch gespeichert."}
+        "Lädt die ausgewählten Modelle in den Grafikspeicher. Die Auswahl wird automatisch gespeichert."}
     </p>
   </div>
 

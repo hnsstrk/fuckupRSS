@@ -186,10 +186,10 @@
 <div class="synonyms-view">
   <!-- Manual Merge - Full Width at Top -->
   <div class="synonyms-section full-width">
-    <h3 class="section-heading">{$_("network.manualMerge") || "Manuelles Zusammenfuehren"}</h3>
+    <h3 class="section-heading">{$_("network.manualMerge") || "Manuelles Zusammenführen"}</h3>
     <p class="section-description">
       {$_("network.manualMergeDescription") ||
-        "Waehle zwei Keywords aus: Das erste bleibt erhalten, das zweite wird geloescht und alle Verknuepfungen werden uebertragen."}
+        "Wähle zwei Keywords aus: Das erste bleibt erhalten, das zweite wird gelöscht und alle Verknüpfungen werden übertragen."}
     </p>
 
     <div class="merge-form">
@@ -246,7 +246,7 @@
       <div class="merge-field">
         <label class="merge-label" for="remove-keyword-search">
           <i class="fa-solid fa-trash merge-label-icon remove"></i>
-          {$_("network.removeKeyword") || "Loeschen"}
+          {$_("network.removeKeyword") || "Löschen"}
         </label>
         <div class="merge-search-box">
           <input
@@ -294,8 +294,8 @@
         <div class="preview-text">
           <i class="fa-solid fa-circle-info"></i>
           <span>
-            <strong>"{selectedRemoveKeyword.name}"</strong> wird geloescht. Alle {selectedRemoveKeyword.article_count}
-            Artikel werden zu <strong>"{selectedKeepKeyword.name}"</strong> uebertragen.
+            <strong>"{selectedRemoveKeyword.name}"</strong> wird gelöscht. Alle {selectedRemoveKeyword.article_count}
+            Artikel werden zu <strong>"{selectedKeepKeyword.name}"</strong> übertragen.
           </span>
         </div>
         <button
@@ -308,20 +308,20 @@
           {:else}
             <i class="fa-solid fa-code-merge"></i>
           {/if}
-          {$_("network.executeMerge") || "Zusammenfuehren"}
+          {$_("network.executeMerge") || "Zusammenführen"}
         </button>
       </div>
     {:else}
       <div class="merge-hint">
         <i class="fa-solid fa-hand-pointer"></i>
-        {$_("network.selectBothKeywords") || "Waehle beide Keywords aus, um sie zusammenzufuehren."}
+        {$_("network.selectBothKeywords") || "Wähle beide Keywords aus, um sie zusammenzuführen."}
       </div>
     {/if}
 
     {#if selectedKeepKeyword && selectedRemoveKeyword && selectedKeepKeyword.id === selectedRemoveKeyword.id}
       <div class="merge-error">
         <i class="fa-solid fa-triangle-exclamation"></i>
-        {$_("network.sameKeywordError") || "Die beiden Keywords muessen unterschiedlich sein."}
+        {$_("network.sameKeywordError") || "Die beiden Keywords müssen unterschiedlich sein."}
       </div>
     {/if}
   </div>

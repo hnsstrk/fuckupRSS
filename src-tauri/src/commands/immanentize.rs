@@ -3369,13 +3369,13 @@ pub fn split_single_compound(
         .unwrap_or(false);
 
     if is_preserved {
-        return Err("Dieses Keyword ist geschuetzt und kann nicht gesplittet werden. Entfernen Sie zuerst den Schutz.".to_string());
+        return Err("Dieses Keyword ist geschützt und kann nicht gesplittet werden. Entfernen Sie zuerst den Schutz.".to_string());
     }
 
     // Check if this compound should be split
     if !should_split_compound(&keyword_name) {
         return Err(format!(
-            "Das Keyword '{}' kann nicht gesplittet werden (enthaelt kein Trennzeichen oder sollte nicht gesplittet werden)",
+            "Das Keyword '{}' kann nicht gesplittet werden (enthält kein Trennzeichen oder sollte nicht gesplittet werden)",
             keyword_name
         ));
     }
@@ -3575,7 +3575,7 @@ pub fn preserve_compound_keyword(state: State<AppState>, keyword_id: i64) -> Res
         "INSERT OR IGNORE INTO preserved_compounds (immanentize_id) VALUES (?)",
         [keyword_id],
     )
-    .map_err(|e| format!("Fehler beim Schuetzen des Keywords: {}", e))?;
+    .map_err(|e| format!("Fehler beim Schützen des Keywords: {}", e))?;
 
     info!("Compound keyword {} marked as preserved", keyword_id);
 
@@ -3748,11 +3748,11 @@ pub fn clear_compound_decision(state: State<AppState>, keyword_id: i64) -> Resul
             "DELETE FROM compound_decisions WHERE immanentize_id = ?",
             [keyword_id],
         )
-        .map_err(|e| format!("Fehler beim Loeschen der Entscheidung: {}", e))?;
+        .map_err(|e| format!("Fehler beim Löschen der Entscheidung: {}", e))?;
 
     if deleted == 0 {
         return Err(format!(
-            "Keine Entscheidung fuer Keyword {} gefunden",
+            "Keine Entscheidung für Keyword {} gefunden",
             keyword_id
         ));
     }

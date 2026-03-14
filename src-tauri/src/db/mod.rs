@@ -221,7 +221,7 @@ impl Database {
             (
                 "https://netzpolitik.org/feed/",
                 "netzpolitik.org",
-                "Plattform fuer digitale Freiheitsrechte",
+                "Plattform für digitale Freiheitsrechte",
                 "https://netzpolitik.org",
                 4,
             ),

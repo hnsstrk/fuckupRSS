@@ -275,7 +275,7 @@
       {#if minArticleCount > 0}
         <button onclick={() => (minArticleCount = 0)} class="clear-filter-btn">
           <i class="fa-solid fa-xmark"></i>
-          {$_("network.clearFilter") || "Filter loeschen"}
+          {$_("network.clearFilter") || "Filter löschen"}
         </button>
       {/if}
     </div>
@@ -288,7 +288,7 @@
           disabled={detectingTypes}
           class="detect-types-btn"
           title={$_("network.detectTypesTitle") ||
-            "Erkennt Keyword-Typen fuer noch nicht klassifizierte Keywords"}
+            "Erkennt Keyword-Typen für noch nicht klassifizierte Keywords"}
         >
           {#if detectingTypes}
             <i class="fa-solid fa-spinner fa-spin"></i>
@@ -365,7 +365,7 @@
                 onkeydown={(e) => handleKeydown(e, keyword)}
                 tabindex="0"
                 role="button"
-                aria-label={`${$_("network.selectKeyword") || "Keyword auswaehlen"}: ${keyword.name}`}
+                aria-label={`${$_("network.selectKeyword") || "Keyword auswählen"}: ${keyword.name}`}
               >
                 <td class="name-cell">
                   <KeywordContextTooltip keywordId={keyword.id} keywordName={keyword.name}>

@@ -433,7 +433,7 @@ pub async fn generate_briefing(
     }
 
     let keywords_str = if trending_keywords.is_empty() {
-        "Keine Trending-Keywords verfuegbar".to_string()
+        "Keine Trending-Keywords verfügbar".to_string()
     } else {
         trending_keywords.join(", ")
     };
@@ -446,12 +446,12 @@ pub async fn generate_briefing(
          {}\n\
          Trending-Keywords: {}\n\n\
          Erstelle ein JSON mit:\n\
-         - tldr.overview: Ueberblick in 2-3 Saetzen\n\
+         - tldr.overview: Überblick in 2-3 Sätzen\n\
          - tldr.trends: Bemerkenswerte Trends als Markdown-Liste (z.B. '1. **Trend**: Beschreibung'), ein Trend pro Zeile\n\
          - tldr.conclusion: Fazit und Einordnung\n\
          - topics: Array mit den 5-7 wichtigsten Themen, je:\n\
-           - title: Themenueberschrift\n\
-           - body: 2-4 Saetze als Markdown-Text\n\
+           - title: Themenüberschrift\n\
+           - body: 2-4 Sätze als Markdown-Text\n\
            - article_indices: Array der relevanten Artikel-Nummern (0-basiert)\n\
            - keywords: Array relevanter Keywords aus der Trending-Liste\n\n\
          Kein Redaktionshinweis. Antworte auf Deutsch.",

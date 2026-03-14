@@ -409,10 +409,10 @@
                     class:selected={isSelected}
                     class:true-synonym={simKw.is_true_synonym}
                     title={simKw.is_true_synonym
-                      ? $_("network.trueSynonymHint") || "Bereits zusammengefuehrtes Synonym"
+                      ? $_("network.trueSynonymHint") || "Bereits zusammengeführtes Synonym"
                       : simKw.cooccurrence > 0
                         ? simKw.cooccurrence + " gemeinsame Artikel"
-                        : "Semantisch aehnlich"}
+                        : "Semantisch ähnlich"}
                   >
                     {#if !simKw.is_true_synonym}
                       <input
