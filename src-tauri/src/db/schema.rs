@@ -1149,6 +1149,19 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         r#"ALTER TABLE briefings ADD COLUMN article_refs TEXT;"#,
     );
 
+    // Migration 31: Trigger to maintain article_count when fnord_immanentize rows are deleted
+    conn.execute_batch(
+        r#"
+        CREATE TRIGGER IF NOT EXISTS update_article_count_after_fi_delete
+            AFTER DELETE ON fnord_immanentize
+        BEGIN
+            UPDATE immanentize SET article_count = (
+                SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = OLD.immanentize_id
+            ) WHERE id = OLD.immanentize_id;
+        END;
+        "#,
+    )?;
+
     Ok(())
 }
 

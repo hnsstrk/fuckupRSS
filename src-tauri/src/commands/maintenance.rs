@@ -141,6 +141,16 @@ pub fn delete_orphaned_articles(state: State<AppState>, include_favorites: bool)
     match result {
         Ok(_) => {
             let deleted = conn.changes() as i64;
+
+            // Recalculate article_count for all keywords that may have stale counts
+            // (covers data from before the trigger was added)
+            let _ = conn.execute(
+                r#"UPDATE immanentize SET article_count = (
+                    SELECT COUNT(DISTINCT fnord_id) FROM fnord_immanentize WHERE immanentize_id = immanentize.id
+                )"#,
+                [],
+            );
+
             conn.execute("COMMIT", [])?;
             info!(
                 "Deleted {} orphaned articles (include_favorites={})",
