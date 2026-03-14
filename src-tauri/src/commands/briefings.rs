@@ -66,6 +66,7 @@ const WEIGHT_QUALITY: f64 = 0.5;
 
 /// Scored article candidate before diversity filtering
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ScoredArticle {
     id: i64,
     title: String,
