@@ -76,7 +76,7 @@ AI-powered summarization, bias detection, keyword validation, and article type c
 | Aspect | Details |
 |--------|---------|
 | **Provider** | Configurable via `AiTextProvider` (Ollama or OpenAI-compatible) |
-| **Default Model** | qwen3.5:latest (Ollama) or configurable (OpenAI-compatible) |
+| **Default Model** | ministral-3:latest (Ollama) or configurable (OpenAI-compatible) |
 | **Input** | `content_full` ONLY (no fallback) |
 | **Primary Output** | Summary, political_bias, sachlichkeit, article_type |
 | **Secondary Output** | Validated keywords |
@@ -485,7 +485,7 @@ fn calculate_quality(pentacle: &Pentacle, fnord: &Fnord) -> i32 {
 | Unbekannt | `unknown` | Nicht einordbar |
 
 **Datentyp:** TEXT (enum)
-**Ermittlung:** Durch KI (qwen3.5)
+**Ermittlung:** Durch KI (ministral-3)
 
 ### UI-Darstellung
 
@@ -627,7 +627,7 @@ Die Ollama-Kommunikation verwendet den `/api/chat` Endpoint (statt `/api/generat
 ```
 POST /api/chat
 {
-  "model": "qwen3.5:latest",
+  "model": "ministral-3:latest",
   "messages": [
     {"role": "system", "content": "You are a professional media analyst..."},
     {"role": "user", "content": "PRE-COMPUTED: keywords=...\n\nTitle: ...\nContent: ..."}

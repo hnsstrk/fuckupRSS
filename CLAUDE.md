@@ -775,7 +775,7 @@ Siehe [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESS
 
 **Kurzuebersicht:**
 1. **Hagbard's Retrieval** - Volltext abrufen (automatisch nach Sync)
-2. **Discordian Analysis** - Zusammenfassung, Kategorien, Keywords, Artikeltyp, NER via qwen3.5 (Structured Outputs mit JSON Schema)
+2. **Discordian Analysis** - Zusammenfassung, Kategorien, Keywords, Artikeltyp, NER via ministral-3 (Structured Outputs mit JSON Schema)
 3. **Article Embedding** - 1024-dim Embedding fuer Aehnlichkeitssuche (erweiterter Kontext: title + summary + content_full bis 4000 chars, snowflake-arctic-embed2 mit 8.192 Token Limit)
 4. **Greyface Alert** - Bias-Erkennung (political_bias: -2 bis +2)
 5. **Immanentize Network** - Schlagwort-Verarbeitung und Synonym-Erkennung
@@ -797,7 +797,7 @@ Siehe [README.md](README.md#ollama-setup) fuer die vollstaendige Ollama-Dokument
 
 **Quick Setup:**
 ```bash
-ollama pull qwen3.5:latest
+ollama pull ministral-3:latest
 ollama pull snowflake-arctic-embed2:latest
 ```
 
@@ -871,7 +871,7 @@ Die MCP-Server sind in `.mcp.json` im Projektverzeichnis konfiguriert:
 ### Anwendungsfaelle
 
 **ollama:**
-- Direkt mit qwen3.5:latest oder anderen Modellen chatten
+- Direkt mit ministral-3:latest oder anderen Modellen chatten
 - Embeddings generieren ohne Rust-Code
 - Modelle herunterladen und verwalten
 
