@@ -835,6 +835,10 @@ sqlite3 /Users/hnsstrk/Repositories/fuckupRSS/src-tauri/data/fuckup.db
 
 Fuer die Entwicklung mit Claude Code sind folgende MCP-Server konfiguriert:
 
+## Documentation
+
+Projektdokumentation: Siehe Obsidian Vault [[fuckupRSS]]
+
 ### Konfigurierte Server
 
 | Server | Zweck | Tools |
