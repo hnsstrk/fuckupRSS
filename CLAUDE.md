@@ -245,6 +245,7 @@ Pipeline in `.gitea/workflows/ci.yaml`. Release-Workflow in `.gitea/workflows/re
 
 | Schritt | Details |
 |---------|---------|
+| **Trojan Source Scan** | `npx anti-trojan-source` auf src/**/*.{js,ts,svelte} und src-tauri/src/**/*.rs |
 | **Semgrep auto** | `semgrep scan --config auto --error` auf src-tauri/src/ und src/ |
 | **Semgrep OWASP** | `semgrep scan --config p/owasp-top-ten --error` |
 | **npm audit** | `npm audit --audit-level=high --omit=dev` |

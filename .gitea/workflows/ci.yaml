@@ -49,6 +49,9 @@ jobs:
           cargo install cargo-audit cargo-cyclonedx
 
       # Security Scans
+      - name: Trojan Source Scan
+        run: npx anti-trojan-source --files='src/**/*.{js,ts,svelte}' --files='src-tauri/src/**/*.rs'
+
       - name: Semgrep scan
         run: semgrep scan --config auto --error src-tauri/src/ src/
 

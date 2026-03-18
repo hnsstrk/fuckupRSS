@@ -153,6 +153,7 @@ Push/PR zu main ──→ security-sbom (Security Scan + SBOM Generation)
 
 | Check | Command | Beschreibung |
 |-------|---------|-------------|
+| Trojan Source Scan | `npx anti-trojan-source --files='...'` | Unicode/Trojan-Source Erkennung in JS/TS/Svelte/Rust |
 | Semgrep auto | `semgrep scan --config auto --error` | Automatische Regeln, Fehler bei Fund |
 | Semgrep OWASP | `semgrep scan --config p/owasp-top-ten --error` | OWASP Top 10 Pruefung |
 | npm audit | `npm audit --audit-level=high --omit=dev` | Frontend-Dependencies (high+) |
@@ -220,6 +221,7 @@ curl http://192.168.177.11:3000/api/v1/version
 ### Build schlaegt fehl
 ```bash
 # Lokal testen was CI tut (Security)
+npx anti-trojan-source --files='src/**/*.{js,ts,svelte}' --files='src-tauri/src/**/*.rs'
 semgrep scan --config auto src-tauri/src/ src/
 npm audit --audit-level=high --omit=dev
 cargo audit --file src-tauri/Cargo.lock --deny unsound --deny yanked

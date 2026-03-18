@@ -57,6 +57,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.39.2",
+    "eslint-plugin-anti-trojan-source": "^1.1.2",
     "eslint-plugin-svelte": "^3.15.0",
     "globals": "^17.3.0",
     "husky": "^9.1.7",
