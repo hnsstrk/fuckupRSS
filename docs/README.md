@@ -2,7 +2,9 @@
 
 Willkommen zur technischen Dokumentation von fuckupRSS - dem RSS-Aggregator mit lokaler KI-Integration, benannt nach F.U.C.K.U.P. aus der Illuminatus!-Trilogie.
 
-Diese Dokumentation ist in thematische Bereiche gegliedert. Die Hauptdokumentation (README, CLAUDE.md) befindet sich im Projekt-Root, während detaillierte technische Spezifikationen hier im `docs/`-Verzeichnis organisiert sind.
+Diese Dokumentation ist in thematische Bereiche gegliedert. Die Hauptdokumentation (README, CLAUDE.md) befindet sich im Projekt-Root, waehrend detaillierte technische Spezifikationen hier im `docs/`-Verzeichnis organisiert sind.
+
+Architekturentscheidungen und Projektwissen: Siehe Obsidian Vault [[fuckupRSS Arc42 Architekturdokumentation]]
 
 ---
 
@@ -11,10 +13,9 @@ Diese Dokumentation ist in thematische Bereiche gegliedert. Die Hauptdokumentati
 | Dokument | Beschreibung |
 |----------|--------------|
 | [README.md](../README.md) | Projektbeschreibung, Features, Installation |
-| [CLAUDE.md](../CLAUDE.md) | Entwickler-Kontext für Claude Code |
+| [CLAUDE.md](../CLAUDE.md) | Entwickler-Kontext fuer Claude Code |
 | [ANFORDERUNGEN.md](ANFORDERUNGEN.md) | Roadmap, Governance, Entscheidungen |
 | [FEEDS.md](FEEDS.md) | Standard-RSS-Feeds fuer Entwicklung und Tests |
-| [QUALITY_CHECKLIST.md](guides/QUALITY_CHECKLIST.md) | Frontend-Backend-Kommunikation Checkliste |
 
 ---
 
@@ -35,7 +36,7 @@ Schnittstellen zwischen Frontend und Backend.
 
 | Dokument | Beschreibung |
 |----------|--------------|
-| [TAURI_COMMANDS_REFERENCE.md](api/TAURI_COMMANDS_REFERENCE.md) | Alle Tauri Commands mit Parametern und Rückgabewerten |
+| [TAURI_COMMANDS_REFERENCE.md](api/TAURI_COMMANDS_REFERENCE.md) | Alle Tauri Commands mit Parametern und Rueckgabewerten |
 
 ---
 
@@ -46,8 +47,10 @@ Anleitungen und Best Practices.
 | Dokument | Beschreibung |
 |----------|--------------|
 | [TESTING.md](guides/TESTING.md) | Test-Strategie: Unit Tests, E2E Tests, Coverage |
-| [QUALITY_CHECKLIST.md](guides/QUALITY_CHECKLIST.md) | Checkliste für Frontend-Backend-Kommunikation |
+| [QUALITY_CHECKLIST.md](guides/QUALITY_CHECKLIST.md) | Checkliste fuer Frontend-Backend-Kommunikation |
 | [HARDWARE_OPTIMIZATION.md](guides/HARDWARE_OPTIMIZATION.md) | Hardware-Profile, VRAM-Optimierung, Ollama-Konfiguration |
+| [CI_CD_SETUP.md](guides/CI_CD_SETUP.md) | CI/CD Pipeline, Gitea Actions Runner Setup |
+| [RELEASE_CHECKLIST.md](guides/RELEASE_CHECKLIST.md) | Release-Checkliste und Versionierung |
 
 ---
 
@@ -55,24 +58,23 @@ Anleitungen und Best Practices.
 
 ### UI-Features
 
-Benutzeroberflächen-Funktionen.
+Benutzeroberflaechen-Funktionen.
 
 | Dokument | Beschreibung |
 |----------|--------------|
 | [SORTING_FILTERING.md](features/ui/SORTING_FILTERING.md) | Sortier- und Filteroptionen |
 | [IMPORT_EXPORT.md](features/ui/IMPORT_EXPORT.md) | OPML Import/Export, Artikel-Export |
-| [KEYBOARD_SHORTCUTS.md](features/ui/KEYBOARD_SHORTCUTS.md) | Vim-Style Tastaturkürzel |
+| [KEYBOARD_SHORTCUTS.md](features/ui/KEYBOARD_SHORTCUTS.md) | Vim-Style Tastaturkuerzel |
 
 ### Immanentize Network (Schlagwort-Wissensnetz)
 
-Das semantische Keyword-Netzwerk für intelligente Artikel-Verknüpfung.
+Das semantische Keyword-Netzwerk fuer intelligente Artikel-Verknuepfung.
 
 | Dokument | Beschreibung |
 |----------|--------------|
-| [KEYWORDS_SCHEMA.md](features/immanentize/KEYWORDS_SCHEMA.md) | Keyword-Datenmodell und Extraktion |
 | [ARCHITECTURE_GRAPH.md](features/immanentize/ARCHITECTURE_GRAPH.md) | Graph-Architektur und Visualisierung |
 | [GRAPH_REQUIREMENTS.md](features/immanentize/GRAPH_REQUIREMENTS.md) | Anforderungen an das Graph-System |
-| [GRAPH_TECH_EVAL.md](features/immanentize/GRAPH_TECH_EVAL.md) | Technologie-Evaluation für Graph-Visualisierung |
+| [GRAPH_TECH_EVAL.md](features/immanentize/GRAPH_TECH_EVAL.md) | Technologie-Evaluation fuer Graph-Visualisierung |
 
 ### Recommendations (Operation Mindfuck)
 
@@ -90,14 +92,45 @@ Das personalisierte Empfehlungssystem basierend auf Nutzerinteressen.
 
 ---
 
-## Archiv
+## Plaene
 
-Ältere Reports, Analysen und archivierte Dokumente.
+Noch nicht implementierte Feature-Designs.
 
 | Dokument | Beschreibung |
 |----------|--------------|
-| [STOPWORD_KEYWORD_REPORT.md](archive/STOPWORD_KEYWORD_REPORT.md) | Analyse: Stopwörter und Keyword-Qualität |
-| [TODO_LEGACY_2026-01.md](archive/TODO_LEGACY_2026-01.md) | Historische Aufgabenliste (konsolidiert in fuckupRSS-Anforderungen.md) |
+| [2026-03-01-ollama-server-dropdown-design.md](plans/2026-03-01-ollama-server-dropdown-design.md) | Ollama-Server Dropdown mit History |
+
+---
+
+## Reports
+
+Analysen und Recherchen.
+
+| Dokument | Beschreibung |
+|----------|--------------|
+| [OLLAMA_KI_RECHERCHE_2026.md](reports/OLLAMA_KI_RECHERCHE_2026.md) | Ollama KI-Recherche und Modellvergleiche 2026 |
+
+---
+
+## SQL
+
+Nuetzliche SQL-Skripte fuer Wartung und Migration.
+
+| Dokument | Beschreibung |
+|----------|--------------|
+| [cleanup-orphans.sql](sql/cleanup-orphans.sql) | Verwaiste Datensaetze bereinigen |
+| [migration-22-performance.sql](sql/migration-22-performance.sql) | Performance-Optimierung Migration 22 |
+
+---
+
+## Archiv
+
+Aeltere Reports und archivierte Dokumente.
+
+| Dokument | Beschreibung |
+|----------|--------------|
+| [STOPWORD_KEYWORD_REPORT.md](archive/STOPWORD_KEYWORD_REPORT.md) | Analyse: Stopwoerter und Keyword-Qualitaet |
+| [TODO_LEGACY_2026-01.md](archive/TODO_LEGACY_2026-01.md) | Historische Aufgabenliste |
 
 ---
 
@@ -120,22 +153,30 @@ docs/
 │   ├── immanentize/             # Immanentize Network
 │   │   ├── ARCHITECTURE_GRAPH.md
 │   │   ├── GRAPH_REQUIREMENTS.md
-│   │   ├── GRAPH_TECH_EVAL.md
-│   │   └── KEYWORDS_SCHEMA.md
+│   │   └── GRAPH_TECH_EVAL.md
 │   └── ui/                      # UI-Features
 │       ├── IMPORT_EXPORT.md
 │       ├── KEYBOARD_SHORTCUTS.md
 │       └── SORTING_FILTERING.md
 ├── guides/                      # Anleitungen
+│   ├── CI_CD_SETUP.md
 │   ├── HARDWARE_OPTIMIZATION.md
 │   ├── QUALITY_CHECKLIST.md
+│   ├── RELEASE_CHECKLIST.md
 │   └── TESTING.md
-└── recommendations/             # Empfehlungssystem
-    ├── RECS_ALGO_SPEC.md
-    ├── RECS_API_SPEC.md
-    ├── RECS_CURRENT_STATE.md
-    ├── RECS_DATA_INVENTORY.md
-    ├── RECS_PRODUCT_BRIEF.md
-    ├── RECS_SIGNAL_CATALOG.md
-    └── RECS_UI_SPEC.md
+├── plans/                       # Feature-Designs (noch nicht implementiert)
+│   └── 2026-03-01-ollama-server-dropdown-design.md
+├── recommendations/             # Empfehlungssystem (Operation Mindfuck)
+│   ├── RECS_ALGO_SPEC.md
+│   ├── RECS_API_SPEC.md
+│   ├── RECS_CURRENT_STATE.md
+│   ├── RECS_DATA_INVENTORY.md
+│   ├── RECS_PRODUCT_BRIEF.md
+│   ├── RECS_SIGNAL_CATALOG.md
+│   └── RECS_UI_SPEC.md
+├── reports/                     # Analysen und Recherchen
+│   └── OLLAMA_KI_RECHERCHE_2026.md
+└── sql/                         # SQL-Skripte
+    ├── cleanup-orphans.sql
+    └── migration-22-performance.sql
 ```

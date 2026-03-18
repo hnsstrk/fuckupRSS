@@ -2,398 +2,71 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Wichtige Projektdokumentation
+## Project Overview
 
-**WICHTIG:** Bei jedem groesseren Arbeitsschritt muessen folgende Dokumente geprueft, hinterfragt und ggf. aktualisiert werden:
+fuckupRSS is an RSS aggregator/reader with local AI integration (Tauri v2 + Svelte 5 + Rust + SQLite), named after F.U.C.K.U.P. from the Illuminatus! trilogy. It supports Ollama (local) and OpenAI-compatible APIs for text generation. Ollama remains required for embeddings.
 
-| Dokument | Zweck | Pruefen bei |
-|----------|-------|------------|
-| `README.md` | Oeffentliche Projektbeschreibung, Features, Installation | Neue Features, API-Aenderungen, Installationsaenderungen |
-| `docs/ANFORDERUNGEN.md` | Roadmap, Governance, Entscheidungen | Phase-Updates, Architekturaenderungen |
-| `CLAUDE.md` | Entwickler-Kontext fuer Claude Code | Build-Aenderungen, neue Patterns, Strukturaenderungen |
-| `docs/guides/QUALITY_CHECKLIST.md` | Frontend-Backend-Kommunikation Checkliste | Neue invoke-Calls, Event-Listener, State-Updates |
+**Status:** Phase 4 (Polish & Advanced Features) — Ollama Modernization, Briefings, Story Clustering, NER, Article Type Classification abgeschlossen.
+
+**Architektur-Dokumentation:** Obsidian Vault [[fuckupRSS Arc42 Architekturdokumentation]]
+
+## Referenzdokumentation (docs/)
+
+| Dokument | Inhalt |
+|----------|--------|
+| [docs/README.md](docs/README.md) | Navigation Hub fuer alle docs/ |
+| [docs/api/TAURI_COMMANDS_REFERENCE.md](docs/api/TAURI_COMMANDS_REFERENCE.md) | Alle Tauri Commands (Frontend -> Backend) |
+| [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md) | KI-Pipeline, Prompt-Design, Keyword-Extraktion |
+| [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md) | DB-Tabellen, Revisionsverwaltung, Settings |
+| [docs/guides/TESTING.md](docs/guides/TESTING.md) | Test-Befehle, Patterns, Anforderungen |
+| [docs/guides/CI_CD_SETUP.md](docs/guides/CI_CD_SETUP.md) | CI/CD Pipeline, Gitea Actions Runner |
+| [docs/guides/QUALITY_CHECKLIST.md](docs/guides/QUALITY_CHECKLIST.md) | Frontend-Backend-Kommunikation Checkliste |
+| [docs/guides/HARDWARE_OPTIMIZATION.md](docs/guides/HARDWARE_OPTIMIZATION.md) | VRAM-Optimierung, Ollama-Konfiguration |
+| [docs/ANFORDERUNGEN.md](docs/ANFORDERUNGEN.md) | Roadmap, Governance, Entscheidungen |
+| [README.md](README.md) | Technology Stack, Illuminatus! Terminologie, Ollama Setup |
+
+**WICHTIG:** Bei groesseren Arbeitsschritten muessen README.md, CLAUDE.md, docs/ANFORDERUNGEN.md und docs/guides/QUALITY_CHECKLIST.md geprueft und ggf. aktualisiert werden.
 
 ## Task Management
 
-Alle offenen Tasks werden zentral in **Taskwarrior** verwaltet (Projekt: `fuckupRSS`).
+Alle offenen Tasks in **Taskwarrior** (Projekt: `fuckupRSS`):
 
 ```bash
 task project:fuckupRSS list          # Alle offenen Tasks
 task project:fuckupRSS +bug list     # Nur Bugs
-task project:fuckupRSS +refactor list # Refactoring-Tasks
-task project:fuckupRSS +cicd list    # CI/CD Verbesserungen
+task project:fuckupRSS +refactor list
 ```
-
-Die `TODO.md` enthaelt nur noch erledigte Items als Referenz und einen Verweis auf Taskwarrior.
-
-### Dokumentations-Workflow
-
-1. **Vor Implementierung:** Anforderungsdokument lesen und verstehen
-2. **Waehrend Implementierung:** Bei Abweichungen vom Plan dokumentieren warum
-3. **Nach Implementierung:** README.md und CLAUDE.md aktualisieren
-4. **Bei Commits:** Pruefen ob Dokumentation angepasst werden musst
-
-## Quick Links - Referenzdokumentation
-
-| Dokument | Inhalt |
-|----------|--------|
-| [docs/api/TAURI_COMMANDS_REFERENCE.md](docs/api/TAURI_COMMANDS_REFERENCE.md) | Alle Tauri Commands (Frontend -> Backend) |
-| [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md) | KI-Pipeline, Greyface Alert, Prompt-Design, Keyword-Extraktion |
-| [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md) | Datenbank-Tabellen, Revisionsverwaltung, Settings |
-| [docs/guides/TESTING.md](docs/guides/TESTING.md) | Test-Befehle, Patterns, Anforderungen |
-| [docs/guides/HARDWARE_OPTIMIZATION.md](docs/guides/HARDWARE_OPTIMIZATION.md) | VRAM-Optimierung, Ollama-Konfiguration |
-| [docs/guides/CI_CD_SETUP.md](docs/guides/CI_CD_SETUP.md) | CI/CD Pipeline, Gitea Actions Runner Setup |
-| [README.md](README.md) | Technology Stack, Illuminatus! Terminologie, Ollama Setup |
-
-## Project Overview
-
-fuckupRSS is an RSS aggregator/reader with local AI integration, named after F.U.C.K.U.P. from the Illuminatus! trilogy. It supports both Ollama (local) and OpenAI-compatible APIs for text generation. Ollama remains required for embeddings. The AI provider is configurable via Settings.
-
-**Status:** Phase 4 (Polish & Advanced Features) in Entwicklung – Ollama Modernization, Briefings, Story Clustering, NER, Article Type Classification abgeschlossen
-
-**Planung:** Alle Phasen und Tasks sind in [`docs/ANFORDERUNGEN.md`](docs/ANFORDERUNGEN.md#5-roadmap-nächste-schritte) dokumentiert.
 
 ## Build Commands
 
 ```bash
-# Install dependencies
-npm install
-
-# Development mode (startet Vite + Tauri)
-npm run tauri dev
-
-# Production build
-npm run tauri build
-
-# Nur Frontend entwickeln (ohne Tauri)
-npm run dev
-```
-
-**Alle npm Scripts:**
-```bash
-# Code-Qualitaet
-npm run lint              # ESLint
-npm run lint:fix          # ESLint auto-fix
-npm run format            # Prettier write
-npm run format:check      # Prettier check
-npm run rust:fmt          # Rust formatieren
-npm run rust:fmt:check    # Rust Format pruefen
-npm run rust:clippy       # Clippy
-
-# Security
-npm run security:scan     # Semgrep (auto rules)
-npm run security:owasp    # Semgrep (OWASP Top 10)
-npm run security:audit    # npm audit + cargo audit
-
-# SBOM
-npm run sbom:generate     # Frontend + Backend SBOMs
-npm run sbom:validate     # SBOMs validieren
-
-# Release (Tag-basiert, loest Release-Workflow aus)
-git tag v1.x.x && git push --tags
-
-# macOS Build (lokal, kein CI-Runner verfuegbar)
-./scripts/build-macos.sh             # Production Build
-./scripts/build-macos.sh --debug     # Debug Build
-./scripts/build-macos.sh --clean     # Clean Build
+npm install                          # Dependencies
+npm run tauri dev                    # Development (Vite + Tauri)
+npm run tauri build                  # Production Build
+npm run dev                          # Nur Frontend (ohne Tauri)
 ```
 
 ## Testing
 
-Siehe [docs/guides/TESTING.md](docs/guides/TESTING.md) fuer die vollstaendige Test-Dokumentation.
+Siehe [docs/guides/TESTING.md](docs/guides/TESTING.md) fuer die vollstaendige Dokumentation.
 
-**Quick Commands:**
 ```bash
-npm run test                                      # Frontend (Vitest)
-npm run test:e2e                                  # E2E Tests (Playwright)
-npm run test:watch                                # Frontend Watch-Modus
-npm run test:coverage                             # Frontend mit Coverage
+npm run test                                     # Frontend (Vitest)
+npm run test:e2e                                 # E2E (Playwright)
 cargo test --manifest-path src-tauri/Cargo.toml  # Backend (Rust)
 ```
 
-**Playwright CLI (interaktives Browser-Testing):**
-```bash
-npm run pw:open                                   # Browser oeffnen (Chrome, localhost:1420)
-npm run pw:snapshot                               # Accessibility Snapshot
-npm run pw:screenshot                             # Screenshot
-npm run pw:close                                  # Browser schliessen
-```
-
-Konfiguration: `playwright-cli.json` (Browser, baseURL, Timeout). Skills: `.claude/skills/playwright-cli/`.
-
 **WICHTIG:** Alle neuen Features und Bugfixes MUESSEN mit Tests abgedeckt werden.
-
-## Security & Quality Tools
-
-Folgende Tools sind lokal installiert und muessen bei Code-Reviews und vor Releases verwendet werden:
-
-### Semgrep (Static Analysis)
-
-| Eigenschaft | Wert |
-|-------------|------|
-| Command | `semgrep` |
-| Pfad | `/opt/homebrew/bin/semgrep` |
-| Version | 1.151.0 |
-| Installation | `brew install semgrep` |
-
-**Verwendung:** Statische Code-Analyse fuer Security-Schwachstellen (OWASP Top 10, XSS, SQL-Injection, Command-Injection, Secrets).
-
-**WICHTIG:** Semgrep-Scans sind verpflichtend bei Code-Reviews.
-
-**Quick Commands:**
-```bash
-# Rust Backend scannen
-semgrep scan --config auto src-tauri/src/
-
-# Frontend scannen
-semgrep scan --config auto src/
-
-# OWASP Top 10 Pruefung
-semgrep scan --config p/owasp-top-ten src-tauri/src/ src/
-
-# Nur geaenderte Dateien scannen
-semgrep scan --config auto <datei1> <datei2> ...
-```
-
-### CycloneDX (SBOM)
-
-| Eigenschaft | Wert |
-|-------------|------|
-| Command | `cyclonedx` |
-| Pfad | `/opt/homebrew/bin/cyclonedx` |
-| Version | 0.30.0 |
-| Installation | `brew install cyclonedx-cli` |
-
-**Verwendung:** Software Bill of Materials (SBOM) - Erzeugen, Validieren und Analysieren von Abhaengigkeitslisten im CycloneDX-Format fuer Supply-Chain-Security.
-
-**Quick Commands:**
-```bash
-# SBOMs generieren (Frontend + Backend)
-npm run sbom:generate
-
-# SBOMs validieren
-npm run sbom:validate
-```
 
 ## Linting & Formatting
 
-### Frontend (ESLint + Prettier)
-
 ```bash
-npm run lint              # ESLint pruefen
-npm run lint:fix          # ESLint auto-fix
-npm run format            # Prettier formatieren
-npm run format:check      # Prettier pruefen (CI)
+npm run lint && npm run lint:fix     # ESLint
+npm run format                       # Prettier
+npm run rust:fmt                     # Rust formatieren
+npm run rust:clippy                  # Clippy
+npm run security:scan                # Semgrep
 ```
-
-**Config-Dateien:**
-- `eslint.config.js` - ESLint 9.x Flat Config (TypeScript + Svelte)
-- `.prettierrc` - Prettier Config (printWidth=100, singleQuote=false)
-- `.prettierignore` - Prettier Ausnahmen
-- `.editorconfig` - Editor-Einstellungen (LF, indent)
-
-### Rust (rustfmt + Clippy)
-
-```bash
-npm run rust:fmt          # Rust formatieren
-npm run rust:fmt:check    # Rust Format pruefen (CI)
-npm run rust:clippy       # Clippy Lint-Check
-```
-
-**Config-Dateien:**
-- `src-tauri/rustfmt.toml` - max_width=100, edition=2021
-- `src-tauri/clippy.toml` - too-many-arguments-threshold=8
-
-## Git Hooks (Husky)
-
-Automatische Qualitaetssicherung via Git Hooks (Husky 9 + lint-staged).
-
-### Pre-commit (bei jedem Commit)
-- **Frontend:** ESLint --fix + Prettier auf staged Dateien (via lint-staged)
-- **Rust:** cargo fmt --check + cargo clippy (nur bei .rs-Aenderungen)
-
-### Pre-push (vor jedem Push)
-- Frontend-Tests (vitest)
-- Rust-Tests (cargo test --lib --bins)
-- svelte-check Typ-Pruefung
-
-**Hooks umgehen (nur in Ausnahmen!):** `git commit --no-verify` / `git push --no-verify`
-
-## CI/CD (Gitea Actions)
-
-Pipeline in `.gitea/workflows/ci.yaml`. Release-Workflow in `.gitea/workflows/release.yaml`. Ausfuehrliches Setup-Guide: [docs/guides/CI_CD_SETUP.md](docs/guides/CI_CD_SETUP.md)
-
-### Build-Strategie
-
-| Was | Wo | Wie |
-|-----|----|-----|
-| Security Scan, SBOM | **Callisto** (Linux-Runner) | Automatisch bei Push/PR |
-| Linux-Build (.deb, .AppImage) | **Callisto** (Linux-Runner) | Automatisch bei Release (Tag-basiert) |
-| macOS-Build (.dmg, .app) | **Lokal** (MacBook) | Manuell via `./scripts/build-macos.sh` |
-
-**Entwickler-Workflow:** Commit → Pre-commit Hooks (Lint, Format) → Push → Pre-push Hooks (Tests, svelte-check) → Callisto prueft (Security, SBOM) → bei Release: `git tag v1.x.x && git push --tags` → Linux-Build + Gitea Release.
-
-**Warum kein Lint/Test/Build in CI?**
-- **Lint:** Redundant zu Pre-commit Hooks (ESLint+Prettier via lint-staged, cargo fmt+clippy)
-- **Tests:** Redundant zu Pre-push Hooks (Vitest, cargo test, svelte-check)
-- **Build:** Nur bei Releases noetig, nicht bei jedem Push
-- **E2E:** Nur gegen Vite-Dev-Server (kein Tauri-Backend in CI), daher limitierter Nutzen
-
-### CI-Pipeline (Callisto, Linux-only)
-
-**1 Job:** `security-sbom`
-
-| Schritt | Details |
-|---------|---------|
-| **Trojan Source Scan** | `npx anti-trojan-source` auf src/**/*.{js,ts,svelte} und src-tauri/src/**/*.rs |
-| **Semgrep auto** | `semgrep scan --config auto --error` auf src-tauri/src/ und src/ |
-| **Semgrep OWASP** | `semgrep scan --config p/owasp-top-ten --error` |
-| **npm audit** | `npm audit --audit-level=high --omit=dev` |
-| **cargo audit** | `cargo audit --file src-tauri/Cargo.lock --deny unsound --deny yanked` |
-| **Frontend SBOM** | CycloneDX via `@cyclonedx/cyclonedx-npm` |
-| **Backend SBOM** | CycloneDX via `cargo-cyclonedx` |
-| **SBOM Validierung** | JSON-Validierung beider SBOMs |
-
-### Release-Workflow (Tag-basiert)
-
-- Ausgeloest durch `v*`-Tags (`git tag v1.x.x && git push --tags`)
-- Baut nur Linux (.deb, .AppImage), erstellt Gitea Release mit Changelog + Artefakten
-- macOS-Build (.dmg) wird manuell via `scripts/build-macos.sh` erstellt und nachtraeglich zum Release hinzugefuegt
-- Benoetigt `GITEATOKEN` Secret in Gitea Repository-Settings
-
-### Runner und Einschraenkungen
-
-**Runner:** act_runner im Host-Modus, nur `linux-x64`. Docker-basiert (`docker.gitea.com/runner-images:ubuntu-latest`), Container laeuft als root.
-
-**Bekannte Einschraenkungen:**
-- **Kein macOS-Runner** — macOS-Builds nur lokal via `scripts/build-macos.sh`
-- **Gitea Act Runner:** nur `upload-artifact@v3` (nicht v4), kein `sudo` im Container noetig (root)
-- **Node-Version:** gepinnt auf 22 (via CI, `.nvmrc`, `package.json engines`)
-
-## Icons
-
-Font Awesome 6.4 Pro liegt lokal unter `static/fontawesome/`. Eingebunden via `app.html`:
-
-```html
-<link rel="stylesheet" href="/fontawesome/css/all.min.css">
-```
-
-Nutzung:
-```svelte
-<i class="fa-solid fa-rss"></i>
-<i class="fa-light fa-newspaper"></i>
-```
-
-Verfuegbare Styles: `fa-solid`, `fa-regular`, `fa-light`, `fa-thin`, `fa-brands`, `fa-duotone`
-
-## Markdown-Rendering (LLM-Texte)
-
-Alle LLM-generierten Texte (Briefings, Perspektiven, Summaries) werden ueber eine zentrale Pipeline gerendert:
-
-**Pipeline:** Markdown → `marked` (HTML) → DOMPurify (Sanitization)
-
-**Zentrale Funktion:** `src/lib/utils/sanitizer.ts` → `renderMarkdown(markdown: string): string`
-
-```svelte
-<div class="markdown-content">
-  {@html renderMarkdown(text)}
-</div>
-```
-
-**Globales CSS:** Die Klasse `.markdown-content` in `src/app.css` steuert die einheitliche Darstellung (Ueberschriften, Listen, Code-Bloecke, Tabellen, Blockquotes, Links).
-
-**WICHTIG:** Fuer LLM-generierte Texte immer `renderMarkdown()` verwenden, nie `sanitizeArticleContent()` direkt. `sanitizeArticleContent()` ist nur fuer RSS-Feed-HTML (bereits HTML, kein Markdown).
-
-## Git Workflow & Commit-Strategie
-
-### Branch-Strategie
-
-| Branch | Zweck |
-|--------|-------|
-| `main` | Stabiler, lauffaehiger Code |
-| `feature/*` | Neue Features (z.B. `feature/feed-sync`) |
-| `fix/*` | Bugfixes (z.B. `fix/article-status`) |
-| `refactor/*` | Code-Verbesserungen ohne Feature-Aenderung |
-
-### Commit-Konventionen
-
-Commits folgen dem [Conventional Commits](https://www.conventionalcommits.org/) Format:
-
-```
-<type>: <kurze Beschreibung>
-
-<optionaler Body mit Details>
-
-Generated with [Claude Code](https://claude.ai/code)
-
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
-```
-
-**Types:**
-- `feat:` Neues Feature
-- `fix:` Bugfix
-- `refactor:` Code-Umstrukturierung
-- `docs:` Nur Dokumentation
-- `style:` Formatierung (kein Code-Change)
-- `test:` Tests hinzufuegen/aendern
-- `chore:` Build-Prozess, Dependencies
-
-### Wann committen?
-
-- Nach Abschluss eines logischen Arbeitsschritts
-- Vor groesseren Refactorings (Sicherungspunkt)
-- Bei funktionierendem Zwischenstand
-- **Nicht:** Bei kaputtem Code auf `main`
-
-### Commit-Frequenz (Claude Code Richtlinie)
-
-**WICHTIG:** Claude Code muss regelmaessig committen, um Arbeit nicht zu verlieren und den Fortschritt nachvollziehbar zu machen.
-
-| Situation | Commit-Regel |
-|-----------|--------------|
-| Feature abgeschlossen | **Sofort committen** |
-| 2-3 zusammenhaengende Aenderungen | **Committen** (nicht sammeln) |
-| Bugfix erledigt | **Sofort committen** |
-| Refactoring-Schritt fertig | **Committen** |
-| Vor Themenwechsel | **Committen** (aktuelles Thema abschliessen) |
-| Nach 15-20 Minuten Arbeit | **Pruefen** ob Commit sinnvoll |
-| Benutzer fragt nach anderem Thema | **Erst committen**, dann Thema wechseln |
-
-**Faustregel:** Lieber zu viele kleine Commits als zu wenige grosse.
-
-**Anti-Pattern vermeiden:**
-- Mehrere unabhaengige Features in einem Commit
-- Stundenlang arbeiten ohne Commit
-- "Ich committe spaeter" - NEIN, jetzt committen!
-- Auf Benutzer-Erinnerung warten
-
-**Selbst-Check nach jeder Aufgabe:**
-```
-Kompiliert der Code? -> git add && git commit
-Feature/Fix fertig? -> git add && git commit
-Wechsle ich das Thema? -> git add && git commit
-```
-
-### Push-Strategie
-
-```bash
-# Vor dem Push: Sicherstellen dass alles baut
-npm run build
-cargo check --manifest-path src-tauri/Cargo.toml
-
-# Push zum Remote
-git push origin main
-
-# Oder bei Feature-Branches
-git push origin feature/my-feature
-```
-
-### Pull Request Workflow (fuer groessere Features)
-
-1. Feature-Branch erstellen: `git checkout -b feature/name`
-2. Entwickeln und committen
-3. PR erstellen mit Beschreibung
-4. Review und Merge
 
 ## Projektstruktur
 
@@ -402,489 +75,115 @@ fuckupRSS/
 ├── src/                          # Svelte 5 Frontend
 │   ├── lib/
 │   │   ├── components/           # UI-Komponenten
-│   │   │   ├── Sidebar.svelte    # Feed-Liste (Pentacles)
-│   │   │   ├── ArticleList.svelte # Artikel-Liste (Fnords)
-│   │   │   ├── ArticleView.svelte # Artikel-Ansicht
-│   │   │   ├── BriefingView.svelte # Taegliche KI-Briefings
-│   │   │   ├── StoryClusterView.svelte # Story Cluster Ansicht
-│   │   │   ├── EntityBadge.svelte # NER Entitaeten-Badge
-│   │   │   └── EntityExplorer.svelte # NER Entitaeten-Explorer
-│   │   └── stores/
-│   │       ├── state.svelte.ts   # Runes-basiertes State Management
-│   │       └── network.svelte.ts # Immanentize Network Store (Keywords, Trending, Graph)
-│   ├── App.svelte                # Haupt-Layout
+│   │   ├── stores/               # Runes-basiertes State Management
+│   │   ├── i18n/                 # Internationalisierung (de, en)
+│   │   └── utils/                # Hilfsfunktionen (sanitizer.ts)
+│   ├── App.svelte
 │   └── app.css                   # TailwindCSS + Custom Styles
 ├── src-tauri/                    # Rust Backend
 │   ├── src/
-│   │   ├── main.rs               # Entry Point
 │   │   ├── lib.rs                # Tauri Setup + State
-│   │   ├── ai_provider/          # AI Provider Abstraction
-│   │   │   ├── mod.rs            # AiTextProvider Trait + Factory
-│   │   │   ├── ollama_provider.rs # Ollama-Implementierung
-│   │   │   └── openai_provider.rs # OpenAI-kompatible API-Implementierung
-│   │   ├── proxy.rs              # ProxyManager (Ollama LAN-Proxy Child-Process)
-│   │   ├── db/                   # Datenbank-Layer
-│   │   │   ├── mod.rs            # Database Struct
-│   │   │   └── schema.rs         # SQLite Schema
-│   │   └── commands/             # Tauri Commands (IPC)
-│   │       ├── ai/               # KI-Provider Commands (Test, Kosten)
-│   │       ├── proxy.rs          # Ollama LAN-Proxy Commands
-│   │       ├── pentacles.rs      # Feed-Operationen
-│   │       ├── fnords.rs         # Artikel-Operationen
-│   │       ├── briefings.rs      # Taegl. KI-Briefings (generate, get, list, delete)
-│   │       ├── story_clusters.rs # Story Clustering (Union-Find, Perspektiven)
-│   │       └── entities.rs       # NER Entitaeten (CRUD, Suche)
-│   ├── Cargo.toml
-│   ├── rustfmt.toml              # Rust Formatierung (max_width=100)
-│   └── clippy.toml               # Clippy Config (threshold=8)
-├── docs/                         # Referenzdokumentation
-│   ├── api/
-│   │   └── TAURI_COMMANDS_REFERENCE.md
-│   ├── architecture/
-│   │   ├── AI_PROCESSING_PIPELINE.md
-│   │   └── DATABASE_SCHEMA.md
-│   ├── guides/
-│   │   ├── TESTING.md
-│   │   ├── QUALITY_CHECKLIST.md
-│   │   └── CI_CD_SETUP.md
-│   ├── plans/
-│   │   └── 2026-03-10-ollama-potenzial-tier1-tier2-design.md
-│   └── reports/
-│       └── OLLAMA_KI_RECHERCHE_2026.md
-├── .claude/                      # Claude Code Konfiguration
-│   └── skills/
-│       └── playwright-cli/       # Playwright CLI Skills
-│           ├── SKILL.md          # Skill-Definition und Commands
-│           └── references/       # Detaillierte Anleitungen
-├── .gitea/                       # CI/CD
-│   └── workflows/
-│       └── ci.yaml               # Gitea Actions Pipeline
-├── .husky/                       # Git Hooks
-│   ├── pre-commit                # lint-staged + Rust checks
-│   └── pre-push                  # Tests + svelte-check
-├── eslint.config.js              # ESLint 9.x Flat Config
-├── .prettierrc                   # Prettier Config
-├── .prettierignore               # Prettier Ausnahmen
-├── .editorconfig                 # Editor-Einstellungen
-├── .semgrepignore                # Semgrep Ausnahmen
-├── fuckupRSS-Anforderungen.md    # Technische Spezifikation
-├── playwright-cli.json           # Playwright CLI Konfiguration
-├── README.md                     # Projekt-Dokumentation
-├── CLAUDE.md                     # Diese Datei
-└── TODO.md                       # Archiv + Verweis auf Taskwarrior
+│   │   ├── ai_provider/          # AI Provider Abstraction (Ollama + OpenAI)
+│   │   ├── proxy.rs              # Ollama LAN-Proxy
+│   │   ├── db/                   # Database (schema.rs)
+│   │   ├── commands/             # Tauri Commands (IPC)
+│   │   └── keywords/             # Keyword-Extraktion + Deduplication
+│   └── Cargo.toml
+├── docs/                         # Referenzdokumentation (siehe docs/README.md)
+├── scripts/                      # Build-Scripts (build-macos.sh)
+├── .gitea/workflows/             # CI/CD (ci.yaml, release.yaml)
+└── .husky/                       # Git Hooks (pre-commit, pre-push)
 ```
 
-## i18n (Internationalisierung)
+## Kritische Konventionen
 
-**Unterstuetzte Sprachen:** Deutsch (de), English (en)
+### Commit-Konventionen
 
-**Struktur:**
-```
-src/lib/i18n/
-├── index.ts          # i18n Setup
-├── de.json           # Deutsche Uebersetzungen
-└── en.json           # English translations
-```
+[Conventional Commits](https://www.conventionalcommits.org/) Format: `feat:`, `fix:`, `refactor:`, `docs:`, `style:`, `test:`, `chore:`
 
-**Verwendung in Svelte:**
+**Commit-Frequenz:** Nach jedem logischen Arbeitsschritt sofort committen. Lieber zu viele kleine als zu wenige grosse Commits.
+
+### Branch-Strategie
+
+`main` (stabil), `feature/*`, `fix/*`, `refactor/*`
+
+### Database Patterns
+
+SQLite mit `Arc<Mutex<Connection>>`. Kritische Regeln:
+
+- **Locks kurz halten** — nur fuer DB-Operation, keine I/O waehrend Lock
+- **Pro-Item Locks** — in Loops Lock pro Item, nicht fuer gesamte Schleife
+- **Transactions** — zusammengehoerige Operationen MUESSEN in Transaction
+- **Yield nach Release** — `tokio::task::yield_now().await` fuer Concurrency
+
+Vollstaendige Patterns: [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md)
+
+### Frontend Event-System
+
+Komponenten die Backend-Daten anzeigen MUESSEN auf CustomEvents lauschen:
+
+| Event | Wann |
+|-------|------|
+| `batch-complete` | Nach Batch-Processing |
+| `keywords-changed` | Nach Keyword-Mutationen |
+
+Pattern: `onMount` → `addEventListener`, `onDestroy` → `removeEventListener`
+
+### Markdown-Rendering (LLM-Texte)
+
+Zentrale Funktion: `src/lib/utils/sanitizer.ts` → `renderMarkdown(markdown)`
+
 ```svelte
-<script>
-  import { _ } from 'svelte-i18n';
-</script>
-<h1>{$_('sidebar.title')}</h1>
+<div class="markdown-content">{@html renderMarkdown(text)}</div>
 ```
 
-## Tooltips fuer Illuminatus!-Begriffe
+**WICHTIG:** Fuer LLM-Texte immer `renderMarkdown()`, nie `sanitizeArticleContent()`.
 
-Alle Illuminatus!-Begriffe (Fnord, Pentacle, etc.) haben erklaerende Tooltips:
-- In Settings deaktivierbar (`showTerminologyTooltips`)
-- Einheitliche `<Tooltip>` Komponente
-- Uebersetzungen in i18n-Dateien
+### Icons
 
-Siehe [README.md](README.md#illuminatus-terminology) fuer die vollstaendige Terminologie-Tabelle.
-
-## Key Rust Crates
-
-| Purpose | Crate | Status |
-|---------|-------|--------|
-| Tauri Framework | `tauri` | aktiv |
-| SQLite | `rusqlite` | aktiv |
-| Serialization | `serde`, `serde_json` | aktiv |
-| DateTime | `chrono` | aktiv |
-| Error Handling | `thiserror` | aktiv |
-| RSS/Atom Parsing | `feed-rs` | aktiv |
-| HTTP Client | `reqwest` | aktiv |
-| Readability | `readability` | aktiv |
-| Ollama API | `ollama-rs` | aktiv |
-| Vector Search | `sqlite-vec` | aktiv (bundled, O(log n) KNN) |
-| OPML Parsing | `opml` | aktiv |
-| Async Traits | `async-trait` | aktiv (AiTextProvider Trait) |
-
-## Key Frontend Libraries
-
-| Purpose | Package | Status |
-|---------|---------|--------|
-| Markdown→HTML | `marked` | aktiv (GFM, breaks) |
-| HTML Sanitization | `dompurify` | aktiv (XSS-Schutz) |
-| i18n | `svelte-i18n` | aktiv |
-| Tauri IPC | `@tauri-apps/api` | aktiv |
-
-## Tauri Commands
-
-Siehe [docs/api/TAURI_COMMANDS_REFERENCE.md](docs/api/TAURI_COMMANDS_REFERENCE.md) fuer die vollstaendige Command-Referenz.
-
-**Haeufig verwendete Commands:**
-```typescript
-// Feeds
-await invoke('get_pentacles');
-await invoke('add_pentacle', { url, title });
-await invoke('sync_all_feeds');
-
-// Artikel
-await invoke('get_fnords', { filter });
-await invoke('update_fnord_status', { id, status });
-
-// KI-Verarbeitung
-await invoke('process_batch', { limit });
-await invoke('check_ollama');
-
-// KI-Provider
-await invoke('test_ai_provider');
-await invoke('get_monthly_cost', { year, month });
-await invoke('get_cost_history', { months });
-
-// Ollama LAN-Proxy
-await invoke('start_ollama_proxy', { remoteHost, remotePort });
-await invoke('stop_ollama_proxy');
-await invoke('get_ollama_proxy_status');
-
-// Briefings
-await invoke('generate_briefing', { date });
-await invoke('get_briefing', { date });
-await invoke('list_briefings', { limit });
-await invoke('delete_briefing', { id });
-
-// Story Clustering
-await invoke('run_story_clustering');
-await invoke('get_story_clusters', { filter });
-await invoke('get_cluster_articles', { clusterId });
-await invoke('get_cluster_perspectives', { clusterId });
-
-// Named Entity Recognition (NER)
-await invoke('extract_entities', { fnordId });
-await invoke('get_entities', { filter });
-await invoke('get_fnord_entities', { fnordId });
-await invoke('search_entities', { query });
-```
-
-## Database Schema
-
-Siehe [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md) fuer die vollstaendige Schema-Dokumentation.
-
-**Kern-Tabellen:**
-- `pentacles` - Feed-Quellen
-- `fnords` - Artikel (inkl. `article_type` Spalte fuer LLM-basierte Klassifikation)
-- `sephiroth` - Kategorien (13 fest definiert)
-- `immanentize` - Keywords mit Embeddings
-- `ai_cost_log` - Kostenprotokoll fuer OpenAI-kompatible API-Aufrufe
-- `briefings` - Taegliche KI-generierte Zusammenfassungen der Top-Artikel
-- `story_clusters` - Thematische Artikel-Gruppen (Union-Find, Embedding-Aehnlichkeit > 0.78)
-- `story_cluster_articles` - Zuordnung Artikel zu Story Clusters
-- `entities` - Erkannte Entitaeten (person, organization, location, event)
-- `fnord_entities` - Verknuepfung Artikel ↔ Entitaeten (n:m)
-
-Schema-Definition: `src-tauri/src/db/schema.rs`
-
-## Database Patterns & Best Practices
-
-Dieses Projekt verwendet SQLite mit einem `Arc<Mutex<Connection>>` Pattern. Bei unsachgemaesser Verwendung koennen Database-Locks, Race Conditions und inkonsistente Daten entstehen.
-
-### Lock-Halte-Regeln
-
-**WICHTIG:** Database Locks muessen so kurz wie moeglich gehalten werden.
-
-| Regel | Beschreibung |
-|-------|--------------|
-| **Kurze Locks** | Lock nur fuer die tatsaechliche DB-Operation halten |
-| **Keine I/O waehrend Lock** | Keine Netzwerk-Requests, File-I/O oder LLM-Calls waehrend der Lock gehalten wird |
-| **Pro-Item Locks** | In Loops: Lock pro Item, nicht fuer gesamte Schleife |
-| **Yield nach Release** | Nach Lock-Release `tokio::task::yield_now().await` fuer bessere Concurrency |
-
-**Korrektes Pattern (pro Item):**
-```rust
-for item in items {
-    // Lock nur fuer DB-Operation
-    {
-        let conn = db.lock().unwrap();
-        conn.execute("UPDATE ...", params![item.id])?;
-    } // Lock wird hier released
-
-    // Yield fuer andere Tasks
-    tokio::task::yield_now().await;
-
-    // Externe Operationen OHNE Lock
-    let result = external_api_call().await?;
-}
-```
-
-**Anti-Pattern (gesamte Schleife):**
-```rust
-// FALSCH: Lock fuer gesamte Operation
-let conn = db.lock().unwrap();
-for item in items {
-    conn.execute("UPDATE ...", params![item.id])?;
-    external_api_call().await?; // Lock blockiert andere!
-}
-```
-
-### Transaction-Regeln
-
-**WICHTIG:** Zusammengehoerige DB-Operationen MUESSEN in einer Transaction erfolgen.
-
-| Regel | Beschreibung |
-|-------|--------------|
-| **Atomare Operationen** | INSERT/UPDATE/DELETE Gruppen in Transaction wrappen |
-| **ROLLBACK bei Fehler** | Bei Fehlern explizit ROLLBACK ausfuehren |
-| **Pro-Item Transactions** | In Batch-Operationen: Transaction pro Item, nicht global |
-
-**Korrektes Transaction-Pattern:**
-```rust
-{
-    let conn = db.lock().unwrap();
-    conn.execute("BEGIN", [])?;
-
-    match do_operations(&conn) {
-        Ok(_) => conn.execute("COMMIT", [])?,
-        Err(e) => {
-            conn.execute("ROLLBACK", [])?;
-            return Err(e);
-        }
-    };
-}
-```
-
-**Pattern fuer Batch-Operationen:**
-```rust
-for item in items {
-    {
-        let conn = db.lock().unwrap();
-        conn.execute("BEGIN", [])?;
-
-        // Alle zusammengehoerigen Operationen fuer dieses Item
-        conn.execute("UPDATE fnords SET ...", params![item.id])?;
-        conn.execute("INSERT INTO fnord_immanentize ...", params![...])?;
-        conn.execute("UPDATE processed_at ...", params![item.id])?;
-
-        conn.execute("COMMIT", [])?;
-    } // Lock released
-
-    tokio::task::yield_now().await;
-}
-```
-
-### Kritische Bug-Fixes (Januar 2025)
-
-Folgende kritische Bugs wurden in den Datenbank-Operationen behoben:
-
-#### 1. immanentize.rs - perform_merge()
-**Problem:** Falsche Spaltennamen `keyword_id`/`neighbor_id` fuer `immanentize_neighbors` Tabelle.
-**Fix:** Korrekte Spaltennamen `immanentize_id_a`/`immanentize_id_b` verwendet.
-
-#### 2. immanentize.rs - merge_synonym_keywords()
-**Problem:** Lock wurde waehrend gesamter Merge-Operation gehalten.
-**Fix:** Refactored zu:
-- Keywords mit kurzem Lock laden, dann Lock releasen
-- Merge-Kandidaten ausserhalb des Locks identifizieren
-- Lock erneut akquirieren, alle Merges in einer Transaction
-
-#### 3. immanentize.rs - cleanup_garbage_keywords()
-**Problem:** Mehrere DELETE-Operationen ohne Transaction.
-**Fix:** Transaction-Wrapper (BEGIN/COMMIT) um alle Delete-Operationen.
-
-#### 4. immanentize.rs - auto_prune_low_quality()
-**Problem:** Delete-Operationen ohne Transaction-Safety.
-**Fix:** Transaction-Wrapper um Delete-Operationen hinzugefuegt.
-
-#### 5. batch_processor.rs - transfer_keywords_to_cluster_members()
-**Problem:** Lock fuer gesamte Batch-Operation gehalten.
-**Fix:**
-- Lock-Akquirierung in die Loop verschoben (pro Artikel)
-- Transaction-Wrapper pro Artikel
-- Lock wird nach jedem Artikel released
-
-#### 6. sync/mod.rs - store_feed()
-**Problem:** Mehrere INSERT/UPDATE ohne Transaction, kein ROLLBACK bei Fehlern.
-**Fix:**
-- Gesamte Funktion in Transaction gewrappt (BEGIN/COMMIT)
-- ROLLBACK bei Fehler-Pfaden
-- Aufgeteilt in `store_feed()` (Transaction-Wrapper) und `store_feed_inner()` (Implementierung)
-
-#### 7. article_analysis.rs - process_statistical_batch()
-**Problem:** Lock waehrend gesamter Batch-Verarbeitung gehalten.
-**Fix:**
-- Lock zwischen Artikeln released
-- `processed_at` Update nach jedem Artikel
-- Transaction pro Artikel
-- `tokio::task::yield_now().await` fuer Concurrency
-
-### Relevante Module fuer DB-Operationen
-
-| Modul | Funktion | Kritische Patterns |
-|-------|----------|-------------------|
-| `src-tauri/src/db/mod.rs` | Database Struct | Lock-Verwaltung |
-| `src-tauri/src/immanentize.rs` | Keyword-Operationen | Merge, Cleanup, Prune |
-| `src-tauri/src/sync/mod.rs` | Feed-Sync | store_feed Transaction |
-| `src-tauri/src/commands/batch_processor.rs` | Batch-Verarbeitung | Per-Item Locks |
-| `src-tauri/src/commands/article_analysis.rs` | Artikel-Analyse | Statistical Batch |
-| `src-tauri/src/commands/briefings.rs` | Briefing-Generierung | Taegl. KI-Zusammenfassungen |
-| `src-tauri/src/commands/story_clusters.rs` | Story Clustering | Union-Find, Perspektiven |
-| `src-tauri/src/commands/entities.rs` | NER Entitaeten | CRUD, Suche |
-
-## Frontend Event-System (Daten-Refresh)
-
-Komponenten die Backend-Daten anzeigen muessen auf CustomEvents lauschen, um nach Aenderungen aktualisiert zu werden.
-
-### CustomEvents
-
-| Event | Quelle | Wann | Listener |
-|-------|--------|------|----------|
-| `batch-complete` | `state.svelte.ts` | Nach Batch-Processing Abschluss | KeywordNetwork (via networkStore), FnordView, KeywordTable, CompoundKeywordManager, ArticleView |
-| `keywords-changed` | `state.svelte.ts`, `networkStore` | Nach Keyword-Mutationen (create, merge, rename, delete, batch) | KeywordNetwork (via networkStore), FnordView, KeywordTable, CompoundKeywordManager |
-
-### Pattern fuer neue Komponenten
-
-Jede Komponente die Keyword-/Artikel-Daten anzeigt MUSS:
-1. In `onMount`: `window.addEventListener('batch-complete', refreshHandler)` registrieren
-2. In `onDestroy`: `window.removeEventListener('batch-complete', refreshHandler)` aufrufen
-3. Bei Keyword-Daten zusaetzlich auf `keywords-changed` lauschen
-
-Siehe [docs/guides/QUALITY_CHECKLIST.md](docs/guides/QUALITY_CHECKLIST.md) fuer die vollstaendige Checkliste.
-
-### networkStore (Immanentize Network)
-
-Der `networkStore` (`src/lib/stores/network.svelte.ts`) verwaltet den gesamten State des Immanentize Networks:
-- Keywords, Trending, Stats, Graph-Daten
-- Event-Listener Management via `setupEventListeners()` / `teardownEventListeners()`
-- `refreshAll()` fuer vollstaendigen Daten-Refresh
-- Navigation-Support (selectKeyword bei navigate-to-network)
-
-**WICHTIG:** KeywordNetwork.svelte nutzt den networkStore - KEIN lokaler State fuer Keyword-Daten!
-
-## AI Processing Pipeline
-
-Siehe [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md) fuer die vollstaendige Pipeline-Dokumentation.
-
-**Kurzuebersicht:**
-1. **Hagbard's Retrieval** - Volltext abrufen (automatisch nach Sync)
-2. **Discordian Analysis** - Zusammenfassung, Kategorien, Keywords, Artikeltyp, NER via ministral-3 (Structured Outputs mit JSON Schema)
-3. **Article Embedding** - 1024-dim Embedding fuer Aehnlichkeitssuche (erweiterter Kontext: title + summary + content_full bis 4000 chars, snowflake-arctic-embed2 mit 8.192 Token Limit)
-4. **Greyface Alert** - Bias-Erkennung (political_bias: -2 bis +2)
-5. **Immanentize Network** - Schlagwort-Verarbeitung und Synonym-Erkennung
-6. **Story Clustering** - Union-Find Gruppierung thematisch verwandter Artikel (Embedding-Aehnlichkeit > 0.78)
-7. **Briefing Generation** - KI-Zusammenfassung mit Hybrid-Scoring (Trending Keywords mit Spike-Erkennung, Story Clusters, Sachlichkeit) und Diversitaets-Postprocessing (max 3 pro Quelle, min 3 Kategorien), BRIEFING_NUM_CTX=16384
-8. **Named Entity Recognition** - Entitaeten-Extraktion (person, organization, location, event)
-
-**Content-Felder:**
-| Feld | Zweck | Quelle |
-|------|-------|--------|
-| `content_raw` | RSS-Feed Inhalt (Auszug) | Sync |
-| `content_full` | Volltext der Webseite | Hagbard's Retrieval |
-
-**Wichtig:** Alle KI-Analysen verwenden ausschliesslich `content_full`. Artikel ohne Volltext werden nicht analysiert.
+Font Awesome 6.4 Pro: `static/fontawesome/`. Styles: `fa-solid`, `fa-regular`, `fa-light`, `fa-thin`, `fa-brands`, `fa-duotone`
 
 ## Ollama Setup
 
-Siehe [README.md](README.md#ollama-setup) fuer die vollstaendige Ollama-Dokumentation.
-
-**Quick Setup:**
 ```bash
-ollama pull ministral-3:latest
-ollama pull snowflake-arctic-embed2:latest
+ollama pull ministral-3:latest           # Text-Generierung
+ollama pull snowflake-arctic-embed2:latest # Embeddings
 ```
 
-**Hinweis:** Bei Modellwechsel muessen alle Keywords neu eingebettet werden (Settings -> Wartung -> Embeddings generieren).
+- **API:** `/api/chat` (Structured Outputs, JSON Schema) — erfordert Ollama 0.5.0+
+- **Embeddings:** `/api/embed` Batch-Endpunkt, snowflake-arctic-embed2 (8.192 Tokens)
+- **Alternative:** OpenAI-kompatible API konfigurierbar in Settings (Ollama bleibt fuer Embeddings)
+- **Concurrency:** `ollama_concurrency` Setting (Standard: 1)
 
-**Ollama API Modernisierung (Maerz 2026):** Textgenerierung nutzt jetzt `/api/chat` (statt `/api/generate`) mit System/User Messages und **Structured Outputs** (JSON Schema statt `format: "json"` bool). Die `generate_text()` Signatur im `AiTextProvider` Trait ist jetzt `json_schema: Option<serde_json::Value>` statt `json_mode: bool`. Dies erfordert Ollama 0.5.0+.
+## AI Pipeline (Kurzuebersicht)
 
-**Embedding-API:** Embeddings werden ueber den `/api/embed` Batch-Endpunkt in einem einzigen Request erzeugt (nicht mehr `/api/embeddings` pro Text). `build_embedding_text()` nutzt jetzt title + summary + content_full (bis 4000 chars) fuer reichhaltigeren Kontext. snowflake-arctic-embed2 unterstuetzt bis zu 8.192 Tokens. Nach der LLM-Analyse wird das LLM-Modell explizit entladen (`keep_alive: 5m`), bevor das Embedding-Modell geladen wird.
+1. **Hagbard's Retrieval** — Volltext abrufen
+2. **Discordian Analysis** — Zusammenfassung, Kategorien, Keywords, Artikeltyp, NER (Structured Outputs)
+3. **Article Embedding** — title + summary + content_full (snowflake-arctic-embed2)
+4. **Greyface Alert** — Bias-Erkennung (political_bias, sachlichkeit)
+5. **Immanentize Network** — Schlagwort-Verarbeitung und Synonyme
+6. **Story Clustering** — Union-Find (Embedding-Aehnlichkeit > 0.78)
+7. **Briefings** — Hybrid-Scoring + Diversitaets-Postprocessing (BRIEFING_NUM_CTX=16384)
+8. **NER** — Entitaeten (person, organization, location, event)
 
-**Alternative Text-Generation:** Anstelle von Ollama kann fuer Textgenerierung (Zusammenfassungen, Kategorisierung, Bias-Erkennung) auch eine OpenAI-kompatible API verwendet werden. Die Konfiguration erfolgt in Settings -> KI-Provider (API-URL, API-Key, Modellname). Ollama bleibt weiterhin erforderlich fuer Embeddings (snowflake-arctic-embed2).
-
-**Ollama Concurrency:** Das Setting `ollama_concurrency` (Standard: 1) steuert die Anzahl paralleler LLM-Requests. Nur erhoehen bei Remote-Ollama oder OpenAI-kompatibler API.
-
-**OpenAI Default-Modell:** `gpt-5-nano` ($0.05/$0.40 pro 1M Tokens). Sehr schnell, kosteneffizient, "great for summarization and classification tasks". Konstante: `ai_provider::DEFAULT_OPENAI_MODEL`. Alternative: `gpt-5-mini` ($0.25/$2.00) fuer hoehere Qualitaet bei Bias-Erkennung.
-
-**Cost-Tracking:** Nach jedem OpenAI-API-Call werden Token-Counts und Kosten in `ai_cost_log` geloggt. Pricing wird anhand des Modellnamens bestimmt (`helpers::get_model_pricing()`). Ollama-Calls werden nicht geloggt (keine Token-Counts verfuegbar).
+Details: [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md)
 
 ## Data Paths
 
-Datenbank wird im src-tauri Ordner gespeichert:
-- **Relativer Pfad:** `src-tauri/data/fuckup.db`
-- **Absoluter Pfad:** `/Users/hnsstrk/Repositories/fuckupRSS/src-tauri/data/fuckup.db`
-- **Format:** SQLite mit WAL-Modus
-- **Hinweis:** `data/` ist in `.gitignore` eingetragen
+- **Datenbank:** `src-tauri/data/fuckup.db` (SQLite WAL, in .gitignore)
+- **Schnellzugriff:** `sqlite3 /Users/hnsstrk/Repositories/fuckupRSS/src-tauri/data/fuckup.db`
 
-**Technischer Hintergrund:** Die Datenbank wird relativ zum Arbeitsverzeichnis erstellt (`./data/fuckup.db`). Da Tauri den Rust-Binary aus dem `src-tauri/` Verzeichnis startet, ist der effektive Pfad `src-tauri/data/fuckup.db`.
+## MCP-Server
 
-**Schneller DB-Zugriff (Claude Code):**
-```bash
-sqlite3 /Users/hnsstrk/Repositories/fuckupRSS/src-tauri/data/fuckup.db
-```
+Konfiguration in `.mcp.json`: `ollama` (KI-Interaktion), `fetch` (Web-Requests), `memory` (persistenter Kontext)
 
-## MCP-Server (Claude Code Integration)
+## Git Hooks (Husky)
 
-Fuer die Entwicklung mit Claude Code sind folgende MCP-Server konfiguriert:
+- **Pre-commit:** ESLint+Prettier (staged), cargo fmt+clippy (.rs)
+- **Pre-push:** Vitest, cargo test, svelte-check
 
-## Documentation
+## CI/CD
 
-Projektdokumentation: Siehe Obsidian Vault [[fuckupRSS]]
+Pipeline: `.gitea/workflows/ci.yaml` — Security Scan + SBOM auf Callisto (Linux). Release: Tag-basiert (`git tag v1.x.x && git push --tags`). macOS-Build: lokal via `scripts/build-macos.sh`.
 
-### Konfigurierte Server
-
-| Server | Zweck | Tools |
-|--------|-------|-------|
-| **ollama** | Lokale KI-Interaktion | `ollama_chat`, `ollama_generate`, `ollama_embed`, `ollama_list`, `ollama_pull` |
-| **fetch** | Web-Requests | `fetch` (ohne Einschraenkungen) |
-| **memory** | Persistenter Kontext | `create_entities`, `search_nodes`, `read_graph` |
-
-### Konfiguration
-
-Die MCP-Server sind in `.mcp.json` im Projektverzeichnis konfiguriert:
-
-```json
-{
-  "ollama": {
-    "type": "stdio",
-    "command": "npx",
-    "args": ["-y", "ollama-mcp"]
-  },
-  "fetch": {
-    "type": "stdio",
-    "command": "npx",
-    "args": ["-y", "mcp-fetch-server"]
-  },
-  "memory": {
-    "type": "stdio",
-    "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-memory"]
-  }
-}
-```
-
-**Hinweis:** Die offiziellen MCP-Server von Anthropic sind Python-basiert (via `uvx`). Die npm-Pakete (`mcp-fetch-server`, `ollama-mcp`) sind Community-Implementierungen.
-
-### Anwendungsfaelle
-
-**ollama:**
-- Direkt mit ministral-3:latest oder anderen Modellen chatten
-- Embeddings generieren ohne Rust-Code
-- Modelle herunterladen und verwalten
-
-**fetch:**
-- RSS-Feeds testen ohne App zu starten
-- Webseiten-Struktur fuer Readability analysieren
-- API-Endpoints testen
-
-**memory:**
-- Wichtige Projektinfos zwischen Sessions speichern
-- Kontext ueber laengere Entwicklungszyklen behalten
+Details: [docs/guides/CI_CD_SETUP.md](docs/guides/CI_CD_SETUP.md)
