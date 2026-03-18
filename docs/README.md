@@ -76,20 +76,6 @@ Das semantische Keyword-Netzwerk fuer intelligente Artikel-Verknuepfung.
 | [GRAPH_REQUIREMENTS.md](features/immanentize/GRAPH_REQUIREMENTS.md) | Anforderungen an das Graph-System |
 | [GRAPH_TECH_EVAL.md](features/immanentize/GRAPH_TECH_EVAL.md) | Technologie-Evaluation fuer Graph-Visualisierung |
 
-### Recommendations (Operation Mindfuck)
-
-Das personalisierte Empfehlungssystem basierend auf Nutzerinteressen.
-
-| Dokument | Beschreibung |
-|----------|--------------|
-| [RECS_PRODUCT_BRIEF.md](recommendations/RECS_PRODUCT_BRIEF.md) | Produktvision und Ziele |
-| [RECS_ALGO_SPEC.md](recommendations/RECS_ALGO_SPEC.md) | Algorithmus-Spezifikation |
-| [RECS_API_SPEC.md](recommendations/RECS_API_SPEC.md) | API-Endpunkte und Datenstrukturen |
-| [RECS_UI_SPEC.md](recommendations/RECS_UI_SPEC.md) | UI/UX-Design und Komponenten |
-| [RECS_SIGNAL_CATALOG.md](recommendations/RECS_SIGNAL_CATALOG.md) | Signale und Gewichtungen |
-| [RECS_DATA_INVENTORY.md](recommendations/RECS_DATA_INVENTORY.md) | Datenquellen und -strukturen |
-| [RECS_CURRENT_STATE.md](recommendations/RECS_CURRENT_STATE.md) | Aktueller Implementierungsstand |
-
 ---
 
 ## Plaene
@@ -166,14 +152,6 @@ docs/
 │   └── TESTING.md
 ├── plans/                       # Feature-Designs (noch nicht implementiert)
 │   └── 2026-03-01-ollama-server-dropdown-design.md
-├── recommendations/             # Empfehlungssystem (Operation Mindfuck)
-│   ├── RECS_ALGO_SPEC.md
-│   ├── RECS_API_SPEC.md
-│   ├── RECS_CURRENT_STATE.md
-│   ├── RECS_DATA_INVENTORY.md
-│   ├── RECS_PRODUCT_BRIEF.md
-│   ├── RECS_SIGNAL_CATALOG.md
-│   └── RECS_UI_SPEC.md
 ├── reports/                     # Analysen und Recherchen
 │   └── OLLAMA_KI_RECHERCHE_2026.md
 └── sql/                         # SQL-Skripte
