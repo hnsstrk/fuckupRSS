@@ -19,8 +19,16 @@
       labelKey: "settings.ai.providerOpenAi",
       icon: "fa-solid fa-cloud",
     },
-    { value: "gemini_cli", labelKey: "settings.ai.providerGeminiCli", icon: "fa-solid fa-terminal" },
-    { value: "claude_code_cli", labelKey: "settings.ai.providerClaudeCli", icon: "fa-solid fa-terminal" },
+    {
+      value: "gemini_cli",
+      labelKey: "settings.ai.providerGeminiCli",
+      icon: "fa-solid fa-terminal",
+    },
+    {
+      value: "claude_code_cli",
+      labelKey: "settings.ai.providerClaudeCli",
+      icon: "fa-solid fa-terminal",
+    },
   ];
 
   const embeddingProviderOptions: { value: string; labelKey: string; icon: string }[] = [
@@ -161,17 +169,9 @@
   // ============================================
   // Auto-detect model suggestions (Task 11)
   // ============================================
-  const fastModelPriority = [
-    "qwen3:8b",
-    "qwen3:4b",
-    "ministral-3:latest",
-  ];
+  const fastModelPriority = ["qwen3:8b", "qwen3:4b", "ministral-3:latest"];
 
-  const reasoningModelPriority = [
-    "deepseek-r1:32b",
-    "deepseek-r1:14b",
-    "qwen3:14b",
-  ];
+  const reasoningModelPriority = ["deepseek-r1:32b", "deepseek-r1:14b", "qwen3:14b"];
 
   let suggestedFastModel = $derived.by(() => {
     if (!ollamaStatus?.available || !ollamaStatus.models.length) return null;
@@ -208,9 +208,7 @@
   // Derived: needs ollama / openai sections
   // ============================================
   let needsOllamaServer = $derived(
-    fastProvider === "ollama" ||
-      reasoningProvider === "ollama" ||
-      embeddingProvider === "ollama",
+    fastProvider === "ollama" || reasoningProvider === "ollama" || embeddingProvider === "ollama",
   );
 
   let needsOpenAiSection = $derived(
@@ -223,9 +221,7 @@
   );
 
   let isEmbeddingModelMissing = $derived(
-    selectedEmbeddingModel &&
-      ollamaStatus?.available &&
-      !isModelInstalled(selectedEmbeddingModel),
+    selectedEmbeddingModel && ollamaStatus?.available && !isModelInstalled(selectedEmbeddingModel),
   );
 
   // ============================================
@@ -813,50 +809,62 @@
       </div>
     </div>
 
-    <!-- Model Selection (Ollama) -->
+    <!-- Model + Concurrency (Ollama) — side by side -->
     {#if fastProvider === "ollama" && ollamaStatus?.available}
-      <div class="field-row">
-        <span class="field-label">{$_("settings.ai.model")}</span>
-        <div class="custom-select model-select">
-          <button type="button" class="select-trigger" onclick={toggleMainModelDropdown}>
-            <span>
-              {selectedMainModel || $_("settings.ai.noModelsAvailable")}
-              {#if isModelLoaded(selectedMainModel)}
-                <i class="loaded-badge fa-solid fa-circle"></i>
-              {/if}
-              {#if suggestedFastModel && selectedMainModel === suggestedFastModel}
-                <span class="suggested-badge">{$_("settings.ai.suggested")}</span>
-              {/if}
-            </span>
-            <i
-              class="arrow fa-solid {mainModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"
-            ></i>
-          </button>
-          {#if mainModelDropdownOpen}
-            <div class="select-options">
-              {#each ollamaStatus.models as model (model)}
-                <button
-                  type="button"
-                  class="select-option {selectedMainModel === model ? 'selected' : ''}"
-                  onclick={() => selectMainModel(model)}
-                >
-                  {model}
-                  {#if isModelLoaded(model)}
-                    <i class="loaded-badge fa-solid fa-circle"></i>
-                  {/if}
-                  {#if isSuggestedModel(model, fastModelPriority)}
-                    <span class="suggested-badge">{$_("settings.ai.suggested")}</span>
-                  {/if}
-                </button>
-              {/each}
-            </div>
-          {/if}
+      <div class="field-row-grid">
+        <div class="field-row">
+          <span class="field-label">{$_("settings.ai.model")}</span>
+          <div class="custom-select model-select">
+            <button type="button" class="select-trigger" onclick={toggleMainModelDropdown}>
+              <span>
+                {selectedMainModel || $_("settings.ai.noModelsAvailable")}
+                {#if isModelLoaded(selectedMainModel)}
+                  <i class="loaded-badge fa-solid fa-circle"></i>
+                {/if}
+                {#if suggestedFastModel && selectedMainModel === suggestedFastModel}
+                  <span class="suggested-badge">{$_("settings.ai.suggested")}</span>
+                {/if}
+              </span>
+              <i class="arrow fa-solid {mainModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"
+              ></i>
+            </button>
+            {#if mainModelDropdownOpen}
+              <div class="select-options">
+                {#each ollamaStatus.models as model (model)}
+                  <button
+                    type="button"
+                    class="select-option {selectedMainModel === model ? 'selected' : ''}"
+                    onclick={() => selectMainModel(model)}
+                  >
+                    {model}
+                    {#if isModelLoaded(model)}
+                      <i class="loaded-badge fa-solid fa-circle"></i>
+                    {/if}
+                    {#if isSuggestedModel(model, fastModelPriority)}
+                      <span class="suggested-badge">{$_("settings.ai.suggested")}</span>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        </div>
+
+        <div class="field-row">
+          <span class="field-label">{$_("settings.ai.concurrency")}</span>
+          <input
+            type="number"
+            class="number-input"
+            min="1"
+            max="16"
+            value={ollamaConcurrency}
+            onchange={(e) =>
+              handleConcurrencyChange(parseInt((e.target as HTMLInputElement).value) || 1)}
+          />
         </div>
       </div>
-    {/if}
-
-    <!-- Concurrency (Ollama) -->
-    {#if fastProvider === "ollama"}
+    {:else if fastProvider === "ollama"}
+      <!-- Only concurrency when no models available -->
       <div class="field-row">
         <span class="field-label">{$_("settings.ai.concurrency")}</span>
         <input
@@ -903,50 +911,67 @@
       </div>
     </div>
 
-    <!-- Reasoning Model Selection (Ollama) -->
+    <!-- Reasoning Model + Context Length (Ollama) — side by side -->
     {#if reasoningProvider === "ollama" && ollamaStatus?.available}
-      <div class="field-row">
-        <span class="field-label">{$_("settings.ai.reasoningModel")}</span>
-        <div class="custom-select model-select">
-          <button type="button" class="select-trigger" onclick={toggleReasoningModelDropdown}>
-            <span>
-              {reasoningModel || $_("settings.ai.noModelsAvailable")}
-              {#if isModelLoaded(reasoningModel)}
-                <i class="loaded-badge fa-solid fa-circle"></i>
-              {/if}
-              {#if suggestedReasoningModel && reasoningModel === suggestedReasoningModel}
-                <span class="suggested-badge">{$_("settings.ai.suggested")}</span>
-              {/if}
-            </span>
-            <i
-              class="arrow fa-solid {reasoningModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"
-            ></i>
-          </button>
-          {#if reasoningModelDropdownOpen}
-            <div class="select-options">
-              {#each ollamaStatus.models as model (model)}
-                <button
-                  type="button"
-                  class="select-option {reasoningModel === model ? 'selected' : ''}"
-                  onclick={() => selectReasoningModel(model)}
-                >
-                  {model}
-                  {#if isModelLoaded(model)}
-                    <i class="loaded-badge fa-solid fa-circle"></i>
-                  {/if}
-                  {#if isSuggestedModel(model, reasoningModelPriority)}
-                    <span class="suggested-badge">{$_("settings.ai.suggested")}</span>
-                  {/if}
-                </button>
-              {/each}
-            </div>
-          {/if}
+      <div class="field-row-grid">
+        <div class="field-row">
+          <span class="field-label">{$_("settings.ai.reasoningModel")}</span>
+          <div class="custom-select model-select">
+            <button type="button" class="select-trigger" onclick={toggleReasoningModelDropdown}>
+              <span>
+                {reasoningModel || $_("settings.ai.noModelsAvailable")}
+                {#if isModelLoaded(reasoningModel)}
+                  <i class="loaded-badge fa-solid fa-circle"></i>
+                {/if}
+                {#if suggestedReasoningModel && reasoningModel === suggestedReasoningModel}
+                  <span class="suggested-badge">{$_("settings.ai.suggested")}</span>
+                {/if}
+              </span>
+              <i
+                class="arrow fa-solid {reasoningModelDropdownOpen
+                  ? 'fa-caret-up'
+                  : 'fa-caret-down'}"
+              ></i>
+            </button>
+            {#if reasoningModelDropdownOpen}
+              <div class="select-options">
+                {#each ollamaStatus.models as model (model)}
+                  <button
+                    type="button"
+                    class="select-option {reasoningModel === model ? 'selected' : ''}"
+                    onclick={() => selectReasoningModel(model)}
+                  >
+                    {model}
+                    {#if isModelLoaded(model)}
+                      <i class="loaded-badge fa-solid fa-circle"></i>
+                    {/if}
+                    {#if isSuggestedModel(model, reasoningModelPriority)}
+                      <span class="suggested-badge">{$_("settings.ai.suggested")}</span>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        </div>
+
+        <div class="field-row">
+          <span class="field-label">{$_("settings.ai.contextLength")}</span>
+          <div class="ctx-buttons">
+            {#each numCtxOptions as opt (opt.value)}
+              <button
+                type="button"
+                class="ctx-btn {reasoningNumCtx === opt.value ? 'active' : ''}"
+                onclick={() => handleReasoningNumCtxChange(opt.value)}
+              >
+                {opt.label}
+              </button>
+            {/each}
+          </div>
         </div>
       </div>
-    {/if}
-
-    <!-- Context Length -->
-    {#if reasoningProvider === "ollama"}
+    {:else if reasoningProvider === "ollama"}
+      <!-- Only context length when no models available -->
       <div class="field-row">
         <span class="field-label">{$_("settings.ai.contextLength")}</span>
         <div class="ctx-buttons">
@@ -1007,10 +1032,7 @@
                 <span class="recommended">{$_("settings.ollama.recommended")}</span>
               {/if}
             </span>
-            <i
-              class="arrow fa-solid {embeddingModelDropdownOpen
-                ? 'fa-caret-up'
-                : 'fa-caret-down'}"
+            <i class="arrow fa-solid {embeddingModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"
             ></i>
           </button>
           {#if embeddingModelDropdownOpen}
@@ -1106,7 +1128,11 @@
             {$_("settings.ollama.disconnected")}
           </span>
         {/if}
-        <i class="fa-solid {ollamaServerExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} toggle-chevron"></i>
+        <i
+          class="fa-solid {ollamaServerExpanded
+            ? 'fa-chevron-up'
+            : 'fa-chevron-down'} toggle-chevron"
+        ></i>
       </div>
     </button>
 
@@ -1172,7 +1198,11 @@
             {$_("settings.ollama.connected")}
           </span>
         {/if}
-        <i class="fa-solid {openaiSectionExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} toggle-chevron"></i>
+        <i
+          class="fa-solid {openaiSectionExpanded
+            ? 'fa-chevron-up'
+            : 'fa-chevron-down'} toggle-chevron"
+        ></i>
       </div>
     </button>
 
@@ -1221,7 +1251,7 @@
   /* Card layout                                  */
   /* ============================================ */
   .settings-card {
-    max-width: 640px;
+    max-width: 900px;
     margin-bottom: 1rem;
     border: 1px solid var(--border-default);
     border-radius: 0.5rem;
@@ -1371,6 +1401,24 @@
 
   .field-row:last-child {
     margin-bottom: 0;
+  }
+
+  /* Two-column grid for model + parameter side by side */
+  .field-row-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .field-row-grid > .field-row {
+    margin-bottom: 0;
+  }
+
+  @media (max-width: 600px) {
+    .field-row-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   .field-label {
@@ -1647,7 +1695,7 @@
   }
 
   .error-message {
-    max-width: 640px;
+    max-width: 900px;
     color: var(--status-error);
     padding: 0.5rem;
     background-color: rgba(243, 139, 168, 0.1);

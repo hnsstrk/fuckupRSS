@@ -284,7 +284,7 @@
 <style>
   .setting-group {
     margin-bottom: 1.25rem;
-    max-width: 600px;
+    max-width: 900px;
   }
 
   .setting-group > .label {
