@@ -21,26 +21,11 @@
         <thead>
           <tr>
             <th>{$_("fnordView.source") || "Quelle"}</th>
-            <th class="bias-col" title="-2">
-              <i class="fa-solid fa-angles-left"></i>
-              <span class="bias-label">{$_("articleView.biasStrongLeft") || "Stark links"}</span>
-            </th>
-            <th class="bias-col" title="-1">
-              <i class="fa-solid fa-angle-left"></i>
-              <span class="bias-label">{$_("articleView.biasLeanLeft") || "Leicht links"}</span>
-            </th>
-            <th class="bias-col neutral" title="0">
-              <i class="fa-solid fa-minus"></i>
-              <span class="bias-label">{$_("articleView.biasNeutral") || "Neutral"}</span>
-            </th>
-            <th class="bias-col" title="+1">
-              <span class="bias-label">{$_("articleView.biasLeanRight") || "Leicht rechts"}</span>
-              <i class="fa-solid fa-angle-right"></i>
-            </th>
-            <th class="bias-col" title="+2">
-              <span class="bias-label">{$_("articleView.biasStrongRight") || "Stark rechts"}</span>
-              <i class="fa-solid fa-angles-right"></i>
-            </th>
+            <th class="bias-col" title="{$_('articleView.biasStrongLeft') || 'Stark links'}"><i class="fa-solid fa-angles-left"></i> {$_("articleView.biasStrongLeft") || "Stark links"}</th>
+            <th class="bias-col" title="{$_('articleView.biasLeanLeft') || 'Leicht links'}"><i class="fa-solid fa-angle-left"></i> {$_("articleView.biasLeanLeft") || "Leicht links"}</th>
+            <th class="bias-col" title="{$_('articleView.biasNeutral') || 'Neutral'}"><i class="fa-solid fa-minus"></i> {$_("articleView.biasNeutral") || "Neutral"}</th>
+            <th class="bias-col" title="{$_('articleView.biasLeanRight') || 'Leicht rechts'}">{$_("articleView.biasLeanRight") || "Leicht rechts"} <i class="fa-solid fa-angle-right"></i></th>
+            <th class="bias-col" title="{$_('articleView.biasStrongRight') || 'Stark rechts'}">{$_("articleView.biasStrongRight") || "Stark rechts"} <i class="fa-solid fa-angles-right"></i></th>
             <th class="avg-col">{$_("fnordView.avgBias") || "Ø Tendenz"}</th>
           </tr>
         </thead>
@@ -132,32 +117,14 @@
   }
 
   .bias-col {
-    width: auto;
-    min-width: 4rem;
+    white-space: nowrap;
     font-size: 0.7rem;
-    line-height: 1.2;
+    padding: 0.5rem 0.375rem;
   }
 
   .bias-col i {
-    display: block;
-    font-size: 0.75rem;
-    margin-bottom: 0.15rem;
+    font-size: 0.65rem;
     color: var(--text-muted);
-  }
-
-  .bias-col.neutral i {
-    color: var(--accent-primary);
-  }
-
-  .bias-label {
-    display: block;
-    font-size: 0.6rem;
-    color: var(--text-muted);
-    white-space: nowrap;
-  }
-
-  .avg-col {
-    min-width: 5rem;
   }
 
   .heatmap-table td {
