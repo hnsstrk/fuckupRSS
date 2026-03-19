@@ -1226,7 +1226,6 @@
     border: 1px solid var(--border-default);
     border-radius: 0.5rem;
     background-color: var(--bg-surface);
-    overflow: hidden;
   }
 
   .card-header {
@@ -1236,6 +1235,12 @@
     padding: 0.875rem 1rem;
     background-color: var(--bg-overlay);
     border-bottom: 1px solid var(--border-default);
+    border-radius: 0.5rem 0.5rem 0 0;
+  }
+
+  .card-header:last-child {
+    border-bottom: none;
+    border-radius: 0.5rem;
   }
 
   .card-header-toggle {
@@ -1291,6 +1296,7 @@
 
   .card-body {
     padding: 1rem;
+    border-radius: 0 0 0.5rem 0.5rem;
   }
 
   /* ============================================ */
