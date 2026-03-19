@@ -21,12 +21,27 @@
         <thead>
           <tr>
             <th>{$_("fnordView.source") || "Quelle"}</th>
-            <th class="bias-col">-2</th>
-            <th class="bias-col">-1</th>
-            <th class="bias-col">0</th>
-            <th class="bias-col">+1</th>
-            <th class="bias-col">+2</th>
-            <th>{$_("fnordView.avgBias") || "Avg"}</th>
+            <th class="bias-col" title="-2">
+              <i class="fa-solid fa-angles-left"></i>
+              <span class="bias-label">{$_("article.biasStrongLeft") || "Stark links"}</span>
+            </th>
+            <th class="bias-col" title="-1">
+              <i class="fa-solid fa-angle-left"></i>
+              <span class="bias-label">{$_("article.biasLeanLeft") || "Leicht links"}</span>
+            </th>
+            <th class="bias-col neutral" title="0">
+              <i class="fa-solid fa-minus"></i>
+              <span class="bias-label">{$_("article.biasNeutral") || "Neutral"}</span>
+            </th>
+            <th class="bias-col" title="+1">
+              <span class="bias-label">{$_("article.biasLeanRight") || "Leicht rechts"}</span>
+              <i class="fa-solid fa-angle-right"></i>
+            </th>
+            <th class="bias-col" title="+2">
+              <span class="bias-label">{$_("article.biasStrongRight") || "Stark rechts"}</span>
+              <i class="fa-solid fa-angles-right"></i>
+            </th>
+            <th class="avg-col">{$_("fnordView.avgBias") || "Ø Tendenz"}</th>
           </tr>
         </thead>
         <tbody>
@@ -117,7 +132,32 @@
   }
 
   .bias-col {
-    width: 3rem;
+    width: auto;
+    min-width: 4rem;
+    font-size: 0.7rem;
+    line-height: 1.2;
+  }
+
+  .bias-col i {
+    display: block;
+    font-size: 0.75rem;
+    margin-bottom: 0.15rem;
+    color: var(--text-muted);
+  }
+
+  .bias-col.neutral i {
+    color: var(--accent-primary);
+  }
+
+  .bias-label {
+    display: block;
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .avg-col {
+    min-width: 5rem;
   }
 
   .heatmap-table td {
