@@ -40,9 +40,15 @@ impl OllamaTextProvider {
     }
 
     /// Erstellt Provider mit expliziter Steuerung des Thinking-Modus
+    /// Bei suppress=false (Reasoning): Extended Timeout (600s) + höheres num_predict (16384)
     pub fn with_thinking(base_url: &str, num_ctx: u32, concurrency: usize, suppress: bool) -> Self {
+        let client = if suppress {
+            OllamaClient::with_context(Some(base_url.to_string()), num_ctx)
+        } else {
+            OllamaClient::for_reasoning(Some(base_url.to_string()), num_ctx)
+        };
         Self {
-            client: OllamaClient::with_context(Some(base_url.to_string()), num_ctx),
+            client,
             concurrency: concurrency.max(1),
             suppress_thinking: suppress,
         }

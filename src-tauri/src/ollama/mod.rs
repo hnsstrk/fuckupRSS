@@ -484,10 +484,20 @@ pub const DEFAULT_NUM_CTX: u32 = 8192;
 /// Higher context for briefing generation (more articles in prompt)
 pub const BRIEFING_NUM_CTX: u32 = 16384;
 
+/// Default timeout for standard (fast) tasks
+const DEFAULT_TIMEOUT_SECS: u64 = 120;
+/// Extended timeout for reasoning tasks (thinking models generate many tokens)
+const REASONING_TIMEOUT_SECS: u64 = 600;
+/// Default num_predict for fast tasks
+const DEFAULT_NUM_PREDICT: i32 = 4096;
+/// Extended num_predict for reasoning tasks (thinking tokens + actual output)
+const REASONING_NUM_PREDICT: i32 = 16384;
+
 /// Ollama API client for local LLM inference
 pub struct OllamaClient {
     base_url: String,
     num_ctx: u32,
+    num_predict: i32,
     http_client: reqwest_new::Client,
 }
 
@@ -496,8 +506,9 @@ impl OllamaClient {
         Self {
             base_url: base_url.unwrap_or_else(|| "http://localhost:11434".to_string()),
             num_ctx: DEFAULT_NUM_CTX,
+            num_predict: DEFAULT_NUM_PREDICT,
             http_client: reqwest_new::Client::builder()
-                .timeout(Duration::from_secs(120))
+                .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
                 .build()
                 .expect("Failed to create HTTP client"),
         }
@@ -508,8 +519,22 @@ impl OllamaClient {
         Self {
             base_url: base_url.unwrap_or_else(|| "http://localhost:11434".to_string()),
             num_ctx,
+            num_predict: DEFAULT_NUM_PREDICT,
             http_client: reqwest_new::Client::builder()
-                .timeout(Duration::from_secs(120))
+                .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
+                .build()
+                .expect("Failed to create HTTP client"),
+        }
+    }
+
+    /// Create client for reasoning tasks (extended timeout + num_predict for thinking models)
+    pub fn for_reasoning(base_url: Option<String>, num_ctx: u32) -> Self {
+        Self {
+            base_url: base_url.unwrap_or_else(|| "http://localhost:11434".to_string()),
+            num_ctx,
+            num_predict: REASONING_NUM_PREDICT,
+            http_client: reqwest_new::Client::builder()
+                .timeout(Duration::from_secs(REASONING_TIMEOUT_SECS))
                 .build()
                 .expect("Failed to create HTTP client"),
         }
@@ -735,10 +760,7 @@ impl OllamaClient {
             format,
             options: GenerateOptions {
                 num_ctx: self.num_ctx,
-                // Ensure enough output tokens for JSON analysis
-                // Default is 128 which is too small for structured output
-                // 4096 allows for detailed summaries + full JSON structure
-                num_predict: 4096,
+                num_predict: self.num_predict,
             },
             keep_alive: "5m".to_string(),
             think: None,
