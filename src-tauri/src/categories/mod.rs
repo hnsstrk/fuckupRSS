@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+use crate::ollama::RECOMMENDED_MAIN_MODEL;
+
 #[cfg(test)]
 mod tests;
 
@@ -19,8 +21,6 @@ pub const SEPHIROTH_CATEGORIES: &[&str] = &[
     "Energie",
     "Recht",
 ];
-
-pub const CATEGORY_CLASSIFICATION_MODEL: &str = "qwen2.5:1.5b";
 
 const CATEGORY_PROMPT_DE: &str = r#"Du bist ein Nachrichtenklassifikator. Ordne den folgenden Artikel den passenden Kategorien zu.
 
@@ -115,7 +115,7 @@ impl CategoryClassifier {
     pub fn new(base_url: Option<String>, model: Option<String>) -> Self {
         Self {
             base_url: base_url.unwrap_or_else(|| "http://localhost:11434".to_string()),
-            model: model.unwrap_or_else(|| CATEGORY_CLASSIFICATION_MODEL.to_string()),
+            model: model.unwrap_or_else(|| RECOMMENDED_MAIN_MODEL.to_string()),
         }
     }
 
