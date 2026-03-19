@@ -119,6 +119,13 @@ pub fn get_provider_config(
         openai_api_key: get_setting(db, "openai_api_key", ""),
         openai_model: get_setting(db, "openai_model", DEFAULT_OPENAI_MODEL),
         openai_temperature: parse_openai_temperature(db),
+        claude_model: get_setting(db, "claude_model", ""),
+        claude_max_budget_usd: get_setting(db, "claude_max_budget_usd", "0.0")
+            .parse()
+            .unwrap_or(0.0),
+        cli_timeout_secs: get_setting(db, "cli_timeout_secs", "120")
+            .parse()
+            .unwrap_or(120),
     }
 }
 
@@ -138,6 +145,14 @@ pub fn create_text_provider(
     let model = match config.provider_type {
         ProviderType::Ollama => config.ollama_model.clone(),
         ProviderType::OpenAiCompatible => config.openai_model.clone(),
+        ProviderType::GeminiCli => "gemini-cli".to_string(),
+        ProviderType::ClaudeCodeCli => {
+            if config.claude_model.is_empty() {
+                "claude-code-cli".to_string()
+            } else {
+                config.claude_model.clone()
+            }
+        }
     };
 
     (ai_provider::create_provider(&config), model)

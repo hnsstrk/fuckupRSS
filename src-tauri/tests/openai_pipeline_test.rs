@@ -254,6 +254,9 @@ async fn test_openai_discordian_analysis_pipeline() {
         openai_api_key: api_key.clone(),
         openai_model: model.clone(),
         openai_temperature: temperature,
+        claude_model: String::new(),
+        claude_max_budget_usd: 0.0,
+        cli_timeout_secs: 120,
     };
     let provider = create_provider(&config);
 
@@ -567,6 +570,9 @@ async fn test_openai_provider_config_isolation() {
         openai_api_key: api_key.clone(),
         openai_model: model.clone(),
         openai_temperature: temperature,
+        claude_model: String::new(),
+        claude_max_budget_usd: 0.0,
+        cli_timeout_secs: 120,
     };
     let provider = create_provider(&config);
     assert_eq!(provider.provider_name(), "OpenAI-compatible");
@@ -604,6 +610,9 @@ async fn test_openai_provider_config_isolation() {
         openai_api_key: api_key,
         openai_model: model.clone(),
         openai_temperature: None,
+        claude_model: String::new(),
+        claude_max_budget_usd: 0.0,
+        cli_timeout_secs: 120,
     };
     let openai_provider = create_provider(&openai_config);
     assert_eq!(openai_provider.provider_name(), "OpenAI-compatible");
@@ -654,6 +663,9 @@ async fn test_openai_no_truncation() {
         openai_api_key: api_key,
         openai_model: model.clone(),
         openai_temperature: temperature,
+        claude_model: String::new(),
+        claude_max_budget_usd: 0.0,
+        cli_timeout_secs: 120,
     };
     let provider = create_provider(&config);
 
@@ -817,6 +829,9 @@ async fn test_openai_provider_stability() {
         openai_api_key: api_key,
         openai_model: model.clone(),
         openai_temperature: temperature,
+        claude_model: String::new(),
+        claude_max_budget_usd: 0.0,
+        cli_timeout_secs: 120,
     };
     let provider = create_provider(&config);
 

@@ -965,6 +965,14 @@ pub async fn process_batch(
         let config_model = match config.provider_type {
             crate::ai_provider::ProviderType::Ollama => config.ollama_model.clone(),
             crate::ai_provider::ProviderType::OpenAiCompatible => config.openai_model.clone(),
+            crate::ai_provider::ProviderType::GeminiCli => "gemini-cli".to_string(),
+            crate::ai_provider::ProviderType::ClaudeCodeCli => {
+                if config.claude_model.is_empty() {
+                    "claude-code-cli".to_string()
+                } else {
+                    config.claude_model.clone()
+                }
+            }
         };
         let effective = crate::ai_provider::resolve_effective_model(
             &format!("{:?}", config.provider_type),
@@ -1102,11 +1110,14 @@ pub async fn process_batch(
                             retry_config.ollama_num_ctx = adjusted_num_ctx;
                             Some(create_provider(&retry_config))
                         }
-                        ProviderType::OpenAiCompatible => {
+                        ProviderType::OpenAiCompatible
+                        | ProviderType::GeminiCli
+                        | ProviderType::ClaudeCodeCli => {
                              info!(
-                                "Retry {}/3 for article {} (OpenAI-compatible): using same provider",
+                                "Retry {}/3 for article {} ({}): using same provider",
                                 attempts + 1,
-                                fnord_id
+                                fnord_id,
+                                provider_config_for_retry.provider_type.to_setting_str()
                             );
                             None
                         }
@@ -1843,12 +1854,15 @@ pub async fn process_batch_clustered(
                     retry_config.ollama_num_ctx = adjusted_num_ctx;
                     Some(create_provider(&retry_config))
                 }
-                ProviderType::OpenAiCompatible => {
-                    // OpenAI-compatible: use same provider (no num_ctx adjustment)
+                ProviderType::OpenAiCompatible
+                | ProviderType::GeminiCli
+                | ProviderType::ClaudeCodeCli => {
+                    // Non-Ollama providers: use same provider (no num_ctx adjustment)
                     info!(
-                        "Retry {}/3 for article {} (OpenAI-compatible): using same provider",
+                        "Retry {}/3 for article {} ({}): using same provider",
                         article.attempts + 1,
-                        fnord_id
+                        fnord_id,
+                        provider_config_for_retry.provider_type.to_setting_str()
                     );
                     None
                 }
