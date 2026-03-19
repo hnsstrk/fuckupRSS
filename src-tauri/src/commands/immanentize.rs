@@ -2005,12 +2005,13 @@ pub async fn verify_synonym_pair(
     keyword_a: String,
     keyword_b: String,
 ) -> Result<SynonymVerificationResult, String> {
+    use crate::ai_provider::TaskType;
     use crate::commands::ai::helpers::create_text_provider;
 
     // Get the configured provider and model from settings
     let (provider, model) = {
         let db = state.db_conn()?;
-        create_text_provider(&db, Some(&state.proxy_manager))
+        create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast)
     };
 
     // Prompt designed for YES/NO response with optional explanation

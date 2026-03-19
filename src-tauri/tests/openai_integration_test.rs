@@ -5,7 +5,7 @@
 //!
 //! Run with: cargo test --manifest-path src-tauri/Cargo.toml --test openai_integration_test -- --ignored --nocapture
 
-use fuckuprss_lib::ai_provider::{create_provider, ProviderConfig, ProviderType};
+use fuckuprss_lib::ai_provider::{create_provider, ProviderConfig, ProviderType, TaskType};
 use rusqlite::Connection;
 use serde::Deserialize;
 
@@ -144,12 +144,14 @@ async fn test_openai_discordian_analysis_5_articles() {
         provider_type: ProviderType::OpenAiCompatible,
         ollama_url: String::new(),
         ollama_model: String::new(),
+        ollama_reasoning_model: String::new(),
         ollama_num_ctx: 4096,
         ollama_concurrency: 1,
         openai_base_url: base_url.clone(),
         openai_api_key: api_key.clone(),
         openai_model: model.clone(),
         openai_temperature: None,
+        task_type: TaskType::Fast,
     };
     let provider = create_provider(&config);
 

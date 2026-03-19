@@ -1,6 +1,6 @@
 //! Single article processing commands (summary, analysis, discordian)
 
-use crate::ai_provider::{AiTextProvider, EmbeddingProvider};
+use crate::ai_provider::{AiTextProvider, EmbeddingProvider, TaskType};
 use crate::ollama::DiscordianAnalysis;
 use crate::text_analysis::{
     record_correction, BiasWeights, CategoryMatcher, CorpusStats, CorrectionRecord, CorrectionType,
@@ -53,7 +53,7 @@ pub async fn generate_summary(
 
     let (provider, effective_model, content): (Arc<dyn AiTextProvider>, String, String) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager));
+        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
         let content = db
             .conn()
             .query_row(
@@ -136,7 +136,7 @@ pub async fn analyze_article(
         String,
     ) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager));
+        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
         let (title, content) = db
             .conn()
             .query_row(
@@ -224,7 +224,7 @@ pub async fn process_article(
         String,
     ) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager));
+        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
         let (title, content) = db
             .conn()
             .query_row(
@@ -381,7 +381,7 @@ pub async fn process_article_discordian(
         usize,
     ) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager));
+        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
         let embedding_provider = create_embedding_provider_from_db(&db, Some(&state.proxy_manager));
         let (title, content, article_date, summary, content_raw) = db
             .conn()

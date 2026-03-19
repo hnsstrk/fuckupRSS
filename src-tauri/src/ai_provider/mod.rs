@@ -15,6 +15,15 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
 
+/// Task-Typ für Modell-Routing: Fast (Analyse) vs. Reasoning (Briefings, Perspektiven)
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TaskType {
+    /// Schnelle Analyse-Tasks: Discordian Analysis, NER, Bias, Keywords, Synonyme
+    Fast,
+    /// Reasoning-Tasks: Briefings, Perspektivenvergleich (höherer num_ctx, Reasoning-Modell)
+    Reasoning,
+}
+
 /// Default model for OpenAI-compatible providers
 pub const DEFAULT_OPENAI_MODEL: &str = "gpt-5-nano";
 
@@ -53,6 +62,8 @@ pub struct ProviderConfig {
     pub ollama_url: String,
     /// Ollama model name (used for OllamaProvider)
     pub ollama_model: String,
+    /// Ollama Reasoning-Modell (für Briefings, Perspektivenvergleich)
+    pub ollama_reasoning_model: String,
     /// Ollama num_ctx setting
     pub ollama_num_ctx: u32,
     /// Ollama parallel request concurrency (1 = sequential, 2-4 for remote)
@@ -65,6 +76,8 @@ pub struct ProviderConfig {
     pub openai_model: String,
     /// Temperature for OpenAI-compatible provider (None = use API default)
     pub openai_temperature: Option<f32>,
+    /// Task-Typ für Modell-Routing
+    pub task_type: TaskType,
 }
 
 /// Errors from AI providers
@@ -207,12 +220,18 @@ pub fn resolve_effective_model(
 }
 
 /// Create a text provider based on configuration
+///
+/// Bei Ollama: TaskType steuert ob /no_think gesendet wird
+/// - Fast: suppress_thinking = true (/no_think aktiv)
+/// - Reasoning: suppress_thinking = false (Modell darf "denken")
 pub fn create_provider(config: &ProviderConfig) -> Arc<dyn AiTextProvider> {
+    let suppress_thinking = config.task_type == TaskType::Fast;
     match config.provider_type {
-        ProviderType::Ollama => Arc::new(ollama_provider::OllamaTextProvider::new(
+        ProviderType::Ollama => Arc::new(ollama_provider::OllamaTextProvider::with_thinking(
             &config.ollama_url,
             config.ollama_num_ctx,
             config.ollama_concurrency,
+            suppress_thinking,
         )),
         ProviderType::OpenAiCompatible => Arc::new(openai_provider::OpenAiCompatibleProvider::new(
             &config.openai_base_url,
@@ -319,18 +338,21 @@ mod tests {
         let config = ProviderConfig {
             provider_type: ProviderType::Ollama,
             ollama_url: "http://localhost:11434".to_string(),
-            ollama_model: "ministral-3:latest".to_string(),
+            ollama_model: "qwen3:8b".to_string(),
+            ollama_reasoning_model: "deepseek-r1:14b".to_string(),
             ollama_num_ctx: 4096,
             ollama_concurrency: 1,
             openai_base_url: "https://api.openai.com".to_string(),
             openai_api_key: "".to_string(),
             openai_model: "gpt-5-nano".to_string(),
             openai_temperature: None,
+            task_type: TaskType::Fast,
         };
 
         assert_eq!(config.provider_type, ProviderType::Ollama);
         assert_eq!(config.ollama_url, "http://localhost:11434");
         assert_eq!(config.ollama_num_ctx, 4096);
+        assert_eq!(config.task_type, TaskType::Fast);
     }
 
     #[test]
@@ -339,12 +361,14 @@ mod tests {
             provider_type: ProviderType::OpenAiCompatible,
             ollama_url: "http://192.168.1.100:11434".to_string(),
             ollama_model: "test".to_string(),
+            ollama_reasoning_model: "deepseek-r1:14b".to_string(),
             ollama_num_ctx: 8192,
             ollama_concurrency: 1,
             openai_base_url: "https://api.together.xyz".to_string(),
             openai_api_key: "sk-test-key".to_string(),
             openai_model: "meta-llama/Llama-3-70b".to_string(),
             openai_temperature: Some(0.7),
+            task_type: TaskType::Fast,
         };
 
         let cloned = config.clone();
@@ -364,12 +388,14 @@ mod tests {
             provider_type: ProviderType::Ollama,
             ollama_url: "http://localhost:11434".to_string(),
             ollama_model: "test".to_string(),
+            ollama_reasoning_model: "deepseek-r1:14b".to_string(),
             ollama_num_ctx: 4096,
             ollama_concurrency: 1,
             openai_base_url: String::new(),
             openai_api_key: String::new(),
             openai_model: String::new(),
             openai_temperature: None,
+            task_type: TaskType::Fast,
         };
 
         let provider = create_provider(&config);
@@ -382,12 +408,14 @@ mod tests {
             provider_type: ProviderType::OpenAiCompatible,
             ollama_url: String::new(),
             ollama_model: String::new(),
+            ollama_reasoning_model: String::new(),
             ollama_num_ctx: 4096,
             ollama_concurrency: 1,
             openai_base_url: "https://api.openai.com".to_string(),
             openai_api_key: "sk-test".to_string(),
             openai_model: "gpt-5-nano".to_string(),
             openai_temperature: None,
+            task_type: TaskType::Fast,
         };
 
         let provider = create_provider(&config);

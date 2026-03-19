@@ -3,8 +3,8 @@
 //! Generates structured briefings from recent articles using the configured
 //! AI text provider, stores them in the database, and provides retrieval.
 
+use crate::ai_provider::TaskType;
 use crate::commands::ai::helpers::{log_generation_cost, TokenUsage};
-use crate::ollama::BRIEFING_NUM_CTX;
 use crate::AppState;
 use log::{info, warn};
 use rusqlite::Connection;
@@ -458,15 +458,12 @@ pub async fn generate_briefing(
         article_count, period_label, article_list, keywords_str,
     );
 
-    // Step 3: Create provider with BRIEFING context size (NO lock held)
+    // Step 3: Create provider with Reasoning-Modell (NO lock held)
+    // TaskType::Reasoning setzt automatisch reasoning_model und BRIEFING_NUM_CTX
     let (provider, model) = {
         let db = state.db_conn()?;
-        let mut config =
-            super::ai::helpers::get_provider_config(&db, Some(&state.proxy_manager));
-        // Use larger context for briefings (more articles in prompt)
-        if config.ollama_num_ctx < BRIEFING_NUM_CTX {
-            config.ollama_num_ctx = BRIEFING_NUM_CTX;
-        }
+        let config =
+            super::ai::helpers::get_provider_config(&db, Some(&state.proxy_manager), TaskType::Reasoning);
         let model = match config.provider_type {
             crate::ai_provider::ProviderType::Ollama => config.ollama_model.clone(),
             crate::ai_provider::ProviderType::OpenAiCompatible => config.openai_model.clone(),

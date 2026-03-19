@@ -25,6 +25,9 @@ const RETRY_DELAYS_MS: [u64; 2] = [2000, 4000];
 pub struct OllamaTextProvider {
     client: OllamaClient,
     concurrency: usize,
+    /// Wenn true, wird /no_think als System-Message gesendet (für Fast-Tasks)
+    /// Bei Reasoning-Tasks wird kein /no_think gesendet, damit das Modell "denken" kann
+    suppress_thinking: bool,
 }
 
 impl OllamaTextProvider {
@@ -32,6 +35,16 @@ impl OllamaTextProvider {
         Self {
             client: OllamaClient::with_context(Some(base_url.to_string()), num_ctx),
             concurrency: concurrency.max(1),
+            suppress_thinking: true, // Default: /no_think für Fast-Tasks
+        }
+    }
+
+    /// Erstellt Provider mit expliziter Steuerung des Thinking-Modus
+    pub fn with_thinking(base_url: &str, num_ctx: u32, concurrency: usize, suppress: bool) -> Self {
+        Self {
+            client: OllamaClient::with_context(Some(base_url.to_string()), num_ctx),
+            concurrency: concurrency.max(1),
+            suppress_thinking: suppress,
         }
     }
 
@@ -85,9 +98,13 @@ impl AiTextProvider for OllamaTextProvider {
         prompt: &str,
         json_schema: Option<serde_json::Value>,
     ) -> Result<GenerationResult, AiProviderError> {
-        // Prepend /no_think to the system message for Ollama models
-        // (optimizes thinking-capable models)
-        let no_think_system = "/no_think";
+        // Bei Fast-Tasks: /no_think als System-Message senden (Ollama-spezifische Optimierung)
+        // Bei Reasoning-Tasks: kein /no_think, damit das Modell seinen Denkprozess nutzen kann
+        let system_message = if self.suppress_thinking {
+            Some("/no_think")
+        } else {
+            None
+        };
 
         let mut last_error: Option<AiProviderError> = None;
 
@@ -111,11 +128,11 @@ impl AiTextProvider for OllamaTextProvider {
 
             let result = if let Some(ref schema) = json_schema {
                 self.client
-                    .chat(model, Some(no_think_system), prompt, Some(schema.clone()))
+                    .chat(model, system_message, prompt, Some(schema.clone()))
                     .await
             } else {
                 self.client
-                    .chat(model, Some(no_think_system), prompt, None)
+                    .chat(model, system_message, prompt, None)
                     .await
             };
 
