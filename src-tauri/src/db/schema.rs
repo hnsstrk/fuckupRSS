@@ -1482,7 +1482,7 @@ pub fn init(conn: &Connection) -> Result<(), rusqlite::Error> {
             ('showTerminologyTooltips', 'true'),
             ('ollama_num_ctx', '8192'),
             ('ollama_concurrency', '1'),
-            ('reasoning_model', 'deepseek-r1:14b');
+            ('reasoning_model', 'deepseek-r1:latest');
 
         -- ============================================================
         -- INDIZES

@@ -330,10 +330,10 @@ struct EmbedResponse {
 }
 
 /// Recommended models for fuckupRSS
-/// qwen3:8b — schnell, gute Qualität für Analyse-Tasks
-pub const RECOMMENDED_MAIN_MODEL: &str = "qwen3:8b";
-/// deepseek-r1:14b — Reasoning-Modell für Briefings und Perspektivenvergleich
-pub const RECOMMENDED_REASONING_MODEL: &str = "deepseek-r1:14b";
+/// ministral-3:latest — schnell, gute Qualität für Analyse-Tasks
+pub const RECOMMENDED_MAIN_MODEL: &str = "ministral-3:latest";
+/// deepseek-r1:latest — Reasoning-Modell für Briefings und Perspektivenvergleich
+pub const RECOMMENDED_REASONING_MODEL: &str = "deepseek-r1:latest";
 /// snowflake-arctic-embed2: Multilingual (74 languages incl. German/English), 1024-dim
 pub const RECOMMENDED_EMBEDDING_MODEL: &str = "snowflake-arctic-embed2:latest";
 
