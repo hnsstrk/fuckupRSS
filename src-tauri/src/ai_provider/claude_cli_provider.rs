@@ -251,6 +251,26 @@ impl AiTextProvider for ClaudeCodeCliProvider {
     }
 }
 
+/// Strip markdown codeblock wrappers (```json ... ```) from a string.
+///
+/// Claude CLI with --output-format json wraps the result field in markdown:
+/// ```json\n{"summary":"..."}\n```
+fn strip_markdown_codeblock(s: &str) -> String {
+    let trimmed = s.trim();
+    // Check for ```json or ``` prefix
+    if let Some(rest) = trimmed
+        .strip_prefix("```json")
+        .or_else(|| trimmed.strip_prefix("```"))
+    {
+        // Strip the closing ```
+        if let Some(content) = rest.strip_suffix("```") {
+            return content.trim().to_string();
+        }
+        return rest.trim().to_string();
+    }
+    trimmed.to_string()
+}
+
 /// Parse the Claude Code CLI JSON output.
 ///
 /// With `--output-format json`, Claude CLI produces output like:
@@ -278,9 +298,16 @@ fn parse_claude_json_output(stdout: &str) -> Result<String, AiProviderError> {
             )));
         }
 
-        // Extract the result text
+        // Prefer structured_output (when --json-schema was used)
+        if let Some(structured) = obj.get("structured_output") {
+            if !structured.is_null() {
+                return Ok(serde_json::to_string(structured).unwrap_or_else(|_| structured.to_string()));
+            }
+        }
+
+        // Extract the result text (strip markdown codeblocks if present)
         if let Some(result) = obj.get("result").and_then(|r| r.as_str()) {
-            return Ok(result.to_string());
+            return Ok(strip_markdown_codeblock(result));
         }
 
         // Try alternative field names
@@ -377,6 +404,34 @@ mod tests {
         let result = parse_claude_json_output(output).unwrap();
         assert!(result.contains("summary"));
         assert!(result.contains("Test"));
+    }
+
+    #[test]
+    fn test_parse_claude_json_output_markdown_codeblock() {
+        // Claude CLI wraps result in markdown codeblocks
+        let output = r#"{"type":"result","subtype":"success","is_error":false,"result":"```json\n{\"summary\": \"Test article\", \"political_bias\": 0}\n```","session_id":"abc123"}"#;
+        let result = parse_claude_json_output(output).unwrap();
+        assert!(result.contains("summary"));
+        assert!(result.contains("Test article"));
+        assert!(!result.contains("```"));
+    }
+
+    #[test]
+    fn test_strip_markdown_codeblock_json() {
+        let input = "```json\n{\"key\": \"value\"}\n```";
+        assert_eq!(strip_markdown_codeblock(input), "{\"key\": \"value\"}");
+    }
+
+    #[test]
+    fn test_strip_markdown_codeblock_plain() {
+        let input = "```\nplain text\n```";
+        assert_eq!(strip_markdown_codeblock(input), "plain text");
+    }
+
+    #[test]
+    fn test_strip_markdown_codeblock_no_wrapper() {
+        let input = "{\"already\": \"json\"}";
+        assert_eq!(strip_markdown_codeblock(input), "{\"already\": \"json\"}");
     }
 
     #[test]

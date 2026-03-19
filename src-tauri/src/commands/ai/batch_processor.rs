@@ -966,10 +966,10 @@ pub async fn process_batch(
         let config_model = match config.provider_type {
             crate::ai_provider::ProviderType::Ollama => config.ollama_model.clone(),
             crate::ai_provider::ProviderType::OpenAiCompatible => config.openai_model.clone(),
-            crate::ai_provider::ProviderType::GeminiCli => "gemini-cli".to_string(),
+            crate::ai_provider::ProviderType::GeminiCli => "gemini-flash".to_string(),
             crate::ai_provider::ProviderType::ClaudeCodeCli => {
                 if config.claude_model.is_empty() {
-                    "claude-code-cli".to_string()
+                    "claude-sonnet".to_string()
                 } else {
                     config.claude_model.clone()
                 }
@@ -1228,8 +1228,8 @@ pub async fn process_batch(
     state.batch_running.store(false, Ordering::SeqCst);
     info!("[LLM] Batch flag released - embedding worker can resume, embeddings use same model (no swap)");
 
-    // Explicitly unload LLM model to free VRAM for embedding model
-    {
+    // Explicitly unload LLM model to free VRAM for embedding model (only for Ollama)
+    if matches!(provider_config.provider_type, crate::ai_provider::ProviderType::Ollama) {
         let ollama_url = {
             let db = state.db_conn()?;
             super::helpers::get_setting(&db, "ollama_url", "http://localhost:11434")
