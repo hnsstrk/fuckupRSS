@@ -49,6 +49,7 @@ use super::helpers::{
 };
 #[cfg(feature = "clustering")]
 use super::helpers::{create_text_provider, get_provider_config};
+use crate::ai_provider::TaskType;
 // CorrectionType is already imported from text_analysis
 use super::types::{
     BatchArticle, BatchProgress, BatchResult, FailedCount, HopelessCount, UnprocessedCount,
@@ -952,7 +953,7 @@ pub async fn process_batch(
     // Get provider and configure model
     let (provider_config, effective_model) = {
         let db = state.db_conn().map_err(|e| e.to_string())?;
-        let mut config = super::helpers::get_provider_config(&db, Some(&state.proxy_manager));
+        let mut config = super::helpers::get_provider_config(&db, Some(&state.proxy_manager), TaskType::Fast);
 
         // Only override Ollama model from frontend; OpenAI uses its configured model
         if matches!(
@@ -1653,7 +1654,7 @@ pub async fn process_batch_clustered(
     // Get provider config
     let provider_config = {
         let db = state.db_conn()?;
-        get_provider_config(&db, Some(&state.proxy_manager))
+        get_provider_config(&db, Some(&state.proxy_manager), TaskType::Fast)
     };
     let should_cluster = use_clustering.unwrap_or(true);
 
@@ -1749,7 +1750,7 @@ pub async fn process_batch_clustered(
 
     let (provider_for_batch, provider_model) = {
         let db = state.db_conn()?;
-        create_text_provider(&db, Some(&state.proxy_manager))
+        create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast)
     };
 
     // Determine provider name for logging/events

@@ -1,6 +1,9 @@
 use crate::ai_provider::{DEFAULT_OPENAI_EMBEDDING_MODEL, DEFAULT_OPENAI_MODEL};
 use crate::error::{CmdResult, FuckupError};
-use crate::ollama::{DEFAULT_NUM_CTX, RECOMMENDED_EMBEDDING_MODEL, RECOMMENDED_MAIN_MODEL};
+use crate::ollama::{
+    DEFAULT_NUM_CTX, RECOMMENDED_EMBEDDING_MODEL, RECOMMENDED_MAIN_MODEL,
+    RECOMMENDED_REASONING_MODEL,
+};
 use crate::{AppState, LogLevel};
 use log::{debug, info};
 use std::collections::HashMap;
@@ -146,6 +149,12 @@ pub fn get_settings(state: State<AppState>) -> CmdResult<HashMap<String, serde_j
         result.insert(
             "ollama_model".to_string(),
             serde_json::Value::String(RECOMMENDED_MAIN_MODEL.to_string()),
+        );
+    }
+    if !result.contains_key("reasoning_model") {
+        result.insert(
+            "reasoning_model".to_string(),
+            serde_json::Value::String(RECOMMENDED_REASONING_MODEL.to_string()),
         );
     }
     if !result.contains_key("openai_base_url") {

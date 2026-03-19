@@ -3,7 +3,7 @@
 //! Extracts persons, organizations, locations, and events from articles
 //! using the configured AI provider. Entities are normalized and deduplicated.
 
-use crate::ai_provider::AiTextProvider;
+use crate::ai_provider::{AiTextProvider, TaskType};
 use crate::error::CmdResult;
 use crate::AppState;
 use log::{debug, info, warn};
@@ -295,7 +295,7 @@ pub async fn extract_entities(
         String,
     ) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager));
+        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
         let (title, content): (String, String) = db
             .conn()
             .query_row(
@@ -462,7 +462,7 @@ pub async fn extract_entities_batch(
         // Create provider per article (short-lived lock)
         let (provider, effective_model) = {
             let db = state.db_conn()?;
-            let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager));
+            let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
             let effective_model = crate::ai_provider::resolve_effective_model(
                 provider.provider_name(),
                 "",

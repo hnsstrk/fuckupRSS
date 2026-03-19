@@ -2,13 +2,13 @@
 
 use crate::ai_provider::{
     self, AiTextProvider, EmbeddingProvider, EmbeddingProviderConfig, ProviderConfig, ProviderType,
-    DEFAULT_OPENAI_EMBEDDING_MODEL, DEFAULT_OPENAI_MODEL,
+    TaskType, DEFAULT_OPENAI_EMBEDDING_MODEL, DEFAULT_OPENAI_MODEL,
 };
 use crate::commands::settings::get_embedding_model_from_db;
 use crate::db::Database;
 use crate::ollama::{
-    get_language_for_locale, DEFAULT_ANALYSIS_PROMPT, DEFAULT_NUM_CTX, DEFAULT_SUMMARY_PROMPT,
-    RECOMMENDED_MAIN_MODEL,
+    get_language_for_locale, BRIEFING_NUM_CTX, DEFAULT_ANALYSIS_PROMPT, DEFAULT_NUM_CTX,
+    DEFAULT_SUMMARY_PROMPT, RECOMMENDED_MAIN_MODEL, RECOMMENDED_REASONING_MODEL,
 };
 use crate::AppState;
 use crate::SEPHIROTH_CATEGORIES;
@@ -100,18 +100,39 @@ fn parse_openai_temperature(db: &Database) -> Option<f32> {
 
 /// Get provider config from database settings.
 /// If a ProxyManager is provided, the Ollama URL will use the proxy when active.
+///
+/// `task_type` steuert das Modell-Routing:
+/// - `TaskType::Fast` → main_model, Standard num_ctx
+/// - `TaskType::Reasoning` → reasoning_model, mindestens BRIEFING_NUM_CTX
 pub fn get_provider_config(
     db: &Database,
     proxy: Option<&crate::proxy::ProxyManager>,
+    task_type: TaskType,
 ) -> ProviderConfig {
     let provider_type_str = get_setting(db, "ai_text_provider", "ollama");
     let provider_type = ProviderType::from_str_setting(&provider_type_str);
 
+    let main_model = get_setting(db, "main_model", RECOMMENDED_MAIN_MODEL);
+    let reasoning_model = get_setting(db, "reasoning_model", RECOMMENDED_REASONING_MODEL);
+    let mut num_ctx = get_num_ctx_setting(db);
+
+    // Bei Reasoning: Reasoning-Modell verwenden und höheren num_ctx sicherstellen
+    let effective_model = match task_type {
+        TaskType::Fast => main_model.clone(),
+        TaskType::Reasoning => {
+            if num_ctx < BRIEFING_NUM_CTX {
+                num_ctx = BRIEFING_NUM_CTX;
+            }
+            reasoning_model.clone()
+        }
+    };
+
     ProviderConfig {
         provider_type: provider_type.clone(),
         ollama_url: resolve_ollama_url(db, proxy),
-        ollama_model: get_setting(db, "main_model", RECOMMENDED_MAIN_MODEL),
-        ollama_num_ctx: get_num_ctx_setting(db),
+        ollama_model: effective_model,
+        ollama_reasoning_model: reasoning_model,
+        ollama_num_ctx: num_ctx,
         ollama_concurrency: get_setting(db, "ollama_concurrency", "1")
             .parse()
             .unwrap_or(1),
@@ -119,6 +140,7 @@ pub fn get_provider_config(
         openai_api_key: get_setting(db, "openai_api_key", ""),
         openai_model: get_setting(db, "openai_model", DEFAULT_OPENAI_MODEL),
         openai_temperature: parse_openai_temperature(db),
+        task_type,
     }
 }
 
@@ -128,12 +150,14 @@ pub fn get_provider_config(
 /// - If `ai_text_provider` is "openai_compatible", returns OpenAiCompatibleProvider
 /// - Otherwise returns OllamaTextProvider (default)
 ///
+/// `task_type` steuert das Modell-Routing (Fast vs. Reasoning).
 /// If a ProxyManager is provided, the Ollama URL will use the proxy when active.
 pub fn create_text_provider(
     db: &Database,
     proxy: Option<&crate::proxy::ProxyManager>,
+    task_type: TaskType,
 ) -> (Arc<dyn AiTextProvider>, String) {
-    let config = get_provider_config(db, proxy);
+    let config = get_provider_config(db, proxy, task_type);
 
     let model = match config.provider_type {
         ProviderType::Ollama => config.ollama_model.clone(),

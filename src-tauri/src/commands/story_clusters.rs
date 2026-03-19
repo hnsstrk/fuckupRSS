@@ -1,6 +1,6 @@
 //! Story Clustering: Groups related articles by topic for perspective comparison
 
-use crate::ai_provider::AiTextProvider;
+use crate::ai_provider::{AiTextProvider, TaskType};
 use crate::commands::ai::helpers::create_text_provider;
 use crate::error::CmdResult;
 use crate::AppState;
@@ -574,7 +574,7 @@ Antworte auf Deutsch, strukturiert mit Überschriften."#,
     // Create text provider and generate
     let (provider, model): (Arc<dyn AiTextProvider>, String) = {
         let db = state.db_conn()?;
-        create_text_provider(&db, Some(&state.proxy_manager))
+        create_text_provider(&db, Some(&state.proxy_manager), TaskType::Reasoning)
     };
 
     let result = provider

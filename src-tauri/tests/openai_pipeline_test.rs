@@ -6,7 +6,7 @@
 //! Run with: cargo test --manifest-path src-tauri/Cargo.toml --test openai_pipeline_test -- --ignored --nocapture
 
 use fuckuprss_lib::ai_provider::{
-    create_provider, resolve_effective_model, ProviderConfig, ProviderType,
+    create_provider, resolve_effective_model, ProviderConfig, ProviderType, TaskType,
 };
 use rusqlite::Connection;
 use serde::Deserialize;
@@ -248,12 +248,14 @@ async fn test_openai_discordian_analysis_pipeline() {
         provider_type: ProviderType::OpenAiCompatible,
         ollama_url: String::new(),
         ollama_model: String::new(),
+        ollama_reasoning_model: String::new(),
         ollama_num_ctx: 4096,
         ollama_concurrency: 1,
         openai_base_url: base_url.clone(),
         openai_api_key: api_key.clone(),
         openai_model: model.clone(),
         openai_temperature: temperature,
+        task_type: TaskType::Fast,
     };
     let provider = create_provider(&config);
 
@@ -561,12 +563,14 @@ async fn test_openai_provider_config_isolation() {
         provider_type: ProviderType::OpenAiCompatible,
         ollama_url: String::new(),
         ollama_model: String::new(),
+        ollama_reasoning_model: String::new(),
         ollama_num_ctx: 4096,
         ollama_concurrency: 1,
         openai_base_url: base_url.clone(),
         openai_api_key: api_key.clone(),
         openai_model: model.clone(),
         openai_temperature: temperature,
+        task_type: TaskType::Fast,
     };
     let provider = create_provider(&config);
     assert_eq!(provider.provider_name(), "OpenAI-compatible");
@@ -598,12 +602,14 @@ async fn test_openai_provider_config_isolation() {
         provider_type: ProviderType::OpenAiCompatible,
         ollama_url: "http://localhost:11434".to_string(),
         ollama_model: "ministral-3:latest".to_string(),
+        ollama_reasoning_model: "deepseek-r1:14b".to_string(),
         ollama_num_ctx: 8192,
         ollama_concurrency: 1,
         openai_base_url: base_url,
         openai_api_key: api_key,
         openai_model: model.clone(),
         openai_temperature: None,
+        task_type: TaskType::Fast,
     };
     let openai_provider = create_provider(&openai_config);
     assert_eq!(openai_provider.provider_name(), "OpenAI-compatible");
@@ -648,12 +654,14 @@ async fn test_openai_no_truncation() {
         provider_type: ProviderType::OpenAiCompatible,
         ollama_url: String::new(),
         ollama_model: String::new(),
+        ollama_reasoning_model: String::new(),
         ollama_num_ctx: 4096,
         ollama_concurrency: 1,
         openai_base_url: base_url,
         openai_api_key: api_key,
         openai_model: model.clone(),
         openai_temperature: temperature,
+        task_type: TaskType::Fast,
     };
     let provider = create_provider(&config);
 
@@ -811,12 +819,14 @@ async fn test_openai_provider_stability() {
         provider_type: ProviderType::OpenAiCompatible,
         ollama_url: String::new(),
         ollama_model: String::new(),
+        ollama_reasoning_model: String::new(),
         ollama_num_ctx: 4096,
         ollama_concurrency: 1,
         openai_base_url: base_url,
         openai_api_key: api_key,
         openai_model: model.clone(),
         openai_temperature: temperature,
+        task_type: TaskType::Fast,
     };
     let provider = create_provider(&config);
 
