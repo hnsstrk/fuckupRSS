@@ -1090,31 +1090,26 @@ pub async fn process_batch(
                     match provider_config_for_retry.provider_type {
                         ProviderType::Ollama => {
                             // Ollama: adjust num_ctx for retries
-                            match state.db_conn() {
-                                Ok(db) => {
-                                    let num_ctx_setting = get_num_ctx_setting(&db);
-                                    let (ctx_multiplier, adjusted_num_ctx) = match attempts {
-                                        1 => (1.5, ((num_ctx_setting as f64) * 1.5) as u32),
-                                        _ => (2.0, num_ctx_setting * 2),
-                                    };
+                            let db = state.db_conn().ok()?; // Handle DB error gracefully in async block
+                            let num_ctx_setting = get_num_ctx_setting(&db); // Re-fetch or pass in? passing in was cleaner but let's re-fetch safely
+                            // optimizing: pass num_ctx in closure? No, let's just use the one we computed earlier if we can pass it
+                            // Re-calculating context multiplier logic:
+                             let (ctx_multiplier, adjusted_num_ctx) = match attempts {
+                                1 => (1.5, ((num_ctx_setting as f64) * 1.5) as u32),
+                                _ => (2.0, num_ctx_setting * 2),
+                            };
 
-                                    info!(
-                                        "Retry {}/3 for article {} (Ollama): using {}x context (num_ctx={})",
-                                        attempts + 1,
-                                        fnord_id,
-                                        ctx_multiplier,
-                                        adjusted_num_ctx
-                                    );
+                            info!(
+                                "Retry {}/3 for article {} (Ollama): using {}x context (num_ctx={})",
+                                attempts + 1,
+                                fnord_id,
+                                ctx_multiplier,
+                                adjusted_num_ctx
+                            );
 
-                                    let mut retry_config = provider_config_for_retry.clone();
-                                    retry_config.ollama_num_ctx = adjusted_num_ctx;
-                                    Some(create_provider(&retry_config))
-                                }
-                                Err(e) => {
-                                    warn!("[LLM] DB lock failed for retry config of article {}: {} — using base provider", fnord_id, e);
-                                    None // Fallback: use base provider without adjusted num_ctx
-                                }
-                            }
+                            let mut retry_config = provider_config_for_retry.clone();
+                            retry_config.ollama_num_ctx = adjusted_num_ctx;
+                            Some(create_provider(&retry_config))
                         }
                         ProviderType::OpenAiCompatible
                         | ProviderType::GeminiCli
