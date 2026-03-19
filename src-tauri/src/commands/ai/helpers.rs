@@ -102,7 +102,7 @@ fn parse_openai_temperature(db: &Database) -> Option<f32> {
 /// If a ProxyManager is provided, the Ollama URL will use the proxy when active.
 ///
 /// `task_type` steuert das Modell-Routing:
-/// - `TaskType::Fast` → main_model, Standard num_ctx
+/// - `TaskType::Fast` → ollama_model, Standard num_ctx
 /// - `TaskType::Reasoning` → reasoning_model, mindestens BRIEFING_NUM_CTX
 pub fn get_provider_config(
     db: &Database,
@@ -112,7 +112,7 @@ pub fn get_provider_config(
     let provider_type_str = get_setting(db, "ai_text_provider", "ollama");
     let provider_type = ProviderType::from_str_setting(&provider_type_str);
 
-    let main_model = get_setting(db, "main_model", RECOMMENDED_MAIN_MODEL);
+    let main_model = get_setting(db, "ollama_model", RECOMMENDED_MAIN_MODEL);
     let reasoning_model = get_setting(db, "reasoning_model", RECOMMENDED_REASONING_MODEL);
     let mut num_ctx = get_num_ctx_setting(db);
 
