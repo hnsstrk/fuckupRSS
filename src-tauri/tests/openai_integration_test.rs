@@ -152,6 +152,9 @@ async fn test_openai_discordian_analysis_5_articles() {
         openai_model: model.clone(),
         openai_temperature: None,
         task_type: TaskType::Fast,
+        claude_model: String::new(),
+        claude_max_budget_usd: 0.0,
+        cli_timeout_secs: 120,
     };
     let provider = create_provider(&config);
 

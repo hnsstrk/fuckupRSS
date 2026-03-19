@@ -6,6 +6,8 @@
 //!
 //! Embeddings can be generated via Ollama or OpenAI-compatible API.
 
+pub mod claude_cli_provider;
+pub mod gemini_cli_provider;
 pub mod ollama_provider;
 pub mod openai_embedding_provider;
 pub mod openai_provider;
@@ -36,12 +38,16 @@ pub const DEFAULT_OPENAI_EMBEDDING_MODEL: &str = "text-embedding-3-small";
 pub enum ProviderType {
     Ollama,
     OpenAiCompatible,
+    GeminiCli,
+    ClaudeCodeCli,
 }
 
 impl ProviderType {
     pub fn from_str_setting(s: &str) -> Self {
         match s {
             "openai_compatible" => ProviderType::OpenAiCompatible,
+            "gemini_cli" => ProviderType::GeminiCli,
+            "claude_code_cli" => ProviderType::ClaudeCodeCli,
             _ => ProviderType::Ollama,
         }
     }
@@ -50,6 +56,8 @@ impl ProviderType {
         match self {
             ProviderType::Ollama => "ollama",
             ProviderType::OpenAiCompatible => "openai_compatible",
+            ProviderType::GeminiCli => "gemini_cli",
+            ProviderType::ClaudeCodeCli => "claude_code_cli",
         }
     }
 }
@@ -78,6 +86,12 @@ pub struct ProviderConfig {
     pub openai_temperature: Option<f32>,
     /// Task-Typ für Modell-Routing
     pub task_type: TaskType,
+    /// Claude Code CLI model (e.g. "claude-sonnet-4-20250514")
+    pub claude_model: String,
+    /// Claude Code CLI max budget in USD (0.0 = no limit)
+    pub claude_max_budget_usd: f64,
+    /// CLI provider timeout in seconds (default: 120)
+    pub cli_timeout_secs: u64,
 }
 
 /// Errors from AI providers
@@ -186,13 +200,18 @@ pub struct EmbeddingProviderConfig {
 }
 
 /// Create an embedding provider based on configuration
+///
+/// Note: CLI providers (GeminiCli, ClaudeCodeCli) do not support embeddings.
+/// They fall back to Ollama embedding provider.
 pub fn create_embedding_provider(config: &EmbeddingProviderConfig) -> Arc<dyn EmbeddingProvider> {
     match config.provider_type {
-        ProviderType::Ollama => Arc::new(ollama_provider::OllamaEmbeddingProvider::new(
-            &config.ollama_url,
-            &config.ollama_embedding_model,
-            config.embedding_dimensions,
-        )),
+        ProviderType::Ollama | ProviderType::GeminiCli | ProviderType::ClaudeCodeCli => {
+            Arc::new(ollama_provider::OllamaEmbeddingProvider::new(
+                &config.ollama_url,
+                &config.ollama_embedding_model,
+                config.embedding_dimensions,
+            ))
+        }
         ProviderType::OpenAiCompatible => {
             Arc::new(openai_embedding_provider::OpenAiEmbeddingProvider::new(
                 &config.openai_base_url,
@@ -226,6 +245,12 @@ pub fn resolve_effective_model(
 /// - Reasoning: suppress_thinking = false (Modell darf "denken")
 pub fn create_provider(config: &ProviderConfig) -> Arc<dyn AiTextProvider> {
     let suppress_thinking = config.task_type == TaskType::Fast;
+    let timeout = if config.cli_timeout_secs > 0 {
+        config.cli_timeout_secs
+    } else {
+        120
+    };
+
     match config.provider_type {
         ProviderType::Ollama => Arc::new(ollama_provider::OllamaTextProvider::with_thinking(
             &config.ollama_url,
@@ -237,6 +262,12 @@ pub fn create_provider(config: &ProviderConfig) -> Arc<dyn AiTextProvider> {
             &config.openai_base_url,
             &config.openai_api_key,
             config.openai_temperature,
+        )),
+        ProviderType::GeminiCli => Arc::new(gemini_cli_provider::GeminiCliProvider::new(timeout)),
+        ProviderType::ClaudeCodeCli => Arc::new(claude_cli_provider::ClaudeCodeCliProvider::new(
+            &config.claude_model,
+            config.claude_max_budget_usd,
+            timeout,
         )),
     }
 }
@@ -288,11 +319,32 @@ mod tests {
     }
 
     #[test]
+    fn test_provider_type_from_str_gemini_cli() {
+        assert_eq!(
+            ProviderType::from_str_setting("gemini_cli"),
+            ProviderType::GeminiCli
+        );
+    }
+
+    #[test]
+    fn test_provider_type_from_str_claude_code_cli() {
+        assert_eq!(
+            ProviderType::from_str_setting("claude_code_cli"),
+            ProviderType::ClaudeCodeCli
+        );
+    }
+
+    #[test]
     fn test_provider_type_to_setting_str() {
         assert_eq!(ProviderType::Ollama.to_setting_str(), "ollama");
         assert_eq!(
             ProviderType::OpenAiCompatible.to_setting_str(),
             "openai_compatible"
+        );
+        assert_eq!(ProviderType::GeminiCli.to_setting_str(), "gemini_cli");
+        assert_eq!(
+            ProviderType::ClaudeCodeCli.to_setting_str(),
+            "claude_code_cli"
         );
     }
 
@@ -309,6 +361,18 @@ mod tests {
             ProviderType::from_str_setting(openai.to_setting_str()),
             openai
         );
+
+        let gemini = ProviderType::GeminiCli;
+        assert_eq!(
+            ProviderType::from_str_setting(gemini.to_setting_str()),
+            gemini
+        );
+
+        let claude = ProviderType::ClaudeCodeCli;
+        assert_eq!(
+            ProviderType::from_str_setting(claude.to_setting_str()),
+            claude
+        );
     }
 
     #[test]
@@ -318,6 +382,12 @@ mod tests {
 
         let json = serde_json::to_string(&ProviderType::OpenAiCompatible).unwrap();
         assert_eq!(json, "\"open_ai_compatible\"");
+
+        let json = serde_json::to_string(&ProviderType::GeminiCli).unwrap();
+        assert_eq!(json, "\"gemini_cli\"");
+
+        let json = serde_json::to_string(&ProviderType::ClaudeCodeCli).unwrap();
+        assert_eq!(json, "\"claude_code_cli\"");
     }
 
     #[test]
@@ -327,6 +397,12 @@ mod tests {
 
         let openai: ProviderType = serde_json::from_str("\"open_ai_compatible\"").unwrap();
         assert_eq!(openai, ProviderType::OpenAiCompatible);
+
+        let gemini: ProviderType = serde_json::from_str("\"gemini_cli\"").unwrap();
+        assert_eq!(gemini, ProviderType::GeminiCli);
+
+        let claude: ProviderType = serde_json::from_str("\"claude_code_cli\"").unwrap();
+        assert_eq!(claude, ProviderType::ClaudeCodeCli);
     }
 
     // ============================================================
@@ -347,6 +423,9 @@ mod tests {
             openai_model: "gpt-5-nano".to_string(),
             openai_temperature: None,
             task_type: TaskType::Fast,
+            claude_model: String::new(),
+            claude_max_budget_usd: 0.0,
+            cli_timeout_secs: 120,
         };
 
         assert_eq!(config.provider_type, ProviderType::Ollama);
@@ -369,6 +448,9 @@ mod tests {
             openai_model: "meta-llama/Llama-3-70b".to_string(),
             openai_temperature: Some(0.7),
             task_type: TaskType::Fast,
+            claude_model: String::new(),
+            claude_max_budget_usd: 0.0,
+            cli_timeout_secs: 120,
         };
 
         let cloned = config.clone();
@@ -396,6 +478,9 @@ mod tests {
             openai_model: String::new(),
             openai_temperature: None,
             task_type: TaskType::Fast,
+            claude_model: String::new(),
+            claude_max_budget_usd: 0.0,
+            cli_timeout_secs: 120,
         };
 
         let provider = create_provider(&config);
@@ -416,10 +501,59 @@ mod tests {
             openai_model: "gpt-5-nano".to_string(),
             openai_temperature: None,
             task_type: TaskType::Fast,
+            claude_model: String::new(),
+            claude_max_budget_usd: 0.0,
+            cli_timeout_secs: 120,
         };
 
         let provider = create_provider(&config);
         assert_eq!(provider.provider_name(), "OpenAI-compatible");
+    }
+
+    #[test]
+    fn test_create_provider_gemini_cli() {
+        let config = ProviderConfig {
+            provider_type: ProviderType::GeminiCli,
+            ollama_url: String::new(),
+            ollama_model: String::new(),
+            ollama_reasoning_model: String::new(),
+            ollama_num_ctx: 4096,
+            ollama_concurrency: 1,
+            openai_base_url: String::new(),
+            openai_api_key: String::new(),
+            openai_model: String::new(),
+            openai_temperature: None,
+            task_type: TaskType::Fast,
+            claude_model: String::new(),
+            claude_max_budget_usd: 0.0,
+            cli_timeout_secs: 120,
+        };
+
+        let provider = create_provider(&config);
+        assert_eq!(provider.provider_name(), "Gemini CLI");
+    }
+
+    #[test]
+    fn test_create_provider_claude_code_cli() {
+        let config = ProviderConfig {
+            provider_type: ProviderType::ClaudeCodeCli,
+            ollama_url: String::new(),
+            ollama_model: String::new(),
+            ollama_reasoning_model: String::new(),
+            ollama_num_ctx: 4096,
+            ollama_concurrency: 1,
+            openai_base_url: String::new(),
+            openai_api_key: String::new(),
+            openai_model: String::new(),
+            openai_temperature: None,
+            task_type: TaskType::Fast,
+            claude_model: "claude-sonnet-4-20250514".to_string(),
+            claude_max_budget_usd: 1.0,
+            cli_timeout_secs: 120,
+        };
+
+        let provider = create_provider(&config);
+        assert_eq!(provider.provider_name(), "Claude Code CLI");
     }
 
     // ============================================================

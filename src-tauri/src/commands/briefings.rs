@@ -425,10 +425,7 @@ pub async fn generate_briefing(
     for (i, article) in articles.iter().enumerate() {
         article_list.push_str(&format!(
             "{}: [{}] ({}) — {}\n",
-            i,
-            article.title,
-            article.source,
-            article.summary,
+            i, article.title, article.source, article.summary,
         ));
     }
 
@@ -467,6 +464,14 @@ pub async fn generate_briefing(
         let model = match config.provider_type {
             crate::ai_provider::ProviderType::Ollama => config.ollama_model.clone(),
             crate::ai_provider::ProviderType::OpenAiCompatible => config.openai_model.clone(),
+            crate::ai_provider::ProviderType::GeminiCli => "gemini-cli".to_string(),
+            crate::ai_provider::ProviderType::ClaudeCodeCli => {
+                if config.claude_model.is_empty() {
+                    "claude-code-cli".to_string()
+                } else {
+                    config.claude_model.clone()
+                }
+            }
         };
         (crate::ai_provider::create_provider(&config), model)
     };
