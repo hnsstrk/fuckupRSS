@@ -417,7 +417,7 @@ mod tests {
     #[test]
     fn test_suggested_concurrency() {
         let provider = ClaudeCodeCliProvider::new("", 0.0, 120);
-        assert_eq!(provider.suggested_concurrency(), 1);
+        assert_eq!(provider.suggested_concurrency(), 2);
     }
 
     #[test]
