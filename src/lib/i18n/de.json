@@ -321,6 +321,31 @@
         "routingVia": "Routing via localhost:{port}"
       }
     },
+    "ai": {
+      "title": "KI / AI",
+      "fastSection": "Schnelle Analyse",
+      "reasoningSection": "Tiefenanalyse & Briefings",
+      "embeddingSection": "Embeddings",
+      "ollamaServer": "Ollama-Server",
+      "provider": "Provider",
+      "model": "Modell",
+      "reasoningModel": "Reasoning-Modell",
+      "concurrency": "Parallelität",
+      "contextLength": "Kontext-Länge",
+      "providerOllama": "Ollama (lokal)",
+      "providerOpenAi": "OpenAI-kompatibel",
+      "providerGeminiCli": "Gemini CLI",
+      "providerClaudeCli": "Claude Code CLI",
+      "autoDetected": "Erkannt",
+      "suggested": "Empfohlen",
+      "fastDescription": "Schnelle Analyse für Zusammenfassungen, Kategorisierung und Keywords",
+      "reasoningDescription": "Tiefgehende Analyse für Briefings und komplexe Aufgaben",
+      "embeddingDescription": "Semantische Vektoren für Ähnlichkeitssuche und Clustering",
+      "selectModel": "Modell auswählen",
+      "noModelsAvailable": "Keine Modelle verfügbar",
+      "contextLengthDescription": "Höhere Werte erlauben längere Artikel, benötigen aber mehr VRAM",
+      "embeddingWarning": "Bei Wechsel des Embedding-Providers müssen alle Embeddings neu generiert werden"
+    },
     "prompts": {
       "title": "KI-Prompts",
       "summaryPrompt": "Zusammenfassungs-Prompt",

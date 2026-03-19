@@ -6,7 +6,7 @@
   import Tabs, { type Tab } from "./Tabs.svelte";
   import Tooltip from "./Tooltip.svelte";
   import SettingsGeneral from "./settings/SettingsGeneral.svelte";
-  import SettingsOllama from "./settings/SettingsOllama.svelte";
+  import SettingsAI from "./settings/SettingsAI.svelte";
   import SettingsPrompts from "./settings/SettingsPrompts.svelte";
   import SettingsStopwords from "./settings/SettingsStopwords.svelte";
   import SettingsMaintenance from "./settings/SettingsMaintenance.svelte";
@@ -18,7 +18,7 @@
   let settingsGeneralRef = $state<
     { init: () => void; closeAllDropdowns: () => void } | undefined
   >();
-  let settingsOllamaRef = $state<
+  let settingsAIRef = $state<
     | {
         init: () => Promise<void>;
         closeAllDropdowns: () => void;
@@ -40,7 +40,7 @@
   // Tabs definition
   let tabs = $derived<Tab[]>([
     { id: "general", label: $_("settings.title") },
-    { id: "ollama", label: $_("settings.ollama.title") },
+    { id: "ai", label: $_("settings.ai.title") },
     { id: "prompts", label: "Prompts" },
     { id: "stopwords", label: $_("settings.stopwords.title") },
     { id: "maintenance", label: $_("settings.maintenance.title") },
@@ -56,9 +56,9 @@
     } else if (tabId === "prompts") {
       await tick();
       await settingsPromptsRef?.init();
-    } else if (tabId === "ollama") {
+    } else if (tabId === "ai") {
       await tick();
-      await settingsOllamaRef?.init();
+      await settingsAIRef?.init();
       await refreshOllamaStatus();
     }
   }
@@ -66,7 +66,7 @@
   function handleKeyDown(event: KeyboardEvent) {
     if (event.key === "Escape") {
       settingsGeneralRef?.closeAllDropdowns();
-      settingsOllamaRef?.closeAllDropdowns();
+      settingsAIRef?.closeAllDropdowns();
     }
   }
 
@@ -75,7 +75,7 @@
     settingsGeneralRef?.init();
 
     // Initialize Ollama settings and get status
-    await settingsOllamaRef?.init();
+    await settingsAIRef?.init();
     await refreshOllamaStatus();
 
     // Initialize prompts
@@ -119,8 +119,8 @@
   <div class="tab-content">
     {#if activeTab === "general"}
       <SettingsGeneral bind:this={settingsGeneralRef} />
-    {:else if activeTab === "ollama"}
-      <SettingsOllama bind:this={settingsOllamaRef} />
+    {:else if activeTab === "ai"}
+      <SettingsAI bind:this={settingsAIRef} />
     {:else if activeTab === "prompts"}
       <SettingsPrompts bind:this={settingsPromptsRef} {ollamaAvailable} />
     {:else if activeTab === "stopwords"}

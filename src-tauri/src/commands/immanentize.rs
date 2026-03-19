@@ -2421,10 +2421,9 @@ pub fn delete_keyword(state: State<AppState>, id: i64) -> Result<(), String> {
             .unwrap_or(false);
 
         if !exists {
-            return Err(crate::db::transaction::TransactionError::Failed(format!(
-                "Keyword mit ID {} nicht gefunden.",
-                id
-            )));
+            return Err(crate::db::transaction::TransactionError::Failed(
+                format!("Keyword mit ID {} nicht gefunden.", id),
+            ));
         }
 
         // Single DELETE — CASCADE handles fnord_immanentize, immanentize_neighbors,
@@ -2477,7 +2476,10 @@ pub fn rename_keyword(state: State<AppState>, id: i64, new_name: String) -> Resu
 
     // Invalidate old embedding and re-queue for regeneration
     // The embedding was generated from the old name, so it's no longer accurate
-    let _ = conn.execute("UPDATE immanentize SET embedding = NULL WHERE id = ?", [id]);
+    let _ = conn.execute(
+        "UPDATE immanentize SET embedding = NULL WHERE id = ?",
+        [id],
+    );
 
     // Remove from vec search index
     let _ = conn.execute("DELETE FROM vec_immanentize WHERE immanentize_id = ?", [id]);

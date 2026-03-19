@@ -321,6 +321,31 @@
         "routingVia": "Routing via localhost:{port}"
       }
     },
+    "ai": {
+      "title": "AI Settings",
+      "fastSection": "Fast Analysis",
+      "reasoningSection": "Deep Analysis & Briefings",
+      "embeddingSection": "Embeddings",
+      "ollamaServer": "Ollama Server",
+      "provider": "Provider",
+      "model": "Model",
+      "reasoningModel": "Reasoning Model",
+      "concurrency": "Concurrency",
+      "contextLength": "Context Length",
+      "providerOllama": "Ollama (local)",
+      "providerOpenAi": "OpenAI-compatible",
+      "providerGeminiCli": "Gemini CLI",
+      "providerClaudeCli": "Claude Code CLI",
+      "autoDetected": "Detected",
+      "suggested": "Suggested",
+      "fastDescription": "Fast analysis for summaries, categorization and keywords",
+      "reasoningDescription": "Deep analysis for briefings and complex tasks",
+      "embeddingDescription": "Semantic vectors for similarity search and clustering",
+      "selectModel": "Select model",
+      "noModelsAvailable": "No models available",
+      "contextLengthDescription": "Higher values allow longer articles but require more VRAM",
+      "embeddingWarning": "When switching the embedding provider, all embeddings must be regenerated"
+    },
     "prompts": {
       "title": "AI Prompts",
       "summaryPrompt": "Summary Prompt",
