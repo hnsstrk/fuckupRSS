@@ -10,7 +10,7 @@
   // ============================================
   // Provider types
   // ============================================
-  type ProviderType = "ollama" | "openai_compatible" | "gemini_cli" | "claude_cli";
+  type ProviderType = "ollama" | "openai_compatible" | "gemini_cli" | "claude_code_cli";
 
   const providerOptions: { value: ProviderType; labelKey: string; icon: string }[] = [
     { value: "ollama", labelKey: "settings.ai.providerOllama", icon: "fa-solid fa-server" },
@@ -20,7 +20,7 @@
       icon: "fa-solid fa-cloud",
     },
     { value: "gemini_cli", labelKey: "settings.ai.providerGeminiCli", icon: "fa-solid fa-terminal" },
-    { value: "claude_cli", labelKey: "settings.ai.providerClaudeCli", icon: "fa-solid fa-terminal" },
+    { value: "claude_code_cli", labelKey: "settings.ai.providerClaudeCli", icon: "fa-solid fa-terminal" },
   ];
 
   const embeddingProviderOptions: { value: string; labelKey: string; icon: string }[] = [

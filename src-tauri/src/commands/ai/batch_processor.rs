@@ -1215,8 +1215,8 @@ pub async fn process_batch(
     };
 
     info!(
-        "[LLM] Batch LLM analysis complete: {}/{} succeeded, {} failed in {:.1}s ({:.2}s avg/article)",
-        succeeded, total, failed, batch_duration.as_secs_f64(), avg_time_per_article
+        "[LLM] Batch complete via {} (model: {}): {}/{} succeeded, {} failed in {:.1}s ({:.2}s avg/article)",
+        provider_name, effective_model, succeeded, total, failed, batch_duration.as_secs_f64(), avg_time_per_article
     );
 
     // Release batch_running BEFORE embedding generation to avoid model swapping.
