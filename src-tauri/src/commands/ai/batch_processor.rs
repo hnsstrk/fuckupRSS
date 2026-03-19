@@ -988,6 +988,8 @@ pub async fn process_batch(
     let _num_ctx = provider_config.ollama_num_ctx;
     let provider_name = format!("{:?}", provider_config.provider_type);
 
+    info!("[LLM] Using provider {} with model '{}' (task: {:?})", provider_name, effective_model, provider_config.task_type);
+
     let provider_for_batch: Arc<dyn crate::ai_provider::AiTextProvider> =
         crate::ai_provider::create_provider(&provider_config);
     let provider_config_for_retry = provider_config.clone();

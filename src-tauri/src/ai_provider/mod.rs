@@ -47,8 +47,13 @@ impl ProviderType {
         match s {
             "openai_compatible" => ProviderType::OpenAiCompatible,
             "gemini_cli" => ProviderType::GeminiCli,
-            "claude_code_cli" => ProviderType::ClaudeCodeCli,
-            _ => ProviderType::Ollama,
+            "claude_code_cli" | "claude_cli" => ProviderType::ClaudeCodeCli,
+            other => {
+                if other != "ollama" {
+                    log::warn!("Unknown provider type '{}', falling back to Ollama", other);
+                }
+                ProviderType::Ollama
+            }
         }
     }
 
