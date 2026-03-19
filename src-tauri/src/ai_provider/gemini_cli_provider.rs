@@ -163,15 +163,9 @@ impl AiTextProvider for GeminiCliProvider {
 
         // Send prompt via stdin
         if let Some(mut stdin) = child.stdin.take() {
-            stdin
-                .write_all(full_prompt.as_bytes())
-                .await
-                .map_err(|e| {
-                    AiProviderError::GenerationFailed(format!(
-                        "Failed to write prompt to stdin: {}",
-                        e
-                    ))
-                })?;
+            stdin.write_all(full_prompt.as_bytes()).await.map_err(|e| {
+                AiProviderError::GenerationFailed(format!("Failed to write prompt to stdin: {}", e))
+            })?;
             // Close stdin to signal EOF
             drop(stdin);
         }

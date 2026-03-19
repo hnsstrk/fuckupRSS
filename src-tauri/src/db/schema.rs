@@ -1145,9 +1145,7 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
     )?;
 
     // Migration 30: Add article_refs column to briefings for article link navigation
-    let _ = conn.execute_batch(
-        r#"ALTER TABLE briefings ADD COLUMN article_refs TEXT;"#,
-    );
+    let _ = conn.execute_batch(r#"ALTER TABLE briefings ADD COLUMN article_refs TEXT;"#);
 
     // Migration 31: Trigger to maintain article_count when fnord_immanentize rows are deleted
     conn.execute_batch(

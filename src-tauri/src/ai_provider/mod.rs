@@ -244,16 +244,12 @@ pub fn create_provider(config: &ProviderConfig) -> Arc<dyn AiTextProvider> {
             &config.openai_api_key,
             config.openai_temperature,
         )),
-        ProviderType::GeminiCli => {
-            Arc::new(gemini_cli_provider::GeminiCliProvider::new(timeout))
-        }
-        ProviderType::ClaudeCodeCli => {
-            Arc::new(claude_cli_provider::ClaudeCodeCliProvider::new(
-                &config.claude_model,
-                config.claude_max_budget_usd,
-                timeout,
-            ))
-        }
+        ProviderType::GeminiCli => Arc::new(gemini_cli_provider::GeminiCliProvider::new(timeout)),
+        ProviderType::ClaudeCodeCli => Arc::new(claude_cli_provider::ClaudeCodeCliProvider::new(
+            &config.claude_model,
+            config.claude_max_budget_usd,
+            timeout,
+        )),
     }
 }
 

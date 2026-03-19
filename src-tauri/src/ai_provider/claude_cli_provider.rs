@@ -349,8 +349,7 @@ mod tests {
 
     #[test]
     fn test_model_and_budget() {
-        let provider =
-            ClaudeCodeCliProvider::new("claude-sonnet-4-20250514", 5.0, 120);
+        let provider = ClaudeCodeCliProvider::new("claude-sonnet-4-20250514", 5.0, 120);
         assert_eq!(provider.model, "claude-sonnet-4-20250514");
         assert_eq!(provider.max_budget_usd, 5.0);
     }
@@ -389,8 +388,7 @@ mod tests {
 
     #[test]
     fn test_parse_claude_json_output_trimming() {
-        let output =
-            "  \n  {\"type\":\"result\",\"is_error\":false,\"result\":\"Hello\"}  \n  ";
+        let output = "  \n  {\"type\":\"result\",\"is_error\":false,\"result\":\"Hello\"}  \n  ";
         let result = parse_claude_json_output(output).unwrap();
         assert_eq!(result, "Hello");
     }

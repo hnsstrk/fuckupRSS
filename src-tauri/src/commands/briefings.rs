@@ -425,10 +425,7 @@ pub async fn generate_briefing(
     for (i, article) in articles.iter().enumerate() {
         article_list.push_str(&format!(
             "{}: [{}] ({}) — {}\n",
-            i,
-            article.title,
-            article.source,
-            article.summary,
+            i, article.title, article.source, article.summary,
         ));
     }
 
@@ -461,8 +458,7 @@ pub async fn generate_briefing(
     // Step 3: Create provider with BRIEFING context size (NO lock held)
     let (provider, model) = {
         let db = state.db_conn()?;
-        let mut config =
-            super::ai::helpers::get_provider_config(&db, Some(&state.proxy_manager));
+        let mut config = super::ai::helpers::get_provider_config(&db, Some(&state.proxy_manager));
         // Use larger context for briefings (more articles in prompt)
         if config.ollama_num_ctx < BRIEFING_NUM_CTX {
             config.ollama_num_ctx = BRIEFING_NUM_CTX;

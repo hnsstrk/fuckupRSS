@@ -357,8 +357,7 @@ pub async fn test_ai_provider(
             }
         }
         ProviderType::GeminiCli => {
-            let provider =
-                crate::ai_provider::gemini_cli_provider::GeminiCliProvider::new(120);
+            let provider = crate::ai_provider::gemini_cli_provider::GeminiCliProvider::new(120);
             let latency = start.elapsed().as_millis() as u64;
             if provider.is_available().await {
                 Ok(ProviderTestResult {
@@ -381,9 +380,7 @@ pub async fn test_ai_provider(
         }
         ProviderType::ClaudeCodeCli => {
             let provider =
-                crate::ai_provider::claude_cli_provider::ClaudeCodeCliProvider::new(
-                    "", 0.0, 120,
-                );
+                crate::ai_provider::claude_cli_provider::ClaudeCodeCliProvider::new("", 0.0, 120);
             let latency = start.elapsed().as_millis() as u64;
             if provider.is_available().await {
                 Ok(ProviderTestResult {

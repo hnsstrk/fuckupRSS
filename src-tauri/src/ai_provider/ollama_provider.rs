@@ -122,10 +122,7 @@ impl AiTextProvider for OllamaTextProvider {
             match result {
                 Ok(text) => {
                     if attempt > 0 {
-                        warn!(
-                            "[Ollama] Request succeeded after {} retries",
-                            attempt
-                        );
+                        warn!("[Ollama] Request succeeded after {} retries", attempt);
                     }
                     return Ok(GenerationResult {
                         text,
@@ -198,9 +195,7 @@ impl EmbeddingProvider for OllamaEmbeddingProvider {
             .await
             .map_err(|e| match e {
                 OllamaError::NotAvailable(msg) => AiProviderError::NotAvailable(msg),
-                OllamaError::GenerationFailed(msg) => {
-                    AiProviderError::GenerationFailed(msg)
-                }
+                OllamaError::GenerationFailed(msg) => AiProviderError::GenerationFailed(msg),
                 other => AiProviderError::GenerationFailed(other.to_string()),
             })
     }
@@ -214,9 +209,7 @@ impl EmbeddingProvider for OllamaEmbeddingProvider {
             .await
             .map_err(|e| match e {
                 OllamaError::NotAvailable(msg) => AiProviderError::NotAvailable(msg),
-                OllamaError::GenerationFailed(msg) => {
-                    AiProviderError::GenerationFailed(msg)
-                }
+                OllamaError::GenerationFailed(msg) => AiProviderError::GenerationFailed(msg),
                 other => AiProviderError::GenerationFailed(other.to_string()),
             })
     }
