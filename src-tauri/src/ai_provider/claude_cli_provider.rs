@@ -127,7 +127,7 @@ impl AiTextProvider for ClaudeCodeCliProvider {
             "--output-format".to_string(),
             "json".to_string(),
             "--max-turns".to_string(),
-            "1".to_string(),
+            "3".to_string(),
         ];
 
         // Add model if configured
@@ -247,7 +247,7 @@ impl AiTextProvider for ClaudeCodeCliProvider {
     }
 
     fn suggested_concurrency(&self) -> usize {
-        1 // CLI is sequential
+        2 // 2-3 parallel claude -p processes are safe with Max Plan
     }
 }
 
@@ -273,24 +273,72 @@ fn strip_markdown_codeblock(s: &str) -> String {
 
 /// Parse the Claude Code CLI JSON output.
 ///
-/// With `--output-format json`, Claude CLI produces output like:
-/// ```json
-/// {"type":"result","subtype":"success","cost_usd":0.003,"is_error":false,
-///  "duration_ms":1234,"duration_api_ms":1000,"num_turns":1,
-///  "result":"...actual text...","session_id":"..."}
-/// ```
+/// With `--output-format json`, Claude CLI returns a JSON envelope:
 ///
-/// We extract the "result" field from the JSON envelope.
+/// **With `--json-schema`** (structured output):
+/// - `structured_output`: JSON object with the schema-conforming result
+/// - `result`: empty string `""`
+///
+/// **Without `--json-schema`** (free-form):
+/// - `result`: string (possibly wrapped in markdown code fences)
+/// - no `structured_output` field
+///
+/// **Error cases:**
+/// - `is_error: true` — explicit error
+/// - `subtype: "error_max_turns"` — ran out of turns before completing
 fn parse_claude_json_output(stdout: &str) -> Result<String, AiProviderError> {
     let trimmed = stdout.trim();
 
-    // Try to parse as JSON object (expected format)
-    if let Ok(obj) = serde_json::from_str::<serde_json::Value>(trimmed) {
-        // Check for error response
+    // Try to parse as JSON
+    let parsed: serde_json::Value = match serde_json::from_str(trimmed) {
+        Ok(val) => val,
+        Err(_) => {
+            // Not valid JSON — use as raw text if it doesn't look like broken JSON
+            if trimmed.starts_with('{') || trimmed.starts_with('[') {
+                warn!(
+                    "[Claude CLI] Output looks like JSON but failed to parse ({} chars)",
+                    trimmed.len()
+                );
+                return Err(AiProviderError::GenerationFailed(format!(
+                    "Claude CLI returned unparseable JSON output ({} chars)",
+                    trimmed.len()
+                )));
+            }
+            warn!(
+                "[Claude CLI] Non-JSON output, using raw text ({} chars)",
+                trimmed.len()
+            );
+            return Ok(trimmed.to_string());
+        }
+    };
+
+    // Collect candidate objects to extract from:
+    // - Single object → [obj]
+    // - Array → prefer entries with type="result", else all entries
+    let candidates: Vec<&serde_json::Value> = if let Some(arr) = parsed.as_array() {
+        let results: Vec<&serde_json::Value> = arr
+            .iter()
+            .filter(|e| e.get("type").and_then(|t| t.as_str()) == Some("result"))
+            .collect();
+        if results.is_empty() {
+            arr.iter().collect()
+        } else {
+            results
+        }
+    } else if parsed.is_object() {
+        vec![&parsed]
+    } else {
+        // Parsed as a primitive JSON value (string, number, bool, null)
+        return Ok(trimmed.to_string());
+    };
+
+    for obj in &candidates {
+        // Check for explicit error response
         if obj.get("is_error").and_then(|v| v.as_bool()) == Some(true) {
             let error_msg = obj
                 .get("result")
                 .and_then(|r| r.as_str())
+                .filter(|s| !s.is_empty())
                 .unwrap_or("Unknown error from Claude CLI");
             return Err(AiProviderError::GenerationFailed(format!(
                 "Claude CLI error: {}",
@@ -298,16 +346,47 @@ fn parse_claude_json_output(stdout: &str) -> Result<String, AiProviderError> {
             )));
         }
 
+        // Check for error subtypes (e.g. error_max_turns)
+        if let Some(subtype) = obj.get("subtype").and_then(|s| s.as_str()) {
+            if subtype.starts_with("error_") {
+                // Even with is_error=false, error subtypes mean no usable output
+                // But check for structured_output first (might exist despite error)
+                if let Some(structured) = obj.get("structured_output") {
+                    if !structured.is_null() {
+                        debug!(
+                            "[Claude CLI] Got structured_output despite subtype '{}'",
+                            subtype
+                        );
+                        return Ok(serde_json::to_string(structured)
+                            .unwrap_or_else(|_| structured.to_string()));
+                    }
+                }
+                return Err(AiProviderError::GenerationFailed(format!(
+                    "Claude CLI failed with subtype '{}' — no result produced",
+                    subtype
+                )));
+            }
+        }
+
         // Prefer structured_output (when --json-schema was used)
         if let Some(structured) = obj.get("structured_output") {
             if !structured.is_null() {
-                return Ok(serde_json::to_string(structured).unwrap_or_else(|_| structured.to_string()));
+                debug!(
+                    "[Claude CLI] Extracted structured_output ({} bytes)",
+                    serde_json::to_string(structured)
+                        .map(|s| s.len())
+                        .unwrap_or(0)
+                );
+                return Ok(serde_json::to_string(structured)
+                    .unwrap_or_else(|_| structured.to_string()));
             }
         }
 
         // Extract the result text (strip markdown codeblocks if present)
         if let Some(result) = obj.get("result").and_then(|r| r.as_str()) {
-            return Ok(strip_markdown_codeblock(result));
+            if !result.is_empty() {
+                return Ok(strip_markdown_codeblock(result));
+            }
         }
 
         // Try alternative field names
@@ -319,31 +398,10 @@ fn parse_claude_json_output(stdout: &str) -> Result<String, AiProviderError> {
         }
     }
 
-    // Try to parse as JSON array (in case of multi-turn output)
-    if let Ok(arr) = serde_json::from_str::<Vec<serde_json::Value>>(trimmed) {
-        // Look for the result entry
-        for entry in &arr {
-            if entry.get("type").and_then(|t| t.as_str()) == Some("result") {
-                if let Some(result) = entry.get("result").and_then(|r| r.as_str()) {
-                    return Ok(result.to_string());
-                }
-            }
-        }
-
-        // Fall back to last entry's text
-        if let Some(last) = arr.last() {
-            if let Some(result) = last.get("result").and_then(|r| r.as_str()) {
-                return Ok(result.to_string());
-            }
-        }
-    }
-
-    // Fall back to raw stdout
-    warn!(
-        "[Claude CLI] Could not parse JSON envelope, using raw output ({} chars)",
-        trimmed.len()
-    );
-    Ok(trimmed.to_string())
+    // Parsed as JSON but no extractable content from any candidate
+    Err(AiProviderError::GenerationFailed(
+        "Claude CLI returned JSON envelope but no result or structured_output".to_string(),
+    ))
 }
 
 #[cfg(test)]
@@ -453,5 +511,52 @@ mod tests {
         let output = r#"[{"type":"result","is_error":false,"result":"From array"}]"#;
         let result = parse_claude_json_output(output).unwrap();
         assert_eq!(result, "From array");
+    }
+
+    #[test]
+    fn test_parse_structured_output_real_format() {
+        // Real Claude CLI output with --json-schema: structured_output is a JSON object,
+        // result is empty string
+        let output = r#"{"type":"result","subtype":"success","is_error":false,"duration_ms":30296,"num_turns":2,"result":"","session_id":"e49fc7b7","structured_output":{"summary":"Test summary","political_bias":0}}"#;
+        let result = parse_claude_json_output(output).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["summary"], "Test summary");
+        assert_eq!(parsed["political_bias"], 0);
+    }
+
+    #[test]
+    fn test_parse_error_max_turns() {
+        // Real Claude CLI output when --max-turns is too low: no result, no structured_output
+        let output = r#"{"type":"result","subtype":"error_max_turns","duration_ms":17669,"is_error":false,"num_turns":2,"stop_reason":"tool_use","session_id":"c63dc7d9"}"#;
+        let result = parse_claude_json_output(output);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("error_max_turns"));
+    }
+
+    #[test]
+    fn test_parse_result_with_markdown_freeform() {
+        // Real Claude CLI output without --json-schema: result contains markdown
+        let output = r#"{"type":"result","subtype":"success","is_error":false,"num_turns":1,"result":"```json\n{\"summary\": \"test\", \"political_bias\": 0}\n```","session_id":"30604e25"}"#;
+        let result = parse_claude_json_output(output).unwrap();
+        assert!(!result.contains("```"));
+        assert!(result.contains("summary"));
+    }
+
+    #[test]
+    fn test_parse_empty_result_no_structured_output_is_error() {
+        // Edge case: success but empty result and no structured_output
+        let output = r#"{"type":"result","subtype":"success","is_error":false,"result":"","session_id":"abc"}"#;
+        let result = parse_claude_json_output(output);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_structured_output_in_array() {
+        // Array format with structured_output
+        let output = r#"[{"type":"result","is_error":false,"result":"","structured_output":{"key":"value"}}]"#;
+        let result = parse_claude_json_output(output).unwrap();
+        assert!(result.contains("key"));
+        assert!(result.contains("value"));
     }
 }

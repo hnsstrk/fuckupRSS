@@ -241,7 +241,7 @@ impl AiTextProvider for GeminiCliProvider {
     }
 
     fn suggested_concurrency(&self) -> usize {
-        1 // CLI is sequential
+        3 // Gemini Free: 60 RPM, Plus: higher — 3-5 parallel safe
     }
 }
 
@@ -313,7 +313,7 @@ mod tests {
     #[test]
     fn test_suggested_concurrency() {
         let provider = GeminiCliProvider::new(120);
-        assert_eq!(provider.suggested_concurrency(), 1);
+        assert_eq!(provider.suggested_concurrency(), 3);
     }
 
     #[test]
