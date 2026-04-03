@@ -416,31 +416,28 @@
   <div class="feed-list">
     {#if sidebarMode === "pentacles"}
       <!-- All Articles -->
-      <div
+      <button
+        type="button"
         class="feed-item all-feeds {appState.selectedPentacleId === null &&
         appState.selectedSephirothId === null
           ? 'active'
           : ''}"
         onclick={handleSelectAll}
-        onkeydown={(e) => e.key === "Enter" && handleSelectAll()}
-        role="button"
-        tabindex="0"
       >
         <span class="feed-name">{$_("sidebar.allFeeds")}</span>
-      </div>
+      </button>
 
       <!-- Pentacles List -->
       {#each appState.pentacles as pentacle (pentacle.id)}
-        <div
+        <button
+          type="button"
           class="feed-item {appState.selectedPentacleId === pentacle.id ? 'active' : ''}"
           onclick={() => handleSelectPentacle(pentacle.id)}
-          onkeydown={(e) => e.key === "Enter" && handleSelectPentacle(pentacle.id)}
-          role="button"
-          tabindex="0"
         >
           <span class="feed-name">{pentacle.title || pentacle.url}</span>
           <div class="feed-actions">
             <button
+              type="button"
               class="delete-btn"
               onclick={(e) => {
                 e.stopPropagation();
@@ -449,7 +446,7 @@
               title={$_("actions.delete")}><i class="fa-solid fa-xmark"></i></button
             >
           </div>
-        </div>
+        </button>
       {/each}
 
       {#if appState.pentacles.length === 0 && !appState.loading}
@@ -474,14 +471,12 @@
             >
               <i class="fa-solid fa-chevron-right expand-chevron {isExpanded ? 'rotated' : ''}"></i>
             </button>
-            <div
+            <button
+              type="button"
               class="feed-item sephiroth-item {appState.selectedSephirothId === category.id
                 ? 'active'
                 : ''}"
               onclick={() => handleSelectSephiroth(category.id)}
-              onkeydown={(e) => e.key === "Enter" && handleSelectSephiroth(category.id)}
-              role="button"
-              tabindex="0"
             >
               <span class="feed-name">
                 {#if category.icon}
@@ -492,19 +487,17 @@
               {#if subcategoryCount > 0}
                 <span class="category-count">{subcategoryCount}</span>
               {/if}
-            </div>
+            </button>
           </div>
           {#if isExpanded && subcategories.length > 0}
             <div class="subcategory-list">
               {#each subcategories as sub (sub.id)}
-                <div
+                <button
+                  type="button"
                   class="feed-item subcategory-item {appState.selectedSephirothId === sub.id
                     ? 'active'
                     : ''}"
                   onclick={() => handleSelectSephiroth(sub.id)}
-                  onkeydown={(e) => e.key === "Enter" && handleSelectSephiroth(sub.id)}
-                  role="button"
-                  tabindex="0"
                 >
                   <span class="feed-name">
                     {#if sub.icon}
@@ -515,7 +508,7 @@
                   {#if sub.article_count > 0}
                     <span class="category-count small">{sub.article_count}</span>
                   {/if}
-                </div>
+                </button>
               {/each}
             </div>
           {/if}
@@ -796,6 +789,8 @@
     text-align: left;
     background: none;
     border: none;
+    border-radius: 0;
+    font: inherit;
     cursor: pointer;
     display: flex;
     align-items: center;
