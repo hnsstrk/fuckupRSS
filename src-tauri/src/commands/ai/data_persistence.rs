@@ -325,25 +325,33 @@ pub fn save_article_keywords_with_source(
         }
     }
 
-    // Update keyword co-occurrence network
-    for i in 0..tag_ids.len() {
-        for j in (i + 1)..tag_ids.len() {
-            let (id_a, id_b) = if tag_ids[i] < tag_ids[j] {
-                (tag_ids[i], tag_ids[j])
-            } else {
-                (tag_ids[j], tag_ids[i])
-            };
+    // Update keyword co-occurrence network (prepared statement for O(n²) inserts)
+    let mut cooccurrence_stmt = conn
+        .prepare(
+            r#"INSERT INTO immanentize_neighbors
+               (immanentize_id_a, immanentize_id_b, cooccurrence, first_seen, last_seen)
+               VALUES (?1, ?2, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+               ON CONFLICT(immanentize_id_a, immanentize_id_b) DO UPDATE SET
+                   cooccurrence = cooccurrence + 1,
+                   last_seen = CURRENT_TIMESTAMP"#,
+        )
+        .map_err(|e| {
+            trace!("Failed to prepare co-occurrence stmt: {}", e);
+            e
+        })
+        .ok();
 
-            if let Err(e) = conn.execute(
-                r#"INSERT INTO immanentize_neighbors
-                   (immanentize_id_a, immanentize_id_b, cooccurrence, first_seen, last_seen)
-                   VALUES (?1, ?2, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                   ON CONFLICT(immanentize_id_a, immanentize_id_b) DO UPDATE SET
-                       cooccurrence = cooccurrence + 1,
-                       last_seen = CURRENT_TIMESTAMP"#,
-                rusqlite::params![id_a, id_b],
-            ) {
-                trace!("Failed to update keyword co-occurrence: {}", e);
+    if let Some(ref mut stmt) = cooccurrence_stmt {
+        for i in 0..tag_ids.len() {
+            for j in (i + 1)..tag_ids.len() {
+                let (id_a, id_b) = if tag_ids[i] < tag_ids[j] {
+                    (tag_ids[i], tag_ids[j])
+                } else {
+                    (tag_ids[j], tag_ids[i])
+                };
+                if let Err(e) = stmt.execute(rusqlite::params![id_a, id_b]) {
+                    trace!("Failed to update keyword co-occurrence: {}", e);
+                }
             }
         }
     }
