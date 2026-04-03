@@ -222,17 +222,17 @@ pub fn create_embedding_provider_from_db(
 
 /// Get locale from database settings
 pub fn get_locale_from_db(state: &State<'_, AppState>) -> String {
-    let db = match state.db.lock() {
-        Ok(db) => db,
-        Err(_) => return "de".to_string(),
-    };
-    db.conn()
-        .query_row(
-            "SELECT value FROM settings WHERE key = 'locale'",
-            [],
-            |row| row.get::<_, String>(0),
-        )
-        .unwrap_or_else(|_| "de".to_string())
+    match state.db_conn() {
+        Ok(db) => db
+            .conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'locale'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap_or_else(|_| "de".to_string()),
+        Err(_) => "de".to_string(),
+    }
 }
 
 // ============================================================
@@ -2074,7 +2074,7 @@ pub fn log_generation_cost(
 }
 
 /// Safely truncate a string to a maximum byte length, respecting UTF-8 char boundaries.
-fn truncate_str_helper(s: &str, max_bytes: usize) -> &str {
+pub(crate) fn truncate_str(s: &str, max_bytes: usize) -> &str {
     if s.len() <= max_bytes {
         return s;
     }
@@ -2103,7 +2103,7 @@ pub async fn discordian_analysis_via_provider(
 ) -> Result<(DiscordianAnalysisWithRejections, TokenUsage), AiProviderError> {
     debug!(
         "Starting Discordian analysis via provider for: {}",
-        truncate_str_helper(title, 60)
+        truncate_str(title, 60)
     );
     let language = get_language_for_locale(locale);
     let truncated_content: String = content.chars().take(6000).collect();
@@ -2147,7 +2147,7 @@ pub async fn discordian_analysis_via_provider(
             warn!(
                 "JSON parse error: {}. Response: {}",
                 e,
-                truncate_str_helper(&result.text, 300)
+                truncate_str(&result.text, 300)
             );
             AiProviderError::JsonParseError {
                 message: e.to_string(),
@@ -2210,7 +2210,7 @@ pub async fn analyze_bias_via_provider(
         warn!(
             "JSON parse error: {}. Response: {}",
             e,
-            truncate_str_helper(&result.text, 300)
+            truncate_str(&result.text, 300)
         );
         AiProviderError::JsonParseError {
             message: e.to_string(),
@@ -2266,7 +2266,7 @@ Content: {}"#,
             warn!(
                 "JSON parse error: {}. Response: {}",
                 e,
-                truncate_str_helper(&result.text, 300)
+                truncate_str(&result.text, 300)
             );
             AiProviderError::JsonParseError {
                 message: e.to_string(),
@@ -3106,35 +3106,35 @@ mod tests {
     // ========================================
 
     #[test]
-    fn test_truncate_str_helper_short_string() {
-        assert_eq!(truncate_str_helper("hello", 10), "hello");
+    fn test_truncate_str_short_string() {
+        assert_eq!(truncate_str("hello", 10), "hello");
     }
 
     #[test]
-    fn test_truncate_str_helper_exact_length() {
-        assert_eq!(truncate_str_helper("hello", 5), "hello");
+    fn test_truncate_str_exact_length() {
+        assert_eq!(truncate_str("hello", 5), "hello");
     }
 
     #[test]
-    fn test_truncate_str_helper_truncates() {
-        assert_eq!(truncate_str_helper("hello world", 5), "hello");
+    fn test_truncate_str_truncates() {
+        assert_eq!(truncate_str("hello world", 5), "hello");
     }
 
     #[test]
-    fn test_truncate_str_helper_respects_utf8_boundaries() {
+    fn test_truncate_str_respects_utf8_boundaries() {
         // 'ä' is 2 bytes in UTF-8, so truncating at byte 1 should give empty
         let s = "ä";
         assert_eq!(s.len(), 2);
-        let result = truncate_str_helper(s, 1);
+        let result = truncate_str(s, 1);
         // Should not panic, should back up to char boundary
         assert!(result.is_empty() || result.len() <= 1);
     }
 
     #[test]
-    fn test_truncate_str_helper_multibyte_chars() {
+    fn test_truncate_str_multibyte_chars() {
         // "Müller" - 'ü' is 2 bytes
         let s = "Müller";
-        let result = truncate_str_helper(s, 3);
+        let result = truncate_str(s, 3);
         // Should truncate at a valid char boundary
         assert!(result.len() <= 3);
         assert!(result.is_char_boundary(result.len()));

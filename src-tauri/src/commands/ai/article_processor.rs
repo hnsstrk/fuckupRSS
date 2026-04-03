@@ -22,24 +22,10 @@ use super::helpers::{
     analyze_bias_via_provider, create_embedding_provider_from_db, create_text_provider,
     determine_category_sources, determine_keyword_sources, discordian_analysis_via_provider,
     get_analysis_prompt, get_discordian_prompt, get_embedding_max_chars, get_locale_from_db,
-    get_summary_prompt, log_generation_cost, merge_keywords, summarize_via_provider,
+    get_summary_prompt, log_generation_cost, merge_keywords, summarize_via_provider, truncate_str,
     validate_and_merge_categories,
 };
 use super::types::{AnalysisResponse, DiscordianResponse, SummaryResponse};
-
-/// Safely truncate a string to a maximum byte length, respecting UTF-8 char boundaries.
-/// Returns a slice that ends at a valid char boundary.
-fn truncate_str(s: &str, max_bytes: usize) -> &str {
-    if s.len() <= max_bytes {
-        return s;
-    }
-    // Find the largest valid char boundary <= max_bytes
-    let mut end = max_bytes;
-    while end > 0 && !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    &s[..end]
-}
 
 /// Generate a summary for an article
 #[tauri::command]
@@ -53,7 +39,8 @@ pub async fn generate_summary(
 
     let (provider, effective_model, content): (Arc<dyn AiTextProvider>, String, String) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
+        let (provider, provider_model) =
+            create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
         let content = db
             .conn()
             .query_row(
@@ -136,7 +123,8 @@ pub async fn analyze_article(
         String,
     ) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
+        let (provider, provider_model) =
+            create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
         let (title, content) = db
             .conn()
             .query_row(
@@ -224,7 +212,8 @@ pub async fn process_article(
         String,
     ) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
+        let (provider, provider_model) =
+            create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
         let (title, content) = db
             .conn()
             .query_row(
@@ -381,7 +370,8 @@ pub async fn process_article_discordian(
         usize,
     ) = {
         let db = state.db_conn()?;
-        let (provider, provider_model) = create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
+        let (provider, provider_model) =
+            create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
         let embedding_provider = create_embedding_provider_from_db(&db, Some(&state.proxy_manager));
         let (title, content, article_date, summary, content_raw) = db
             .conn()
@@ -502,12 +492,7 @@ pub async fn process_article_discordian(
                 let conn = db.conn();
 
                 // 1. Log cost
-                log_generation_cost(
-                    conn,
-                    provider.provider_name(),
-                    &effective_model,
-                    &usage,
-                );
+                log_generation_cost(conn, provider.provider_name(), &effective_model, &usage);
 
                 // 2. Learn from LLM rejections
                 for rejected_kw in &analysis_with_rejections.rejected_keywords {
@@ -575,11 +560,8 @@ pub async fn process_article_discordian(
                     validate_and_merge_categories(&analysis.categories, local_categories);
                 let categories_with_source =
                     determine_category_sources(&merged_categories, &stat_categories);
-                let categories_saved = save_article_categories_with_source(
-                    conn,
-                    fnord_id,
-                    &categories_with_source,
-                );
+                let categories_saved =
+                    save_article_categories_with_source(conn, fnord_id, &categories_with_source);
 
                 let merged_keywords =
                     merge_keywords(&analysis.keywords, local_keywords.clone(), 15);

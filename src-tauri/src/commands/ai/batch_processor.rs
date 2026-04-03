@@ -23,20 +23,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, Manager, State, Window};
 
-/// Safely truncate a string to a maximum byte length, respecting UTF-8 char boundaries.
-/// Returns a slice that ends at a valid char boundary.
-fn truncate_str(s: &str, max_bytes: usize) -> &str {
-    if s.len() <= max_bytes {
-        return s;
-    }
-    // Find the largest valid char boundary <= max_bytes
-    let mut end = max_bytes;
-    while end > 0 && !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    &s[..end]
-}
-
 use super::data_persistence::{
     build_embedding_text, generate_and_save_article_embedding, recalculate_keyword_weights,
     save_article_categories_with_source, save_article_keywords_with_source,
@@ -45,7 +31,7 @@ use super::helpers::{
     check_analysis_cache, compute_content_hash, determine_keyword_sources,
     discordian_analysis_via_provider, get_embedding_max_chars, get_embedding_provider_config,
     get_locale_from_db, get_num_ctx_setting, log_generation_cost, merge_categories_stat_primary,
-    merge_keywords, store_analysis_cache, TokenUsage,
+    merge_keywords, store_analysis_cache, truncate_str, TokenUsage,
 };
 #[cfg(feature = "clustering")]
 use super::helpers::{create_text_provider, get_provider_config};
@@ -935,7 +921,8 @@ pub async fn process_batch(
     // Get provider and configure model
     let (provider_config, effective_model) = {
         let db = state.db_conn().map_err(|e| e.to_string())?;
-        let mut config = super::helpers::get_provider_config(&db, Some(&state.proxy_manager), TaskType::Fast);
+        let mut config =
+            super::helpers::get_provider_config(&db, Some(&state.proxy_manager), TaskType::Fast);
 
         // Only override Ollama model from frontend; OpenAI uses its configured model
         if matches!(
@@ -970,7 +957,10 @@ pub async fn process_batch(
     let _num_ctx = provider_config.ollama_num_ctx;
     let provider_name = format!("{:?}", provider_config.provider_type);
 
-    info!("[LLM] Using provider {} with model '{}' (task: {:?})", provider_name, effective_model, provider_config.task_type);
+    info!(
+        "[LLM] Using provider {} with model '{}' (task: {:?})",
+        provider_name, effective_model, provider_config.task_type
+    );
 
     let provider_for_batch: Arc<dyn crate::ai_provider::AiTextProvider> =
         crate::ai_provider::create_provider(&provider_config);
@@ -1211,7 +1201,10 @@ pub async fn process_batch(
     info!("[LLM] Batch flag released - embedding worker can resume, embeddings use same model (no swap)");
 
     // Explicitly unload LLM model to free VRAM for embedding model (only for Ollama)
-    if matches!(provider_config.provider_type, crate::ai_provider::ProviderType::Ollama) {
+    if matches!(
+        provider_config.provider_type,
+        crate::ai_provider::ProviderType::Ollama
+    ) {
         let ollama_url = {
             let db = state.db_conn()?;
             super::helpers::get_setting(&db, "ollama_url", "http://localhost:11434")

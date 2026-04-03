@@ -170,16 +170,18 @@ pub fn save_article_keywords_with_source(
             let split_parts = split_compound_keyword(&kw.name);
             let original_name = kw.name.clone();
             let keyword_type = kw.keyword_type.clone();
-            split_parts.into_iter().map(move |part| KeywordWithMetadata {
-                confidence: if part != original_name {
-                    kw.confidence * 0.8
-                } else {
-                    kw.confidence
-                },
-                name: part,
-                source: kw.source,
-                keyword_type: keyword_type.clone(),
-            })
+            split_parts
+                .into_iter()
+                .map(move |part| KeywordWithMetadata {
+                    confidence: if part != original_name {
+                        kw.confidence * 0.8
+                    } else {
+                        kw.confidence
+                    },
+                    name: part,
+                    source: kw.source,
+                    keyword_type: keyword_type.clone(),
+                })
         })
         .collect();
 

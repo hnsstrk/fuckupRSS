@@ -377,8 +377,9 @@ fn parse_claude_json_output(stdout: &str) -> Result<String, AiProviderError> {
                         .map(|s| s.len())
                         .unwrap_or(0)
                 );
-                return Ok(serde_json::to_string(structured)
-                    .unwrap_or_else(|_| structured.to_string()));
+                return Ok(
+                    serde_json::to_string(structured).unwrap_or_else(|_| structured.to_string())
+                );
             }
         }
 

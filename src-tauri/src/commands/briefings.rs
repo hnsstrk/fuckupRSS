@@ -459,8 +459,11 @@ pub async fn generate_briefing(
     // TaskType::Reasoning setzt automatisch reasoning_model und BRIEFING_NUM_CTX
     let (provider, model) = {
         let db = state.db_conn()?;
-        let config =
-            super::ai::helpers::get_provider_config(&db, Some(&state.proxy_manager), TaskType::Reasoning);
+        let config = super::ai::helpers::get_provider_config(
+            &db,
+            Some(&state.proxy_manager),
+            TaskType::Reasoning,
+        );
         let model = match config.provider_type {
             crate::ai_provider::ProviderType::Ollama => config.ollama_model.clone(),
             crate::ai_provider::ProviderType::OpenAiCompatible => config.openai_model.clone(),

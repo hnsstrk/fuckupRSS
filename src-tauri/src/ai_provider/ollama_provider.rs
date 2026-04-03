@@ -137,9 +137,7 @@ impl AiTextProvider for OllamaTextProvider {
                     .chat(model, system_message, prompt, Some(schema.clone()))
                     .await
             } else {
-                self.client
-                    .chat(model, system_message, prompt, None)
-                    .await
+                self.client.chat(model, system_message, prompt, None).await
             };
 
             match result {

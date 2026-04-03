@@ -1,3 +1,4 @@
+use crate::commands::ai::helpers::truncate_str;
 use log::{debug, warn};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -77,19 +78,6 @@ mod flexible_deser {
             ))),
         }
     }
-}
-
-/// Safely truncate a string to at most `max_bytes` bytes at a character boundary
-fn truncate_str(s: &str, max_bytes: usize) -> &str {
-    if s.len() <= max_bytes {
-        return s;
-    }
-    // Find the last character boundary at or before max_bytes
-    let mut end = max_bytes;
-    while end > 0 && !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    &s[..end]
 }
 
 #[derive(Error, Debug)]
