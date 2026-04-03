@@ -238,26 +238,32 @@
     }
   }
 
-  // Scroll handler for lazy loading
-  function handleScroll(event: Event) {
-    const target = event.target as HTMLDivElement;
-    const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+  // Sentinel ref for IntersectionObserver-based lazy loading
+  let sentinelRef = $state<HTMLDivElement | null>(null);
 
-    // Load more when within 200px of bottom
-    if (scrollBottom < 200) {
-      if (activeTab === "failed" || activeTab === "hopeless") {
-        // Special tabs use their own pagination
-        if (hasMoreSpecial && !loadingMoreSpecial) {
-          loadMoreSpecialArticles();
+  $effect(() => {
+    if (!sentinelRef) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          if (activeTab === "failed" || activeTab === "hopeless") {
+            // Special tabs use their own pagination
+            if (hasMoreSpecial && !loadingMoreSpecial) {
+              loadMoreSpecialArticles();
+            }
+          } else {
+            // Normal tabs use appState's pagination
+            if (appState.hasMoreFnords && !appState.loadingMore) {
+              appState.loadMoreFnords();
+            }
+          }
         }
-      } else {
-        // Normal tabs use appState's pagination
-        if (appState.hasMoreFnords && !appState.loadingMore) {
-          appState.loadMoreFnords();
-        }
-      }
-    }
-  }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinelRef);
+    return () => observer.disconnect();
+  });
 
   async function handleTabChange(tabId: string) {
     activeTab = tabId;
@@ -463,7 +469,7 @@
   <!-- 2-Column Body: Article List + Article View -->
   <div class="erisian-body">
     <!-- Left: Article List -->
-    <div class="article-list-column" onscroll={handleScroll}>
+    <div class="article-list-column">
       {#if loading}
         <div class="loading-state">
           <div class="spinner"></div>
@@ -507,6 +513,9 @@
               </span>
             </div>
           {/if}
+
+          <!-- Sentinel for IntersectionObserver lazy loading -->
+          <div bind:this={sentinelRef} class="h-1" aria-hidden="true"></div>
         </div>
       {/if}
     </div>
