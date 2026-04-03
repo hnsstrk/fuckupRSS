@@ -189,10 +189,32 @@ export function getBiasIcon(bias: number | null): string {
 }
 
 /**
- * Gibt das Label für einen Bias-Wert zurück
+ * Gibt das Label für einen ganzzahligen Bias-Wert zurück.
+ * Mit optionalem `t`-Parameter für i18n (z.B. svelte-i18n `$_`).
  */
-export function getBiasLabel(bias: number | null, locale: string = "de"): string {
+export function getBiasLabel(
+  bias: number | null,
+  locale: string = "de",
+  t?: (key: string) => string,
+): string {
   if (bias === null) return "";
+  if (t) {
+    switch (bias) {
+      case -2:
+        return t("articleView.biasStrongLeft");
+      case -1:
+        return t("articleView.biasLeanLeft");
+      case 0:
+        return t("articleView.biasNeutral");
+      case 1:
+        return t("articleView.biasLeanRight");
+      case 2:
+        return t("articleView.biasStrongRight");
+      default:
+        return "";
+    }
+  }
+  // Fallback ohne i18n (bestehende Callsites)
   const isGerman = locale.startsWith("de");
   switch (bias) {
     case -2:
@@ -211,6 +233,30 @@ export function getBiasLabel(bias: number | null, locale: string = "de"): string
 }
 
 /**
+ * Gibt das Label für einen Fließkomma-Bias-Durchschnitt zurück (z.B. für Trends).
+ * Verwendet Schwellenwerte statt ganzzahliger switch-cases.
+ */
+export function getBiasRangeLabel(
+  bias: number | null,
+  t?: (key: string) => string,
+): string {
+  if (bias === null) return "";
+  if (t) {
+    if (bias <= -1.5) return t("mindfuck.bias.strongLeft");
+    if (bias <= -0.5) return t("mindfuck.bias.left");
+    if (bias <= 0.5) return t("mindfuck.bias.neutral");
+    if (bias <= 1.5) return t("mindfuck.bias.right");
+    return t("mindfuck.bias.strongRight");
+  }
+  // Fallback ohne i18n
+  if (bias <= -1.5) return "Strong left";
+  if (bias <= -0.5) return "Lean left";
+  if (bias <= 0.5) return "Neutral";
+  if (bias <= 1.5) return "Lean right";
+  return "Strong right";
+}
+
+/**
  * Gibt die CSS-Klasse für die Bias-Richtung zurück
  */
 export function getBiasDirectionClass(bias: number | null): string {
@@ -223,10 +269,32 @@ export function getBiasDirectionClass(bias: number | null): string {
 // ============================================================
 
 /**
- * Gibt das Label für einen Sachlichkeits-Wert zurück
+ * Gibt das Label für einen Sachlichkeits-Wert zurück.
+ * Mit optionalem `t`-Parameter für i18n (z.B. svelte-i18n `$_`).
  */
-export function getSachlichkeitLabel(s: number | null, locale: string = "de"): string {
+export function getSachlichkeitLabel(
+  s: number | null,
+  locale: string = "de",
+  t?: (key: string) => string,
+): string {
   if (s === null) return "";
+  if (t) {
+    switch (s) {
+      case 0:
+        return t("articleView.sachHighlyEmotional");
+      case 1:
+        return t("articleView.sachEmotional");
+      case 2:
+        return t("articleView.sachMixed");
+      case 3:
+        return t("articleView.sachMostlyObjective");
+      case 4:
+        return t("articleView.sachObjective");
+      default:
+        return "";
+    }
+  }
+  // Fallback ohne i18n (bestehende Callsites)
   const isGerman = locale.startsWith("de");
   switch (s) {
     case 0:

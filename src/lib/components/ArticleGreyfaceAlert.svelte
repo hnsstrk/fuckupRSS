@@ -2,8 +2,10 @@
   import { _ } from "svelte-i18n";
   import {
     getBiasColor,
+    getBiasLabel,
     getSachlichkeitColor,
     getSachlichkeitIcon,
+    getSachlichkeitLabel,
   } from "$lib/utils/articleFormat";
 
   let {
@@ -52,42 +54,6 @@
     }
   }
 
-  function getBiasLabel(bias: number | null): string {
-    if (bias === null) return $_("articleView.notRated");
-    switch (bias) {
-      case -2:
-        return $_("articleView.biasStrongLeft");
-      case -1:
-        return $_("articleView.biasLeanLeft");
-      case 0:
-        return $_("articleView.greyface.biasCenter");
-      case 1:
-        return $_("articleView.biasLeanRight");
-      case 2:
-        return $_("articleView.biasStrongRight");
-      default:
-        return $_("articleView.unknown");
-    }
-  }
-
-  function getSachlichkeitLabel(s: number | null): string {
-    if (s === null) return $_("articleView.notRated");
-    switch (s) {
-      case 0:
-        return $_("articleView.sachHighlyEmotional");
-      case 1:
-        return $_("articleView.sachEmotional");
-      case 2:
-        return $_("articleView.sachMixed");
-      case 3:
-        return $_("articleView.sachMostlyObjective");
-      case 4:
-        return $_("articleView.sachObjective");
-      default:
-        return $_("articleView.unknown");
-    }
-  }
-
   function getBiasIcon(bias: number | null): string {
     if (bias === null) return "fa-scale-balanced";
     if (bias < 0) return "fa-scale-unbalanced";
@@ -116,21 +82,21 @@
           {#if politicalBias !== null}
             <span
               class="indicator bias-{getBiasColor(politicalBias, 'class')}"
-              title="{$_('articleView.greyface.bias')}: {getBiasLabel(politicalBias)}"
+              title="{$_('articleView.greyface.bias')}: {getBiasLabel(politicalBias, "de", $_)}"
             >
               <i class="fa-solid {getBiasIcon(politicalBias)}"></i>
-              <span class="indicator-text">{getBiasLabel(politicalBias)}</span>
+              <span class="indicator-text">{getBiasLabel(politicalBias, "de", $_)}</span>
             </span>
           {/if}
           {#if sachlichkeit !== null}
             <span
               class="indicator sach-{getSachlichkeitColor(sachlichkeit)}"
               title="{$_('articleView.greyface.sachlichkeit')}: {getSachlichkeitLabel(
-                sachlichkeit,
+                sachlichkeit, "de", $_,
               )}"
             >
               <i class="fa-solid {getSachlichkeitIcon(sachlichkeit)}"></i>
-              <span class="indicator-text">{getSachlichkeitLabel(sachlichkeit)}</span>
+              <span class="indicator-text">{getSachlichkeitLabel(sachlichkeit, "de", $_)}</span>
             </span>
           {/if}
           {#if qualityScore !== null}

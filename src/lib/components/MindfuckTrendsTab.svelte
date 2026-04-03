@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
   import type { ReadingTrend } from "../types";
-  import { getBiasColor } from "$lib/utils/articleFormat";
+  import { getBiasColor, getBiasRangeLabel } from "$lib/utils/articleFormat";
 
   let {
     readingTrends,
@@ -15,14 +15,6 @@
     onTrendPeriodChange: (days: 7 | 30 | 90) => void;
   } = $props();
 
-  function getBiasLabel(bias: number | null): string {
-    if (bias === null) return $_("articleView.notRated");
-    if (bias <= -1.5) return $_("mindfuck.bias.strongLeft");
-    if (bias <= -0.5) return $_("mindfuck.bias.left");
-    if (bias <= 0.5) return $_("mindfuck.bias.neutral");
-    if (bias <= 1.5) return $_("mindfuck.bias.right");
-    return $_("mindfuck.bias.strongRight");
-  }
 </script>
 
 <div class="section">
@@ -103,12 +95,13 @@
                 .reduce((sum, t, _, arr) => sum + (t.avg_bias || 0) / arr.length, 0) || null,
             )}"
           >
-            {getBiasLabel(
+            {getBiasRangeLabel(
               readingTrends.filter((t) => t.avg_bias !== null).length > 0
                 ? readingTrends
                     .filter((t) => t.avg_bias !== null)
                     .reduce((sum, t, _, arr) => sum + (t.avg_bias || 0) / arr.length, 0)
                 : null,
+              $_,
             )}
           </span>
           <span class="trend-stat-label">{$_("mindfuck.trends.avgBiasOverTime")}</span>
