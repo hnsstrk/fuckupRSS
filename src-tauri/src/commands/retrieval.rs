@@ -3,10 +3,10 @@ use crate::retrieval::{HagbardRetrieval, RetrievalError};
 use crate::AppState;
 use futures::{stream, StreamExt};
 use log::info;
-use once_cell::sync::OnceCell;
 use rusqlite::params;
 use serde::Serialize;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use tauri::{AppHandle, Emitter, State};
 
 /// Categorize a retrieval error into a simple error type string for tracking.
@@ -70,7 +70,7 @@ fn categorize_error(error: &RetrievalError) -> String {
 
 /// Global HeadlessFetcher instance, lazily initialized on first use.
 /// The browser is not started until the first fetch operation that needs it.
-static HEADLESS_FETCHER: OnceCell<HeadlessFetcher> = OnceCell::new();
+static HEADLESS_FETCHER: OnceLock<HeadlessFetcher> = OnceLock::new();
 
 /// Get or initialize the global HeadlessFetcher.
 fn get_headless_fetcher() -> &'static HeadlessFetcher {

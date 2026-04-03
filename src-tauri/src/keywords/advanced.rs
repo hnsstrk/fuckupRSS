@@ -6,45 +6,45 @@
 //! - TextRank graph-based extraction
 //! - Enhanced Named Entity Recognition
 
-use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 
 use super::{ExtractedKeyword, KeywordType, Language, UNIFIED_STOPWORDS};
 
 // Cached regex patterns for Enhanced NER (compiled once)
-static TITLE_PATTERN: Lazy<Regex> = Lazy::new(|| {
+static TITLE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?i)\b((?:herr|frau|dr\.?|prof\.?|minister(?:in)?|präsident(?:in)?|kanzler(?:in)?|mr\.?|mrs\.?|ms\.?|president|chancellor|senator)\s+)([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+){0,2})\b"
     ).unwrap()
 });
 
-static ORG_PATTERN: Lazy<Regex> = Lazy::new(|| {
+static ORG_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"\b([A-ZÄÖÜ][a-zäöüß]*(?:\s+[A-ZÄÖÜ&][a-zäöüß]*){0,4})\s+(GmbH|AG|Inc\.?|Ltd\.?|Corp\.?|Co\.?|KG|e\.V\.?|SE)\b"
     ).unwrap()
 });
 
-static MINISTRY_PATTERN: Lazy<Regex> = Lazy::new(|| {
+static MINISTRY_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"\b((?:Bundes)?[A-ZÄÖÜ][a-zäöüß]*(?:ministerium|ministry|department|behörde|amt|agency))\b"
     ).unwrap()
 });
 
-static LOCATION_PATTERN: Lazy<Regex> = Lazy::new(|| {
+static LOCATION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?i)\b(?:in|aus|nach|from|to|at)\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\b",
     )
     .unwrap()
 });
 
-static EVENT_PATTERN: Lazy<Regex> = Lazy::new(|| {
+static EVENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"\b([A-ZÄÖÜ][a-zäöüß]*[-\s]?(?:gipfel|konferenz|summit|conference|wahlen?|election|treffen|meeting))\b"
     ).unwrap()
 });
 
-static YEAR_CONTEXT_PATTERN: Lazy<Regex> = Lazy::new(|| {
+static YEAR_CONTEXT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\s+(20\d{2}|19\d{2})\b").unwrap()
 });
 
@@ -188,7 +188,7 @@ fn is_significant_phrase(phrase: &str) -> bool {
 }
 
 /// Known significant phrase patterns
-static SIGNIFICANT_PHRASES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static SIGNIFICANT_PHRASES: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
         // German political/news phrases
         "künstliche intelligenz",
@@ -448,7 +448,7 @@ fn pagerank(
 /// Enhanced NER patterns
 /// Used for future NER improvements in keyword extraction
 #[allow(dead_code)]
-static LOCATION_INDICATORS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static LOCATION_INDICATORS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
         // German
         "stadt",
@@ -481,7 +481,7 @@ static LOCATION_INDICATORS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 
 /// Person titles for NER - used for future improvements
 #[allow(dead_code)]
-static PERSON_TITLES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static PERSON_TITLES: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
         // German titles
         "herr",
@@ -522,7 +522,7 @@ static PERSON_TITLES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 
 /// Event patterns for NER - used for future improvements
 #[allow(dead_code)]
-static EVENT_PATTERNS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static EVENT_PATTERNS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
         // German
         "gipfel",

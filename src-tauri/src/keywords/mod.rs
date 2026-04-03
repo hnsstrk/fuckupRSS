@@ -5,17 +5,19 @@ use crate::text_analysis::keyword_seeds::{
 };
 use crate::text_analysis::STOPWORDS;
 use keyword_extraction::rake::{Rake, RakeParams};
-use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 use whatlang::{detect, Lang};
 use yake_rust::{get_n_best, Config, StopWords};
 
 // Cached regex patterns for entity extraction (compiled once)
-static CAPITALIZED_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"\b([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+){0,3})\b").unwrap());
+static CAPITALIZED_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\b([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+){0,3})\b").unwrap()
+});
 
-static ACRONYM_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b([A-Z]{2,6})\b").unwrap());
+static ACRONYM_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\b([A-Z]{2,6})\b").unwrap());
 
 pub mod advanced;
 #[cfg(feature = "clustering")]
@@ -65,12 +67,12 @@ pub enum Language {
 }
 
 /// Unified stopwords from central text_analysis module (converted to owned Strings for RAKE/YAKE)
-static UNIFIED_STOPWORDS: Lazy<HashSet<String>> =
-    Lazy::new(|| STOPWORDS.iter().map(|s| s.to_string()).collect());
+static UNIFIED_STOPWORDS: LazyLock<HashSet<String>> =
+    LazyLock::new(|| STOPWORDS.iter().map(|s| s.to_string()).collect());
 
 /// Stopwords that commonly appear at edges of keywords and should be stripped
 /// These include articles, prepositions, and conjunctions in German and English
-static EDGE_STOPWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static EDGE_STOPWORDS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     let words = [
         // German articles
         "der", "die", "das", "den", "dem", "des", "ein", "eine", "einer", "einem", "eines", "einen",
@@ -87,7 +89,7 @@ static EDGE_STOPWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     words.into_iter().collect()
 });
 
-static ORG_SUFFIXES: Lazy<Vec<&str>> = Lazy::new(|| {
+static ORG_SUFFIXES: LazyLock<Vec<&str>> = LazyLock::new(|| {
     vec![
         "gmbh",
         "ag",
@@ -119,10 +121,11 @@ static ORG_SUFFIXES: Lazy<Vec<&str>> = Lazy::new(|| {
 });
 
 /// Known acronyms from seed data - used for keyword validation
-static KNOWN_ACRONYMS: Lazy<HashSet<&str>> = Lazy::new(|| SEED_ACRONYMS.iter().copied().collect());
+static KNOWN_ACRONYMS: LazyLock<HashSet<&str>> =
+    LazyLock::new(|| SEED_ACRONYMS.iter().copied().collect());
 
 /// Known entities from seed data - used for validation
-static KNOWN_ENTITIES: Lazy<HashSet<&str>> = Lazy::new(|| {
+static KNOWN_ENTITIES: LazyLock<HashSet<&str>> = LazyLock::new(|| {
     let mut set = HashSet::new();
     for &s in SEED_PERSONS.iter() {
         set.insert(s);
@@ -650,7 +653,7 @@ pub fn extract_keywords_with_semantic_scoring(
     results
 }
 
-static GARBAGE_PATTERNS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static GARBAGE_PATTERNS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
         // === HTML Tags and Attributes ===
         "doctype",
@@ -1085,7 +1088,7 @@ pub fn is_garbage_keyword(keyword: &str) -> bool {
 }
 
 /// Valid single words from seed data (lowercase for matching)
-static VALID_SINGLE_WORDS: Lazy<HashSet<String>> = Lazy::new(|| {
+static VALID_SINGLE_WORDS: LazyLock<HashSet<String>> = LazyLock::new(|| {
     let mut set = HashSet::new();
     // Add all known entities in lowercase for matching
     for &s in KNOWN_ENTITIES.iter() {
@@ -1333,7 +1336,7 @@ pub fn normalize_and_dedupe_keywords_with_scores(
     result
 }
 
-static SYNONYM_GROUPS: Lazy<Vec<(&'static str, Vec<&'static str>)>> = Lazy::new(|| {
+static SYNONYM_GROUPS: LazyLock<Vec<(&'static str, Vec<&'static str>)>> = LazyLock::new(|| {
     vec![
         // === Technologie ===
         (
@@ -1938,8 +1941,8 @@ use std::sync::RwLock;
 
 /// Cached dynamic synonyms loaded from the database
 /// Maps variant name (lowercase) → canonical name
-static DYNAMIC_SYNONYMS: Lazy<RwLock<HashMap<String, String>>> =
-    Lazy::new(|| RwLock::new(HashMap::new()));
+static DYNAMIC_SYNONYMS: LazyLock<RwLock<HashMap<String, String>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 
 /// Load synonyms from database (canonical_id relationships)
 /// Call this on startup and after merging keywords
@@ -2038,7 +2041,7 @@ pub fn clear_dynamic_synonyms_cache() {
 // ============================================================
 
 /// Keywords that should NEVER be split (proper nouns, established terms)
-static NO_SPLIT_KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static NO_SPLIT_KEYWORDS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
         // German Bundeslaender
         "sachsen-anhalt",
@@ -2107,7 +2110,7 @@ static NO_SPLIT_KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 });
 
 /// Words that should not be split from compounds (particles, prepositions)
-static COMPOUND_IGNORE_PARTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static COMPOUND_IGNORE_PARTS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
         "und", "oder", "für", "mit", "von", "zu", "bei", "auf", "in", "an", "and", "or", "for",
         "with", "from", "to", "at", "on", "in", "der", "die", "das", "den", "dem", "des", "the",
@@ -2119,7 +2122,7 @@ static COMPOUND_IGNORE_PARTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 });
 
 /// Keywords that are valid as single parts after splitting
-static VALID_COMPOUND_PARTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static VALID_COMPOUND_PARTS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
         // Politicians (last names)
         "trump",
