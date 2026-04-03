@@ -686,16 +686,7 @@ async fn process_single_article(
                         // Context overflow: increment attempts (to trigger num_ctx
                         // scaling) but NEVER mark as hopeless — the article is
                         // analysable with a larger context window.
-                        let attempts: i32 = db
-                            .conn()
-                            .query_row(
-                                "SELECT COALESCE(analysis_attempts, 0) FROM fnords WHERE id = ?1",
-                                [fnord_id],
-                                |row| row.get(0),
-                            )
-                            .unwrap_or(0);
-
-                        let new_attempts = attempts + 1;
+                        let new_attempts = article.attempts + 1;
                         warn!(
                             "Context overflow for article {} (attempt {}, will retry with larger num_ctx): {}",
                             fnord_id, new_attempts, error_msg
@@ -711,16 +702,7 @@ async fn process_single_article(
                         );
                     } else {
                         // Content-specific failure: increment attempts
-                        let attempts: i32 = db
-                            .conn()
-                            .query_row(
-                                "SELECT COALESCE(analysis_attempts, 0) FROM fnords WHERE id = ?1",
-                                [fnord_id],
-                                |row| row.get(0),
-                            )
-                            .unwrap_or(0);
-
-                        let new_attempts = attempts + 1;
+                        let new_attempts = article.attempts + 1;
                         let is_hopeless = new_attempts >= 5;
 
                         if is_hopeless {
