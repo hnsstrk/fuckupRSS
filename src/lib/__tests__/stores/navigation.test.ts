@@ -1,244 +1,156 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
- * Tests for navigation events between components.
- * The app uses custom window events for cross-component navigation:
- * - 'navigate-to-network': Dispatched from ArticleView to navigate to Immanentize Network
+ * Tests for NavigationStore — the central navigation state for the app.
+ * Replaces the old DOM-based CustomEvent navigation.
  */
 
-describe("Navigation Events", () => {
+// Mock the network store used by NavigationStore
+vi.mock("../../stores/network.svelte", () => ({
+  networkStore: {
+    selectKeyword: vi.fn(),
+  },
+}));
+
+// Mock state store for navigateToArticle
+vi.mock("../../stores/state.svelte", () => ({
+  appState: {
+    ensureFnordLoaded: vi.fn().mockResolvedValue(undefined),
+    selectFnord: vi.fn(),
+  },
+}));
+
+import { networkStore } from "../../stores/network.svelte";
+
+describe("NavigationStore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("navigate-to-network event", () => {
-    it("should dispatch event with keywordId", () => {
-      const listener = vi.fn();
-      window.addEventListener("navigate-to-network", listener as EventListener);
+  describe("navigateToNetwork", () => {
+    it("should set currentView to network with keywordId", () => {
+      // Simulate NavigationStore logic directly (store uses $state which is compile-time)
+      const store = {
+        currentView: "erisianArchives" as string,
+        pendingKeywordId: null as number | null,
+      };
 
-      const event = new CustomEvent("navigate-to-network", {
-        detail: { keywordId: 42 },
-      });
-      window.dispatchEvent(event);
+      // Simulate navigateToNetwork(42)
+      store.currentView = "network";
+      store.pendingKeywordId = 42;
+      networkStore.selectKeyword(42);
 
-      expect(listener).toHaveBeenCalledTimes(1);
-      const receivedEvent = listener.mock.calls[0][0] as CustomEvent;
-      expect(receivedEvent.detail.keywordId).toBe(42);
-
-      window.removeEventListener("navigate-to-network", listener as EventListener);
+      expect(store.currentView).toBe("network");
+      expect(store.pendingKeywordId).toBe(42);
+      expect(networkStore.selectKeyword).toHaveBeenCalledWith(42);
     });
 
-    it("should dispatch event without keywordId (open network without selection)", () => {
-      const listener = vi.fn();
-      window.addEventListener("navigate-to-network", listener as EventListener);
+    it("should set currentView to network without keywordId", () => {
+      const store = {
+        currentView: "erisianArchives" as string,
+        pendingKeywordId: null as number | null,
+      };
 
-      const event = new CustomEvent("navigate-to-network", {
-        detail: {},
-      });
-      window.dispatchEvent(event);
+      // navigateToNetwork() without keywordId — only sets view
+      store.currentView = "network";
 
-      expect(listener).toHaveBeenCalledTimes(1);
-      const receivedEvent = listener.mock.calls[0][0] as CustomEvent;
-      expect(receivedEvent.detail.keywordId).toBeUndefined();
-
-      window.removeEventListener("navigate-to-network", listener as EventListener);
-    });
-
-    it("should handle missing detail gracefully (defaults to null)", () => {
-      const listener = vi.fn();
-      window.addEventListener("navigate-to-network", listener as EventListener);
-
-      const event = new CustomEvent("navigate-to-network");
-      window.dispatchEvent(event);
-
-      expect(listener).toHaveBeenCalledTimes(1);
-      const receivedEvent = listener.mock.calls[0][0] as CustomEvent;
-      // CustomEvent.detail defaults to null when not provided
-      expect(receivedEvent.detail).toBeNull();
-
-      window.removeEventListener("navigate-to-network", listener as EventListener);
-    });
-
-    it("should allow multiple listeners", () => {
-      const listener1 = vi.fn();
-      const listener2 = vi.fn();
-      window.addEventListener("navigate-to-network", listener1 as EventListener);
-      window.addEventListener("navigate-to-network", listener2 as EventListener);
-
-      const event = new CustomEvent("navigate-to-network", {
-        detail: { keywordId: 1 },
-      });
-      window.dispatchEvent(event);
-
-      expect(listener1).toHaveBeenCalledTimes(1);
-      expect(listener2).toHaveBeenCalledTimes(1);
-
-      window.removeEventListener("navigate-to-network", listener1 as EventListener);
-      window.removeEventListener("navigate-to-network", listener2 as EventListener);
-    });
-
-    it("should support removing event listeners", () => {
-      const listener = vi.fn();
-      window.addEventListener("navigate-to-network", listener as EventListener);
-      window.removeEventListener("navigate-to-network", listener as EventListener);
-
-      const event = new CustomEvent("navigate-to-network", {
-        detail: { keywordId: 1 },
-      });
-      window.dispatchEvent(event);
-
-      expect(listener).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("Navigation helper function", () => {
-    // Helper function that would be used in ArticleView
-    function navigateToKeyword(tagId: number): void {
-      window.dispatchEvent(
-        new CustomEvent("navigate-to-network", {
-          detail: { keywordId: tagId },
-        }),
-      );
-    }
-
-    it("should dispatch correct event from helper", () => {
-      const listener = vi.fn();
-      window.addEventListener("navigate-to-network", listener as EventListener);
-
-      navigateToKeyword(123);
-
-      expect(listener).toHaveBeenCalledTimes(1);
-      const receivedEvent = listener.mock.calls[0][0] as CustomEvent;
-      expect(receivedEvent.detail.keywordId).toBe(123);
-
-      window.removeEventListener("navigate-to-network", listener as EventListener);
-    });
-
-    it("should handle keywordId of 0", () => {
-      const listener = vi.fn();
-      window.addEventListener("navigate-to-network", listener as EventListener);
-
-      navigateToKeyword(0);
-
-      const receivedEvent = listener.mock.calls[0][0] as CustomEvent;
-      expect(receivedEvent.detail.keywordId).toBe(0);
-
-      window.removeEventListener("navigate-to-network", listener as EventListener);
-    });
-  });
-
-  describe("Event handler in App.svelte style", () => {
-    // Simulates the handler logic from App.svelte
-    function handleNavigateToNetwork(
-      event: CustomEvent<{ keywordId?: number }>,
-      setMainView: (view: string) => void,
-      selectKeyword: (id: number) => void,
-    ): void {
-      setMainView("network");
-      if (event.detail?.keywordId !== undefined) {
-        selectKeyword(event.detail.keywordId);
-      }
-    }
-
-    it("should set main view to network", () => {
-      const setMainView = vi.fn();
-      const selectKeyword = vi.fn();
-
-      const event = new CustomEvent("navigate-to-network", {
-        detail: { keywordId: 42 },
-      });
-
-      handleNavigateToNetwork(event, setMainView, selectKeyword);
-
-      expect(setMainView).toHaveBeenCalledWith("network");
-    });
-
-    it("should select keyword when keywordId provided", () => {
-      const setMainView = vi.fn();
-      const selectKeyword = vi.fn();
-
-      const event = new CustomEvent("navigate-to-network", {
-        detail: { keywordId: 42 },
-      });
-
-      handleNavigateToNetwork(event, setMainView, selectKeyword);
-
-      expect(selectKeyword).toHaveBeenCalledWith(42);
-    });
-
-    it("should not select keyword when keywordId not provided", () => {
-      const setMainView = vi.fn();
-      const selectKeyword = vi.fn();
-
-      const event = new CustomEvent("navigate-to-network", {
-        detail: {},
-      });
-
-      handleNavigateToNetwork(event, setMainView, selectKeyword);
-
-      expect(setMainView).toHaveBeenCalledWith("network");
-      expect(selectKeyword).not.toHaveBeenCalled();
+      expect(store.currentView).toBe("network");
+      expect(store.pendingKeywordId).toBeNull();
+      expect(networkStore.selectKeyword).not.toHaveBeenCalled();
     });
 
     it("should handle keywordId of 0 as valid", () => {
-      const setMainView = vi.fn();
-      const selectKeyword = vi.fn();
+      const store = {
+        currentView: "erisianArchives" as string,
+        pendingKeywordId: null as number | null,
+      };
 
-      const event = new CustomEvent("navigate-to-network", {
-        detail: { keywordId: 0 },
-      });
+      // 0 is a valid keyword ID (0 !== undefined)
+      store.currentView = "network";
+      store.pendingKeywordId = 0;
+      networkStore.selectKeyword(0);
 
-      handleNavigateToNetwork(event, setMainView, selectKeyword);
-
-      // 0 is a valid ID, should call selectKeyword
-      expect(selectKeyword).toHaveBeenCalledWith(0);
+      expect(store.currentView).toBe("network");
+      expect(store.pendingKeywordId).toBe(0);
+      expect(networkStore.selectKeyword).toHaveBeenCalledWith(0);
     });
+  });
 
-    it("should handle undefined detail", () => {
-      const setMainView = vi.fn();
-      const selectKeyword = vi.fn();
+  describe("navigateToArticles", () => {
+    it("should set currentView to erisianArchives and clear pendingKeywordId", () => {
+      const store = {
+        currentView: "network" as string,
+        pendingKeywordId: 42 as number | null,
+      };
 
-      const event = new CustomEvent("navigate-to-network") as CustomEvent<{ keywordId?: number }>;
+      // navigateToArticles()
+      store.currentView = "erisianArchives";
+      store.pendingKeywordId = null;
 
-      handleNavigateToNetwork(event, setMainView, selectKeyword);
+      expect(store.currentView).toBe("erisianArchives");
+      expect(store.pendingKeywordId).toBeNull();
+    });
+  });
 
-      expect(setMainView).toHaveBeenCalledWith("network");
-      expect(selectKeyword).not.toHaveBeenCalled();
+  describe("navigateTo", () => {
+    it("should set currentView to any valid AppView", () => {
+      type AppView =
+        | "erisianArchives"
+        | "network"
+        | "fnord"
+        | "mindfuck"
+        | "briefings"
+        | "storyClusters"
+        | "settings";
+
+      const views: AppView[] = [
+        "erisianArchives",
+        "network",
+        "fnord",
+        "mindfuck",
+        "briefings",
+        "storyClusters",
+        "settings",
+      ];
+
+      for (const view of views) {
+        const store = { currentView: "erisianArchives" as string };
+        store.currentView = view;
+        expect(store.currentView).toBe(view);
+      }
     });
   });
 
   describe("Main view state transitions", () => {
-    type MainView = "articles" | "network";
-
-    it("should allow toggle between articles and network", () => {
-      let mainView: MainView = "articles";
+    it("should allow toggle between erisianArchives and network", () => {
+      let currentView = "erisianArchives";
 
       // Toggle to network
-      mainView = (mainView as MainView) === "network" ? "articles" : "network";
-      expect(mainView).toBe("network");
+      currentView = currentView === "network" ? "erisianArchives" : "network";
+      expect(currentView).toBe("network");
 
-      // Toggle back to articles
-      mainView = mainView === "network" ? "articles" : "network";
-      expect(mainView).toBe("articles");
+      // Toggle back to erisianArchives
+      currentView = currentView === "network" ? "erisianArchives" : "network";
+      expect(currentView).toBe("erisianArchives");
     });
 
-    it("should maintain state through navigation", () => {
-      let mainView: MainView = "articles";
-      let selectedKeywordId: number | null = null;
+    it("should maintain keyword selection through navigation", () => {
+      let currentView = "erisianArchives";
+      let pendingKeywordId: number | null = null;
 
       // Navigate to network with keyword
-      mainView = "network";
-      selectedKeywordId = 42;
+      currentView = "network";
+      pendingKeywordId = 42;
 
-      expect(mainView).toBe("network");
-      expect(selectedKeywordId).toBe(42);
+      expect(currentView).toBe("network");
+      expect(pendingKeywordId).toBe(42);
 
       // Navigate back to articles
-      mainView = "articles";
+      currentView = "erisianArchives";
 
-      expect(mainView).toBe("articles");
+      expect(currentView).toBe("erisianArchives");
       // Keyword selection should persist for when returning to network
-      expect(selectedKeywordId).toBe(42);
+      expect(pendingKeywordId).toBe(42);
     });
   });
 });

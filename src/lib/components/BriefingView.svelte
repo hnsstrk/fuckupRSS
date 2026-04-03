@@ -5,6 +5,7 @@
   import { renderMarkdown, renderMarkdownInline } from "$lib/utils/sanitizer";
   import { formatError } from "$lib/utils/formatError";
   import { networkStore } from "$lib/stores/state.svelte";
+  import { navigationStore } from "$lib/stores/navigation.svelte";
 
   interface ArticleRef {
     index: number;
@@ -151,9 +152,7 @@
   }
 
   function navigateToArticle(fnordId: number) {
-    window.dispatchEvent(
-      new CustomEvent("navigate-to-article", { detail: { articleId: fnordId } }),
-    );
+    navigationStore.navigateToArticle(fnordId);
   }
 
   function navigateToKeyword(keywordName: string) {
@@ -161,13 +160,9 @@
       (k: { name: string }) => k.name.toLowerCase() === keywordName.toLowerCase(),
     );
     if (keyword) {
-      window.dispatchEvent(
-        new CustomEvent("navigate-to-network", { detail: { keywordId: keyword.id } }),
-      );
+      navigationStore.navigateToNetwork(keyword.id);
     } else {
-      window.dispatchEvent(
-        new CustomEvent("navigate-to-network", { detail: {} }),
-      );
+      navigationStore.navigateTo("network");
     }
   }
 </script>

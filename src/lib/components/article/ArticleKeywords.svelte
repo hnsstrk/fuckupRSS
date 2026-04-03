@@ -4,6 +4,7 @@
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
   import type { ArticleKeyword, KeywordType, ExtractionMethod, CorrectionInput } from "$lib/types";
+  import { navigationStore } from "$lib/stores/navigation.svelte";
 
   interface Props {
     fnordId: number;
@@ -349,7 +350,7 @@
 
   // Navigate to keyword in network view
   function navigateToKeyword(keywordId: number) {
-    window.dispatchEvent(new CustomEvent("navigate-to-network", { detail: { keywordId } }));
+    navigationStore.navigateToNetwork(keywordId);
   }
 
   // Load suggestions when editing mode is enabled

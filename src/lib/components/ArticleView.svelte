@@ -21,6 +21,7 @@
   import ArticleMetaSection from "./ArticleMetaSection.svelte";
   import ArticleContent from "./ArticleContent.svelte";
   import { renderMarkdown } from "$lib/utils/sanitizer";
+  import { navigationStore } from "$lib/stores/navigation.svelte";
 
   // Track component mount state to prevent state updates after unmount
   let mounted = $state(true);
@@ -327,13 +328,11 @@
   }
 
   function navigateToKeyword(tagId: number) {
-    window.dispatchEvent(new CustomEvent("navigate-to-network", { detail: { keywordId: tagId } }));
+    navigationStore.navigateToNetwork(tagId);
   }
 
   function navigateToSimilarArticle(fnordId: number) {
-    window.dispatchEvent(
-      new CustomEvent("navigate-to-article", { detail: { articleId: fnordId } }),
-    );
+    navigationStore.navigateToArticle(fnordId);
     const articleView = document.querySelector(".article-view");
     if (articleView) {
       articleView.scrollTo({ top: 0, behavior: "smooth" });

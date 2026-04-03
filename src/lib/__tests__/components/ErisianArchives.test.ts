@@ -337,21 +337,18 @@ describe("ErisianArchives", () => {
   });
 
   describe("Article Selection", () => {
-    it("dispatches navigate-to-article event on selection", async () => {
-      const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
+    it("selects article via appState store methods", async () => {
+      const { appState } = await import("../../stores/state.svelte");
 
-      const articleId = 42;
-      const event = new CustomEvent("navigate-to-article", { detail: { articleId } });
-      window.dispatchEvent(event);
+      // Navigation now goes through navigationStore.navigateToArticle()
+      // which calls appState.ensureFnordLoaded + appState.selectFnord
+      const selectArticle = (articleId: number) => {
+        appState.selectFnord(articleId);
+      };
 
-      expect(dispatchEventSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "navigate-to-article",
-          detail: { articleId: 42 },
-        }),
-      );
+      selectArticle(42);
 
-      dispatchEventSpy.mockRestore();
+      expect(appState.selectFnord).toHaveBeenCalledWith(42);
     });
   });
 

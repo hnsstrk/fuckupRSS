@@ -5,6 +5,7 @@
   import { SvelteSet } from "svelte/reactivity";
   import KeywordContextTooltip from "./KeywordContextTooltip.svelte";
   import { formatError } from "$lib/utils/formatError";
+  import { navigationStore } from "$lib/stores/navigation.svelte";
 
   // Type for compound preview item
   interface CompoundItem {
@@ -458,11 +459,7 @@
 
   // Navigate to KeywordNetwork for this keyword
   function navigateToKeyword(keywordId: number) {
-    window.dispatchEvent(
-      new CustomEvent("navigate-to-network", {
-        detail: { keywordId },
-      }),
-    );
+    navigationStore.navigateToNetwork(keywordId);
   }
 
   // Clear messages after timeout

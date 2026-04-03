@@ -10,6 +10,7 @@
   import KeywordNetworkSynonyms from "./network/KeywordNetworkSynonyms.svelte";
   import CompoundKeywordManager from "./CompoundKeywordManager.svelte";
   import { networkStore } from "../stores/network.svelte";
+  import { navigationStore } from "$lib/stores/navigation.svelte";
 
   let activeTab = $state<string>("list");
 
@@ -36,7 +37,7 @@
   let graphMinWeight = $state(0.1);
 
   function openArticle(articleId: number) {
-    window.dispatchEvent(new CustomEvent("navigate-to-article", { detail: { articleId } }));
+    navigationStore.navigateToArticle(articleId);
   }
 
   async function loadGraphDataAsync(forceRefresh = false) {

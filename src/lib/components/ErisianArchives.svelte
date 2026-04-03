@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
+  import { onMount } from "svelte";
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
   import { appState, type Fnord } from "../stores/state.svelte";
@@ -362,14 +362,7 @@
     }
   }
 
-  // Sync with external navigation (e.g., from Similar Articles in ArticleView)
-  let unlistenNavigate: (() => void) | null = null;
-
-  onDestroy(() => {
-    if (unlistenNavigate) {
-      window.removeEventListener("navigate-to-article", unlistenNavigate as EventListener);
-    }
-  });
+  // Note: External navigation (e.g., from Similar Articles) now goes through navigationStore
 
   // Empty state messages based on active tab
   let emptyMessage = $derived.by(() => {

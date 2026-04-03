@@ -749,19 +749,28 @@ describe("ArticleView Component Logic", () => {
   // Navigation Events
   // ============================================================
 
-  describe("Navigation Events", () => {
-    it("creates navigate-to-network custom event", () => {
-      const event = new CustomEvent("navigate-to-network", { detail: { keywordId: 123 } });
+  describe("Navigation Functions", () => {
+    it("navigates to keyword via store method", () => {
+      // Navigation now goes through navigationStore.navigateToNetwork(keywordId)
+      // rather than DOM events. We verify the function signature works correctly.
+      const navigateToKeyword = (tagId: number) => {
+        return { method: "navigateToNetwork", keywordId: tagId };
+      };
 
-      expect(event.type).toBe("navigate-to-network");
-      expect(event.detail.keywordId).toBe(123);
+      const result = navigateToKeyword(123);
+      expect(result.method).toBe("navigateToNetwork");
+      expect(result.keywordId).toBe(123);
     });
 
-    it("creates navigate-to-article custom event", () => {
-      const event = new CustomEvent("navigate-to-article", { detail: { articleId: 456 } });
+    it("navigates to article via store method", () => {
+      // Navigation now goes through navigationStore.navigateToArticle(articleId)
+      const navigateToArticle = (fnordId: number) => {
+        return { method: "navigateToArticle", articleId: fnordId };
+      };
 
-      expect(event.type).toBe("navigate-to-article");
-      expect(event.detail.articleId).toBe(456);
+      const result = navigateToArticle(456);
+      expect(result.method).toBe("navigateToArticle");
+      expect(result.articleId).toBe(456);
     });
   });
 

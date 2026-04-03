@@ -20,6 +20,7 @@
   import FnordCategoryCards from "./FnordCategoryCards.svelte";
   import FnordTrendsSection from "./FnordTrendsSection.svelte";
   import EntityExplorer from "./EntityExplorer.svelte";
+  import { navigationStore } from "$lib/stores/navigation.svelte";
 
   // State
   let stats = $state<FnordStats | null>(null);
@@ -136,7 +137,7 @@
   function selectFnord(id: number) {
     selectedFnordId = id;
     appState.selectFnord(id);
-    window.dispatchEvent(new CustomEvent("navigate-to-article", { detail: { articleId: id } }));
+    navigationStore.navigateToArticle(id);
   }
 </script>
 

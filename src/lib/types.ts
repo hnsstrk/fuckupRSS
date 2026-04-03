@@ -333,6 +333,7 @@ export interface NetworkGraph {
   edges: GraphEdge[];
 }
 
+/** @deprecated Use AppView from navigation.svelte.ts instead */
 export type MainView = "articles" | "network" | "fnord" | "mindfuck" | "briefings";
 
 // Operation Mindfuck (Bias Mirror)

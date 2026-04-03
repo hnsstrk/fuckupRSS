@@ -9,6 +9,7 @@
   import MindfuckOverviewTab from "./MindfuckOverviewTab.svelte";
   import MindfuckBlindSpotsTab from "./MindfuckBlindSpotsTab.svelte";
   import MindfuckTrendsTab from "./MindfuckTrendsTab.svelte";
+  import { navigationStore } from "$lib/stores/navigation.svelte";
 
   // Tab state
   let activeTab = $state<string>("overview");
@@ -103,9 +104,7 @@
   }
 
   function handleReadArticle(fnordId: number) {
-    window.dispatchEvent(
-      new CustomEvent("navigate-to-article", { detail: { articleId: fnordId } }),
-    );
+    navigationStore.navigateToArticle(fnordId);
   }
 
   // Derived values

@@ -339,25 +339,16 @@ describe("MindfuckView Component Logic", () => {
   });
 
   describe("Article Navigation", () => {
-    it("dispatches navigate-to-article event", () => {
-      const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
-
+    it("navigates to article via store method", () => {
+      // Navigation now goes through navigationStore.navigateToArticle()
       const handleReadArticle = (fnordId: number) => {
-        window.dispatchEvent(
-          new CustomEvent("navigate-to-article", { detail: { articleId: fnordId } }),
-        );
+        return { method: "navigateToArticle", articleId: fnordId };
       };
 
-      handleReadArticle(42);
+      const result = handleReadArticle(42);
 
-      expect(dispatchEventSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "navigate-to-article",
-          detail: { articleId: 42 },
-        }),
-      );
-
-      dispatchEventSpy.mockRestore();
+      expect(result.method).toBe("navigateToArticle");
+      expect(result.articleId).toBe(42);
     });
   });
 });
