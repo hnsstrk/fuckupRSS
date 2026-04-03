@@ -457,13 +457,13 @@ pub fn calculate_neighbor_similarities(
     db: &Arc<Mutex<Database>>,
     limit: i64,
 ) -> Result<i64, String> {
-    let db_guard = db.lock().map_err(|e| e.to_string())?;
-    let conn = db_guard.conn();
-
-    // Get neighbor pairs without similarity that have embeddings
-    let pairs: Vec<(i64, i64)> = conn
-        .prepare(
-            r#"SELECT n.immanentize_id_a, n.immanentize_id_b
+    // Step 1: Acquire lock briefly to load all pairs needing calculation
+    let pairs: Vec<(i64, i64)> = {
+        let db_guard = db.lock().map_err(|e| e.to_string())?;
+        let conn = db_guard.conn();
+        let mut stmt = conn
+            .prepare(
+                r#"SELECT n.immanentize_id_a, n.immanentize_id_b
                FROM immanentize_neighbors n
                JOIN immanentize a ON a.id = n.immanentize_id_a
                JOIN immanentize b ON b.id = n.immanentize_id_b
@@ -471,12 +471,13 @@ pub fn calculate_neighbor_similarities(
                AND a.embedding IS NOT NULL
                AND b.embedding IS NOT NULL
                LIMIT ?"#,
-        )
-        .map_err(|e| e.to_string())?
-        .query_map([limit], |row| Ok((row.get(0)?, row.get(1)?)))
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([limit], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|e| e.to_string())?;
+        rows.filter_map(|r| r.ok()).collect()
+    }; // Lock released here
 
     if pairs.is_empty() {
         return Ok(0);
@@ -485,35 +486,45 @@ pub fn calculate_neighbor_similarities(
     let mut updated = 0i64;
 
     for (id_a, id_b) in pairs {
-        // Get embeddings for both keywords
-        let embeddings: Result<(Vec<u8>, Vec<u8>), _> = conn.query_row(
-            r#"SELECT
-                (SELECT embedding FROM immanentize WHERE id = ?1),
-                (SELECT embedding FROM immanentize WHERE id = ?2)"#,
-            [id_a, id_b],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        );
+        // Step 2: Per-item lock — read embeddings
+        let embeddings: Option<(Vec<u8>, Vec<u8>)> = {
+            let db_guard = db.lock().map_err(|e| e.to_string())?;
+            let conn = db_guard.conn();
+            conn.query_row(
+                r#"SELECT
+                    (SELECT embedding FROM immanentize WHERE id = ?1),
+                    (SELECT embedding FROM immanentize WHERE id = ?2)"#,
+                [id_a, id_b],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .ok()
+        }; // Lock released here
 
-        if let Ok((blob_a, blob_b)) = embeddings {
-            if let (Some(sim), Some(combined)) = (
-                cosine_similarity_from_blobs(&blob_a, &blob_b),
-                calculate_combined_weight_for_pair(conn, id_a, id_b),
-            ) {
-                if let Err(e) = conn.execute(
-                    r#"UPDATE immanentize_neighbors
-                       SET embedding_similarity = ?1, combined_weight = ?2
-                       WHERE immanentize_id_a = ?3 AND immanentize_id_b = ?4"#,
-                    rusqlite::params![sim, combined, id_a, id_b],
-                ) {
-                    trace!(
-                        "Failed to update neighbor similarity {} <-> {}: {}",
-                        id_a,
-                        id_b,
-                        e
-                    );
-                    continue;
+        // Step 3: CPU work — compute cosine similarity (no lock needed)
+        if let Some((blob_a, blob_b)) = embeddings {
+            if let Some(sim) = cosine_similarity_from_blobs(&blob_a, &blob_b) {
+                // Step 4: Per-item lock — calculate combined weight + write UPDATE
+                let db_guard = db.lock().map_err(|e| e.to_string())?;
+                let conn = db_guard.conn();
+
+                if let Some(combined) = calculate_combined_weight_for_pair(conn, id_a, id_b) {
+                    if let Err(e) = conn.execute(
+                        r#"UPDATE immanentize_neighbors
+                           SET embedding_similarity = ?1, combined_weight = ?2
+                           WHERE immanentize_id_a = ?3 AND immanentize_id_b = ?4"#,
+                        rusqlite::params![sim, combined, id_a, id_b],
+                    ) {
+                        trace!(
+                            "Failed to update neighbor similarity {} <-> {}: {}",
+                            id_a,
+                            id_b,
+                            e
+                        );
+                        continue;
+                    }
+                    updated += 1;
                 }
-                updated += 1;
+                // Lock released here (db_guard dropped)
             }
         }
     }
