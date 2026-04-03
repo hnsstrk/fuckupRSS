@@ -98,7 +98,7 @@
           <div class="indicators-right">
             {#if quality_score}
               <span class="quality">
-                {#each Array(quality_score) as _, i (i)}<i class="fa-solid fa-star"></i>{/each}
+                {#each {length: quality_score} as _, i (i)}<i class="fa-solid fa-star"></i>{/each}
               </span>
             {/if}
             {#if political_bias !== null && political_bias !== 0}

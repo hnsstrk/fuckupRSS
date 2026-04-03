@@ -101,8 +101,8 @@
           {/if}
           {#if qualityScore !== null}
             <span class="indicator quality" title={$_("articleView.greyface.quality")}>
-              {#each Array(qualityScore) as _, i (i)}<i class="fa-solid fa-star"
-                ></i>{/each}{#each Array(5 - qualityScore) as _, i (i)}<i class="fa-regular fa-star"
+              {#each {length: qualityScore} as _, i (i)}<i class="fa-solid fa-star"
+                ></i>{/each}{#each {length: 5 - qualityScore} as _, i (i)}<i class="fa-regular fa-star"
                 ></i>{/each}
             </span>
           {/if}
