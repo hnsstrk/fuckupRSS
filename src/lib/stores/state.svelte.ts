@@ -110,6 +110,9 @@ class AppState {
   changedFnords = $state<Fnord[]>([]);
   selectedView = $state<"all" | "changed" | "pentacle" | "sephiroth">("all");
 
+  // O(1) lookup index for fnords by ID
+  private fnordMap = $derived(new Map(this.fnords.map((f) => [f.id, f])));
+
   // Sephiroth (Categories) state
   sephiroth = $state<Sephiroth[]>([]);
   selectedSephirothId = $state<number | null>(null);
@@ -137,7 +140,7 @@ class AppState {
   }
 
   get selectedFnord(): Fnord | undefined {
-    return this.fnords.find((f) => f.id === this.selectedFnordId);
+    return this.fnordMap.get(this.selectedFnordId!);
   }
 
   get selectedSephirothCategory(): Sephiroth | undefined {
@@ -303,7 +306,7 @@ class AppState {
     try {
       await invoke("update_fnord_status", { id, status });
       // Update local state
-      const fnord = this.fnords.find((f) => f.id === id);
+      const fnord = this.fnordMap.get(id);
       if (fnord) {
         fnord.status = status;
       }
@@ -358,7 +361,7 @@ class AppState {
     this.selectedFnordId = id;
     // Auto-mark as read when selecting
     if (id !== null) {
-      const fnord = this.fnords.find((f) => f.id === id);
+      const fnord = this.fnordMap.get(id);
       if (fnord && fnord.status === "concealed") {
         void this.updateFnordStatus(id, "illuminated"); // Fire-and-forget: UI updates reactively via $state
       }
@@ -368,7 +371,7 @@ class AppState {
   // Ensure a specific fnord is loaded (fetch if not in list)
   async ensureFnordLoaded(id: number): Promise<boolean> {
     // Check if already in list
-    if (this.fnords.find((f) => f.id === id)) {
+    if (this.fnordMap.has(id)) {
       return true;
     }
 
@@ -404,7 +407,7 @@ class AppState {
   }
 
   toggleGoldenApple(id: number): void {
-    const fnord = this.fnords.find((f) => f.id === id);
+    const fnord = this.fnordMap.get(id);
     if (!fnord) return;
 
     const newStatus = fnord.status === "golden_apple" ? "illuminated" : "golden_apple";
@@ -476,7 +479,7 @@ class AppState {
 
       // Update local state if successful
       if (result.success && result.content) {
-        const fnord = this.fnords.find((f) => f.id === fnordId);
+        const fnord = this.fnordMap.get(fnordId);
         if (fnord) {
           fnord.content_full = result.content;
         }
@@ -508,7 +511,7 @@ class AppState {
       let anySuccess = false;
       for (const result of results) {
         if (result.success && result.content) {
-          const fnord = this.fnords.find((f) => f.id === result.fnord_id);
+          const fnord = this.fnordMap.get(result.fnord_id);
           if (fnord) {
             fnord.content_full = result.content;
           }
@@ -637,7 +640,7 @@ class AppState {
 
       // Update local state if successful
       if (result.success && result.summary) {
-        const fnord = this.fnords.find((f) => f.id === fnordId);
+        const fnord = this.fnordMap.get(fnordId);
         if (fnord) {
           fnord.summary = result.summary;
           fnord.processed_at = new Date().toISOString();
@@ -667,7 +670,7 @@ class AppState {
 
       // Update local state if successful
       if (result.success && result.analysis) {
-        const fnord = this.fnords.find((f) => f.id === fnordId);
+        const fnord = this.fnordMap.get(fnordId);
         if (fnord) {
           fnord.political_bias = result.analysis.political_bias;
           fnord.sachlichkeit = result.analysis.sachlichkeit;
@@ -707,7 +710,7 @@ class AppState {
     try {
       await invoke("acknowledge_changes", { id });
       // Update local state
-      const fnord = this.fnords.find((f) => f.id === id);
+      const fnord = this.fnordMap.get(id);
       if (fnord) {
         fnord.has_changes = false;
       }
@@ -997,7 +1000,7 @@ class AppState {
 
       // Update local fnord state if successful
       if (result.success && result.analysis) {
-        const fnord = this.fnords.find((f) => f.id === fnordId);
+        const fnord = this.fnordMap.get(fnordId);
         if (fnord) {
           fnord.summary = result.analysis.summary;
           fnord.political_bias = result.analysis.political_bias;
