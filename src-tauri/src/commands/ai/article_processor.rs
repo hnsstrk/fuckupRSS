@@ -493,30 +493,26 @@ pub async fn process_article_discordian(
     .await
     {
         Ok((analysis_with_rejections, usage)) => {
-            // Log cost with a brief DB lock
-            {
+            // Convert analysis before lock — needed both inside and after the lock block
+            let analysis: DiscordianAnalysis = analysis_with_rejections.clone().into();
+
+            // Single consolidated DB lock for all post-LLM operations
+            let (categories_saved, tags_saved) = {
                 let db = state.db_conn()?;
+                let conn = db.conn();
+
+                // 1. Log cost
                 log_generation_cost(
-                    db.conn(),
+                    conn,
                     provider.provider_name(),
                     &effective_model,
                     &usage,
                 );
-            }
-            let duration = llm_start.elapsed();
-            info!(
-                "[LLM] Single article completed \"{}\" (ID: {}) in {:.2}s",
-                truncate_str(&title, 50),
-                fnord_id,
-                duration.as_secs_f64()
-            );
-            // Step 4: Learn from LLM rejections
-            {
-                let db = state.db_conn()?;
 
+                // 2. Learn from LLM rejections
                 for rejected_kw in &analysis_with_rejections.rejected_keywords {
                     let _ = record_correction(
-                        db.conn(),
+                        conn,
                         &CorrectionRecord {
                             fnord_id,
                             correction_type: CorrectionType::KeywordRemoved,
@@ -529,8 +525,7 @@ pub async fn process_article_discordian(
                 }
 
                 for rejected_cat in &analysis_with_rejections.rejected_categories {
-                    let cat_id: Option<i64> = db
-                        .conn()
+                    let cat_id: Option<i64> = conn
                         .query_row(
                             "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?1)",
                             [rejected_cat],
@@ -543,7 +538,7 @@ pub async fn process_article_discordian(
                             stat_keywords.iter().take(5).cloned().collect();
 
                         let _ = record_correction(
-                            db.conn(),
+                            conn,
                             &CorrectionRecord {
                                 fnord_id,
                                 correction_type: CorrectionType::CategoryRemoved,
@@ -555,43 +550,33 @@ pub async fn process_article_discordian(
                         );
                     }
                 }
-            }
 
-            let analysis: DiscordianAnalysis = analysis_with_rejections.clone().into();
+                // 3. Save article update
+                conn.execute(
+                    r#"UPDATE fnords SET
+                        summary = ?1,
+                        political_bias = ?2,
+                        sachlichkeit = ?3,
+                        article_type = ?4,
+                        processed_at = CURRENT_TIMESTAMP
+                    WHERE id = ?5"#,
+                    (
+                        &analysis.summary,
+                        analysis.political_bias,
+                        analysis.sachlichkeit,
+                        &analysis.article_type,
+                        fnord_id,
+                    ),
+                )
+                .map_err(|e| e.to_string())?;
 
-            // Save to database
-            {
-                let db = state.db_conn()?;
-
-                db.conn()
-                    .execute(
-                        r#"UPDATE fnords SET
-                            summary = ?1,
-                            political_bias = ?2,
-                            sachlichkeit = ?3,
-                            article_type = ?4,
-                            processed_at = CURRENT_TIMESTAMP
-                        WHERE id = ?5"#,
-                        (
-                            &analysis.summary,
-                            analysis.political_bias,
-                            analysis.sachlichkeit,
-                            &analysis.article_type,
-                            fnord_id,
-                        ),
-                    )
-                    .map_err(|e| e.to_string())?;
-            }
-
-            let (categories_saved, tags_saved) = {
-                let db = state.db_conn()?;
-
+                // 4. Save categories and keywords
                 let merged_categories =
                     validate_and_merge_categories(&analysis.categories, local_categories);
                 let categories_with_source =
                     determine_category_sources(&merged_categories, &stat_categories);
                 let categories_saved = save_article_categories_with_source(
-                    db.conn(),
+                    conn,
                     fnord_id,
                     &categories_with_source,
                 );
@@ -601,18 +586,26 @@ pub async fn process_article_discordian(
                 let keywords_with_source =
                     determine_keyword_sources(&merged_keywords, &stat_keywords);
                 let (tags_saved, tag_ids) = save_article_keywords_with_source(
-                    db.conn(),
+                    conn,
                     fnord_id,
                     &keywords_with_source,
                     &categories_saved,
                     article_date.as_deref(),
                 );
 
-                recalculate_keyword_weights(db.conn(), &tag_ids);
+                recalculate_keyword_weights(conn, &tag_ids);
                 (categories_saved, tags_saved)
-            };
+            }; // Lock released here
 
-            // Generate article embedding
+            let duration = llm_start.elapsed();
+            info!(
+                "[LLM] Single article completed \"{}\" (ID: {}) in {:.2}s",
+                truncate_str(&title, 50),
+                fnord_id,
+                duration.as_secs_f64()
+            );
+
+            // Generate article embedding (async I/O — separate, no lock consolidation)
             if let Err(e) = generate_and_save_article_embedding(
                 embedding_provider.as_ref(),
                 &state.db,
@@ -631,13 +624,14 @@ pub async fn process_article_discordian(
                 );
             }
 
-            // Update corpus stats
+            // Update corpus stats (separate short lock)
             {
                 let db = state.db_conn()?;
                 if let Err(e) = CorpusStats::update_db_with_document(db.conn(), &document_tokens) {
                     warn!("Failed to update corpus stats: {}", e);
                 }
             }
+            tokio::task::yield_now().await;
 
             Ok(DiscordianResponse {
                 fnord_id,
