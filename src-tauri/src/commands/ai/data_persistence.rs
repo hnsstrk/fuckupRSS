@@ -40,9 +40,19 @@ pub fn save_article_categories_with_source(
 ) -> Vec<String> {
     let mut saved = Vec::new();
 
+    // Ensure atomicity of all category operations for this article
+    if let Err(e) = conn.execute("SAVEPOINT cat_save", []) {
+        warn!("Failed to create category savepoint: {}", e);
+    }
+
     // Clear existing categories before re-inserting
     if let Err(e) = conn.execute("DELETE FROM fnord_sephiroth WHERE fnord_id = ?", [fnord_id]) {
         warn!("Failed to clear categories for fnord {}: {}", fnord_id, e);
+        // Rollback on error
+        if let Err(rb) = conn.execute("ROLLBACK TO cat_save", []) {
+            warn!("Failed to rollback category savepoint: {}", rb);
+        }
+        return saved;
     }
 
     for cat in categories {
@@ -73,6 +83,11 @@ pub fn save_article_categories_with_source(
 
             saved.push(cat.name.clone());
         }
+    }
+
+    // Commit all category operations atomically
+    if let Err(e) = conn.execute("RELEASE cat_save", []) {
+        warn!("Failed to release category savepoint: {}", e);
     }
 
     saved
