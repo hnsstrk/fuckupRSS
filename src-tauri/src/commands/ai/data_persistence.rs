@@ -343,18 +343,22 @@ pub fn save_article_keywords_with_source(
 
 /// Recalculate keyword weights after saving
 pub fn recalculate_keyword_weights(conn: &Connection, tag_ids: &[i64]) {
-    for tag_id in tag_ids {
-        if let Err(e) = conn.execute(
-            r#"UPDATE immanentize_sephiroth
-               SET weight = CAST(article_count AS REAL) / (
-                   SELECT MAX(article_count) FROM immanentize_sephiroth
-                   WHERE immanentize_id = ?1
-               )
-               WHERE immanentize_id = ?1"#,
-            [tag_id],
-        ) {
-            trace!("Failed to recalculate weight for keyword {}: {}", tag_id, e);
-        }
+    if tag_ids.is_empty() {
+        return;
+    }
+
+    let json_ids = serde_json::to_string(&tag_ids).unwrap_or_default();
+
+    if let Err(e) = conn.execute(
+        r#"UPDATE immanentize_sephiroth
+           SET weight = CAST(article_count AS REAL) / (
+               SELECT MAX(article_count) FROM immanentize_sephiroth AS sub
+               WHERE sub.immanentize_id = immanentize_sephiroth.immanentize_id
+           )
+           WHERE immanentize_id IN (SELECT value FROM json_each(?1))"#,
+        [&json_ids],
+    ) {
+        trace!("Failed to batch recalculate weights: {}", e);
     }
 
     if let Err(e) = conn.execute(
@@ -364,7 +368,7 @@ pub fn recalculate_keyword_weights(conn: &Connection, tag_ids: &[i64]) {
            )
            WHERE immanentize_id_a IN (SELECT value FROM json_each(?1))
               OR immanentize_id_b IN (SELECT value FROM json_each(?1))"#,
-        [serde_json::to_string(&tag_ids).unwrap_or_default()],
+        [&json_ids],
     ) {
         trace!("Failed to recalculate neighbor weights: {}", e);
     }
