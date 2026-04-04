@@ -359,8 +359,7 @@
                     <span class="sc-source-badge">{article.source_name}</span>
                     {#if article.political_bias !== null}
                       <span
-                        class="sc-bias-indicator"
-                        style="color: {getBiasColor(article.political_bias)}"
+                        class="sc-bias-indicator bias-{getBiasColor(article.political_bias, 'class')}"
                         title="{$_('storyClusters.bias')}: {biasIndicator(article.political_bias)}"
                       >
                         {biasIndicator(article.political_bias)}

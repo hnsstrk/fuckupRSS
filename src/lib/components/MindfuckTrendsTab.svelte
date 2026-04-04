@@ -15,6 +15,13 @@
     onTrendPeriodChange: (days: 7 | 30 | 90) => void;
   } = $props();
 
+  const trendsWithBias = $derived(readingTrends.filter((t) => t.avg_bias !== null));
+  const avgBias = $derived(
+    trendsWithBias.length > 0
+      ? trendsWithBias.reduce((sum, t, _, arr) => sum + (t.avg_bias || 0) / arr.length, 0)
+      : null,
+  );
+
 </script>
 
 <div class="section">
@@ -88,21 +95,9 @@
         </div>
         <div class="trend-stat">
           <span
-            class="trend-stat-value"
-            style="color: {getBiasColor(
-              readingTrends
-                .filter((t) => t.avg_bias !== null)
-                .reduce((sum, t, _, arr) => sum + (t.avg_bias || 0) / arr.length, 0) || null,
-            )}"
+            class="trend-stat-value bias-{getBiasColor(avgBias, 'class')}"
           >
-            {getBiasRangeLabel(
-              readingTrends.filter((t) => t.avg_bias !== null).length > 0
-                ? readingTrends
-                    .filter((t) => t.avg_bias !== null)
-                    .reduce((sum, t, _, arr) => sum + (t.avg_bias || 0) / arr.length, 0)
-                : null,
-              $_,
-            )}
+            {getBiasRangeLabel(avgBias, $_)}
           </span>
           <span class="trend-stat-label">{$_("mindfuck.trends.avgBiasOverTime")}</span>
         </div>

@@ -57,8 +57,7 @@
                 {entry.bias_plus_2 || ""}
               </td>
               <td
-                class="avg-cell"
-                style="color: {getBiasColor(entry.avg_bias)}"
+                class="avg-cell bias-{getBiasColor(entry.avg_bias, 'class')}"
                 title="{entry.avg_bias.toFixed(2)}"
               >
                 {getBiasRangeLabel(entry.avg_bias, $_)}

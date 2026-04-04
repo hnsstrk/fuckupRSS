@@ -53,8 +53,7 @@
           <div class="detail-row">
             <span class="detail-label">{$_("fnordView.greyface.avgBias")}</span>
             <span
-              class="detail-value"
-              style="color: {getBiasColor(greyfaceIndex.avg_political_bias)}"
+              class="detail-value bias-{getBiasColor(greyfaceIndex.avg_political_bias, 'class')}"
               title="{greyfaceIndex.avg_political_bias.toFixed(2)}"
             >
               {getBiasRangeLabel(greyfaceIndex.avg_political_bias, $_)}

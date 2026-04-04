@@ -117,7 +117,7 @@
         </span>
       {/if}
       {#if showBias && political_bias !== null}
-        <span class="card-bias" style:color={getBiasColor(political_bias)}>
+        <span class="card-bias bias-{getBiasColor(political_bias, 'class')}">
           {getBiasLabel(political_bias, currentLocale)}
         </span>
       {/if}

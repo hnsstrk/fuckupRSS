@@ -51,8 +51,7 @@
       </div>
       <div class="stat-item">
         <span
-          class="stat-value bias-indicator"
-          style="color: {getBiasColor(readingProfile.avg_political_bias)}"
+          class="stat-value bias-indicator bias-{getBiasColor(readingProfile.avg_political_bias, 'class')}"
         >
           {biasIndicator}
         </span>
@@ -223,8 +222,7 @@
         {#if readingProfile.avg_political_bias !== null}
           <div class="spectrum-summary">
             <div
-              class="summary-indicator"
-              style="color: {getBiasColor(readingProfile.avg_political_bias)}"
+              class="summary-indicator bias-{getBiasColor(readingProfile.avg_political_bias, 'class')}"
             >
               <i class="fa-solid fa-compass"></i>
               <span>{biasIndicator}</span>

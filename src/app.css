@@ -1400,3 +1400,13 @@ html.platform-linux .titlebar-drag-region {
 html.platform-linux [data-tauri-drag-region] {
   -webkit-app-region: auto; /* Reset drag region on Linux */
 }
+
+/* ============================================================
+   Bias-Farb-Klassen (entsprechen getBiasColor(bias, 'class'))
+   ============================================================ */
+.bias-neutral     { color: var(--text-muted); }
+.bias-strong-left  { color: var(--bias-strong-left); }
+.bias-lean-left    { color: var(--bias-lean-left); }
+.bias-center       { color: var(--bias-center); }
+.bias-lean-right   { color: var(--bias-lean-right); }
+.bias-strong-right { color: var(--bias-strong-right); }

@@ -109,7 +109,7 @@
       {/each}
 
       {#if showBias && recommendation.political_bias !== null}
-        <span class="bias-indicator" style:color={getBiasColor(recommendation.political_bias)}>
+        <span class="bias-indicator bias-{getBiasColor(recommendation.political_bias, 'class')}">
           <i class="fa-solid fa-scale-balanced"></i>
         </span>
       {/if}
