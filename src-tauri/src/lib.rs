@@ -281,7 +281,6 @@ pub fn run() {
             commands::settings::get_log_levels,
             commands::settings::set_log_level,
             commands::settings::get_platform,
-            commands::settings::get_platform,
             // Immanentize Network
             commands::immanentize::get_keywords,
             commands::immanentize::get_keyword,
