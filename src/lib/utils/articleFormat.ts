@@ -269,6 +269,30 @@ export function getBiasDirectionClass(bias: number | null): string {
 // ============================================================
 
 /**
+ * Gibt das Label für einen Fließkomma-Sachlichkeits-Durchschnitt zurück (z.B. für Statistiken).
+ * Verwendet Schwellenwerte statt exakter switch-cases.
+ */
+export function getSachlichkeitRangeLabel(
+  s: number | null,
+  t?: (key: string) => string,
+): string {
+  if (s === null) return "";
+  if (t) {
+    if (s <= 0.5) return t("articleView.sachHighlyEmotional");
+    if (s <= 1.5) return t("articleView.sachEmotional");
+    if (s <= 2.5) return t("articleView.sachMixed");
+    if (s <= 3.5) return t("articleView.sachMostlyObjective");
+    return t("articleView.sachObjective");
+  }
+  // Fallback ohne i18n
+  if (s <= 0.5) return "Hoch emotional";
+  if (s <= 1.5) return "Emotional";
+  if (s <= 2.5) return "Gemischt";
+  if (s <= 3.5) return "Überwiegend sachlich";
+  return "Sachlich";
+}
+
+/**
  * Gibt das Label für einen Sachlichkeits-Wert zurück.
  * Mit optionalem `t`-Parameter für i18n (z.B. svelte-i18n `$_`).
  */

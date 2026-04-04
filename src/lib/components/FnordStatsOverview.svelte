@@ -1,7 +1,11 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
   import type { FnordStats } from "../stores/state.svelte";
-  import { getBiasColor } from "$lib/utils/articleFormat";
+  import {
+    getBiasColor,
+    getBiasRangeLabel,
+    getSachlichkeitRangeLabel,
+  } from "$lib/utils/articleFormat";
   import type { GreyfaceIndex } from "../types";
   import Tooltip from "./Tooltip.svelte";
 
@@ -51,13 +55,19 @@
             <span
               class="detail-value"
               style="color: {getBiasColor(greyfaceIndex.avg_political_bias)}"
+              title="{greyfaceIndex.avg_political_bias.toFixed(2)}"
             >
-              {greyfaceIndex.avg_political_bias.toFixed(2)}
+              {getBiasRangeLabel(greyfaceIndex.avg_political_bias, $_)}
             </span>
           </div>
           <div class="detail-row">
             <span class="detail-label">{$_("fnordView.greyface.avgSachlichkeit")}</span>
-            <span class="detail-value">{greyfaceIndex.avg_sachlichkeit.toFixed(2)}</span>
+            <span
+              class="detail-value"
+              title="{greyfaceIndex.avg_sachlichkeit.toFixed(2)}"
+            >
+              {getSachlichkeitRangeLabel(greyfaceIndex.avg_sachlichkeit, $_)}
+            </span>
           </div>
           <div class="detail-row">
             <span class="detail-label"

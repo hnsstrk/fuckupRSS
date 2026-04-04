@@ -1,6 +1,6 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
-  import { getBiasColor } from "$lib/utils/articleFormat";
+  import { getBiasColor, getBiasRangeLabel } from "$lib/utils/articleFormat";
   import type { BiasHeatmapEntry } from "../types";
 
   let {
@@ -56,8 +56,12 @@
               <td class="heatmap-cell" style="--intensity: {entry.bias_plus_2 / maxCell}">
                 {entry.bias_plus_2 || ""}
               </td>
-              <td class="avg-cell" style="color: {getBiasColor(entry.avg_bias)}">
-                {entry.avg_bias.toFixed(2)}
+              <td
+                class="avg-cell"
+                style="color: {getBiasColor(entry.avg_bias)}"
+                title="{entry.avg_bias.toFixed(2)}"
+              >
+                {getBiasRangeLabel(entry.avg_bias, $_)}
               </td>
             </tr>
           {/each}

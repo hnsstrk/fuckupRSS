@@ -3,11 +3,13 @@ import {
   getMainCategoryId,
   getCategoryColorVar,
   getSachlichkeitLabel,
+  getSachlichkeitRangeLabel,
   getSachlichkeitIcon,
   getSachlichkeitColor,
   getBiasColor,
   getBiasIcon,
   getBiasLabel,
+  getBiasRangeLabel,
   getStatusIcon,
   getStatusColorClass,
   formatRelativeDate,
@@ -206,6 +208,39 @@ describe("ArticleView Utility Functions", () => {
       expect(getSachlichkeitColor(2)).toBe("mixed");
       expect(getSachlichkeitColor(3)).toBe("objective");
       expect(getSachlichkeitColor(4)).toBe("objective");
+    });
+  });
+
+  describe("Sachlichkeit Range Labels (float averages)", () => {
+    it("maps float averages to correct labels without i18n", () => {
+      expect(getSachlichkeitRangeLabel(null)).toBe("");
+      expect(getSachlichkeitRangeLabel(0.0)).toBe("Hoch emotional");
+      expect(getSachlichkeitRangeLabel(0.5)).toBe("Hoch emotional");
+      expect(getSachlichkeitRangeLabel(0.6)).toBe("Emotional");
+      expect(getSachlichkeitRangeLabel(1.5)).toBe("Emotional");
+      expect(getSachlichkeitRangeLabel(1.6)).toBe("Gemischt");
+      expect(getSachlichkeitRangeLabel(2.5)).toBe("Gemischt");
+      expect(getSachlichkeitRangeLabel(2.6)).toBe("Überwiegend sachlich");
+      expect(getSachlichkeitRangeLabel(3.5)).toBe("Überwiegend sachlich");
+      expect(getSachlichkeitRangeLabel(3.6)).toBe("Sachlich");
+      expect(getSachlichkeitRangeLabel(4.0)).toBe("Sachlich");
+    });
+  });
+
+  describe("Bias Range Labels (float averages)", () => {
+    it("maps float averages to correct labels without i18n", () => {
+      expect(getBiasRangeLabel(null)).toBe("");
+      expect(getBiasRangeLabel(-2.0)).toBe("Strong left");
+      expect(getBiasRangeLabel(-1.5)).toBe("Strong left");
+      expect(getBiasRangeLabel(-1.4)).toBe("Lean left");
+      expect(getBiasRangeLabel(-0.5)).toBe("Lean left");
+      expect(getBiasRangeLabel(-0.4)).toBe("Neutral");
+      expect(getBiasRangeLabel(0.0)).toBe("Neutral");
+      expect(getBiasRangeLabel(0.5)).toBe("Neutral");
+      expect(getBiasRangeLabel(0.6)).toBe("Lean right");
+      expect(getBiasRangeLabel(1.5)).toBe("Lean right");
+      expect(getBiasRangeLabel(1.6)).toBe("Strong right");
+      expect(getBiasRangeLabel(2.0)).toBe("Strong right");
     });
   });
 
