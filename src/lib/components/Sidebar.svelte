@@ -11,7 +11,9 @@
   import { invoke } from "@tauri-apps/api/core";
   import Tooltip from "./Tooltip.svelte";
   import ActionButton from "$lib/components/ui/ActionButton.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("Sidebar");
   interface Props {
     onsettings?: () => void;
     onnetwork?: () => void;
@@ -127,7 +129,7 @@
     try {
       await invoke("calculate_keyword_quality_scores", { limit: 500 });
     } catch (e) {
-      console.warn("Background maintenance skipped:", e);
+      log.warn("Background maintenance skipped:", e);
     }
   }
 
@@ -190,7 +192,7 @@
         stats,
       };
     } catch (e) {
-      console.error("Failed to count articles for delete confirmation:", e);
+      log.error("Failed to count articles for delete confirmation:", e);
       // Fallback: direkt loeschen ohne Modal
       await appState.deletePentacle(id);
       if (!appState.error) {

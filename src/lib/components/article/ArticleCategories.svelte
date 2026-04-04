@@ -5,7 +5,9 @@
   import type { ArticleCategoryDetailed, Sephiroth, CorrectionInput } from "$lib/types";
   import { getCategoryColorVar } from "$lib/utils/articleFormat";
   import { formatError } from "$lib/utils/formatError";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("ArticleCategories");
   interface Props {
     fnordId: number;
     categories: ArticleCategoryDetailed[];
@@ -56,7 +58,7 @@
     try {
       allCategories = await invoke<Sephiroth[]>("get_all_categories");
     } catch (e) {
-      console.error("Failed to load categories:", e);
+      log.error("Failed to load categories:", e);
       loadError = formatError(e);
     } finally {
       loading = false;
@@ -128,7 +130,7 @@
       // Close dropdown
       showDropdown = false;
     } catch (e) {
-      console.error("Failed to add category:", e);
+      log.error("Failed to add category:", e);
     } finally {
       loading = false;
     }
@@ -160,7 +162,7 @@
       // Update local state
       onUpdate(categories.filter((c) => c.sephiroth_id !== category.sephiroth_id));
     } catch (e) {
-      console.error("Failed to remove category:", e);
+      log.error("Failed to remove category:", e);
     } finally {
       loading = false;
     }

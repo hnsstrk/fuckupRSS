@@ -7,7 +7,9 @@
   import ActionButton from "$lib/components/ui/ActionButton.svelte";
   import { formatError } from "$lib/utils/formatError";
   import type { TrueSynonymCandidate, SynonymVerificationResult } from "../../types";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("SynonymTrueSynonyms");
   interface Props {
     synonymsLoading: boolean;
     onMergeKeywords: (
@@ -61,7 +63,7 @@
       });
     } catch (e) {
       trueSynonymsError = formatError(e);
-      console.error("Failed to load true synonyms:", e);
+      log.error("Failed to load true synonyms:", e);
     } finally {
       trueSynonymsLoading = false;
     }
@@ -79,7 +81,7 @@
       });
       verificationResults = new Map([...verificationResults, [key, result]]);
     } catch (e) {
-      console.error("Failed to verify synonym pair:", e);
+      log.error("Failed to verify synonym pair:", e);
       // Store failed result
       verificationResults = new Map([
         ...verificationResults,

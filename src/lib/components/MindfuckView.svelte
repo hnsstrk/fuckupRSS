@@ -10,7 +10,9 @@
   import MindfuckBlindSpotsTab from "./MindfuckBlindSpotsTab.svelte";
   import MindfuckTrendsTab from "./MindfuckTrendsTab.svelte";
   import { navigationStore } from "$lib/stores/navigation.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("MindfuckView");
   // Tab state
   let activeTab = $state<string>("overview");
 
@@ -45,7 +47,7 @@
     try {
       readingProfile = await invoke<ReadingProfile>("get_reading_profile");
     } catch (e) {
-      console.error("Failed to load reading profile:", e);
+      log.error("Failed to load reading profile:", e);
       readingProfile = null;
     } finally {
       loadingProfile = false;
@@ -57,7 +59,7 @@
     try {
       blindSpots = await invoke<BlindSpot[]>("get_blind_spots");
     } catch (e) {
-      console.error("Failed to load blind spots:", e);
+      log.error("Failed to load blind spots:", e);
       blindSpots = [];
     } finally {
       loadingBlindSpots = false;
@@ -70,7 +72,7 @@
         limit: 10,
       });
     } catch (e) {
-      console.error("Failed to load counter perspectives:", e);
+      log.error("Failed to load counter perspectives:", e);
       counterPerspectives = [];
     }
   }
@@ -80,7 +82,7 @@
     try {
       readingTrends = await invoke<ReadingTrend[]>("get_reading_trends", { days });
     } catch (e) {
-      console.error("Failed to load reading trends:", e);
+      log.error("Failed to load reading trends:", e);
       readingTrends = [];
     } finally {
       loadingTrends = false;

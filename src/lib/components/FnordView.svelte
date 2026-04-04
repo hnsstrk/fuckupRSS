@@ -21,7 +21,9 @@
   import FnordTrendsSection from "./FnordTrendsSection.svelte";
   import EntityExplorer from "./EntityExplorer.svelte";
   import { navigationStore } from "$lib/stores/navigation.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("FnordView");
   // State
   let stats = $state<FnordStats | null>(null);
   let changedFnords = $state<Fnord[]>([]);
@@ -90,7 +92,7 @@
 
       await loadExtendedStats();
     } catch (e) {
-      console.error("[FnordView] Error loading data:", e);
+      log.error("[FnordView] Error loading data:", e);
     } finally {
       loading = false;
     }
@@ -122,7 +124,7 @@
         show23EasterEgg = true;
       }
     } catch (e) {
-      console.error("[FnordView] Error loading extended stats:", e);
+      log.error("[FnordView] Error loading extended stats:", e);
       extendedStatsError = formatError(e);
     } finally {
       extendedStatsLoading = false;

@@ -22,7 +22,9 @@
   import ArticleContent from "./ArticleContent.svelte";
   import { renderMarkdown } from "$lib/utils/sanitizer";
   import { navigationStore } from "$lib/stores/navigation.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("ArticleView");
   // Track component mount state to prevent state updates after unmount
   let mounted = $state(true);
 
@@ -256,7 +258,7 @@
         toasts.error(getSpecificFetchError(appState.error));
       }
     } catch (e) {
-      console.error("Fetch full content failed:", e);
+      log.error("Fetch full content failed:", e);
       if (mounted) {
         toasts.error(getSpecificFetchError(formatError(e)));
       }
@@ -309,7 +311,7 @@
         if (mounted) toasts.error($_("toast.analyzeError", { values: { error: appState.error } }));
       }
     } catch (e) {
-      console.error("AI analysis failed:", e);
+      log.error("AI analysis failed:", e);
       if (mounted) {
         toasts.error($_("toast.analyzeError", { values: { error: formatError(e) } }));
       }

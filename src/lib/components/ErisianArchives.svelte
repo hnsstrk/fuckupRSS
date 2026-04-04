@@ -7,7 +7,9 @@
   import Tooltip from "./Tooltip.svelte";
   import { ArticleItemCompact } from "./article";
   import ArticleView from "./ArticleView.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("ErisianArchives");
   // Type for analysis status articles from backend
   interface AnalysisStatusArticle {
     id: number;
@@ -108,7 +110,7 @@
       // Note: failed/hopeless counts are available via get_failed_count/get_hopeless_count
       // but not loaded here since badges were removed per user request
     } catch (e) {
-      console.error("[ErisianArchives] Error loading stats:", e);
+      log.error("[ErisianArchives] Error loading stats:", e);
     }
   }
 
@@ -190,7 +192,7 @@
         totalSpecialCount = countResult.count;
       }
     } catch (e) {
-      console.error("[ErisianArchives] Error loading special articles:", e);
+      log.error("[ErisianArchives] Error loading special articles:", e);
       specialArticles = [];
       totalSpecialCount = 0;
     } finally {
@@ -224,7 +226,7 @@
         specialArticles = [...specialArticles, ...moreArticles.map(mapToFnord)];
       }
     } catch (e) {
-      console.error("[ErisianArchives] Error loading more special articles:", e);
+      log.error("[ErisianArchives] Error loading more special articles:", e);
     } finally {
       loadingMoreSpecial = false;
     }

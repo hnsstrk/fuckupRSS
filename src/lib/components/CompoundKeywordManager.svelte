@@ -15,7 +15,9 @@
     SortDirection,
     FilterTab,
   } from "./keywords/CompoundKeywordTable.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("CompoundKeywordManager");
   // Props
   interface Props {
     loadKeywords?: () => Promise<void>;
@@ -132,7 +134,7 @@
       currentPage = 1;
     } catch (e) {
       error = formatError(e);
-      console.error("Failed to load compound keywords:", e);
+      log.error("Failed to load compound keywords:", e);
     } finally {
       loading = false;
     }
@@ -194,7 +196,7 @@
         `"${item.original}" preserved`;
     } catch (e) {
       error = formatError(e);
-      console.error("Failed to preserve keyword:", e);
+      log.error("Failed to preserve keyword:", e);
     }
   }
 
@@ -213,7 +215,7 @@
         `"${item.original}" protection removed`;
     } catch (e) {
       error = formatError(e);
-      console.error("Failed to unpreserve keyword:", e);
+      log.error("Failed to unpreserve keyword:", e);
     }
   }
 
@@ -241,7 +243,7 @@
       if (loadKeywords) await loadKeywords();
     } catch (e) {
       error = formatError(e);
-      console.error("Failed to split keyword:", e);
+      log.error("Failed to split keyword:", e);
     } finally {
       splitting = false;
     }
@@ -275,7 +277,7 @@
         selectedIds.delete(id);
         splitSuccessCount++;
       } catch (e) {
-        console.error(`Failed to split ${id}:`, e);
+        log.error(`Failed to split ${id}:`, e);
         splitErrorCount++;
       }
     }
@@ -327,7 +329,7 @@
           selectedIds.delete(id);
           preserveSuccessCount++;
         } catch (innerError) {
-          console.error(`Failed to preserve ${id}:`, innerError);
+          log.error(`Failed to preserve ${id}:`, innerError);
           preserveErrorCount++;
         }
       }
@@ -370,7 +372,7 @@
       );
     } catch (e) {
       error = formatError(e);
-      console.error("Failed to update keyword type:", e);
+      log.error("Failed to update keyword type:", e);
     }
   }
 

@@ -7,7 +7,9 @@
   import SettingsOllamaProvider from "./SettingsOllamaProvider.svelte";
   import SettingsOpenAiProvider from "./SettingsOpenAiProvider.svelte";
   import SettingsOllamaEmbedding from "./SettingsOllamaEmbedding.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("SettingsOllama");
   // AI Provider state
   let aiTextProvider = $state("ollama");
   let ollamaUrl = $state("http://localhost:11434");
@@ -468,7 +470,7 @@
 
       await loadLoadedModels();
     } catch (e) {
-      console.error("Failed to load Ollama status:", e);
+      log.error("Failed to load Ollama status:", e);
       ollamaStatus = null;
     }
   }
@@ -478,7 +480,7 @@
       const response = await invoke<{ models: typeof loadedModels }>("get_loaded_models");
       loadedModels = response.models;
     } catch (e) {
-      console.error("Failed to load loaded models:", e);
+      log.error("Failed to load loaded models:", e);
       loadedModels = [];
     }
   }
@@ -502,7 +504,7 @@
         value: value.toString(),
       });
     } catch (e) {
-      console.error("Failed to save num_ctx setting:", e);
+      log.error("Failed to save num_ctx setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -515,7 +517,7 @@
         value: ollamaConcurrency.toString(),
       });
     } catch (e) {
-      console.error("Failed to save ollama_concurrency setting:", e);
+      log.error("Failed to save ollama_concurrency setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -561,7 +563,7 @@
       await invoke("set_setting", { key: "main_model", value });
       appState.selectedModel = value;
     } catch (e) {
-      console.error("Failed to save main model setting:", e);
+      log.error("Failed to save main model setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -573,7 +575,7 @@
       await invoke("set_setting", { key: "embedding_model", value });
       appState.selectedEmbeddingModel = value;
     } catch (e) {
-      console.error("Failed to save embedding model setting:", e);
+      log.error("Failed to save embedding model setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -583,7 +585,7 @@
     try {
       await invoke("set_setting", { key: "embedding_provider", value });
     } catch (e) {
-      console.error("Failed to save embedding provider setting:", e);
+      log.error("Failed to save embedding provider setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -593,7 +595,7 @@
     try {
       await invoke("set_setting", { key: "openai_embedding_model", value });
     } catch (e) {
-      console.error("Failed to save OpenAI embedding model setting:", e);
+      log.error("Failed to save OpenAI embedding model setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }

@@ -4,7 +4,9 @@
   import { type CategoryRevisionStats } from "../stores/state.svelte";
   import { getCategoryColorVar } from "$lib/utils/articleFormat";
   import Tooltip from "./Tooltip.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("FnordCategoryCards");
   let {
     byCategory,
   }: {
@@ -34,7 +36,7 @@
           mainCategoryId: categoryId,
         });
       } catch (e) {
-        console.error("Failed to load subcategories:", e);
+        log.error("Failed to load subcategories:", e);
         subcategories = [];
       } finally {
         loadingSubcategories = false;

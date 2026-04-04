@@ -6,7 +6,9 @@
   import { ArticleKeywords, ArticleCategories } from "./article";
   import { getCategoryColorVar } from "$lib/utils/articleFormat";
   import EntityBadge from "./EntityBadge.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("ArticleMetaSection");
   interface EntityInfo {
     id: number;
     name: string;
@@ -88,7 +90,7 @@
       await invoke("extract_entities", { fnordId });
       await loadEntities(fnordId);
     } catch (e) {
-      console.error("Failed to extract entities:", e);
+      log.error("Failed to extract entities:", e);
     } finally {
       extractingEntities = false;
     }

@@ -5,7 +5,9 @@
   import { tick } from "svelte";
   import Tooltip from "../Tooltip.svelte";
   import KeywordContextTooltip from "../KeywordContextTooltip.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("KeywordSimilarSection");
   interface SimilarKeyword {
     id: number;
     name: string;
@@ -98,7 +100,7 @@
         totalAffectedArticles += result.affected_articles;
         selectedSynonymIds.delete(removeId);
       } catch (e) {
-        console.error(`Failed to merge keyword ${removeId}:`, e);
+        log.error(`Failed to merge keyword ${removeId}:`, e);
         errorCount++;
       }
     }

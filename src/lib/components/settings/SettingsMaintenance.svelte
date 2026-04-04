@@ -9,7 +9,9 @@
   import ActionButton from "$lib/components/ui/ActionButton.svelte";
   import MaintenanceOrphans from "./MaintenanceOrphans.svelte";
   import MaintenanceShortContent from "./MaintenanceShortContent.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("SettingsMaintenance");
   interface Props {
     ollamaAvailable: boolean;
   }
@@ -73,7 +75,7 @@
     try {
       prototypeStatus = await invoke("get_prototype_stats");
     } catch (e) {
-      console.error("Failed to load prototype status:", e);
+      log.error("Failed to load prototype status:", e);
     }
   }
 
@@ -128,7 +130,7 @@
         low_quality: lowQuality.length,
       };
     } catch (e) {
-      console.error("Failed to load keyword stats:", e);
+      log.error("Failed to load keyword stats:", e);
     }
   }
 
@@ -262,7 +264,7 @@
       }
       await loadKeywordStats();
     } catch (e) {
-      console.error("Prune error:", e);
+      log.error("Prune error:", e);
       maintenanceResult = `Error: ${e}`;
     } finally {
       maintenanceRunning = null;
@@ -349,7 +351,7 @@
       await invoke("cancel_batch");
       maintenanceResult = $_("settings.maintenance.reanalyzeCancelled");
     } catch (e) {
-      console.error("Failed to cancel reanalyze:", e);
+      log.error("Failed to cancel reanalyze:", e);
     }
   }
 

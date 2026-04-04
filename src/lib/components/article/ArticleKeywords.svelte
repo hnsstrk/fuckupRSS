@@ -8,7 +8,9 @@
   import KeywordChip from "./KeywordChip.svelte";
   import KeywordSuggestions from "./KeywordSuggestions.svelte";
   import KeywordSearchInput from "./KeywordSearchInput.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("ArticleKeywords");
   interface Props {
     fnordId: number;
     keywords: ArticleKeyword[];
@@ -67,7 +69,7 @@
         searchResults = results.filter((r) => !existingIds.has(r.id));
         showDropdown = searchResults.length > 0 || searchInput.length >= 2;
       } catch (e) {
-        console.error("Failed to search keywords:", e);
+        log.error("Failed to search keywords:", e);
         searchResults = [];
         showDropdown = false;
       }
@@ -88,7 +90,7 @@
         .filter((k) => !existingNames.has(k.term.toLowerCase()))
         .slice(0, 5);
     } catch (e) {
-      console.error("Failed to load suggestions:", e);
+      log.error("Failed to load suggestions:", e);
     } finally {
       loadingSuggestions = false;
     }
@@ -106,7 +108,7 @@
       const existingIds = new Set(keywords.map((k) => k.id));
       similarKeywords = similar.filter((k) => !existingIds.has(k.id));
     } catch (e) {
-      console.error("Failed to load similar keywords:", e);
+      log.error("Failed to load similar keywords:", e);
     } finally {
       loadingSimilar = false;
     }
@@ -129,7 +131,7 @@
       const existingIds = new Set(keywords.map((k) => k.id));
       expandedNeighbors = neighbors.filter((n) => !existingIds.has(n.id));
     } catch (e) {
-      console.error("Failed to load keyword neighbors:", e);
+      log.error("Failed to load keyword neighbors:", e);
       expandedNeighbors = [];
     } finally {
       loadingNeighbors = false;
@@ -159,7 +161,7 @@
         return bCombined - aCombined;
       });
     } catch (e) {
-      console.error("Failed to load semantic scores:", e);
+      log.error("Failed to load semantic scores:", e);
     } finally {
       loadingSemanticScores = false;
     }
@@ -191,7 +193,7 @@
       searchResults = [];
       showDropdown = false;
     } catch (e) {
-      console.error("Failed to add keyword:", e);
+      log.error("Failed to add keyword:", e);
     } finally {
       loading = false;
     }
@@ -215,7 +217,7 @@
 
       onUpdate(keywords.filter((k) => k.id !== keyword.id));
     } catch (e) {
-      console.error("Failed to remove keyword:", e);
+      log.error("Failed to remove keyword:", e);
     } finally {
       loading = false;
     }
@@ -241,7 +243,7 @@
 
       similarKeywords = similarKeywords.filter((s) => s.id !== keywordId);
     } catch (e) {
-      console.error("Failed to add keyword by ID:", e);
+      log.error("Failed to add keyword by ID:", e);
     } finally {
       loading = false;
     }

@@ -8,7 +8,9 @@
   import SettingsOpenAiProvider from "./SettingsOpenAiProvider.svelte";
   import SettingsAIAnalysis from "./SettingsAIAnalysis.svelte";
   import SettingsAIEmbeddings from "./SettingsAIEmbeddings.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("SettingsAI");
   // ============================================
   // Provider types
   // ============================================
@@ -422,7 +424,7 @@
 
       await loadLoadedModels();
     } catch (e) {
-      console.error("Failed to load Ollama status:", e);
+      log.error("Failed to load Ollama status:", e);
       ollamaStatus = null;
     }
   }
@@ -432,7 +434,7 @@
       const response = await invoke<{ models: typeof loadedModels }>("get_loaded_models");
       loadedModels = response.models;
     } catch (e) {
-      console.error("Failed to load loaded models:", e);
+      log.error("Failed to load loaded models:", e);
       loadedModels = [];
     }
   }
@@ -465,7 +467,7 @@
     try {
       await invoke("set_setting", { key: "embedding_provider", value });
     } catch (e) {
-      console.error("Failed to save embedding provider setting:", e);
+      log.error("Failed to save embedding provider setting:", e);
       toasts.error($_("settings.saveError"));
     }
     ollamaServerExpanded = needsOllamaServer;
@@ -481,7 +483,7 @@
       await invoke("set_setting", { key: "main_model", value });
       appState.selectedModel = value;
     } catch (e) {
-      console.error("Failed to save main model setting:", e);
+      log.error("Failed to save main model setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -492,7 +494,7 @@
     try {
       await invoke("set_setting", { key: "reasoning_model", value });
     } catch (e) {
-      console.error("Failed to save reasoning model setting:", e);
+      log.error("Failed to save reasoning model setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -504,7 +506,7 @@
       await invoke("set_setting", { key: "embedding_model", value });
       appState.selectedEmbeddingModel = value;
     } catch (e) {
-      console.error("Failed to save embedding model setting:", e);
+      log.error("Failed to save embedding model setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -518,7 +520,7 @@
     try {
       await invoke("set_setting", { key: "ollama_num_ctx", value: value.toString() });
     } catch (e) {
-      console.error("Failed to save num_ctx setting:", e);
+      log.error("Failed to save num_ctx setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -528,7 +530,7 @@
     try {
       await invoke("set_setting", { key: "reasoning_num_ctx", value: value.toString() });
     } catch (e) {
-      console.error("Failed to save reasoning_num_ctx setting:", e);
+      log.error("Failed to save reasoning_num_ctx setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -541,7 +543,7 @@
         value: ollamaConcurrency.toString(),
       });
     } catch (e) {
-      console.error("Failed to save ollama_concurrency setting:", e);
+      log.error("Failed to save ollama_concurrency setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -728,7 +730,7 @@
     try {
       await invoke("set_setting", { key: "openai_embedding_model", value });
     } catch (e) {
-      console.error("Failed to save OpenAI embedding model setting:", e);
+      log.error("Failed to save OpenAI embedding model setting:", e);
       toasts.error($_("settings.saveError"));
     }
   }

@@ -5,7 +5,9 @@
   import { SvelteSet } from "svelte/reactivity";
   import { getBiasColor } from "$lib/utils/articleFormat";
   import { renderMarkdown } from "$lib/utils/sanitizer";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("StoryClusterView");
   // Types matching backend structs
   interface StoryCluster {
     id: number;
@@ -74,7 +76,7 @@
     try {
       clusters = await invoke<StoryCluster[]>("get_story_clusters", { limit: 50 });
     } catch (e) {
-      console.error("[StoryClusterView] Error loading clusters:", e);
+      log.error("[StoryClusterView] Error loading clusters:", e);
       clusters = [];
     } finally {
       loading = false;
@@ -92,7 +94,7 @@
         await loadClusters();
       }
     } catch (e) {
-      console.error("[StoryClusterView] Error discovering clusters:", e);
+      log.error("[StoryClusterView] Error discovering clusters:", e);
     } finally {
       discovering = false;
     }
@@ -106,7 +108,7 @@
         clusterId,
       });
     } catch (e) {
-      console.error("[StoryClusterView] Error loading cluster detail:", e);
+      log.error("[StoryClusterView] Error loading cluster detail:", e);
       clusterDetail = null;
     } finally {
       detailLoading = false;
@@ -135,7 +137,7 @@
         c.id === selectedClusterId ? { ...c, perspective_comparison: result } : c,
       );
     } catch (e) {
-      console.error("[StoryClusterView] Error comparing perspectives:", e);
+      log.error("[StoryClusterView] Error comparing perspectives:", e);
     } finally {
       comparing = false;
     }
@@ -151,7 +153,7 @@
         clusterDetail = null;
       }
     } catch (e) {
-      console.error("[StoryClusterView] Error deleting cluster:", e);
+      log.error("[StoryClusterView] Error deleting cluster:", e);
     }
   }
 

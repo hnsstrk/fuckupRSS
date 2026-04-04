@@ -4,7 +4,9 @@
   import { invoke } from "@tauri-apps/api/core";
   import { Chart, registerables } from "chart.js";
   import { formatError } from "$lib/utils/formatError";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("KeywordTrendChart");
   // Register all Chart.js components
   Chart.register(...registerables);
 
@@ -101,7 +103,7 @@
       updateChart(response);
     } catch (e) {
       error = formatError(e);
-      console.error("Failed to load trend data:", e);
+      log.error("Failed to load trend data:", e);
     } finally {
       loading = false;
     }

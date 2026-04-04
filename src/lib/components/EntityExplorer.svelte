@@ -4,7 +4,9 @@
   import { invoke } from "@tauri-apps/api/core";
   import EntityBadge from "./EntityBadge.svelte";
   import { renderMarkdown } from "$lib/utils/sanitizer";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("EntityExplorer");
   interface EntityInfo {
     id: number;
     name: string;
@@ -43,7 +45,7 @@
         limit: 50,
       });
     } catch (e) {
-      console.error("Failed to load entities:", e);
+      log.error("Failed to load entities:", e);
       entities = [];
     } finally {
       loading = false;
@@ -63,7 +65,7 @@
         entityType: typeFilter,
       });
     } catch (e) {
-      console.error("Failed to search entities:", e);
+      log.error("Failed to search entities:", e);
       entities = [];
     } finally {
       loading = false;
@@ -78,7 +80,7 @@
         entityId: entity.id,
       });
     } catch (e) {
-      console.error("Failed to load entity articles:", e);
+      log.error("Failed to load entity articles:", e);
       entityArticles = [];
     } finally {
       loadingArticles = false;

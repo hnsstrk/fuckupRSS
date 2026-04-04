@@ -3,7 +3,9 @@
   import { invoke } from "@tauri-apps/api/core";
   import type { StatisticalAnalysis } from "$lib/types";
   import { formatError } from "$lib/utils/formatError";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("StatisticalPreview");
   interface Props {
     fnordId: number;
     hasContent: boolean;
@@ -32,7 +34,7 @@
     try {
       analysis = await invoke<StatisticalAnalysis>("analyze_article_statistical", { fnordId });
     } catch (e) {
-      console.error("Failed to load statistical analysis:", e);
+      log.error("Failed to load statistical analysis:", e);
       error = formatError(e);
     } finally {
       loading = false;

@@ -2,7 +2,9 @@
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
   import { appState } from "../../stores/state.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("MaintenanceOrphans");
   let {
     maintenanceRunning,
   }: {
@@ -28,7 +30,7 @@
     try {
       orphanStats = await invoke("find_orphaned_articles");
     } catch (e) {
-      console.error("Failed to scan orphans:", e);
+      log.error("Failed to scan orphans:", e);
     } finally {
       orphanScanning = false;
     }
@@ -43,7 +45,7 @@
       await appState.loadFnords();
       await appState.loadPentacles();
     } catch (e) {
-      console.error("Failed to delete orphans:", e);
+      log.error("Failed to delete orphans:", e);
     }
   }
 </script>

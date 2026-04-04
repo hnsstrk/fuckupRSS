@@ -29,7 +29,9 @@
   let loadError = $state<string | null>(null);
 
   import { SvelteMap } from "svelte/reactivity";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("KeywordContextTooltip");
   // Cache for keyword contexts (persists across hovers)
   const contextCache = new SvelteMap<number, KeywordContext>();
 
@@ -52,7 +54,7 @@
         loadError = $_("compound.noContextAvailable") || "No context available";
       }
     } catch (e) {
-      console.error("Failed to load keyword context:", e);
+      log.error("Failed to load keyword context:", e);
       loadError = $_("compound.contextLoadError") || "Failed to load context";
     } finally {
       loading = false;

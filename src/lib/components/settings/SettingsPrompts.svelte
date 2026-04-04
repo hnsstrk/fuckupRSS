@@ -2,7 +2,9 @@
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
   import { toasts } from "../../stores/state.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("SettingsPrompts");
   interface Props {
     ollamaAvailable: boolean;
   }
@@ -48,7 +50,7 @@
           discordianPrompt !== defaultPrompts.discordian_prompt;
       }
     } catch (e) {
-      console.error("Failed to load prompts:", e);
+      log.error("Failed to load prompts:", e);
     }
   }
 
@@ -71,7 +73,7 @@
       promptsModified = false;
       toasts.success($_("settings.promptsSaved"));
     } catch (e) {
-      console.error("Failed to save prompts:", e);
+      log.error("Failed to save prompts:", e);
       toasts.error($_("settings.saveError"));
     }
   }
@@ -88,7 +90,7 @@
       discordianPrompt = prompts.discordian_prompt;
       promptsModified = false;
     } catch (e) {
-      console.error("Failed to reset prompts:", e);
+      log.error("Failed to reset prompts:", e);
     }
   }
 </script>

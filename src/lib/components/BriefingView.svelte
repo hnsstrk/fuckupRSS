@@ -6,7 +6,9 @@
   import { formatError } from "$lib/utils/formatError";
   import { networkStore } from "$lib/stores/state.svelte";
   import { navigationStore } from "$lib/stores/navigation.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("BriefingView");
   interface ArticleRef {
     index: number;
     fnord_id: number;
@@ -62,7 +64,7 @@
     try {
       briefings = await invoke<Briefing[]>("get_briefings", { limit: 20 });
     } catch (e) {
-      console.error("[BriefingView] Error loading briefings:", e);
+      log.error("[BriefingView] Error loading briefings:", e);
       error = formatError(e);
     } finally {
       loading = false;
@@ -80,7 +82,7 @@
       briefings = [newBriefing, ...briefings];
       expandedId = newBriefing.id;
     } catch (e) {
-      console.error("[BriefingView] Error generating briefing:", e);
+      log.error("[BriefingView] Error generating briefing:", e);
       error = formatError(e);
     } finally {
       generating = false;
@@ -94,7 +96,7 @@
       briefings = briefings.filter((b) => b.id !== id);
       if (expandedId === id) expandedId = null;
     } catch (e) {
-      console.error("[BriefingView] Error deleting briefing:", e);
+      log.error("[BriefingView] Error deleting briefing:", e);
     }
   }
 

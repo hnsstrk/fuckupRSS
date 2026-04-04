@@ -3,7 +3,9 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
   import { toasts } from "../../stores/state.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("SettingsOllamaProvider");
   let {
     ollamaUrl = $bindable(),
     ollamaStatus,
@@ -123,7 +125,7 @@
       await emit("models-changed");
       toasts.success($_("settings.modelsLoaded"));
     } catch (e) {
-      console.error("Failed to load models:", e);
+      log.error("Failed to load models:", e);
       toasts.error($_("settings.modelsLoadError"));
     } finally {
       loadingModels = false;

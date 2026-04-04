@@ -4,7 +4,9 @@
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
   import { toasts } from "../../stores/state.svelte";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("SettingsStopwords");
   // Stopword state
   interface UserStopword {
     word: string;
@@ -46,7 +48,7 @@
     try {
       stopwordStats = await invoke<StopwordStats>("get_stopwords_stats");
     } catch (e) {
-      console.error("Failed to load stopword stats:", e);
+      log.error("Failed to load stopword stats:", e);
     }
   }
 
@@ -54,7 +56,7 @@
     try {
       userStopwords = await invoke<UserStopword[]>("get_user_stopwords");
     } catch (e) {
-      console.error("Failed to load user stopwords:", e);
+      log.error("Failed to load user stopwords:", e);
     }
   }
 
@@ -69,7 +71,7 @@
         limit: 50,
       });
     } catch (e) {
-      console.error("Failed to search stopwords:", e);
+      log.error("Failed to search stopwords:", e);
     }
   }
 

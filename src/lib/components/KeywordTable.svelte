@@ -6,7 +6,9 @@
   import KeywordContextTooltip from "./KeywordContextTooltip.svelte";
   import { formatChangedDate } from "$lib/utils/articleFormat";
   import { formatError } from "$lib/utils/formatError";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("KeywordTable");
   // Props
   interface Props {
     onKeywordSelect: (id: number) => void;
@@ -127,7 +129,7 @@
       keywords = reset ? newKeywords : [...keywords, ...newKeywords];
     } catch (e) {
       error = formatError(e);
-      console.error("Failed to load keywords:", e);
+      log.error("Failed to load keywords:", e);
     } finally {
       loading = false;
     }
@@ -197,7 +199,7 @@
     try {
       untypedCount = await invoke<number>("count_untyped_keywords");
     } catch (e) {
-      console.error("Failed to load untyped count:", e);
+      log.error("Failed to load untyped count:", e);
       untypedCount = 0;
     }
   }
@@ -211,7 +213,7 @@
       await loadUntypedCount();
       await loadKeywords(true);
     } catch (e) {
-      console.error("Failed to detect keyword types:", e);
+      log.error("Failed to detect keyword types:", e);
     } finally {
       detectingTypes = false;
     }

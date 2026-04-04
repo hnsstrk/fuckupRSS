@@ -10,7 +10,9 @@
   } from "../../types";
   import RecommendationCard from "./RecommendationCard.svelte";
   import { formatError } from "$lib/utils/formatError";
+  import { createLogger } from "$lib/logger";
 
+  const log = createLogger("RecommendationList");
   // Configuration
   const TIMEOUT_MS = 30000; // 30 second timeout
   const PHASE_INTERVAL_MS = 2000; // Update phase every 2s during loading
@@ -132,7 +134,7 @@
         loadStats();
       }
 
-      console.warn(`[${reqId}] Recommendations loaded in ${loadTimingMs}ms:`, {
+      log.warn(`[${reqId}] Recommendations loaded in ${loadTimingMs}ms:`, {
         count: result.length,
         phase: "complete",
       });
@@ -147,7 +149,7 @@
           status: "timeout",
           elapsedMs: TIMEOUT_MS,
         };
-        console.error(`[${reqId}] Recommendation request timed out after ${TIMEOUT_MS}ms`);
+        log.error(`[${reqId}] Recommendation request timed out after ${TIMEOUT_MS}ms`);
       } else {
         // Parse error for specific codes
         const { code, retryable } = parseError(errorMessage);
@@ -157,7 +159,7 @@
           message: errorMessage,
           retryable,
         };
-        console.error(`[${reqId}] Failed to load recommendations:`, e);
+        log.error(`[${reqId}] Failed to load recommendations:`, e);
       }
     }
   }
@@ -187,14 +189,14 @@
     try {
       stats = await invoke<RecommendationStats>("get_recommendation_stats");
     } catch (e) {
-      console.error("Failed to load recommendation stats:", e);
+      log.error("Failed to load recommendation stats:", e);
     }
   }
 
   function handleCancel() {
     cleanup();
     loadState = { status: "cancelled" };
-    console.warn(`[${requestId}] Request cancelled by user`);
+    log.warn(`[${requestId}] Request cancelled by user`);
   }
 
   async function handleRetry() {
@@ -209,7 +211,7 @@
       );
       loadStats();
     } catch (e) {
-      console.error("Failed to save article:", e);
+      log.error("Failed to save article:", e);
     }
   }
 
@@ -221,7 +223,7 @@
       );
       loadStats();
     } catch (e) {
-      console.error("Failed to unsave article:", e);
+      log.error("Failed to unsave article:", e);
     }
   }
 
