@@ -35,6 +35,9 @@
   let loading = $state(false);
   let activeTab = $state<string>("articles");
 
+  // Scroll container ref for article list column
+  let articleListRef = $state<HTMLDivElement | null>(null);
+
   // Special articles for failed/hopeless tabs (loaded separately)
   let specialArticles = $state<Fnord[]>([]);
 
@@ -264,6 +267,11 @@
     // Reset selection when changing tabs to avoid stale state
     appState.selectedFnordId = null;
 
+    // Reset article list scroll to top
+    if (articleListRef) {
+      articleListRef.scrollTo({ top: 0 });
+    }
+
     // Reset special articles state
     specialArticles = [];
     totalSpecialCount = 0;
@@ -437,7 +445,7 @@
   <!-- 2-Column Body: Article List + Article View -->
   <div class="erisian-body">
     <!-- Left: Article List -->
-    <div class="article-list-column">
+    <div class="article-list-column" bind:this={articleListRef}>
       {#if loading}
         <div class="loading-state">
           <div class="spinner"></div>

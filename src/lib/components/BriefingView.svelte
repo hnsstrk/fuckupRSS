@@ -53,8 +53,10 @@
   let generating = $state(false);
   let error = $state<string | null>(null);
   let expandedId = $state<number | null>(null);
+  let briefingContentRef = $state<HTMLDivElement | null>(null);
 
   onMount(async () => {
+    briefingContentRef?.scrollTo({ top: 0 });
     await loadBriefings();
   });
 
@@ -197,7 +199,7 @@
     </div>
   </div>
 
-  <div class="briefing-content">
+  <div class="briefing-content" bind:this={briefingContentRef}>
     {#if generating}
       <div class="generating-overlay">
         <div class="generating-spinner">

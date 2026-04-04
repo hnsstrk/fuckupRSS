@@ -35,6 +35,7 @@
   // Graph filter settings (local UI state)
   let graphMinArticleCount = $state(3);
   let graphMinWeight = $state(0.1);
+  let keywordsListRef = $state<HTMLDivElement | null>(null);
 
   function openArticle(articleId: number) {
     navigationStore.navigateToArticle(articleId);
@@ -66,6 +67,7 @@
   });
 
   onMount(async () => {
+    keywordsListRef?.scrollTo({ top: 0 });
     networkStore.setupEventListeners();
     await networkStore.refreshAll();
   });
@@ -202,7 +204,7 @@
         </div>
 
         <!-- Search Results or Keywords List -->
-        <div class="keywords-list">
+        <div class="keywords-list" bind:this={keywordsListRef}>
           {#if searchInput && networkStore.searchResults.length > 0}
             <div class="list-section">
               <div class="section-label">{$_("network.searchResults")}</div>

@@ -37,8 +37,10 @@
 
   // Trend period selection
   let trendPeriod = $state<7 | 30 | 90>(30);
+  let tabContentRef = $state<HTMLDivElement | null>(null);
 
   onMount(async () => {
+    tabContentRef?.scrollTo({ top: 0 });
     await loadReadingProfile();
   });
 
@@ -145,7 +147,7 @@
     <Tabs {tabs} bind:activeTab onchange={handleTabChange} />
   </div>
 
-  <div class="tab-content">
+  <div class="tab-content" bind:this={tabContentRef}>
     {#if activeTab === "overview"}
       <MindfuckOverviewTab {readingProfile} {loadingProfile} {biasIndicator} />
     {:else if activeTab === "blindSpots"}

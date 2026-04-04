@@ -50,6 +50,7 @@
 
   // Easter egg state
   let show23EasterEgg = $state(false);
+  let fnordContentRef = $state<HTMLDivElement | null>(null);
 
   // Tabs definition
   let tabs = $derived<Tab[]>([
@@ -71,6 +72,7 @@
   }
 
   onMount(async () => {
+    fnordContentRef?.scrollTo({ top: 0 });
     window.addEventListener("batch-complete", handleBatchComplete);
     window.addEventListener("keywords-changed", handleKeywordsChanged);
     await loadData();
@@ -174,7 +176,7 @@
   </div>
 
   <!-- Content -->
-  <div class="fnord-content">
+  <div class="fnord-content" bind:this={fnordContentRef}>
     {#if loading}
       <div class="loading-state">
         <div class="spinner"></div>

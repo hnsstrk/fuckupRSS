@@ -32,6 +32,7 @@
 
   // Ollama status for child components
   let ollamaAvailable = $derived(appState.ollamaStatus.available);
+  let tabContentRef = $state<HTMLDivElement | null>(null);
 
   async function refreshOllamaStatus() {
     await appState.checkOllama();
@@ -71,6 +72,7 @@
   }
 
   onMount(async () => {
+    tabContentRef?.scrollTo({ top: 0 });
     // Initialize general settings
     settingsGeneralRef?.init();
 
@@ -116,7 +118,7 @@
     <Tabs {tabs} bind:activeTab onchange={handleTabChange} />
   </div>
 
-  <div class="tab-content">
+  <div class="tab-content" bind:this={tabContentRef}>
     {#if activeTab === "general"}
       <SettingsGeneral bind:this={settingsGeneralRef} />
     {:else if activeTab === "ai"}

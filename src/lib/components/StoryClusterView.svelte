@@ -57,8 +57,12 @@
 
   // Expanded summaries
   let expandedArticles = new SvelteSet<number>();
+  let scListPanelRef = $state<HTMLDivElement | null>(null);
+  let scDetailPanelRef = $state<HTMLDivElement | null>(null);
 
   onMount(async () => {
+    scListPanelRef?.scrollTo({ top: 0 });
+    scDetailPanelRef?.scrollTo({ top: 0 });
     window.addEventListener("batch-complete", handleBatchComplete);
     await loadClusters();
   });
@@ -243,7 +247,7 @@
   <!-- Main content: two-panel layout -->
   <div class="sc-panels">
     <!-- Left: Cluster list -->
-    <div class="sc-list-panel">
+    <div class="sc-list-panel" bind:this={scListPanelRef}>
       {#if loading}
         <div class="sc-loading">
           <i class="fa-solid fa-spinner fa-spin"></i>
@@ -295,7 +299,7 @@
     </div>
 
     <!-- Right: Detail panel -->
-    <div class="sc-detail-panel">
+    <div class="sc-detail-panel" bind:this={scDetailPanelRef}>
       {#if !selectedClusterId}
         <div class="sc-empty">
           <i class="fa-light fa-magnifying-glass-chart"></i>

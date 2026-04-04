@@ -53,6 +53,18 @@
   let similarArticles = $state<SimilarArticle[]>([]);
   let loadingSimilar = $state(false);
 
+  // Scroll container ref — used by $effect below
+  let articleViewRef = $state<HTMLDivElement | null>(null);
+
+  // Reset scroll to top when the selected article changes.
+  // Access selectedFnordId to register it as a reactive dependency.
+  $effect(() => {
+    void appState.selectedFnordId;
+    if (articleViewRef) {
+      articleViewRef.scrollTo({ top: 0 });
+    }
+  });
+
   // Track the last loaded article to prevent redundant fetches
   let lastLoadedFnordId = $state<number | null>(null);
 
@@ -335,10 +347,6 @@
 
   function navigateToSimilarArticle(fnordId: number) {
     navigationStore.navigateToArticle(fnordId);
-    const articleView = document.querySelector(".article-view");
-    if (articleView) {
-      articleView.scrollTo({ top: 0, behavior: "smooth" });
-    }
   }
 
   function hasContentForAnalysis(fnord: typeof appState.selectedFnord): boolean {
@@ -373,7 +381,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="article-view">
+<div class="article-view" bind:this={articleViewRef}>
   {#if appState.selectedFnord}
     {@const fnord = appState.selectedFnord}
 
