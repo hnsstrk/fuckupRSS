@@ -436,14 +436,21 @@
         >
           <span class="feed-name">{pentacle.title || pentacle.url}</span>
           <div class="feed-actions">
-            <button
-              type="button"
+            <span
+              role="button"
+              tabindex="0"
               class="delete-btn"
               onclick={(e) => {
                 e.stopPropagation();
                 handleDeletePentacle(pentacle.id);
               }}
-              title={$_("actions.delete")}><i class="fa-solid fa-xmark"></i></button
+              onkeydown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  handleDeletePentacle(pentacle.id);
+                }
+              }}
+              title={$_("actions.delete")}><i class="fa-solid fa-xmark"></i></span
             >
           </div>
         </button>
