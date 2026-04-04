@@ -144,28 +144,20 @@
   // Article type filter state
   let selectedArticleType = $state<string>("");
 
+  // Central filter object derived from all relevant state
+  let currentFilter = $derived.by(() => {
+    const filter: Record<string, unknown> = {};
+    if (appState.selectedPentacleId !== null) filter.pentacle_id = appState.selectedPentacleId;
+    if (activeTab === "unread") filter.status = "concealed";
+    else if (activeTab === "goldenApple") filter.status = "golden_apple";
+    if (selectedArticleType) filter.article_type = selectedArticleType;
+    return filter;
+  });
+
   async function handleArticleTypeFilter(event: Event) {
     const target = event.target as HTMLSelectElement;
     selectedArticleType = target.value;
-
-    // Rebuild filter and reload
-    let filter: Record<string, unknown> = {};
-
-    if (appState.selectedPentacleId !== null) {
-      filter.pentacle_id = appState.selectedPentacleId;
-    }
-
-    if (activeTab === "unread") {
-      filter.status = "concealed";
-    } else if (activeTab === "goldenApple") {
-      filter.status = "golden_apple";
-    }
-
-    if (selectedArticleType) {
-      filter.article_type = selectedArticleType;
-    }
-
-    await appState.loadFnords(filter);
+    await appState.loadFnords(currentFilter);
   }
 
   // Load special articles for failed/hopeless tabs (not available in appState.fnords)
@@ -278,34 +270,8 @@
     if (tabId === "failed" || tabId === "hopeless") {
       await loadSpecialArticles();
     } else {
-      // For standard tabs, fetch from backend with filter
-      let filter = {};
-
-      // If we have a pentacle or category selected, preserve that filter
-      if (appState.selectedPentacleId !== null) {
-        filter = { ...filter, pentacle_id: appState.selectedPentacleId };
-      }
-      if (appState.selectedSephirothId !== null) {
-        // Need to check if main or subcategory in appState to know which field to set
-        // But for now let's just use the current selection logic
-        // Ideally we should refactor selectSephiroth/selectPentacle to expose the current filter object
-        // For now, simpler approach: just reload with status
-      }
-
-      // Add status filter based on tab
-      if (tabId === "unread") {
-        filter = { ...filter, status: "concealed" };
-      } else if (tabId === "goldenApple") {
-        filter = { ...filter, status: "golden_apple" };
-      }
-      // 'articles' tab has no status filter (shows all)
-
-      // Preserve article_type filter
-      if (selectedArticleType) {
-        filter = { ...filter, article_type: selectedArticleType };
-      }
-
-      await appState.loadFnords(filter);
+      // currentFilter is already derived from activeTab, selectedPentacleId and selectedArticleType
+      await appState.loadFnords(currentFilter);
     }
   }
 
