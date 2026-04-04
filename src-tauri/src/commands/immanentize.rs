@@ -2427,11 +2427,37 @@ pub fn delete_keyword(state: State<AppState>, id: i64) -> Result<(), String> {
             )));
         }
 
+        // Remember cluster_id before DELETE, so we can clean up empty clusters afterwards.
+        let cluster_id: Option<i64> = conn
+            .query_row(
+                "SELECT cluster_id FROM immanentize WHERE id = ?",
+                [id],
+                |row| row.get(0),
+            )
+            .map_err(|e| {
+                crate::db::transaction::TransactionError::Failed(format!(
+                    "Fehler beim Lesen der cluster_id: {}",
+                    e
+                ))
+            })?;
+
         // Single DELETE — CASCADE handles fnord_immanentize, immanentize_neighbors,
         // immanentize_sephiroth, immanentize_daily, embedding_queue, dismissed_synonyms,
         // preserved_compounds, compound_decisions.
         // Trigger immanentize_delete_vec handles vec_immanentize.
         conn.execute("DELETE FROM immanentize WHERE id = ?", [id])?;
+
+        // Maintain cluster integrity: decrement keyword_count and remove empty clusters.
+        if let Some(cid) = cluster_id {
+            conn.execute(
+                "UPDATE immanentize_clusters SET keyword_count = keyword_count - 1 WHERE id = ?",
+                params![cid],
+            )?;
+            conn.execute(
+                "DELETE FROM immanentize_clusters WHERE id = ? AND keyword_count <= 0",
+                params![cid],
+            )?;
+        }
 
         Ok(())
     })
@@ -4364,4 +4390,248 @@ fn test_hyphen_variation() {
     let kw = "Trump-Zölle";
     let sent = extract_sentence_with_keyword(text, kw);
     assert_eq!(sent, Some("Die neuen Trump Zölle sind hoch.".to_string()));
+}
+
+#[cfg(test)]
+mod delete_keyword_tests {
+    use crate::db::transaction::with_transaction_result;
+    use rusqlite::params;
+    use rusqlite::Connection;
+
+    /// Set up a minimal in-memory DB with immanentize_clusters + immanentize tables.
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "
+            PRAGMA foreign_keys = ON;
+
+            CREATE TABLE immanentize_clusters (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                description TEXT,
+                auto_generated BOOLEAN DEFAULT TRUE,
+                keyword_count INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE immanentize (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                count INTEGER DEFAULT 1,
+                article_count INTEGER DEFAULT 0,
+                quality_score REAL DEFAULT NULL,
+                quality_calculated_at DATETIME DEFAULT NULL,
+                embedding BLOB DEFAULT NULL,
+                embedding_at DATETIME,
+                cluster_id INTEGER,
+                is_canonical BOOLEAN DEFAULT TRUE,
+                canonical_id INTEGER,
+                keyword_type TEXT DEFAULT 'concept',
+                first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_used DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (canonical_id) REFERENCES immanentize(id) ON DELETE SET NULL,
+                FOREIGN KEY (cluster_id) REFERENCES immanentize_clusters(id) ON DELETE SET NULL
+            );
+            ",
+        )
+        .unwrap();
+        conn
+    }
+
+    #[test]
+    fn test_delete_keyword_removes_empty_cluster() {
+        let conn = setup_db();
+
+        // Insert a cluster with keyword_count = 1
+        conn.execute(
+            "INSERT INTO immanentize_clusters (name, keyword_count) VALUES ('Testcluster', 1)",
+            [],
+        )
+        .unwrap();
+        let cluster_id: i64 = conn.last_insert_rowid();
+
+        // Insert a keyword assigned to that cluster
+        conn.execute(
+            "INSERT INTO immanentize (name, cluster_id) VALUES ('testkeyword', ?)",
+            params![cluster_id],
+        )
+        .unwrap();
+        let keyword_id: i64 = conn.last_insert_rowid();
+
+        // Execute the same logic as delete_keyword()
+        let result = with_transaction_result(&conn, |conn| {
+            // Read cluster_id before delete
+            let cid: Option<i64> = conn
+                .query_row(
+                    "SELECT cluster_id FROM immanentize WHERE id = ?",
+                    [keyword_id],
+                    |row| row.get(0),
+                )
+                .map_err(|e| {
+                    crate::db::transaction::TransactionError::Failed(format!(
+                        "Fehler beim Lesen der cluster_id: {}",
+                        e
+                    ))
+                })?;
+
+            conn.execute("DELETE FROM immanentize WHERE id = ?", [keyword_id])?;
+
+            if let Some(c) = cid {
+                conn.execute(
+                    "UPDATE immanentize_clusters SET keyword_count = keyword_count - 1 WHERE id = ?",
+                    params![c],
+                )?;
+                conn.execute(
+                    "DELETE FROM immanentize_clusters WHERE id = ? AND keyword_count <= 0",
+                    params![c],
+                )?;
+            }
+
+            Ok(())
+        });
+
+        assert!(result.is_ok(), "Transaktion schlug fehl: {:?}", result);
+
+        // The cluster must have been deleted
+        let cluster_exists: bool = conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM immanentize_clusters WHERE id = ?",
+                [cluster_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(
+            !cluster_exists,
+            "Leerer Cluster wurde nicht gelöscht (keyword_count = 0)"
+        );
+
+        // The keyword itself must be gone
+        let kw_exists: bool = conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM immanentize WHERE id = ?",
+                [keyword_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(!kw_exists, "Keyword wurde nicht gelöscht");
+    }
+
+    #[test]
+    fn test_delete_keyword_keeps_cluster_with_remaining_members() {
+        let conn = setup_db();
+
+        // Cluster with 2 keywords
+        conn.execute(
+            "INSERT INTO immanentize_clusters (name, keyword_count) VALUES ('Mehrfach', 2)",
+            [],
+        )
+        .unwrap();
+        let cluster_id: i64 = conn.last_insert_rowid();
+
+        conn.execute(
+            "INSERT INTO immanentize (name, cluster_id) VALUES ('keyword_a', ?)",
+            params![cluster_id],
+        )
+        .unwrap();
+        let keyword_a_id: i64 = conn.last_insert_rowid();
+
+        conn.execute(
+            "INSERT INTO immanentize (name, cluster_id) VALUES ('keyword_b', ?)",
+            params![cluster_id],
+        )
+        .unwrap();
+
+        // Delete only keyword_a
+        let result = with_transaction_result(&conn, |conn| {
+            let cid: Option<i64> = conn
+                .query_row(
+                    "SELECT cluster_id FROM immanentize WHERE id = ?",
+                    [keyword_a_id],
+                    |row| row.get(0),
+                )
+                .map_err(|e| {
+                    crate::db::transaction::TransactionError::Failed(format!(
+                        "Fehler beim Lesen der cluster_id: {}",
+                        e
+                    ))
+                })?;
+
+            conn.execute("DELETE FROM immanentize WHERE id = ?", [keyword_a_id])?;
+
+            if let Some(c) = cid {
+                conn.execute(
+                    "UPDATE immanentize_clusters SET keyword_count = keyword_count - 1 WHERE id = ?",
+                    params![c],
+                )?;
+                conn.execute(
+                    "DELETE FROM immanentize_clusters WHERE id = ? AND keyword_count <= 0",
+                    params![c],
+                )?;
+            }
+
+            Ok(())
+        });
+
+        assert!(result.is_ok(), "Transaktion schlug fehl: {:?}", result);
+
+        // Cluster must still exist (keyword_count = 1)
+        let kw_count: i64 = conn
+            .query_row(
+                "SELECT keyword_count FROM immanentize_clusters WHERE id = ?",
+                [cluster_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(kw_count, 1, "keyword_count sollte nach dem Löschen 1 sein");
+    }
+
+    #[test]
+    fn test_delete_keyword_without_cluster_is_safe() {
+        let conn = setup_db();
+
+        // Keyword without cluster_id
+        conn.execute(
+            "INSERT INTO immanentize (name, cluster_id) VALUES ('noclustr', NULL)",
+            [],
+        )
+        .unwrap();
+        let keyword_id: i64 = conn.last_insert_rowid();
+
+        let result = with_transaction_result(&conn, |conn| {
+            let cid: Option<i64> = conn
+                .query_row(
+                    "SELECT cluster_id FROM immanentize WHERE id = ?",
+                    [keyword_id],
+                    |row| row.get(0),
+                )
+                .map_err(|e| {
+                    crate::db::transaction::TransactionError::Failed(format!(
+                        "Fehler beim Lesen der cluster_id: {}",
+                        e
+                    ))
+                })?;
+
+            conn.execute("DELETE FROM immanentize WHERE id = ?", [keyword_id])?;
+
+            if let Some(c) = cid {
+                conn.execute(
+                    "UPDATE immanentize_clusters SET keyword_count = keyword_count - 1 WHERE id = ?",
+                    params![c],
+                )?;
+                conn.execute(
+                    "DELETE FROM immanentize_clusters WHERE id = ? AND keyword_count <= 0",
+                    params![c],
+                )?;
+            }
+
+            Ok(())
+        });
+
+        assert!(
+            result.is_ok(),
+            "Keyword ohne cluster_id sollte sicher löschbar sein: {:?}",
+            result
+        );
+    }
 }
