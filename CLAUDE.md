@@ -75,6 +75,11 @@ fuckupRSS/
 ├── src/                          # Svelte 5 Frontend
 │   ├── lib/
 │   │   ├── components/           # UI-Komponenten
+│   │   │   ├── article/          # Artikel-Detail (KeywordChip, Suggestions, Search)
+│   │   │   ├── keywords/         # Compound-Keyword-Verwaltung (Toolbar, Table)
+│   │   │   ├── network/          # Keyword-Netzwerk (Detail, Synonyms, Sub-Komponenten)
+│   │   │   ├── recommendation/   # Empfehlungskarten
+│   │   │   └── settings/         # Settings Sub-Komponenten (AI, Ollama, Prompts, etc.)
 │   │   ├── stores/               # Runes-basiertes State Management
 │   │   ├── i18n/                 # Internationalisierung (de, en)
 │   │   └── utils/                # Hilfsfunktionen (sanitizer.ts)
