@@ -6,6 +6,8 @@
   import { appState, toasts } from "../../stores/state.svelte";
   import SettingsOllamaProvider from "./SettingsOllamaProvider.svelte";
   import SettingsOpenAiProvider from "./SettingsOpenAiProvider.svelte";
+  import SettingsAIAnalysis from "./SettingsAIAnalysis.svelte";
+  import SettingsAIEmbeddings from "./SettingsAIEmbeddings.svelte";
 
   // ============================================
   // Provider types
@@ -195,15 +197,6 @@
     return ollamaStatus.models[0] || null;
   });
 
-  function isSuggestedModel(model: string, suggestions: string[]): boolean {
-    for (const preferred of suggestions) {
-      if (model === preferred || model.startsWith(preferred.split(":")[0] + ":")) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   // ============================================
   // Derived: needs ollama / openai sections
   // ============================================
@@ -218,10 +211,6 @@
   // Model missing checks
   let isMainModelMissing = $derived(
     selectedMainModel && ollamaStatus?.available && !isModelInstalled(selectedMainModel),
-  );
-
-  let isEmbeddingModelMissing = $derived(
-    selectedEmbeddingModel && ollamaStatus?.available && !isModelInstalled(selectedEmbeddingModel),
   );
 
   // ============================================
@@ -451,10 +440,6 @@
   function isModelInstalled(modelName: string): boolean {
     if (!ollamaStatus || !modelName) return true;
     return ollamaStatus.models.includes(modelName);
-  }
-
-  function isRecommendedModel(model: string, recommended: string): boolean {
-    return model === recommended || model.startsWith(recommended.split(":")[0] + ":");
   }
 
   // ============================================
@@ -758,349 +743,49 @@
     numCtxDropdownOpen = false;
   }
 
-  function toggleReasoningModelDropdown() {
-    reasoningModelDropdownOpen = !reasoningModelDropdownOpen;
-    mainModelDropdownOpen = false;
-    embeddingModelDropdownOpen = false;
-    numCtxDropdownOpen = false;
-  }
-
-  function toggleEmbeddingModelDropdown() {
-    embeddingModelDropdownOpen = !embeddingModelDropdownOpen;
-    mainModelDropdownOpen = false;
-    reasoningModelDropdownOpen = false;
-    numCtxDropdownOpen = false;
-  }
-
-  function isModelLoaded(modelName: string): boolean {
-    return loadedModels.some((m) => m.name === modelName);
-  }
 </script>
 
 <h3>{$_("settings.ai.title")}</h3>
 
-<!-- ============================================ -->
-<!-- CARD 1: Fast Analysis                        -->
-<!-- ============================================ -->
-<div class="settings-card">
-  <div class="card-header">
-    <i class="fa-solid fa-bolt card-icon"></i>
-    <div class="card-header-text">
-      <span class="card-title">{$_("settings.ai.fastSection")}</span>
-      <span class="card-description">{$_("settings.ai.fastDescription")}</span>
-    </div>
-  </div>
+<SettingsAIAnalysis
+  {providerOptions}
+  bind:fastProvider
+  bind:reasoningProvider
+  bind:selectedMainModel
+  bind:reasoningModel
+  bind:reasoningNumCtx
+  bind:ollamaConcurrency
+  {ollamaStatus}
+  {loadedModels}
+  bind:mainModelDropdownOpen
+  bind:reasoningModelDropdownOpen
+  {suggestedFastModel}
+  {suggestedReasoningModel}
+  {fastModelPriority}
+  {reasoningModelPriority}
+  {numCtxOptions}
+  onFastProviderChange={handleFastProviderChange}
+  onReasoningProviderChange={handleReasoningProviderChange}
+  onSelectMainModel={selectMainModel}
+  onSelectReasoningModel={selectReasoningModel}
+  onConcurrencyChange={handleConcurrencyChange}
+  onReasoningNumCtxChange={handleReasoningNumCtxChange}
+/>
 
-  <div class="card-body">
-    <!-- Provider Select -->
-    <div class="field-row">
-      <span class="field-label">{$_("settings.ai.provider")}</span>
-      <div class="provider-toggle">
-        {#each providerOptions as opt (opt.value)}
-          <button
-            type="button"
-            class="toggle-btn {fastProvider === opt.value ? 'active' : ''}"
-            onclick={() => handleFastProviderChange(opt.value)}
-          >
-            <i class={opt.icon}></i>
-            {$_(opt.labelKey)}
-          </button>
-        {/each}
-      </div>
-    </div>
-
-    <!-- Model + Concurrency (Ollama) — side by side -->
-    {#if fastProvider === "ollama" && ollamaStatus?.available}
-      <div class="field-row-grid">
-        <div class="field-row">
-          <span class="field-label">{$_("settings.ai.model")}</span>
-          <div class="custom-select model-select">
-            <button type="button" class="select-trigger" onclick={toggleMainModelDropdown}>
-              <span>
-                {selectedMainModel || $_("settings.ai.noModelsAvailable")}
-                {#if isModelLoaded(selectedMainModel)}
-                  <i class="loaded-badge fa-solid fa-circle"></i>
-                {/if}
-                {#if suggestedFastModel && selectedMainModel === suggestedFastModel}
-                  <span class="suggested-badge">{$_("settings.ai.suggested")}</span>
-                {/if}
-              </span>
-              <i class="arrow fa-solid {mainModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"
-              ></i>
-            </button>
-            {#if mainModelDropdownOpen}
-              <div class="select-options">
-                {#each ollamaStatus.models as model (model)}
-                  <button
-                    type="button"
-                    class="select-option {selectedMainModel === model ? 'selected' : ''}"
-                    onclick={() => selectMainModel(model)}
-                  >
-                    {model}
-                    {#if isModelLoaded(model)}
-                      <i class="loaded-badge fa-solid fa-circle"></i>
-                    {/if}
-                    {#if isSuggestedModel(model, fastModelPriority)}
-                      <span class="suggested-badge">{$_("settings.ai.suggested")}</span>
-                    {/if}
-                  </button>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        </div>
-
-        <div class="field-row">
-          <span class="field-label">{$_("settings.ai.concurrency")}</span>
-          <input
-            type="number"
-            class="number-input"
-            min="1"
-            max="16"
-            value={ollamaConcurrency}
-            onchange={(e) =>
-              handleConcurrencyChange(parseInt((e.target as HTMLInputElement).value) || 1)}
-          />
-        </div>
-      </div>
-    {:else if fastProvider === "ollama"}
-      <!-- Only concurrency when no models available -->
-      <div class="field-row">
-        <span class="field-label">{$_("settings.ai.concurrency")}</span>
-        <input
-          type="number"
-          class="number-input"
-          min="1"
-          max="16"
-          value={ollamaConcurrency}
-          onchange={(e) =>
-            handleConcurrencyChange(parseInt((e.target as HTMLInputElement).value) || 1)}
-        />
-      </div>
-    {/if}
-  </div>
-</div>
-
-<!-- ============================================ -->
-<!-- CARD 2: Deep Analysis & Briefings            -->
-<!-- ============================================ -->
-<div class="settings-card">
-  <div class="card-header">
-    <i class="fa-solid fa-brain card-icon"></i>
-    <div class="card-header-text">
-      <span class="card-title">{$_("settings.ai.reasoningSection")}</span>
-      <span class="card-description">{$_("settings.ai.reasoningDescription")}</span>
-    </div>
-  </div>
-
-  <div class="card-body">
-    <!-- Provider Select -->
-    <div class="field-row">
-      <span class="field-label">{$_("settings.ai.provider")}</span>
-      <div class="provider-toggle">
-        {#each providerOptions as opt (opt.value)}
-          <button
-            type="button"
-            class="toggle-btn {reasoningProvider === opt.value ? 'active' : ''}"
-            onclick={() => handleReasoningProviderChange(opt.value)}
-          >
-            <i class={opt.icon}></i>
-            {$_(opt.labelKey)}
-          </button>
-        {/each}
-      </div>
-    </div>
-
-    <!-- Reasoning Model + Context Length (Ollama) — side by side -->
-    {#if reasoningProvider === "ollama" && ollamaStatus?.available}
-      <div class="field-row-grid">
-        <div class="field-row">
-          <span class="field-label">{$_("settings.ai.reasoningModel")}</span>
-          <div class="custom-select model-select">
-            <button type="button" class="select-trigger" onclick={toggleReasoningModelDropdown}>
-              <span>
-                {reasoningModel || $_("settings.ai.noModelsAvailable")}
-                {#if isModelLoaded(reasoningModel)}
-                  <i class="loaded-badge fa-solid fa-circle"></i>
-                {/if}
-                {#if suggestedReasoningModel && reasoningModel === suggestedReasoningModel}
-                  <span class="suggested-badge">{$_("settings.ai.suggested")}</span>
-                {/if}
-              </span>
-              <i
-                class="arrow fa-solid {reasoningModelDropdownOpen
-                  ? 'fa-caret-up'
-                  : 'fa-caret-down'}"
-              ></i>
-            </button>
-            {#if reasoningModelDropdownOpen}
-              <div class="select-options">
-                {#each ollamaStatus.models as model (model)}
-                  <button
-                    type="button"
-                    class="select-option {reasoningModel === model ? 'selected' : ''}"
-                    onclick={() => selectReasoningModel(model)}
-                  >
-                    {model}
-                    {#if isModelLoaded(model)}
-                      <i class="loaded-badge fa-solid fa-circle"></i>
-                    {/if}
-                    {#if isSuggestedModel(model, reasoningModelPriority)}
-                      <span class="suggested-badge">{$_("settings.ai.suggested")}</span>
-                    {/if}
-                  </button>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        </div>
-
-        <div class="field-row">
-          <span class="field-label">{$_("settings.ai.contextLength")}</span>
-          <div class="ctx-buttons">
-            {#each numCtxOptions as opt (opt.value)}
-              <button
-                type="button"
-                class="ctx-btn {reasoningNumCtx === opt.value ? 'active' : ''}"
-                onclick={() => handleReasoningNumCtxChange(opt.value)}
-              >
-                {opt.label}
-              </button>
-            {/each}
-          </div>
-        </div>
-      </div>
-    {:else if reasoningProvider === "ollama"}
-      <!-- Only context length when no models available -->
-      <div class="field-row">
-        <span class="field-label">{$_("settings.ai.contextLength")}</span>
-        <div class="ctx-buttons">
-          {#each numCtxOptions as opt (opt.value)}
-            <button
-              type="button"
-              class="ctx-btn {reasoningNumCtx === opt.value ? 'active' : ''}"
-              onclick={() => handleReasoningNumCtxChange(opt.value)}
-            >
-              {opt.label}
-            </button>
-          {/each}
-        </div>
-      </div>
-    {/if}
-  </div>
-</div>
-
-<!-- ============================================ -->
-<!-- CARD 3: Embeddings                           -->
-<!-- ============================================ -->
-<div class="settings-card">
-  <div class="card-header">
-    <i class="fa-solid fa-vector-square card-icon"></i>
-    <div class="card-header-text">
-      <span class="card-title">{$_("settings.ai.embeddingSection")}</span>
-      <span class="card-description">{$_("settings.ai.embeddingDescription")}</span>
-    </div>
-  </div>
-
-  <div class="card-body">
-    <!-- Provider Select -->
-    <div class="field-row">
-      <span class="field-label">{$_("settings.ai.provider")}</span>
-      <div class="provider-toggle">
-        {#each embeddingProviderOptions as opt (opt.value)}
-          <button
-            type="button"
-            class="toggle-btn {embeddingProvider === opt.value ? 'active' : ''}"
-            onclick={() => handleEmbeddingProviderChange(opt.value)}
-          >
-            <i class={opt.icon}></i>
-            {$_(opt.labelKey)}
-          </button>
-        {/each}
-      </div>
-    </div>
-
-    {#if embeddingProvider === "ollama" && ollamaStatus?.available}
-      <!-- Ollama Embedding Model -->
-      <div class="field-row">
-        <span class="field-label">{$_("settings.ollama.embeddingModel")}</span>
-        <div class="custom-select model-select">
-          <button type="button" class="select-trigger" onclick={toggleEmbeddingModelDropdown}>
-            <span>
-              {selectedEmbeddingModel || $_("settings.ai.noModelsAvailable")}
-              {#if ollamaStatus && isRecommendedModel(selectedEmbeddingModel, ollamaStatus.recommended_embedding)}
-                <span class="recommended">{$_("settings.ollama.recommended")}</span>
-              {/if}
-            </span>
-            <i class="arrow fa-solid {embeddingModelDropdownOpen ? 'fa-caret-up' : 'fa-caret-down'}"
-            ></i>
-          </button>
-          {#if embeddingModelDropdownOpen}
-            <div class="select-options">
-              {#each ollamaStatus.models as model (model)}
-                <button
-                  type="button"
-                  class="select-option {selectedEmbeddingModel === model ? 'selected' : ''}"
-                  onclick={() => selectEmbeddingModel(model)}
-                >
-                  {model}
-                  {#if isRecommendedModel(model, ollamaStatus.recommended_embedding)}
-                    <span class="recommended">{$_("settings.ollama.recommended")}</span>
-                  {/if}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      </div>
-      {#if isEmbeddingModelMissing}
-        <div class="model-warning">
-          <i class="warning-icon fa-solid fa-triangle-exclamation"></i>
-          <span class="warning-text"
-            >{$_("settings.ollama.modelMissing", {
-              values: { model: selectedEmbeddingModel },
-            })}</span
-          >
-          <button
-            type="button"
-            class="btn-download-inline"
-            onclick={() => handleDownloadModel(selectedEmbeddingModel)}
-            disabled={downloadingModel !== null}
-          >
-            {#if downloadingModel === selectedEmbeddingModel}
-              {$_("settings.ollama.downloading")}
-            {:else}
-              {$_("settings.ollama.downloadNow")}
-            {/if}
-          </button>
-        </div>
-      {/if}
-    {:else if embeddingProvider === "openai_compatible"}
-      <!-- OpenAI Embedding Model -->
-      <div class="field-row">
-        <span class="field-label">{$_("settings.ollama.openaiEmbeddingModel")}</span>
-        <div class="openai-embedding-presets">
-          {#each openaiEmbeddingPresets as preset (preset.value)}
-            <button
-              type="button"
-              class="preset-btn {openaiEmbeddingModel === preset.value ? 'active' : ''}"
-              onclick={() => saveOpenaiEmbeddingModel(preset.value)}
-            >
-              <span class="preset-name">{preset.label}</span>
-              <span class="preset-price">{preset.price}</span>
-            </button>
-          {/each}
-        </div>
-      </div>
-    {/if}
-
-    <!-- Warning about switching providers -->
-    <p class="embedding-warning">
-      <i class="fa-solid fa-triangle-exclamation"></i>
-      {$_("settings.ai.embeddingWarning")}
-    </p>
-  </div>
-</div>
+<SettingsAIEmbeddings
+  {embeddingProviderOptions}
+  bind:embeddingProvider
+  bind:selectedEmbeddingModel
+  {openaiEmbeddingModel}
+  {openaiEmbeddingPresets}
+  {ollamaStatus}
+  bind:embeddingModelDropdownOpen
+  {downloadingModel}
+  onEmbeddingProviderChange={handleEmbeddingProviderChange}
+  onSelectEmbeddingModel={selectEmbeddingModel}
+  onSaveOpenaiEmbeddingModel={saveOpenaiEmbeddingModel}
+  onDownloadModel={handleDownloadModel}
+/>
 
 <!-- ============================================ -->
 <!-- CARD 4: Ollama Server (collapsible)          -->
@@ -1350,348 +1035,6 @@
   .status-pill.offline {
     background-color: rgba(243, 139, 168, 0.15);
     color: var(--status-error);
-  }
-
-  /* ============================================ */
-  /* Provider toggle                              */
-  /* ============================================ */
-  .provider-toggle {
-    display: flex;
-    gap: 0.375rem;
-    flex-wrap: wrap;
-  }
-
-  .toggle-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.375rem 0.75rem;
-    border: 1px solid var(--border-default);
-    border-radius: 0.375rem;
-    background: var(--bg-surface);
-    color: var(--text-secondary);
-    font-size: 0.8125rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-
-  .toggle-btn:hover {
-    border-color: var(--accent-primary);
-    background: var(--bg-overlay);
-  }
-
-  .toggle-btn.active {
-    border-color: var(--accent-primary);
-    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
-    color: var(--accent-primary);
-    font-weight: 500;
-  }
-
-  .toggle-btn i {
-    font-size: 0.75rem;
-  }
-
-  /* ============================================ */
-  /* Field rows                                   */
-  /* ============================================ */
-  .field-row {
-    margin-bottom: 0.875rem;
-  }
-
-  .field-row:last-child {
-    margin-bottom: 0;
-  }
-
-  /* Two-column grid for model + parameter side by side */
-  .field-row-grid {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 1rem;
-    align-items: start;
-  }
-
-  .field-row-grid > .field-row {
-    margin-bottom: 0;
-  }
-
-  @media (max-width: 600px) {
-    .field-row-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .field-label {
-    display: block;
-    margin-bottom: 0.375rem;
-    font-weight: 500;
-    font-size: 0.875rem;
-    color: var(--text-primary);
-  }
-
-  /* ============================================ */
-  /* Custom Select                                */
-  /* ============================================ */
-  .custom-select {
-    position: relative;
-  }
-
-  .model-select {
-    flex: 1;
-  }
-
-  .select-trigger {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--border-default);
-    border-radius: 0.375rem;
-    background-color: var(--bg-overlay);
-    color: var(--text-primary);
-    font-size: 0.9375rem;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    text-align: left;
-    font-family: inherit;
-  }
-
-  .select-trigger:hover {
-    border-color: var(--accent-primary);
-  }
-
-  .arrow {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-
-  .select-options {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    margin-top: 0.25rem;
-    background-color: var(--bg-overlay);
-    border: 1px solid var(--border-default);
-    border-radius: 0.375rem;
-    overflow: hidden;
-    z-index: 100;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .select-option {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border: none;
-    background: none;
-    color: var(--text-primary);
-    font-size: 0.9375rem;
-    text-align: left;
-    cursor: pointer;
-    transition: background-color 0.15s;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-family: inherit;
-  }
-
-  .select-option:hover {
-    background-color: var(--bg-muted);
-  }
-
-  .select-option.selected {
-    background-color: var(--bg-muted);
-    color: var(--accent-primary);
-  }
-
-  /* ============================================ */
-  /* Badges                                       */
-  /* ============================================ */
-  .recommended {
-    font-size: 0.75rem;
-    color: var(--accent-secondary);
-    margin-left: 0.5rem;
-  }
-
-  .suggested-badge {
-    font-size: 0.6875rem;
-    color: var(--accent-primary);
-    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
-    padding: 0.125rem 0.5rem;
-    border-radius: 999px;
-    margin-left: 0.5rem;
-    font-weight: 500;
-  }
-
-  .loaded-badge {
-    font-size: 0.5rem;
-    color: var(--status-success);
-    margin-left: 0.25rem;
-  }
-
-  /* ============================================ */
-  /* Context Length Buttons                        */
-  /* ============================================ */
-  .ctx-buttons {
-    display: flex;
-    gap: 0.375rem;
-  }
-
-  .ctx-btn {
-    padding: 0.375rem 0.75rem;
-    border: 1px solid var(--border-default);
-    border-radius: 0.375rem;
-    background: var(--bg-surface);
-    color: var(--text-secondary);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-
-  .ctx-btn:hover {
-    border-color: var(--accent-primary);
-  }
-
-  .ctx-btn.active {
-    border-color: var(--accent-primary);
-    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
-    color: var(--accent-primary);
-  }
-
-  /* ============================================ */
-  /* Number input                                 */
-  /* ============================================ */
-  .number-input {
-    width: 80px;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--border-default);
-    border-radius: 0.375rem;
-    background-color: var(--bg-overlay);
-    color: var(--text-primary);
-    font-size: 0.9375rem;
-    font-family: inherit;
-  }
-
-  .number-input:focus {
-    outline: none;
-    border-color: var(--accent-primary);
-  }
-
-  /* ============================================ */
-  /* OpenAI Embedding Presets                      */
-  /* ============================================ */
-  .openai-embedding-presets {
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .openai-embedding-presets .preset-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--border-default);
-    border-radius: 0.5rem;
-    background: var(--bg-surface);
-    cursor: pointer;
-    flex: 1;
-    transition: all 0.15s ease;
-    font-family: inherit;
-  }
-
-  .openai-embedding-presets .preset-btn:hover {
-    border-color: var(--accent-primary);
-    background: var(--bg-overlay);
-  }
-
-  .openai-embedding-presets .preset-btn.active {
-    border-color: var(--accent-primary);
-    background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
-  }
-
-  .openai-embedding-presets .preset-name {
-    font-weight: 600;
-    font-size: 0.85rem;
-  }
-
-  .openai-embedding-presets .preset-price {
-    color: var(--text-muted);
-    font-size: 0.75rem;
-  }
-
-  /* ============================================ */
-  /* Warnings                                     */
-  /* ============================================ */
-  .embedding-warning {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    background-color: color-mix(in srgb, var(--accent-warning, #fab387) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--accent-warning, #fab387) 30%, transparent);
-    border-radius: 0.375rem;
-    margin-top: 0.75rem;
-    font-size: 0.8125rem;
-    color: var(--text-secondary);
-  }
-
-  .embedding-warning i {
-    color: var(--accent-warning, #fab387);
-    flex-shrink: 0;
-  }
-
-  .model-warning {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.625rem 0.75rem;
-    margin-top: 0.5rem;
-    background-color: rgba(250, 179, 135, 0.15);
-    border: 1px solid var(--accent-warning);
-    border-radius: 0.375rem;
-  }
-
-  .warning-icon {
-    color: var(--accent-warning);
-    font-size: 0.875rem;
-    flex-shrink: 0;
-  }
-
-  .warning-text {
-    flex: 1;
-    color: var(--accent-warning);
-    font-weight: 500;
-    font-size: 0.8125rem;
-  }
-
-  .btn-download-inline {
-    padding: 0.375rem 0.625rem;
-    border: 1px solid var(--accent-warning);
-    border-radius: 0.375rem;
-    background: none;
-    color: var(--accent-warning);
-    font-size: 0.75rem;
-    font-weight: 500;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.2s;
-    flex-shrink: 0;
-    font-family: inherit;
-  }
-
-  .btn-download-inline:hover:not(:disabled) {
-    background-color: var(--accent-warning);
-    color: var(--bg-surface);
-  }
-
-  .btn-download-inline:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
   }
 
   .error-message {
