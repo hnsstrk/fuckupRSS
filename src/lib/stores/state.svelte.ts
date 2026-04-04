@@ -758,20 +758,19 @@ class AppState {
     }
   }
 
-  selectView(view: "all" | "changed" | "pentacle" | "sephiroth"): void {
+  async selectView(view: "all" | "changed" | "pentacle" | "sephiroth"): Promise<void> {
     this.selectedView = view;
     this.selectedFnordId = null;
 
     if (view === "changed") {
       this.selectedPentacleId = null;
       this.selectedSephirothId = null;
-      void this.loadChangedFnords(); // Fire-and-forget: UI updates reactively via $state
-      // Use changedFnords for display
+      await this.loadChangedFnords();
       this.fnords = this.changedFnords;
     } else if (view === "all") {
       this.selectedPentacleId = null;
       this.selectedSephirothId = null;
-      void this.loadFnords(); // Fire-and-forget: UI updates reactively via $state
+      await this.loadFnords();
     }
     // "pentacle" view is handled by selectPentacle
     // "sephiroth" view is handled by selectSephiroth

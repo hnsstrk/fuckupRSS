@@ -418,7 +418,7 @@
             <button
               type="button"
               class="clear-filter-btn"
-              onclick={() => appState.selectView("all")}
+              onclick={() => void appState.selectView("all")}
               title={$_("erisianArchives.clearFilter") || "Filter entfernen"}
             >
               <i class="fa-solid fa-xmark"></i>
