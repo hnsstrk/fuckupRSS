@@ -12,14 +12,40 @@
     type SimilarArticle,
   } from "../stores/state.svelte";
   import type { ArticleKeyword, ArticleCategoryDetailed } from "$lib/types";
-  import RevisionView from "./RevisionView.svelte";
   import { ArticleCard } from "./article";
-  import StatisticalPreview from "./article/StatisticalPreview.svelte";
   import { formatFullDate } from "$lib/utils/articleFormat";
   import { formatError } from "$lib/utils/formatError";
-  import ArticleGreyfaceAlert from "./ArticleGreyfaceAlert.svelte";
   import ArticleMetaSection from "./ArticleMetaSection.svelte";
   import ArticleContent from "./ArticleContent.svelte";
+
+  // Lazy-loaded modules (cached after first import)
+  let RevisionViewModule =
+    $state<typeof import("./RevisionView.svelte") | null>(null);
+  let ArticleGreyfaceAlertModule =
+    $state<typeof import("./ArticleGreyfaceAlert.svelte") | null>(null);
+  let StatisticalPreviewModule =
+    $state<typeof import("./article/StatisticalPreview.svelte") | null>(null);
+
+  async function getRevisionView() {
+    if (!RevisionViewModule) {
+      RevisionViewModule = await import("./RevisionView.svelte");
+    }
+    return RevisionViewModule;
+  }
+
+  async function getArticleGreyfaceAlert() {
+    if (!ArticleGreyfaceAlertModule) {
+      ArticleGreyfaceAlertModule = await import("./ArticleGreyfaceAlert.svelte");
+    }
+    return ArticleGreyfaceAlertModule;
+  }
+
+  async function getStatisticalPreview() {
+    if (!StatisticalPreviewModule) {
+      StatisticalPreviewModule = await import("./article/StatisticalPreview.svelte");
+    }
+    return StatisticalPreviewModule;
+  }
   import { renderMarkdown } from "$lib/utils/sanitizer";
   import { navigationStore } from "$lib/stores/navigation.svelte";
   import { createLogger } from "$lib/logger";
@@ -504,7 +530,9 @@
               {#if loadingRevisions}
                 <div class="revision-loading">{$_("articleList.loading")}</div>
               {:else}
-                <RevisionView {fnord} {revisions} />
+                {#await getRevisionView() then { default: RevisionView }}
+                  <RevisionView {fnord} {revisions} />
+                {/await}
               {/if}
             </div>
           {/if}
@@ -512,13 +540,15 @@
       </div>
     {/if}
 
-    <!-- Greyface Alert (compact) -->
-    <ArticleGreyfaceAlert
-      politicalBias={fnord.political_bias}
-      sachlichkeit={fnord.sachlichkeit}
-      qualityScore={fnord.quality_score}
-      articleType={fnord.article_type}
-    />
+    <!-- Greyface Alert (compact, lazy-loaded) -->
+    {#await getArticleGreyfaceAlert() then { default: ArticleGreyfaceAlert }}
+      <ArticleGreyfaceAlert
+        politicalBias={fnord.political_bias}
+        sachlichkeit={fnord.sachlichkeit}
+        qualityScore={fnord.quality_score}
+        articleType={fnord.article_type}
+      />
+    {/await}
 
     <!-- Summary (Discordian Analysis) -->
     {#if fnord.processed_at && fnord.summary}
@@ -532,13 +562,15 @@
       </div>
     {/if}
 
-    <!-- Statistical Preview (before LLM processing) -->
+    <!-- Statistical Preview (before LLM processing, lazy-loaded) -->
     <div class="section-content">
-      <StatisticalPreview
-        fnordId={fnord.id}
-        hasContent={!!(fnord.content_full || fnord.content_raw)}
-        isProcessed={!!fnord.processed_at}
-      />
+      {#await getStatisticalPreview() then { default: StatisticalPreview }}
+        <StatisticalPreview
+          fnordId={fnord.id}
+          hasContent={!!(fnord.content_full || fnord.content_raw)}
+          isProcessed={!!fnord.processed_at}
+        />
+      {/await}
     </div>
 
     <!-- Sephiroth (Categories) & Immanentize (Keywords) -->
