@@ -111,25 +111,17 @@ fuckupRSS verwendet durchgängig Begriffe aus der Illuminatus!-Trilogie:
 
 ## Screenshots
 
-*Coming soon – das Projekt befindet sich in Entwicklung.*
+### Artikel-Detailansicht mit Discordian Analysis
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│ fuckupRSS                                    [−][□][×]         │
-├────────────────────────────────────────────────────────────────┤
-│ PENTACLES         │ FNORDS                                     │
-│                   │                                            │
-│ ▼ Tech            │ ● EU verabschiedet AI Act                  │
-│   • Heise (12)    │   heise.de · vor 2 Stunden                 │
-│   • Golem (5)     │   📰 Nachricht · ━━●━━ · ★★★★☆             │
-│                   │                                            │
-│ ▼ Politik         │ ○ Neue Entwicklungen in der...             │
-│   • Tagesschau    │   tagesschau.de · vor 3 Stunden            │
-│                   │                                            │
-├───────────────────┴────────────────────────────────────────────┤
-│ 🔄 Discordian Analysis: 12/47 │ ████████░░░░░░ │ [Details]     │
-└────────────────────────────────────────────────────────────────┘
-```
+![fuckupRSS Hauptansicht — Artikel mit KI-Analyse, Bias-Erkennung und Kategorien](docs/screenshots/fuckuprss-artikel-detail.png)
+
+Jeder Artikel zeigt auf einen Blick: KI-generierte Zusammenfassung (Discordian Analysis), politische Einordnung (Greyface Alert), Sachlichkeitsbewertung, automatisch erkannte Kategorien (Sephiroth) und extrahierte Schlagworte (Immanentize).
+
+### Tages-Briefing
+
+![fuckupRSS Briefing — KI-generierter Tagesüberblick mit TL;DR und thematischer Gliederung](docs/screenshots/fuckuprss-briefing.png)
+
+Das tägliche Briefing fasst die relevantesten Artikel aus allen Quellen zusammen — mit TL;DR, thematischer Gliederung und direkten Verweisen auf die zugrunde liegenden Artikel.
 
 ---
 
