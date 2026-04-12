@@ -16,6 +16,8 @@ mod retrieval;
 mod similarity;
 mod sync;
 mod text_analysis;
+#[allow(dead_code)] // Module not yet wired into commands — will be used by theme report generation
+mod theme_clustering;
 
 pub use categories::{classify_by_keywords, CategoryClassifier, SEPHIROTH_CATEGORIES};
 pub use embedding_worker::EmbeddingWorker;
