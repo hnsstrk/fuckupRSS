@@ -1160,6 +1160,51 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         "#,
     )?;
 
+    // Migration 32: Drop story_cluster tables, create theme_report tables
+    conn.execute_batch(
+        r#"
+        DROP TABLE IF EXISTS story_cluster_articles;
+        DROP TABLE IF EXISTS story_clusters;
+
+        CREATE TABLE IF NOT EXISTS theme_reports (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            period_start    DATETIME NOT NULL,
+            period_end      DATETIME NOT NULL,
+            search_query    TEXT,
+            theme_count     INTEGER NOT NULL DEFAULT 0,
+            model_used      TEXT,
+            locale          TEXT NOT NULL DEFAULT 'de',
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(period_start, period_end, COALESCE(search_query, ''))
+        );
+
+        CREATE TABLE IF NOT EXISTS theme_report_themes (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_id       INTEGER NOT NULL REFERENCES theme_reports(id) ON DELETE CASCADE,
+            label           TEXT NOT NULL,
+            headline        TEXT,
+            report_json     TEXT,
+            report_status   TEXT NOT NULL DEFAULT 'pending'
+                            CHECK(report_status IN ('pending', 'generating', 'complete', 'failed')),
+            cluster_score   REAL NOT NULL DEFAULT 0.0,
+            article_count   INTEGER NOT NULL DEFAULT 0,
+            source_count    INTEGER NOT NULL DEFAULT 0,
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS theme_report_articles (
+            theme_id        INTEGER NOT NULL REFERENCES theme_report_themes(id) ON DELETE CASCADE,
+            fnord_id        INTEGER NOT NULL REFERENCES fnords(id) ON DELETE CASCADE,
+            topic_score     REAL NOT NULL DEFAULT 0.0,
+            PRIMARY KEY (theme_id, fnord_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tr_created ON theme_reports(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_trt_report ON theme_report_themes(report_id);
+        CREATE INDEX IF NOT EXISTS idx_tra_fnord ON theme_report_articles(fnord_id);
+        "#,
+    )?;
+
     Ok(())
 }
 
