@@ -15,10 +15,14 @@
   let summaryPrompt = $state("");
   let analysisPrompt = $state("");
   let discordianPrompt = $state("");
+  let themeValidationPrompt = $state("");
+  let themeReportPrompt = $state("");
   let defaultPrompts = $state<{
     summary_prompt: string;
     analysis_prompt: string;
     discordian_prompt: string;
+    theme_validation_prompt: string;
+    theme_report_prompt: string;
   } | null>(null);
   let promptsModified = $state(false);
 
@@ -32,22 +36,30 @@
         summary_prompt: string;
         analysis_prompt: string;
         discordian_prompt: string;
+        theme_validation_prompt: string;
+        theme_report_prompt: string;
       }>("get_prompts");
       summaryPrompt = prompts.summary_prompt;
       analysisPrompt = prompts.analysis_prompt;
       discordianPrompt = prompts.discordian_prompt;
+      themeValidationPrompt = prompts.theme_validation_prompt;
+      themeReportPrompt = prompts.theme_report_prompt;
 
       defaultPrompts = await invoke<{
         summary_prompt: string;
         analysis_prompt: string;
         discordian_prompt: string;
+        theme_validation_prompt: string;
+        theme_report_prompt: string;
       }>("get_default_prompts");
 
       if (defaultPrompts) {
         promptsModified =
           summaryPrompt !== defaultPrompts.summary_prompt ||
           analysisPrompt !== defaultPrompts.analysis_prompt ||
-          discordianPrompt !== defaultPrompts.discordian_prompt;
+          discordianPrompt !== defaultPrompts.discordian_prompt ||
+          themeValidationPrompt !== defaultPrompts.theme_validation_prompt ||
+          themeReportPrompt !== defaultPrompts.theme_report_prompt;
       }
     } catch (e) {
       log.error("Failed to load prompts:", e);
@@ -59,7 +71,9 @@
       promptsModified =
         summaryPrompt !== defaultPrompts.summary_prompt ||
         analysisPrompt !== defaultPrompts.analysis_prompt ||
-        discordianPrompt !== defaultPrompts.discordian_prompt;
+        discordianPrompt !== defaultPrompts.discordian_prompt ||
+        themeValidationPrompt !== defaultPrompts.theme_validation_prompt ||
+        themeReportPrompt !== defaultPrompts.theme_report_prompt;
     }
   }
 
@@ -69,6 +83,8 @@
         summaryPrompt: summaryPrompt,
         analysisPrompt: analysisPrompt,
         discordianPrompt: discordianPrompt,
+        themeValidationPrompt: themeValidationPrompt,
+        themeReportPrompt: themeReportPrompt,
       });
       promptsModified = false;
       toasts.success($_("settings.promptsSaved"));
@@ -84,10 +100,14 @@
         summary_prompt: string;
         analysis_prompt: string;
         discordian_prompt: string;
+        theme_validation_prompt: string;
+        theme_report_prompt: string;
       }>("reset_prompts");
       summaryPrompt = prompts.summary_prompt;
       analysisPrompt = prompts.analysis_prompt;
       discordianPrompt = prompts.discordian_prompt;
+      themeValidationPrompt = prompts.theme_validation_prompt;
+      themeReportPrompt = prompts.theme_report_prompt;
       promptsModified = false;
     } catch (e) {
       log.error("Failed to reset prompts:", e);
@@ -134,6 +154,31 @@
       bind:value={discordianPrompt}
       oninput={handlePromptChange}
       rows="18"
+    ></textarea>
+  </div>
+
+  <div class="setting-group">
+    <label class="label" for="theme-validation-prompt"
+      >{$_("settings.prompts.themeValidationPrompt")}</label
+    >
+    <textarea
+      id="theme-validation-prompt"
+      class="prompt-textarea"
+      bind:value={themeValidationPrompt}
+      oninput={handlePromptChange}
+      rows="10"
+    ></textarea>
+  </div>
+
+  <div class="setting-group">
+    <label class="label" for="theme-report-prompt">{$_("settings.prompts.themeReportPrompt")}</label
+    >
+    <textarea
+      id="theme-report-prompt"
+      class="prompt-textarea"
+      bind:value={themeReportPrompt}
+      oninput={handlePromptChange}
+      rows="10"
     ></textarea>
   </div>
 
