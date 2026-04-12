@@ -1170,12 +1170,12 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             period_start    DATETIME NOT NULL,
             period_end      DATETIME NOT NULL,
-            search_query    TEXT,
+            search_query    TEXT NOT NULL DEFAULT '',
             theme_count     INTEGER NOT NULL DEFAULT 0,
             model_used      TEXT,
             locale          TEXT NOT NULL DEFAULT 'de',
             created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(period_start, period_end, COALESCE(search_query, ''))
+            UNIQUE(period_start, period_end, search_query)
         );
 
         CREATE TABLE IF NOT EXISTS theme_report_themes (

@@ -760,7 +760,7 @@ pub async fn generate_theme_report(
             params![
                 period_start_str,
                 period_end_str,
-                search_query,
+                search_query.as_deref().unwrap_or(""),
                 themes.len() as i32,
                 model_used,
                 locale
