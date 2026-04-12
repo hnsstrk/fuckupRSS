@@ -89,7 +89,7 @@
   }
 
   .tr-header-left h2 i {
-    color: var(--accent-color);
+    color: var(--accent-primary);
   }
 
   .tr-header-controls {
@@ -154,7 +154,7 @@
     align-items: center;
     gap: 0.4rem;
     padding: 0.4rem 0.8rem;
-    background: var(--accent-color);
+    background: var(--accent-primary);
     color: var(--accent-text);
     border: none;
     border-radius: 6px;

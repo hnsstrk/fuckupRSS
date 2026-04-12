@@ -314,7 +314,7 @@
   }
 
   .tr-theme-card.expanded {
-    border-color: var(--accent-color);
+    border-color: var(--accent-primary);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   }
 
@@ -335,7 +335,7 @@
   }
 
   .tr-theme-header:hover {
-    background: color-mix(in srgb, var(--accent-color) 5%, transparent);
+    background: color-mix(in srgb, var(--accent-primary) 5%, transparent);
   }
 
   .tr-theme-title-row {
@@ -454,8 +454,8 @@
   .tr-tldr {
     margin-top: 1rem;
     padding: 1rem 1.25rem;
-    background: color-mix(in srgb, var(--accent-color) 10%, transparent);
-    border-left: 4px solid var(--accent-color);
+    background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+    border-left: 4px solid var(--accent-primary);
     border-radius: 0 8px 8px 0;
   }
 
@@ -466,7 +466,7 @@
     margin: 0 0 0.75rem;
     font-size: 0.8rem;
     font-weight: 700;
-    color: var(--accent-color);
+    color: var(--accent-primary);
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
@@ -493,7 +493,7 @@
     font-size: 0.85rem;
     margin-top: 0.6rem;
     padding-top: 0.6rem;
-    border-top: 1px solid color-mix(in srgb, var(--accent-color) 20%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--accent-primary) 20%, transparent);
     line-height: 1.6;
   }
 
@@ -520,7 +520,7 @@
   }
 
   .tr-section-title i {
-    color: var(--accent-color);
+    color: var(--accent-primary);
     font-size: 0.78rem;
   }
 
@@ -539,7 +539,7 @@
   }
 
   .tr-consensus-list li::marker {
-    color: var(--accent-color);
+    color: var(--accent-primary);
   }
 
   /* Timeline */
@@ -548,7 +548,7 @@
     flex-direction: column;
     gap: 0;
     padding-left: 1rem;
-    border-left: 3px solid color-mix(in srgb, var(--accent-color) 40%, transparent);
+    border-left: 3px solid color-mix(in srgb, var(--accent-primary) 40%, transparent);
   }
 
   .tr-timeline-entry {
@@ -567,7 +567,7 @@
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background: var(--accent-color);
+    background: var(--accent-primary);
     border: 2px solid var(--bg-primary);
   }
 
@@ -577,7 +577,7 @@
 
   .tr-timeline-date {
     font-weight: 700;
-    color: var(--accent-color);
+    color: var(--accent-primary);
     white-space: nowrap;
     min-width: 6rem;
     font-size: 0.8rem;
@@ -615,7 +615,7 @@
     padding: 0.6rem 0.75rem;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-left: 3px solid color-mix(in srgb, var(--accent-color) 50%, transparent);
+    border-left: 3px solid color-mix(in srgb, var(--accent-primary) 50%, transparent);
     border-radius: 0 6px 6px 0;
   }
 
@@ -635,8 +635,8 @@
   .tr-source-badge {
     display: inline-block;
     padding: 0.15rem 0.5rem;
-    background: color-mix(in srgb, var(--accent-color) 12%, transparent);
-    color: var(--accent-color);
+    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+    color: var(--accent-primary);
     border-radius: 4px;
     font-size: 0.72rem;
     font-weight: 600;
@@ -712,8 +712,8 @@
   }
 
   .tr-article-link:hover {
-    background: color-mix(in srgb, var(--accent-color) 8%, transparent);
-    border-color: var(--accent-color);
+    background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+    border-color: var(--accent-primary);
   }
 
   .tr-article-source {
@@ -740,7 +740,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--accent-color);
+    color: var(--accent-primary);
   }
 
   .tr-article-date {

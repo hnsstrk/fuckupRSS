@@ -59,7 +59,7 @@
   }
 
   .tr-progress-icon {
-    color: var(--accent-color);
+    color: var(--accent-primary);
     font-size: 0.9rem;
   }
 
@@ -73,7 +73,7 @@
   .tr-progress-pct {
     font-size: 0.82rem;
     font-weight: 600;
-    color: var(--accent-color);
+    color: var(--accent-primary);
     font-variant-numeric: tabular-nums;
   }
 
@@ -86,7 +86,7 @@
 
   .tr-progress-bar-fill {
     height: 100%;
-    background: var(--accent-color);
+    background: var(--accent-primary);
     border-radius: 3px;
     transition: width 0.4s ease;
   }
@@ -102,7 +102,7 @@
 
   .tr-pulse {
     font-size: 0.4rem;
-    color: var(--accent-color);
+    color: var(--accent-primary);
     animation: pulse 1.5s ease-in-out infinite;
   }
 

@@ -152,7 +152,7 @@
 
   .tr-report-card.selected {
     background: var(--bg-active, var(--bg-secondary));
-    border-color: var(--accent-color);
+    border-color: var(--accent-primary);
   }
 
   .tr-card-top {
@@ -171,8 +171,8 @@
   .tr-period-badge {
     display: inline-block;
     padding: 0.1rem 0.4rem;
-    background: color-mix(in srgb, var(--accent-color) 15%, transparent);
-    color: var(--accent-color);
+    background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+    color: var(--accent-primary);
     border-radius: 4px;
     font-size: 0.7rem;
     font-weight: 600;
