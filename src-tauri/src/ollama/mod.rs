@@ -281,6 +281,100 @@ pub fn briefing_schema() -> Value {
     })
 }
 
+pub fn theme_validation_schema() -> Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "clusters": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "cluster_id": { "type": "integer" },
+                        "valid": { "type": "boolean" },
+                        "label": { "type": "string" },
+                        "merge_with": { "type": ["integer", "null"] },
+                        "reason": { "type": "string" }
+                    },
+                    "required": ["cluster_id", "valid"]
+                }
+            }
+        },
+        "required": ["clusters"]
+    })
+}
+
+pub fn theme_report_schema() -> Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "tldr": {
+                "type": "object",
+                "properties": {
+                    "core_message": { "type": "string" },
+                    "key_divergence": { "type": "string" }
+                },
+                "required": ["core_message", "key_divergence"]
+            },
+            "headline": { "type": "string" },
+            "period": { "type": "string" },
+            "summary": { "type": "string" },
+            "consensus": {
+                "type": "array",
+                "items": { "type": "string" }
+            },
+            "timeline": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "date": { "type": "string" },
+                        "development": { "type": "string" }
+                    },
+                    "required": ["date", "development"]
+                }
+            },
+            "divergences": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "topic": { "type": "string" },
+                        "positions": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "stance": { "type": "string" },
+                                    "sources": { "type": "array", "items": { "type": "string" } },
+                                    "article_indices": { "type": "array", "items": { "type": "integer" } }
+                                },
+                                "required": ["stance", "sources", "article_indices"]
+                            }
+                        }
+                    },
+                    "required": ["topic", "positions"]
+                }
+            },
+            "sources": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" },
+                        "article_count": { "type": "integer" },
+                        "bias_label": { "type": "string" },
+                        "avg_sachlichkeit": { "type": "number" }
+                    },
+                    "required": ["name", "article_count"]
+                }
+            },
+            "article_indices": { "type": "array", "items": { "type": "integer" } }
+        },
+        "required": ["tldr", "headline", "summary", "consensus", "divergences"]
+    })
+}
+
 #[derive(Deserialize)]
 struct ModelsResponse {
     models: Vec<ModelInfo>,
@@ -456,6 +550,53 @@ pub const DEFAULT_BIAS_SYSTEM: &str =
 /// User message template for bias analysis
 #[allow(dead_code)] // Available for future prompt customization
 pub const DEFAULT_BIAS_USER: &str = "Title: {title}\nContent: {content}";
+
+/// Default prompt for theme cluster validation (Phase 2 — Fast LLM)
+pub const DEFAULT_THEME_VALIDATION_PROMPT: &str = r#"You receive cluster candidates from a statistical pre-analysis.
+For each cluster: Do these articles report on the same topic?
+
+{clusters}
+
+Respond in {language}. Return JSON:
+- cluster_id: the cluster number
+- valid: true if articles belong to the same topic, false otherwise
+- label: a short topic label (3-6 words) if valid
+- merge_with: cluster_id to merge with if two clusters cover the same topic, otherwise null
+- reason: explanation if invalid
+
+Return ONLY valid JSON."#;
+
+/// Default prompt for theme report generation (Phase 3 — Reasoning LLM)
+pub const DEFAULT_THEME_REPORT_PROMPT: &str = r#"You are creating a theme report. Respond in {language}.
+
+Topic: "{label}"
+Period: {period}
+
+Articles in chronological order:
+
+{articles}
+
+Create a structured JSON report. The TL;DR is the most important element.
+
+Strictly distinguish between:
+1. SOURCE DIVERGENCE: Different sources report differently on the same day
+2. TEMPORAL DEVELOPMENT: The factual situation changed over time
+
+Weight more objective sources (higher sachlichkeit) more strongly in the consensus.
+
+JSON structure:
+- tldr.core_message: The central message in 1-2 sentences
+- tldr.key_divergence: The most important divergence in reporting in 1-2 sentences
+- headline: Topic + key message (NO source names in headline)
+- period: Date range as string
+- summary: Overall summary in 3-4 sentences
+- consensus: Array of points all sources agree on
+- timeline: Array of {date, development} entries showing chronological evolution
+- divergences: Array of {topic, positions: [{stance, sources, article_indices}]}
+- sources: Array of {name, article_count, bias_label, avg_sachlichkeit}
+- article_indices: Array of all referenced article indices (0-based)
+
+Return ONLY valid JSON."#;
 
 /// Get language name for prompt based on locale
 pub fn get_language_for_locale(locale: &str) -> &'static str {
