@@ -6,7 +6,7 @@ export type AppView =
   | "fnord"
   | "mindfuck"
   | "briefings"
-  | "storyClusters"
+  | "themeReports"
   | "settings";
 
 class NavigationStore {

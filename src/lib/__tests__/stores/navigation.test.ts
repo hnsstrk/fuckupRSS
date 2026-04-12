@@ -100,7 +100,7 @@ describe("NavigationStore", () => {
         | "fnord"
         | "mindfuck"
         | "briefings"
-        | "storyClusters"
+        | "themeReports"
         | "settings";
 
       const views: AppView[] = [
@@ -109,7 +109,7 @@ describe("NavigationStore", () => {
         "fnord",
         "mindfuck",
         "briefings",
-        "storyClusters",
+        "themeReports",
         "settings",
       ];
 

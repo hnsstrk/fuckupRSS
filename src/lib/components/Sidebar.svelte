@@ -20,14 +20,14 @@
     onfnord?: () => void;
     onmindfuck?: () => void;
     onbriefings?: () => void;
-    onstoryClusters?: () => void;
+    onthemeReports?: () => void;
     onerisianArchives?: () => void;
     settingsActive?: boolean;
     networkActive?: boolean;
     fnordActive?: boolean;
     mindfuckActive?: boolean;
     briefingsActive?: boolean;
-    storyClustersActive?: boolean;
+    themeReportsActive?: boolean;
     erisianArchivesActive?: boolean;
   }
 
@@ -37,14 +37,14 @@
     onfnord,
     onmindfuck,
     onbriefings,
-    onstoryClusters,
+    onthemeReports,
     onerisianArchives,
     settingsActive = false,
     networkActive = false,
     fnordActive = false,
     mindfuckActive = false,
     briefingsActive = false,
-    storyClustersActive = false,
+    themeReportsActive = false,
     erisianArchivesActive = true,
   }: Props = $props();
 
@@ -330,10 +330,10 @@
         <i class="icon fa-solid fa-brain"></i>
       </button>
       <button
-        onclick={onstoryClusters}
-        class="nav-btn {storyClustersActive ? 'active' : ''}"
-        title={$_("storyClusters.title")}
-        aria-label={$_("storyClusters.title")}
+        onclick={onthemeReports}
+        class="nav-btn {themeReportsActive ? 'active' : ''}"
+        title={$_("themeReport.title")}
+        aria-label={$_("themeReport.title")}
       >
         <i class="icon fa-solid fa-layer-group"></i>
       </button>
