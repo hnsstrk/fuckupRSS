@@ -167,7 +167,8 @@ Für eine vollständige Übersicht aller Dokumente: **[README.md](README.md)**
 - [x] OPML Import/Export
 - [x] Erweiterte Keyboard-Shortcuts (Vim-Style: j/k, o/Enter, v, r/u, s, a, /, f)
 - [x] Tägliche Briefings (KI-generierte Zusammenfassungen der Top-Artikel)
-- [x] Story Clustering (Union-Find Algorithmus, Embedding-Ähnlichkeit > 0.78, Perspektiven-Vergleich)
+- [x] ~~Story Clustering (Union-Find Algorithmus, Embedding-Ähnlichkeit > 0.78, Perspektiven-Vergleich)~~ — Ersetzt durch Theme Reports (April 2026)
+- [x] Theme Reports (Multi-Signal Topic Detection + LLM-Tiefenanalyse, ersetzt Story Clustering)
 - [x] Named Entity Recognition (NER) – Personen, Organisationen, Orte, Events
 - [x] OpenAI-kompatible API als Alternative zu Ollama für Textgenerierung
 - [x] Ollama API Modernisierung (Structured Outputs, /api/chat, /api/embed Batch)
@@ -196,7 +197,7 @@ Für eine vollständige Übersicht aller Dokumente: **[README.md](README.md)**
 
 #### Tier 3: Fortgeschrittene Features (höherer Aufwand)
 
-- [ ] **Argumentationsanalyse** — Pro/Contra-Argumente aus Meinungsartikeln extrahieren; kombiniert mit Story-Clustering-Perspektiven ("Welche Argumente bringt die FAZ, welche die taz?")
+- [ ] **Argumentationsanalyse** — Pro/Contra-Argumente aus Meinungsartikeln extrahieren; kombiniert mit Theme-Report-Perspektiven ("Welche Argumente bringt die FAZ, welche die taz?")
 - [ ] **Claim Detection / Fact-Check-Hints** — Zentrale Behauptungen extrahieren, prüfen ob andere Artikel stützen oder widersprechen ("Diese Behauptung wird in 3 anderen Quellen anders dargestellt")
 - [ ] **Bias-Drift-Erkennung über Zeit** — `political_bias` pro Feed über Monate tracken und visualisieren ("Feed X ist 0.5 Punkte nach rechts gedriftet"); Daten vorhanden, Auswertung/Visualisierung fehlt
 - [ ] **Bild-Analyse mit Vision-Modellen** — Artikelbilder analysieren (Symbolbild vs. echtes Foto, Manipulation); `image_url` bei vielen Artikeln vorhanden; Gemma 3 / Llama 3.2 Vision
@@ -219,7 +220,7 @@ Details in [DB_INFRASTRUCTURE_DEBT.md](DB_INFRASTRUCTURE_DEBT.md) und [TECH_DEBT
 | Mittel | GTK3-Bindings | cargo-audit Warnings durch transitive Tauri-Dependencies |
 | Niedrig | Test-Coverage | E2E-Tests für KI-Features erweitern |
 | Niedrig | SQLite-Tuning | PRAGMA-Settings, Indexierung für >10K Artikel |
-| Niedrig | Clustering Feature Flag | `#[cfg(feature = "clustering")]` Aktivierung prüfen |
+| Niedrig | Theme Reports Feature Flag | `#[cfg(feature = "clustering")]` Aktivierung prüfen (Theme Reports) |
 
 ---
 
@@ -240,7 +241,7 @@ Details in [DB_INFRASTRUCTURE_DEBT.md](DB_INFRASTRUCTURE_DEBT.md) und [TECH_DEBT
 | Discordian Analysis | KI-Zusammenfassung |
 | Fnord Processing | Batch-Verarbeitung |
 | Briefing | Tägliche/wöchentliche KI-Zusammenfassung der Top-Artikel |
-| Story Cluster | Thematisch gruppierte Artikel aus verschiedenen Quellen |
+| Theme Report | Thematisch gruppierte Artikel mit LLM-Tiefenanalyse (ersetzt Story Cluster) |
 | Entity / NER | Erkannte Entitäten (Person, Organization, Location, Event) |
 
 ---

@@ -35,7 +35,7 @@ This document provides a comprehensive reference for all Tauri commands availabl
 - [Prompts (Extended)](#prompts-extended)
 - [Briefings (AI-generated News Summaries)](#briefings-ai-generated-news-summaries)
 - [Named Entity Recognition (NER)](#named-entity-recognition-ner)
-- [Story Clusters (Perspective Comparison)](#story-clusters-perspective-comparison)
+- [Theme Reports (Topic Detection & Deep Analysis)](#theme-reports-topic-detection--deep-analysis)
 - [Database Maintenance](#database-maintenance)
 - [Data Structures](#data-structures)
 
@@ -668,82 +668,79 @@ const orgs = await invoke<EntityInfo[]>('get_top_entities', {
 
 ---
 
-## Story Clusters (Perspective Comparison)
+## Theme Reports (Topic Detection & Deep Analysis)
 
 | Command | Parameter | Return | Description |
 |---------|-----------|--------|-------------|
-| `discover_story_clusters` | `min_articles?`, `days?` | `DiscoverResult` | Discover article clusters by embedding similarity |
-| `get_story_clusters` | `limit?` | `Vec<StoryCluster>` | Get all story clusters (default: 50) |
-| `get_story_cluster_detail` | `cluster_id` | `StoryClusterDetail` | Get cluster detail with all articles |
-| `compare_perspectives` | `cluster_id` | `String` | Generate LLM perspective comparison for cluster |
-| `delete_story_cluster` | `cluster_id` | - | Delete a story cluster |
+| `generate_theme_report` | `days: i32`, `search_query?` | `ThemeReportDetail` | Generate a theme report via Multi-Signal Topic Detection + LLM deep analysis |
+| `get_theme_reports` | `limit?` | `Vec<ThemeReportSummary>` | Get all theme reports (default: 50) |
+| `get_theme_report_detail` | `report_id: i64` | `ThemeReportDetail` | Get full theme report with all themes and articles |
+| `retry_theme_analysis` | `theme_id: i64` | `ThemeReportTheme` | Retry LLM deep analysis for a single theme |
+| `delete_theme_report` | `report_id: i64` | `bool` | Delete a theme report |
 
-### StoryCluster Structure
+### ThemeReportSummary Structure
 
 ```typescript
-interface StoryCluster {
+interface ThemeReportSummary {
   id: number;
-  title: string;                          // Generated from common keywords
-  summary: string | null;
-  perspective_comparison: string | null;   // LLM-generated comparison text
+  title: string;
+  period_days: number;
+  search_query: string | null;
+  theme_count: number;
   article_count: number;
-  source_names: string[];                  // Feed titles in this cluster
   created_at: string | null;
-  updated_at: string | null;
 }
 ```
 
-### StoryClusterDetail Structure
+### ThemeReportDetail Structure
 
 ```typescript
-interface StoryClusterDetail {
-  cluster: StoryCluster;
-  articles: StoryClusterArticle[];
+interface ThemeReportDetail {
+  report: ThemeReportSummary;
+  themes: ThemeReportTheme[];
 }
 
-interface StoryClusterArticle {
+interface ThemeReportTheme {
+  id: number;
+  report_id: number;
+  title: string;
+  summary: string | null;           // LLM-generated deep analysis
+  article_count: number;
+  source_names: string[];           // Feed titles contributing to this theme
+  keywords: string[];               // Representative keywords for the theme
+  articles: ThemeReportArticle[];
+}
+
+interface ThemeReportArticle {
   fnord_id: number;
   title: string;
   summary: string | null;
-  political_bias: number | null;     // -2 to +2
-  sachlichkeit: number | null;       // 0 to 4
-  source_name: string;               // Feed title
+  political_bias: number | null;    // -2 to +2
+  sachlichkeit: number | null;      // 0 to 4
+  source_name: string;              // Feed title
   published_at: string | null;
-  similarity_score: number;          // 0.0-1.0, best similarity to cluster
-}
-```
-
-### DiscoverResult Structure
-
-```typescript
-interface DiscoverResult {
-  clusters_found: number;
-  clusters: StoryCluster[];
 }
 ```
 
 **Notes:**
-- Clustering uses embedding similarity (cosine distance) with Union-Find algorithm
-- Similarity threshold: >= 0.78 for cluster membership
-- Clusters require at minimum 3 articles (configurable) from at least 2 different sources
-- Cluster titles are generated from common keywords across articles
-- Old clusters (> 30 days) are automatically cleaned up during discovery
-- `compare_perspectives` generates a German-language analysis of reporting differences using LLM
+- Multi-Signal Topic Detection combines keyword overlap, embedding similarity, and NER entity co-occurrence
+- LLM deep analysis generates a German-language synthesis per theme
+- Reports can be scoped to a time window (`days`) and optionally filtered by `search_query`
+- `retry_theme_analysis` re-runs only the LLM step for a single theme without re-clustering
 
 ```typescript
-// Discover clusters from last 7 days
-const result = await invoke<DiscoverResult>('discover_story_clusters', {
-  minArticles: 3,
+// Generate a theme report for the last 7 days
+const report = await invoke<ThemeReportDetail>('generate_theme_report', {
   days: 7
 });
 
-// Get cluster detail
-const detail = await invoke<StoryClusterDetail>('get_story_cluster_detail', {
-  clusterId: 42
+// Get full report detail
+const detail = await invoke<ThemeReportDetail>('get_theme_report_detail', {
+  reportId: 42
 });
 
-// Generate perspective comparison
-const comparison = await invoke<string>('compare_perspectives', { clusterId: 42 });
+// Retry LLM analysis for one theme
+const theme = await invoke<ThemeReportTheme>('retry_theme_analysis', { themeId: 5 });
 ```
 
 ---
@@ -815,11 +812,8 @@ const briefing = await invoke<Briefing>('generate_briefing', { periodType: 'dail
 // Extract entities for an article
 const ner = await invoke<ExtractionResult>('extract_entities', { fnordId: 42 });
 
-// Discover story clusters
-const clusters = await invoke<DiscoverResult>('discover_story_clusters', {
-  minArticles: 3,
-  days: 7
-});
+// Generate a theme report
+const report = await invoke<ThemeReportDetail>('generate_theme_report', { days: 7 });
 ```
 
 ---
