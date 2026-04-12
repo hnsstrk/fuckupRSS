@@ -16,9 +16,9 @@ pub mod recommendations;
 pub mod retrieval;
 pub mod settings;
 pub mod stopwords;
-pub mod story_clusters;
 pub mod sync;
 pub mod tags;
+pub mod theme_report;
 
 #[cfg(test)]
 mod tests;

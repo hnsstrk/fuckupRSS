@@ -16,7 +16,6 @@ mod retrieval;
 mod similarity;
 mod sync;
 mod text_analysis;
-#[allow(dead_code)] // Module not yet wired into commands — will be used by theme report generation
 mod theme_clustering;
 
 pub use categories::{classify_by_keywords, CategoryClassifier, SEPHIROTH_CATEGORIES};
@@ -429,12 +428,12 @@ pub fn run() {
             commands::keyword_type_detection::count_untyped_keywords,
             commands::keyword_type_detection::update_untyped_keywords,
             commands::keyword_type_detection::get_prototype_stats,
-            // Story Clustering (Perspective Comparison)
-            commands::story_clusters::discover_story_clusters,
-            commands::story_clusters::get_story_clusters,
-            commands::story_clusters::get_story_cluster_detail,
-            commands::story_clusters::compare_perspectives,
-            commands::story_clusters::delete_story_cluster,
+            // Theme Reports (replaces Story Clustering)
+            commands::theme_report::generate_theme_report,
+            commands::theme_report::get_theme_reports,
+            commands::theme_report::get_theme_report_detail,
+            commands::theme_report::retry_theme_analysis,
+            commands::theme_report::delete_theme_report,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
