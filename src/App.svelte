@@ -7,7 +7,7 @@
   import FnordView from "./lib/components/FnordView.svelte";
   import MindfuckView from "./lib/components/MindfuckView.svelte";
   import BriefingView from "./lib/components/BriefingView.svelte";
-  import StoryClusterView from "./lib/components/StoryClusterView.svelte";
+  import ThemeReportView from "./lib/components/ThemeReportView.svelte";
   import SettingsView from "./lib/components/SettingsView.svelte";
   import Toast from "./lib/components/Toast.svelte";
   import StatusBar from "./lib/components/StatusBar.svelte";
@@ -37,14 +37,14 @@
         onnetwork={() => navigationStore.navigateTo("network")}
         onmindfuck={() => navigationStore.navigateTo("mindfuck")}
         onbriefings={() => navigationStore.navigateTo("briefings")}
-        onstoryClusters={() => navigationStore.navigateTo("storyClusters")}
+        onthemeReports={() => navigationStore.navigateTo("themeReports")}
         onsettings={() => navigationStore.navigateTo("settings")}
         erisianArchivesActive={navigationStore.currentView === "erisianArchives"}
         fnordActive={navigationStore.currentView === "fnord"}
         networkActive={navigationStore.currentView === "network"}
         mindfuckActive={navigationStore.currentView === "mindfuck"}
         briefingsActive={navigationStore.currentView === "briefings"}
-        storyClustersActive={navigationStore.currentView === "storyClusters"}
+        themeReportsActive={navigationStore.currentView === "themeReports"}
         settingsActive={navigationStore.currentView === "settings"}
       />
 
@@ -65,9 +65,9 @@
         {:else if navigationStore.currentView === "briefings"}
           <!-- AI Briefings -->
           <BriefingView />
-        {:else if navigationStore.currentView === "storyClusters"}
-          <!-- Story Clustering (Perspective Comparison) -->
-          <StoryClusterView />
+        {:else if navigationStore.currentView === "themeReports"}
+          <!-- Theme Reports -->
+          <ThemeReportView />
         {:else if navigationStore.currentView === "settings"}
           <!-- Settings View -->
           <SettingsView />

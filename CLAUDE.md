@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 fuckupRSS is an RSS aggregator/reader with local AI integration (Tauri v2 + Svelte 5 + Rust + SQLite), named after F.U.C.K.U.P. from the Illuminatus! trilogy. It supports Ollama (local) and OpenAI-compatible APIs for text generation. Ollama remains required for embeddings.
 
-**Status:** Phase 4 (Polish & Advanced Features) — Ollama Modernization, Briefings, Story Clustering, NER, Article Type Classification abgeschlossen.
+**Status:** Phase 4 (Polish & Advanced Features) — Ollama Modernization, Briefings, Theme Reports, NER, Article Type Classification abgeschlossen.
 
 **Architektur-Dokumentation:** Obsidian Vault [[fuckupRSS Arc42 Architekturdokumentation]]
 
@@ -79,6 +79,7 @@ fuckupRSS/
 │   │   │   ├── keywords/         # Compound-Keyword-Verwaltung (Toolbar, Table)
 │   │   │   ├── network/          # Keyword-Netzwerk (Detail, Synonyms, Sub-Komponenten)
 │   │   │   ├── recommendation/   # Empfehlungskarten
+│   │   │   ├── theme/            # Theme Reports Sub-Komponenten
 │   │   │   └── settings/         # Settings Sub-Komponenten (AI, Ollama, Prompts, etc.)
 │   │   ├── stores/               # Runes-basiertes State Management
 │   │   ├── i18n/                 # Internationalisierung (de, en)
@@ -91,7 +92,8 @@ fuckupRSS/
 │   │   ├── ai_provider/          # AI Provider Abstraction (Ollama + OpenAI)
 │   │   ├── proxy.rs              # Ollama LAN-Proxy
 │   │   ├── db/                   # Database (schema.rs)
-│   │   ├── commands/             # Tauri Commands (IPC)
+│   │   ├── theme_clustering.rs   # Theme Reports (Multi-Signal Topic Detection + LLM)
+│   │   ├── commands/             # Tauri Commands (IPC) — inkl. theme_report
 │   │   └── keywords/             # Keyword-Extraktion + Deduplication
 │   └── Cargo.toml
 ├── docs/                         # Referenzdokumentation (siehe docs/README.md)
@@ -167,7 +169,7 @@ ollama pull snowflake-arctic-embed2:latest # Embeddings
 3. **Article Embedding** — title + summary + content_full (snowflake-arctic-embed2)
 4. **Greyface Alert** — Bias-Erkennung (political_bias, sachlichkeit)
 5. **Immanentize Network** — Schlagwort-Verarbeitung und Synonyme
-6. **Story Clustering** — Union-Find (Embedding-Aehnlichkeit > 0.78)
+6. **Theme Reports** — Multi-Signal Topic Detection + LLM-Tiefenanalyse
 7. **Briefings** — Hybrid-Scoring + Diversitaets-Postprocessing (BRIEFING_NUM_CTX=16384)
 8. **NER** — Entitaeten (person, organization, location, event)
 

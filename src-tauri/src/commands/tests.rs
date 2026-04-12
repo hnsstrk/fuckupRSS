@@ -415,6 +415,8 @@ fn test_prompt_templates_serialize() {
         analysis_prompt: "Analyze: {title} {content}".to_string(),
         discordian_prompt:
             "Discordian: {language} {title} {content} {stat_keywords} {stat_categories}".to_string(),
+        theme_validation_prompt: "Validate: {clusters} {language}".to_string(),
+        theme_report_prompt: "Report: {label} {period} {articles} {language}".to_string(),
     };
 
     let json = serde_json::to_string(&templates).expect("Serialization failed");
@@ -431,6 +433,8 @@ fn test_default_prompts_serialize() {
         summary_prompt: "Default summary prompt".to_string(),
         analysis_prompt: "Default analysis prompt".to_string(),
         discordian_prompt: "Default discordian prompt".to_string(),
+        theme_validation_prompt: "Default theme validation prompt".to_string(),
+        theme_report_prompt: "Default theme report prompt".to_string(),
     };
 
     let json = serde_json::to_string(&defaults).expect("Serialization failed");
