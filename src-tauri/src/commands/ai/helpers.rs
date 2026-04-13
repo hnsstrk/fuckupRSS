@@ -109,21 +109,37 @@ pub fn get_provider_config(
     proxy: Option<&crate::proxy::ProxyManager>,
     task_type: TaskType,
 ) -> ProviderConfig {
-    let provider_type_str = get_setting(db, "ai_text_provider", "ollama");
-    let provider_type = ProviderType::from_str_setting(&provider_type_str);
-
     let main_model = get_setting(db, "ollama_model", RECOMMENDED_MAIN_MODEL);
     let reasoning_model = get_setting(db, "reasoning_model", RECOMMENDED_REASONING_MODEL);
     let mut num_ctx = get_num_ctx_setting(db);
 
-    // Bei Reasoning: Reasoning-Modell verwenden und höheren num_ctx sicherstellen
-    let effective_model = match task_type {
-        TaskType::Fast => main_model.clone(),
+    // Reasoning tasks can use a separate provider and higher num_ctx
+    let (provider_type, effective_model) = match task_type {
+        TaskType::Fast => {
+            let provider_str = get_setting(db, "ai_text_provider", "ollama");
+            (
+                ProviderType::from_str_setting(&provider_str),
+                main_model.clone(),
+            )
+        }
         TaskType::Reasoning => {
+            let provider_str = get_setting(db, "ai_reasoning_provider", "");
+            let provider_type = if provider_str.is_empty() {
+                // Fall back to the main text provider if no reasoning provider is set
+                ProviderType::from_str_setting(&get_setting(db, "ai_text_provider", "ollama"))
+            } else {
+                ProviderType::from_str_setting(&provider_str)
+            };
+            let reasoning_num_ctx: u32 = get_setting(db, "reasoning_num_ctx", "0")
+                .parse()
+                .unwrap_or(0);
+            if reasoning_num_ctx > 0 {
+                num_ctx = reasoning_num_ctx;
+            }
             if num_ctx < BRIEFING_NUM_CTX {
                 num_ctx = BRIEFING_NUM_CTX;
             }
-            reasoning_model.clone()
+            (provider_type, reasoning_model.clone())
         }
     };
 

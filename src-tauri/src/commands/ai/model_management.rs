@@ -1,6 +1,6 @@
 //! Ollama model management and AI provider commands (status, load, unload, pull, cost tracking)
 
-use crate::ai_provider::{AiTextProvider, ProviderTestResult, ProviderType};
+use crate::ai_provider::{ProviderTestResult, ProviderType};
 use crate::commands::ai::helpers::get_effective_ollama_url;
 use crate::ollama::{OllamaClient, RECOMMENDED_EMBEDDING_MODEL, RECOMMENDED_MAIN_MODEL};
 use crate::AppState;
