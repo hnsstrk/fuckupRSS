@@ -126,7 +126,7 @@
   <!-- Collapsed header (always visible) -->
   <button class="tr-theme-header" onclick={() => (expanded = !expanded)}>
     <div class="tr-theme-title-row">
-      <span class="tr-theme-label">{theme.headline || theme.label}</span>
+      <span class="tr-theme-label">{(theme.headline || theme.label).replace(/\*\*/g, "")}</span>
       <span class="tr-status-badge {statusBadgeClass(theme.report_status)}">
         {statusLabel(theme.report_status)}
       </span>
