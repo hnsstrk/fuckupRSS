@@ -6,7 +6,7 @@
 
 set -e
 
-PROJECT_ROOT="/Users/hnsstrk/Repositories/fuckupRSS"
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DB_PATH="$PROJECT_ROOT/src-tauri/data/fuckup.db"
 BACKUP_PATH="$DB_PATH.backup-$(date +%Y%m%d-%H%M%S)"
 
@@ -36,26 +36,9 @@ else
     echo "ℹ️  src-tauri/data.db not found (already deleted)"
 fi
 
-if [ -f "$PROJECT_ROOT/database.db" ]; then
-    rm -f "$PROJECT_ROOT/database.db"
-    echo "✅ Deleted: database.db"
-else
-    echo "ℹ️  database.db not found (already deleted)"
-fi
-
-# 3. Update .gitignore
+# 3. VACUUM (App muss gestoppt sein!)
 echo ""
-echo "📝 Step 3: Updating .gitignore..."
-if ! grep -q "^database.db$" "$PROJECT_ROOT/.gitignore"; then
-    echo "database.db" >> "$PROJECT_ROOT/.gitignore"
-    echo "✅ Added 'database.db' to .gitignore"
-else
-    echo "ℹ️  'database.db' already in .gitignore"
-fi
-
-# 4. VACUUM (App muss gestoppt sein!)
-echo ""
-echo "🔧 Step 4: Running VACUUM (may take 1-2 minutes)..."
+echo "🔧 Step 3: Running VACUUM (may take 1-2 minutes)..."
 echo "⚠️  Make sure the Tauri app is NOT running!"
 read -p "Press Enter to continue or Ctrl+C to abort..."
 
@@ -64,9 +47,9 @@ sqlite3 "$DB_PATH" "VACUUM;"
 sqlite3 "$DB_PATH" "ANALYZE;"
 echo "✅ VACUUM complete"
 
-# 5. Verify Integrity
+# 4. Verify Integrity
 echo ""
-echo "🔍 Step 5: Verifying database integrity..."
+echo "🔍 Step 4: Verifying database integrity..."
 INTEGRITY=$(sqlite3 "$DB_PATH" "PRAGMA integrity_check;")
 if [ "$INTEGRITY" = "ok" ]; then
     echo "✅ Integrity check: OK"
@@ -75,9 +58,9 @@ else
     exit 1
 fi
 
-# 6. Foreign Key Check
+# 5. Foreign Key Check
 echo ""
-echo "🔍 Step 6: Checking foreign key constraints..."
+echo "🔍 Step 5: Checking foreign key constraints..."
 FK_VIOLATIONS=$(sqlite3 "$DB_PATH" "PRAGMA foreign_key_check;" | wc -l | xargs)
 if [ "$FK_VIOLATIONS" -eq 0 ]; then
     echo "✅ Foreign key check: OK (0 violations)"
@@ -86,7 +69,7 @@ else
     echo "    Run: sqlite3 $DB_PATH 'PRAGMA foreign_key_check;' for details"
 fi
 
-# 7. Stats
+# 6. Stats
 echo ""
 echo "📊 Database Stats:"
 SIZE_MB=$(du -h "$DB_PATH" | awk '{print $1}')

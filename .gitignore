@@ -29,6 +29,7 @@ src-tauri/target/
 # Database (runtime data directories)
 # Root data directory (used at runtime)
 /data/
+database.db
 # Tauri data directory - ignore database files only
 src-tauri/data/*.db
 src-tauri/data/*.db-shm
