@@ -222,7 +222,9 @@ impl FeedSyncer {
                 entry.summary.as_deref(),
             );
 
-            // Check if article already exists and get current data (including content_full for revision)
+            // Check if article already exists by GUID or URL (without fragment).
+            // Some feeds (notably BBC) change the URL fragment in the GUID on each
+            // update, causing duplicates when matching only by GUID.
             let existing: Option<ExistingArticleRow> = conn
                 .query_row(
                     r#"SELECT id, title, author, content_raw, content_full, summary, content_hash
@@ -240,7 +242,36 @@ impl FeedSyncer {
                         ))
                     },
                 )
-                .optional()?;
+                .optional()?
+                .or_else(|| {
+                    // Fallback: match by URL without fragment
+                    let url_without_fragment = entry.url.split('#').next().unwrap_or(&entry.url);
+                    if url_without_fragment.is_empty() {
+                        return None;
+                    }
+                    conn.query_row(
+                        r#"SELECT id, title, author, content_raw, content_full, summary, content_hash
+                           FROM fnords
+                           WHERE pentacle_id = ?1
+                             AND url LIKE ?2 || '%'
+                             AND (url = ?2 OR url LIKE ?2 || '#%' OR url LIKE ?2 || '?%')"#,
+                        (&pentacle_id, &url_without_fragment),
+                        |row| {
+                            Ok((
+                                row.get(0)?,
+                                row.get(1)?,
+                                row.get(2)?,
+                                row.get(3)?,
+                                row.get(4)?,
+                                row.get(5)?,
+                                row.get(6)?,
+                            ))
+                        },
+                    )
+                    .optional()
+                    .ok()
+                    .flatten()
+                });
 
             if let Some((
                 fnord_id,
@@ -252,6 +283,12 @@ impl FeedSyncer {
                 old_hash,
             )) = existing
             {
+                // Update GUID if it changed (URL-based match with new fragment)
+                let _ = conn.execute(
+                    "UPDATE fnords SET guid = ?1 WHERE id = ?2 AND guid != ?1",
+                    (&entry.guid, &fnord_id),
+                );
+
                 // Article exists - check if content changed via hash comparison
                 // Only consider it a change if we had a previous hash AND it differs
                 let content_changed = match &old_hash {
