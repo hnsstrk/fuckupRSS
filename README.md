@@ -5,7 +5,9 @@
 > *"The only truly free person is the one who can read all the feeds without being programmed by them."*  
 > — Hagbard Celine (probably)
 
-An RSS aggregator and reader with local AI integration. No cloud. No trackers. Just you and the truth behind the Fnords.
+An RSS aggregator and reader with local AI integration via Ollama. Just you and the truth behind the Fnords.
+
+> Also supports OpenAI-compatible APIs as an alternative AI backend.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey.svg)
@@ -25,7 +27,7 @@ If you're looking for a polished RSS reader, use [Miniflux](https://miniflux.app
 
 ## What it does
 
-- **AI-powered article analysis** — summaries, categorization, keyword extraction, article type classification, named entity recognition (all running locally via Ollama)
+- **AI-powered article analysis** — summaries in your language (regardless of source language), categorization, keyword extraction, article type classification, named entity recognition
 - **Bias detection** — political tendency, objectivity rating, source quality
 - **Full-text retrieval** — fetches complete article text, not just RSS snippets
 - **Semantic search** — find articles by meaning using vector embeddings
@@ -33,8 +35,8 @@ If you're looking for a polished RSS reader, use [Miniflux](https://miniflux.app
 - **Theme reports** — multi-signal topic detection across sources
 - **Personalized recommendations** — learns from your reading behavior
 - **Keyboard-driven UI** — Vim-style navigation
-- **Fully local** — everything runs on your machine, your data stays yours
-- **Flexible AI backend** — Ollama (default, local) or OpenAI-compatible APIs
+- **Local-first** — runs fully offline with Ollama, or connect to OpenAI-compatible APIs
+- **Your data stays yours** — reading habits and articles are stored locally
 
 ---
 
@@ -150,13 +152,12 @@ See [docs/](docs/) for architecture documentation and [CLAUDE.md](CLAUDE.md) for
 
 ---
 
-## Why Local?
+## Why Local-First?
 
-- **Privacy** — your reading habits stay with you
-- **Offline** — works without internet (after first sync)
-- **Control** — you decide which models run
-- **No costs** — no API fees, no subscriptions
-- **No censorship** — no cloud ToS dictating what you're allowed to read
+- **Privacy** — your reading habits and data stay on your machine
+- **Offline** — works without internet when using Ollama (after first sync)
+- **Control** — you decide which models run and where
+- **Optional cloud** — connect to OpenAI-compatible APIs if you prefer, but it's never required
 
 ---
 
