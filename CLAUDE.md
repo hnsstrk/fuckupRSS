@@ -13,9 +13,7 @@ fuckupRSS is an RSS aggregator/reader with local AI integration (Tauri v2 + Svel
 | Document | Contents |
 |----------|----------|
 | [docs/README.md](docs/README.md) | Navigation hub for all docs/ |
-| [docs/api/TAURI_COMMANDS_REFERENCE.md](docs/api/TAURI_COMMANDS_REFERENCE.md) | All Tauri commands (Frontend → Backend) |
-| [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md) | AI pipeline, prompt design, keyword extraction |
-| [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md) | DB tables, revision management, settings |
+| [docs/PROCESSING_PIPELINE.md](docs/PROCESSING_PIPELINE.md) | How articles are processed (AI pipeline, providers, batch flow) |
 | [docs/guides/TESTING.md](docs/guides/TESTING.md) | Test commands, patterns, requirements |
 | [docs/guides/QUALITY_CHECKLIST.md](docs/guides/QUALITY_CHECKLIST.md) | Frontend-backend communication checklist |
 | [README.md](README.md) | Project overview, tech stack, setup |
@@ -168,7 +166,7 @@ ollama pull snowflake-arctic-embed2:latest # Embeddings
 7. **Briefings** — Hybrid scoring + diversity post-processing (BRIEFING_NUM_CTX=16384)
 8. **NER** — Entities (person, organization, location, event)
 
-Details: [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md)
+Details: [docs/PROCESSING_PIPELINE.md](docs/PROCESSING_PIPELINE.md)
 
 ## Data Paths
 

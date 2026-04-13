@@ -1,18 +1,18 @@
 # Testing Guide
 
-> **This is the dedicated Testing Guide for fuckupRSS.**
+> **Dedicated Testing Guide for fuckupRSS.**
 > For the full developer context, see [CLAUDE.md](../../CLAUDE.md).
 
 ---
 
 ## Overview
 
-**WICHTIG:** Alle neuen Features und Bugfixes MUESSEN mit Tests abgedeckt werden. Code ohne Tests wird nicht akzeptiert.
-
 This project maintains a comprehensive test suite covering:
-- **Rust Backend** - Unit and integration tests
-- **Svelte Frontend** - Component and store tests with Vitest
-- **End-to-End** - Full user flow tests with Playwright
+- **Rust Backend** — Unit and integration tests
+- **Svelte Frontend** — Component and store tests with Vitest
+- **End-to-End** — Full user flow tests with Playwright
+
+All new features and bugfixes must be covered by tests. Code without tests will not be accepted.
 
 ---
 
@@ -42,10 +42,6 @@ cargo tarpaulin --manifest-path src-tauri/Cargo.toml
 | `npm run test:watch` | Frontend tests in watch mode |
 | `npm run test:coverage` | Frontend coverage report |
 | `npm run test:e2e` | Run Playwright E2E tests |
-| `npm run pw:open` | Playwright CLI: Browser oeffnen |
-| `npm run pw:snapshot` | Playwright CLI: Accessibility Snapshot |
-| `npm run pw:screenshot` | Playwright CLI: Screenshot |
-| `npm run pw:close` | Playwright CLI: Browser schliessen |
 | `cargo test --manifest-path src-tauri/Cargo.toml` | Run all Rust backend tests |
 | `cargo tarpaulin --manifest-path src-tauri/Cargo.toml` | Rust coverage report |
 
@@ -55,200 +51,35 @@ cargo tarpaulin --manifest-path src-tauri/Cargo.toml
 
 | Area | Test Count | Tool |
 |------|------------|------|
-| Rust Backend | 683 tests | `cargo test` |
-| Frontend (Vitest) | 389 tests | `npm run test` |
+| Rust Backend | ~724 tests | `cargo test` |
+| Frontend (Vitest) | ~389 tests | `npm run test` |
 | E2E (Playwright) | 26 tests | `npm run test:e2e` |
-| **Total** | **~1100 tests** | |
+| **Total** | **~1139 tests** | |
 
 ---
 
-## Playwright CLI (Interaktives Browser-Testing)
+## Skipped E2E Tests
 
-### Was ist Playwright CLI?
+### Summary
 
-Playwright CLI (`@playwright/cli`) ist ein interaktives Browser-Automatisierungstool, das sich von `@playwright/test` unterscheidet:
+Currently some E2E tests are skipped in `app.spec.ts` and `erisian-archives.spec.ts`. The root cause is the same across all of them: **Svelte reactivity does not work reliably with mocked Tauri APIs.**
 
-| Aspekt | `@playwright/test` | `@playwright/cli` (Playwright CLI) |
-|--------|--------------------|------------------------------------|
-| **Zweck** | Automatisierte Test-Suites | Interaktive Browser-Steuerung |
-| **Ausfuehrung** | Headless, CI/CD-tauglich | Headed, explorativ |
-| **Ergebnisse** | Pass/Fail, Reports | Snapshots, Screenshots, generierten Test-Code |
-| **Anwendung** | Regressions-Tests | Debugging, Exploration, Test-Generierung |
-| **Claude Code** | `npm run test:e2e` | Skills via `playwright-cli` Commands |
+### Root Cause
 
-### Installation und Setup
+The E2E tests use `e2e/fixtures.ts`, which mocks `window.__TAURI_INTERNALS__`. The mock system works for:
+- Initial data loading (GET-style calls)
+- Verification of API calls (invoke tracking)
 
-Playwright CLI ist bereits installiert und konfiguriert:
+It does **not** work for:
+- Svelte state updates after actions (e.g. button click -> open dialog)
+- UI reactions to state changes (e.g. badge update after sync)
+- Tab switches with CSS class updates
 
-```bash
-# Bereits in devDependencies
-npm install  # installiert @playwright/cli
+### Recommendations
 
-# Skills fuer Claude Code
-# Skills liegen in .claude/skills/playwright-cli/
-```
-
-### Konfiguration
-
-Die CLI-Konfiguration liegt in `playwright-cli.json`:
-
-```json
-{
-  "browser": "chrome",
-  "baseURL": "http://localhost:1420",
-  "timeout": 30000
-}
-```
-
-**Voraussetzung:** Der Vite Dev-Server muss laufen (`npm run dev` oder `npm run tauri dev`).
-
-### npm Scripts
-
-| Script | Beschreibung |
-|--------|-------------|
-| `npm run pw:open` | Browser oeffnen mit Projekt-Konfiguration |
-| `npm run pw:snapshot` | Accessibility Snapshot der aktuellen Seite |
-| `npm run pw:screenshot` | Screenshot der aktuellen Seite |
-| `npm run pw:close` | Browser schliessen |
-
-### Skills fuer Claude Code
-
-Playwright CLI stellt Skills bereit, die Claude Code direkt nutzen kann:
-
-| Skill-Kategorie | Beispiel-Commands | Zweck |
-|-----------------|-------------------|-------|
-| **Navigation** | `playwright-cli open`, `goto`, `go-back` | Seiten aufrufen |
-| **Interaktion** | `click`, `fill`, `type`, `select` | UI-Elemente bedienen |
-| **Inspektion** | `snapshot`, `screenshot`, `console`, `network` | Seite analysieren |
-| **Test-Generierung** | Jede Aktion generiert Playwright-Code | Tests aus Interaktionen erstellen |
-| **DevTools** | `tracing-start`, `tracing-stop`, `video-start` | Debugging und Aufzeichnung |
-| **Storage** | `cookie-list`, `localstorage-get`, `state-save` | Browser-State verwalten |
-| **Network** | `route`, `unroute` | Request-Mocking |
-
-### Typische Workflows
-
-**1. App interaktiv testen:**
-```bash
-npm run tauri dev              # App starten
-npm run pw:open                # Browser oeffnen
-npm run pw:snapshot            # Accessibility-Tree anzeigen
-playwright-cli click e5        # Element interagieren
-npm run pw:screenshot          # Ergebnis festhalten
-npm run pw:close               # Browser schliessen
-```
-
-**2. Test-Code generieren:**
-```bash
-playwright-cli open http://localhost:1420
-playwright-cli snapshot                        # Elemente identifizieren
-playwright-cli fill e1 "https://feed.url"      # Generiert: await page.getByRole('textbox'...).fill(...)
-playwright-cli click e3                        # Generiert: await page.getByRole('button'...).click()
-# Generierten Code in E2E-Test-Datei uebernehmen
-```
-
-**3. Debugging mit Tracing:**
-```bash
-playwright-cli open http://localhost:1420
-playwright-cli tracing-start
-# Aktionen ausfuehren...
-playwright-cli tracing-stop    # Trace-Datei zum Analysieren
-```
-
-### Wann CLI vs. klassische E2E Tests verwenden?
-
-| Situation | Empfohlenes Tool |
-|-----------|-----------------|
-| Neues Feature explorativ testen | **Playwright CLI** |
-| Automatisierte Regressions-Tests | **@playwright/test** (`npm run test:e2e`) |
-| Bug reproduzieren und untersuchen | **Playwright CLI** |
-| CI/CD Pipeline | **@playwright/test** |
-| Test-Code fuer neue E2E Tests generieren | **Playwright CLI** (dann in Test-Datei uebernehmen) |
-| Accessibility-Struktur pruefen | **Playwright CLI** (`snapshot`) |
-| Screenshots fuer Dokumentation | **Playwright CLI** (`screenshot`) |
-
-### Referenz-Dokumentation
-
-Detaillierte Anleitungen finden sich in `.claude/skills/playwright-cli/references/`:
-
-| Datei | Thema |
-|-------|-------|
-| `test-generation.md` | Test-Code aus Interaktionen generieren |
-| `running-code.md` | Playwright-Code direkt ausfuehren |
-| `request-mocking.md` | Netzwerk-Requests mocken |
-| `session-management.md` | Browser-Sessions verwalten |
-| `storage-state.md` | Cookies, LocalStorage |
-| `tracing.md` | Tracing fuer Debugging |
-| `video-recording.md` | Video-Aufzeichnung |
-
----
-
-## Bewertung der skipped E2E Tests
-
-### Ueberblick
-
-Aktuell sind **5 von 14 E2E Tests skipped** in `app.spec.ts` und **4 von 18 Tests skipped** in `erisian-archives.spec.ts`. Alle aus dem gleichen Grund: **Svelte-Reaktivitaet funktioniert nicht zuverlaessig mit gemockten Tauri APIs.**
-
-### Ursache
-
-Die E2E Tests verwenden `e2e/fixtures.ts`, das `window.__TAURI_INTERNALS__` mockt. Das Mock-System funktioniert fuer:
-- Initiales Laden von Daten (GET-artige Aufrufe)
-- Verifizierung von API-Aufrufen (Invoke-Tracking)
-
-Es funktioniert **nicht** fuer:
-- Svelte-State-Updates nach Aktionen (z.B. Button-Click -> Dialog oeffnen)
-- UI-Reaktionen auf State-Aenderungen (z.B. Badge-Update nach Sync)
-- Tab-Wechsel mit CSS-Klassen-Updates
-
-### Kann Playwright CLI helfen?
-
-| Problem | CLI-Loesung? | Begruendung |
-|---------|-------------|-------------|
-| Dialog oeffnet nicht nach Click | **Teilweise** | CLI kann den tatsaechlichen App-State (mit `npm run tauri dev`) testen, aber nicht die automatisierten Mock-Tests ersetzen |
-| Badge-Update nach Sync | **Nein** | Braucht echtes Tauri-Backend fuer Sync |
-| Tab-Wechsel CSS-Updates | **Ja** | CLI kann gegen die laufende App testen und Tab-Wechsel verifizieren |
-| State-Updates nach Invoke | **Nein** | Grundlegendes Mock-Limitierungsproblem |
-
-### Empfehlungen
-
-1. **Playwright CLI als Explorationstools nutzen:** Fuer manuelle Verifikation der skipped Szenarien gegen die laufende App (`npm run tauri dev`)
-2. **Skipped Tests beibehalten:** Die Tests dokumentieren erwartetes Verhalten - sie koennen aktiviert werden, wenn das Mock-System verbessert wird
-3. **Aktive Tests priorisieren:** Die 9+14 aktiven Tests decken API-Integration und Basis-Layout zuverlaessig ab
-4. **Langfristig:** Evaluieren ob `@tauri-apps/api/mocks` oder ein eigenes Mock-Framework die Svelte-Reaktivitaet besser unterstuetzen koennte
-
----
-
-## Test Structure
-
-```
-fuckupRSS/
-├── src/
-│   └── lib/
-│       └── __tests__/           # Frontend Unit Tests (Vitest)
-│           ├── setup.ts         # Test-Setup mit Mocks
-│           ├── stores/          # Store Tests
-│           │   ├── state.test.ts      # State Management Tests (18 Tests)
-│           │   ├── network.test.ts    # Immanentize Network Tests (31 Tests)
-│           │   └── navigation.test.ts # Navigation Events Tests (21 Tests)
-│           └── components/      # Component Tests
-│               └── Toast.test.ts      # Toast Component Tests (19 Tests)
-├── e2e/                         # E2E Tests (Playwright)
-│   ├── fixtures.ts              # Tauri API Mocks
-│   ├── app.spec.ts              # App-Layout, Sidebar, Settings, Theme, Accessibility
-│   └── erisian-archives.spec.ts # ErisianArchives: Tabs, Stats, Artikel-Liste
-├── src-tauri/
-│   └── src/
-│       ├── db/
-│       │   └── tests.rs         # DB Unit Tests (14 Tests)
-│       ├── sync/
-│       │   └── tests.rs         # Sync Unit Tests (14 Tests)
-│       ├── retrieval/
-│       │   └── tests.rs         # Retrieval Unit Tests (22 Tests)
-│       ├── ollama/
-│       │   └── tests.rs         # Ollama Unit Tests (33 Tests)
-│       └── commands/
-│           ├── tests.rs         # Batch-Analyse Unit Tests (31 Tests)
-│           └── batch_integration_tests.rs  # DB-Integration (9 Tests)
-```
+1. **Keep skipped tests** — they document expected behavior and can be re-enabled when the mock system improves
+2. **Prioritize active tests** — the active tests cover API integration and base layout reliably
+3. **Long term** — evaluate whether `@tauri-apps/api/mocks` or a custom mock framework could better support Svelte reactivity
 
 ---
 
@@ -256,11 +87,11 @@ fuckupRSS/
 
 | Area | Requirement | Tool |
 |------|-------------|------|
-| Rust Backend | Unit Tests for all modules | `cargo test` |
-| Tauri Commands | Integration Tests | `cargo test` |
-| Svelte Stores | Unit Tests for State Logic | Vitest |
-| Svelte Components | Component Tests | Vitest + Testing Library |
-| User Flows | E2E Tests | Playwright |
+| Rust Backend | Unit tests for all modules | `cargo test` |
+| Tauri Commands | Integration tests | `cargo test` |
+| Svelte Stores | Unit tests for state logic | Vitest |
+| Svelte Components | Component tests | Vitest + Testing Library |
+| User Flows | E2E tests | Playwright |
 
 ---
 
@@ -356,9 +187,9 @@ test('user can add a feed', async ({ page }) => {
 
 | Timing | Description |
 |--------|-------------|
-| **BEFORE implementing** | TDD preferred - write the test first |
-| **DURING implementation** | For complex logic that needs verification |
-| **AFTER implementation** | Minimum: all public APIs must be tested |
+| **Before implementing** | TDD preferred — write the test first |
+| **During implementation** | For complex logic that needs verification |
+| **After implementation** | Minimum: all public APIs must be tested |
 | **For bugfixes** | Write a test that reproduces the bug, then fix it |
 
 ### TDD Workflow (Recommended)
@@ -410,11 +241,9 @@ cargo tarpaulin --manifest-path src-tauri/Cargo.toml
 | File | Purpose |
 |------|---------|
 | `vitest.config.ts` | Vitest configuration |
-| `playwright.config.ts` | Playwright E2E configuration (`@playwright/test`) |
-| `playwright-cli.json` | Playwright CLI Konfiguration (Browser, baseURL, Timeout) |
+| `playwright.config.ts` | Playwright E2E configuration |
 | `src/lib/__tests__/setup.ts` | Vitest global setup and mocks |
 | `e2e/fixtures.ts` | Playwright fixtures and Tauri API mocks |
-| `.claude/skills/playwright-cli/` | Claude Code Skills fuer Playwright CLI |
 
 ---
 
@@ -462,18 +291,17 @@ mod tests {
 
 ## Best Practices
 
-1. **Keep tests independent** - Each test should be able to run in isolation
-2. **Use descriptive names** - Test names should describe what is being tested and expected outcome
-3. **Avoid test interdependence** - Don't rely on test execution order
-4. **Clean up after tests** - Reset state, close connections, remove test data
-5. **Test edge cases** - Empty inputs, null values, boundary conditions
-6. **Test error handling** - Verify error messages and recovery paths
-7. **Keep tests fast** - Mock external dependencies to avoid slow I/O
+1. **Keep tests independent** — each test should be able to run in isolation
+2. **Use descriptive names** — test names should describe what is being tested and expected outcome
+3. **Avoid test interdependence** — don't rely on test execution order
+4. **Clean up after tests** — reset state, close connections, remove test data
+5. **Test edge cases** — empty inputs, null values, boundary conditions
+6. **Test error handling** — verify error messages and recovery paths
+7. **Keep tests fast** — mock external dependencies to avoid slow I/O
 
 ---
 
 ## Related Documentation
 
-- [CLAUDE.md](../../CLAUDE.md) - Full developer context and project guidelines
-- [docs/ROADMAP.md](../../docs/ROADMAP.md) - Technical specification and roadmap
-- [README.md](../../README.md) - Project overview and installation
+- [CLAUDE.md](../../CLAUDE.md) — Full developer context and project guidelines
+- [README.md](../../README.md) — Project overview and installation

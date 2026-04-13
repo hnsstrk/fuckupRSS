@@ -1,39 +1,39 @@
-# Quality Checklist: Systematische Problemsuche
+# Quality Checklist: Systematic Problem Investigation
 
-Diese Checkliste dient der systematischen Überprüfung der Code-Qualität, insbesondere der Frontend-Backend-Kommunikation.
+This checklist is used for systematic code quality verification, particularly for frontend-backend communication.
 
-**Erstellt:** 2026-01-14
-**Basierend auf:** Analyse-Session mit 78 invoke-Calls und 6 Dateien
+**Created:** 2026-01-14
+**Based on:** Analysis session with 78 invoke calls and 6 files
 
 ---
 
-## 1. State-Konsistenz nach Backend-Operationen
+## 1. State Consistency After Backend Operations
 
-### Checkliste für jeden `invoke()` Call
+### Checklist for Every `invoke()` Call
 
-- [ ] **Wird State korrekt aktualisiert?**
-  - Nach Daten-Änderungen: Relevante State-Variablen neu laden
-  - Nach Löschungen: Abhängige Daten bereinigen
-  - Nach Sync: Counts und Listen aktualisieren
+- [ ] **Is state updated correctly?**
+  - After data changes: Reload relevant state variables
+  - After deletions: Clean up dependent data
+  - After sync: Update counts and lists
 
-- [ ] **Welche State-Variablen sind betroffen?**
-  | Operation | Zu aktualisierende State |
+- [ ] **Which state variables are affected?**
+  | Operation | State to Update |
   |-----------|-------------------------|
-  | Feed löschen | `pentacles`, `fnords`, `changedFnords`, `unprocessedCount` |
-  | Feed sync | `pentacles`, `fnords`, `unprocessedCount` |
-  | Artikel verarbeiten | `fnords` (einzeln), `unprocessedCount` |
-  | Volltext abrufen | `unprocessedCount` |
-  | Status ändern | `fnords` (einzeln), `pentacles` (unread_count) |
+  | Delete feed | `pentacles`, `fnords`, `changedFnords`, `unprocessedCount` |
+  | Sync feed | `pentacles`, `fnords`, `unprocessedCount` |
+  | Process article | `fnords` (individual), `unprocessedCount` |
+  | Fetch full text | `unprocessedCount` |
+  | Change status | `fnords` (individual), `pentacles` (unread_count) |
 
-### Bekannte Problemstellen (behoben)
+### Known Problem Areas (fixed)
 
 ```typescript
-// PATTERN: Nach Backend-Operation immer relevanten State aktualisieren
+// PATTERN: Always update relevant state after backend operations
 async syncAllFeeds() {
   const result = await invoke<SyncAllResponse>("sync_all_feeds");
-  await this.loadPentacles();        // Feed-Counts
-  await this.loadFnords();           // Artikel-Liste
-  await this.loadUnprocessedCount(); // Batch-Button Badge ← WICHTIG!
+  await this.loadPentacles();        // Feed counts
+  await this.loadFnords();           // Article list
+  await this.loadUnprocessedCount(); // Batch button badge ← IMPORTANT!
 }
 ```
 
@@ -41,14 +41,14 @@ async syncAllFeeds() {
 
 ## 2. Error Handling
 
-### Mindestanforderungen für jeden `invoke()` Call
+### Minimum Requirements for Every `invoke()` Call
 
-- [ ] **Try-Catch Block vorhanden?**
-- [ ] **Fehler geloggt?** (`console.error`)
-- [ ] **User-Feedback?** (Toast bei user-initiierten Aktionen)
-- [ ] **Graceful Degradation?** (App bleibt benutzbar)
+- [ ] **Try-catch block present?**
+- [ ] **Error logged?** (`console.error`)
+- [ ] **User feedback?** (Toast for user-initiated actions)
+- [ ] **Graceful degradation?** (App remains usable)
 
-### Error-Handling Pattern
+### Error Handling Pattern
 
 ```typescript
 async function handleUserAction() {
@@ -62,26 +62,26 @@ async function handleUserAction() {
 }
 ```
 
-### Wann ist Error-Handling kritisch?
+### When Is Error Handling Critical?
 
-| Priorität | Situation | Beispiel |
-|-----------|-----------|----------|
-| **HOCH** | User-initiierte Aktion | Button-Klick, Formular-Submit |
-| **HOCH** | Datenverändernde Operation | Löschen, Speichern, Sync |
-| **MITTEL** | Hintergrund-Ladeoperation | Initial Load, Refresh |
-| **NIEDRIG** | Optionale Features | Statistiken, Vorschläge |
+| Priority | Situation | Example |
+|----------|-----------|---------|
+| **HIGH** | User-initiated action | Button click, form submit |
+| **HIGH** | Data-modifying operation | Delete, save, sync |
+| **MEDIUM** | Background loading operation | Initial load, refresh |
+| **LOW** | Optional features | Statistics, suggestions |
 
 ---
 
 ## 3. Event Listener Management
 
-### Checkliste für `listen()` und `addEventListener()`
+### Checklist for `listen()` and `addEventListener()`
 
 - [ ] **Cleanup in `onDestroy` / `onMount` return?**
-- [ ] **Unlisten-Funktion gespeichert?**
-- [ ] **Keine doppelten Listener?**
+- [ ] **Unlisten function stored?**
+- [ ] **No duplicate listeners?**
 
-### Korrektes Pattern (Tauri Events)
+### Correct Pattern (Tauri Events)
 
 ```typescript
 onMount(() => {
@@ -95,12 +95,12 @@ onMount(() => {
 });
 ```
 
-### Korrektes Pattern (CustomEvents fuer Daten-Refresh)
+### Correct Pattern (CustomEvents for Data Refresh)
 
-Komponenten die Backend-Daten anzeigen MUESSEN auf Aenderungs-Events lauschen:
+Components that display backend data MUST listen for change events:
 
 ```typescript
-// Refresh-Handler
+// Refresh handler
 async function handleRefresh() {
   await loadData();
 }
@@ -108,7 +108,7 @@ async function handleRefresh() {
 onMount(() => {
   window.addEventListener('batch-complete', handleRefresh);
   window.addEventListener('keywords-changed', handleRefresh);
-  // ... bestehender onMount Code ...
+  // ... existing onMount code ...
 });
 
 onDestroy(() => {
@@ -117,143 +117,143 @@ onDestroy(() => {
 });
 ```
 
-### Verfuegbare CustomEvents
+### Available CustomEvents
 
-| Event | Ausgelöst von | Wann |
-|-------|---------------|------|
-| `batch-complete` | `state.svelte.ts` | Nach Batch-Processing Abschluss |
-| `keywords-changed` | `state.svelte.ts`, `networkStore` | Nach Keyword-Mutationen (create, merge, rename, delete, batch) |
+| Event | Triggered by | When |
+|-------|--------------|------|
+| `batch-complete` | `state.svelte.ts` | After batch processing completes |
+| `keywords-changed` | `state.svelte.ts`, `networkStore` | After keyword mutations (create, merge, rename, delete, batch) |
 
-### Welche Komponenten muessen auf welche Events lauschen?
+### Which Components Must Listen for Which Events?
 
-| Komponente | `batch-complete` | `keywords-changed` |
-|------------|:-:|:-:|
-| KeywordNetwork (via networkStore) | Ja | Ja |
-| FnordView | Ja | Ja |
-| KeywordTable | Ja | Ja |
-| CompoundKeywordManager | Ja | Ja |
-| ArticleView | Ja | - |
-| ArticleCategories | Ja | - |
-| ArticleKeywords | - | Ja |
-| KeywordNetworkSynonyms | - | Ja |
+| Component | `batch-complete` | `keywords-changed` |
+|-----------|:-:|:-:|
+| KeywordNetwork (via networkStore) | Yes | Yes |
+| FnordView | Yes | Yes |
+| KeywordTable | Yes | Yes |
+| CompoundKeywordManager | Yes | Yes |
+| ArticleView | Yes | - |
+| ArticleCategories | Yes | - |
+| ArticleKeywords | - | Yes |
+| KeywordNetworkSynonyms | - | Yes |
 
-### Memory Leak Indikatoren
+### Memory Leak Indicators
 
-- Event Handler ohne Cleanup
-- Listener in `$effect` ohne Cleanup-Logic
-- Globale Event-Registrierung ohne Deregistrierung
+- Event handlers without cleanup
+- Listeners in `$effect` without cleanup logic
+- Global event registration without deregistration
 
 ---
 
-## 4. Systematische Code-Review Schritte
+## 4. Systematic Code Review Steps
 
-### Schritt 1: Invoke-Calls analysieren
+### Step 1: Analyze Invoke Calls
 
 ```bash
-# Alle invoke-Calls finden
+# Find all invoke calls
 grep -rn "invoke(" src/lib --include="*.svelte" --include="*.ts"
 
-# Nach Dateien gruppieren
+# Group by files
 grep -l "invoke(" src/lib --include="*.svelte" --include="*.ts"
 ```
 
-**Prüfen für jeden Call:**
-1. Ist der Call in try-catch?
-2. Wird relevanter State danach aktualisiert?
-3. Gibt es User-Feedback bei Fehlern?
+**Check for each call:**
+1. Is the call in a try-catch?
+2. Is relevant state updated afterwards?
+3. Is there user feedback on errors?
 
-### Schritt 2: Event-Listener analysieren
+### Step 2: Analyze Event Listeners
 
 ```bash
-# Tauri listen() Calls
+# Tauri listen() calls
 grep -rn "listen(" src/lib --include="*.svelte" --include="*.ts"
 
-# DOM Event Listener
+# DOM event listeners
 grep -rn "addEventListener" src/lib --include="*.svelte" --include="*.ts"
 ```
 
-**Prüfen für jeden Listener:**
-1. Gibt es einen Cleanup?
-2. Ist der Cleanup im richtigen Lifecycle-Hook?
+**Check for each listener:**
+1. Is there a cleanup?
+2. Is the cleanup in the correct lifecycle hook?
 
-### Schritt 3: State-Flows analysieren
+### Step 3: Analyze State Flows
 
 ```bash
-# State-Mutations finden
+# Find state mutations
 grep -rn "appState\." src/lib --include="*.svelte" | grep -v "appState\.\w\+\s*[^=]"
 ```
 
-**Prüfen für jede Mutation:**
-1. Werden abhängige States auch aktualisiert?
-2. Ist die Update-Reihenfolge korrekt?
+**Check for each mutation:**
+1. Are dependent states also updated?
+2. Is the update order correct?
 
 ---
 
-## 5. Test-Anforderungen
+## 5. Test Requirements
 
 ### Unit Tests (Vitest)
 
-| Was testen? | Wie? |
-|-------------|------|
-| State-Updates nach Invoke | Mock invoke, prüfe Call-Reihenfolge |
-| Error-Handling | Mock reject, prüfe Toast/Console |
-| Computed Values | Teste $derived Logik |
+| What to test? | How? |
+|---------------|------|
+| State updates after invoke | Mock invoke, verify call order |
+| Error handling | Mock reject, verify toast/console |
+| Computed values | Test $derived logic |
 
 ### E2E Tests (Playwright)
 
-| Was testen? | Wie? |
-|-------------|------|
-| User Flows | Interagiere wie User |
-| UI-Feedback | Prüfe Toasts, Loading States |
-| Fehlerzustände | Simuliere Netzwerk-Fehler |
+| What to test? | How? |
+|---------------|------|
+| User flows | Interact like a user |
+| UI feedback | Verify toasts, loading states |
+| Error states | Simulate network errors |
 
-### Test-Limitations
+### Test Limitations
 
-⚠️ **Bekannte Einschränkung:** Svelte 5 Runes ($state) reagieren nicht auf gemockte invoke-Calls in Tests. Daher:
-- UI-State-Tests markieren als `.skip` oder
-- Nur API-Level Tests (Call-Reihenfolge) schreiben
+⚠️ **Known limitation:** Svelte 5 Runes ($state) do not react to mocked invoke calls in tests. Therefore:
+- Mark UI state tests as `.skip` or
+- Write only API-level tests (call order)
 
 ---
 
-## 6. Komponenten-spezifische Checklisten
+## 6. Component-Specific Checklists
 
 ### SettingsView.svelte
 
-- [ ] Alle `set_setting` Calls haben Error-Handling
-- [ ] Model-Wechsel triggert UI-Feedback
-- [ ] Prompt-Änderungen werden bestätigt
+- [ ] All `set_setting` calls have error handling
+- [ ] Model switching triggers UI feedback
+- [ ] Prompt changes are confirmed
 
 ### ArticleView.svelte
 
-- [ ] Status-Änderungen aktualisieren Feed-Counts
-- [ ] Volltext-Abruf aktualisiert `unprocessedCount`
-- [ ] Analyse aktualisiert Artikel und `unprocessedCount`
+- [ ] Status changes update feed counts
+- [ ] Full text retrieval updates `unprocessedCount`
+- [ ] Analysis updates article and `unprocessedCount`
 
 ### Sidebar.svelte
 
-- [ ] Feed-Löschung bereinigt alle abhängigen States
-- [ ] Sync aktualisiert Counts korrekt
+- [ ] Feed deletion cleans up all dependent states
+- [ ] Sync updates counts correctly
 
 ### KeywordNetwork.svelte
 
-- [ ] Nutzt `networkStore` fuer State-Management (nicht lokalen State!)
-- [ ] Event-Listener via `networkStore.setupEventListeners()` / `teardownEventListeners()`
-- [ ] Error-Handling für alle Keyword-Operationen
-- [ ] Nach Keyword-Mutationen wird `keywords-changed` Event dispatched
+- [ ] Uses `networkStore` for state management (not local state!)
+- [ ] Event listeners via `networkStore.setupEventListeners()` / `teardownEventListeners()`
+- [ ] Error handling for all keyword operations
+- [ ] After keyword mutations, `keywords-changed` event is dispatched
 
 ---
 
-## 7. Automatisierte Checks (TODO)
+## 7. Automated Checks (TODO)
 
-### Potenzielle ESLint Rules
+### Potential ESLint Rules
 
 ```javascript
-// .eslintrc.js (Konzept)
+// .eslintrc.js (concept)
 rules: {
-  // Warnung bei invoke ohne try-catch
+  // Warning on invoke without try-catch
   "no-unhandled-invoke": "warn",
 
-  // Warnung bei listen ohne cleanup
+  // Warning on listen without cleanup
   "require-listener-cleanup": "warn"
 }
 ```
@@ -261,38 +261,37 @@ rules: {
 ### CI Pipeline Checks
 
 ```yaml
-# .github/workflows/quality.yml (Konzept)
+# .github/workflows/quality.yml (concept)
 - name: Check invoke error handling
   run: |
-    # Finde invoke ohne try-catch
+    # Find invoke without try-catch
     grep -rn "invoke(" src/lib | grep -v "try" | wc -l
 ```
 
 ---
 
-## 8. Bekannte Ausnahmen
+## 8. Known Exceptions
 
-### Akzeptable fehlende Error-Handler
+### Acceptable Missing Error Handlers
 
-| Datei | Funktion | Grund |
-|-------|----------|-------|
-| `state.svelte.ts` | Initial loads | Fehler werden im UI als leere Listen angezeigt |
-| `KeywordNetwork` | Interne Operationen | Hat eigenes Fehler-Management |
+| File | Function | Reason |
+|------|----------|--------|
+| `state.svelte.ts` | Initial loads | Errors are shown in the UI as empty lists |
+| `KeywordNetwork` | Internal operations | Has its own error management |
 
-### Bewusst isolierte States
+### Intentionally Isolated States
 
-| Komponente | State | Grund |
-|------------|-------|-------|
-| `KeywordTrendChart` | Chart-Daten | Visualisierungs-spezifisch |
+| Component | State | Reason |
+|-----------|-------|--------|
+| `KeywordTrendChart` | Chart data | Visualization-specific |
 
-**Hinweis:** KeywordNetwork nutzt seit 2026-02 den zentralen `networkStore` statt lokalen State.
+**Note:** KeywordNetwork has been using the centralized `networkStore` instead of local state since 2026-02.
 
 ---
 
-## Änderungshistorie
+## Change History
 
-| Datum | Änderung |
-|-------|----------|
-| 2026-01-14 | Initiale Version basierend auf Code-Review |
-| 2026-02-12 | Event-Refresh Pattern dokumentiert (batch-complete, keywords-changed), KeywordNetwork Store-Konsolidierung |
-
+| Date | Change |
+|------|--------|
+| 2026-01-14 | Initial version based on code review |
+| 2026-02-12 | Documented event refresh pattern (batch-complete, keywords-changed), KeywordNetwork store consolidation |
