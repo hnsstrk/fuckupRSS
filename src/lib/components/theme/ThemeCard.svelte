@@ -49,17 +49,15 @@
 
   let {
     theme,
-    expanded,
-    ontoggle,
     onretry,
     onarticlenavigate,
   }: {
     theme: ThemeReportTheme;
-    expanded: boolean;
-    ontoggle: () => void;
     onretry: (themeId: number) => void;
     onarticlenavigate: (fnordId: number) => void;
   } = $props();
+
+  let expanded = $state(false);
 
   let parsedReport = $derived.by(() => {
     if (!theme.report_json) return null;
@@ -126,7 +124,7 @@
 
 <div class="tr-theme-card" class:expanded>
   <!-- Collapsed header (always visible) -->
-  <button class="tr-theme-header" onclick={ontoggle}>
+  <button class="tr-theme-header" onclick={() => (expanded = !expanded)}>
     <div class="tr-theme-title-row">
       <span class="tr-theme-label">{theme.headline || theme.label}</span>
       <span class="tr-status-badge {statusBadgeClass(theme.report_status)}">

@@ -67,7 +67,6 @@
   let days = $state(1);
   let searchQuery = $state("");
   let minSources = $state(2);
-  let expandedThemes = $state<Set<number>>(new Set());
   let loading = $state(false);
   let detailLoading = $state(false);
 
@@ -113,7 +112,6 @@
     if (detailLoading) return;
     selectedReportId = reportId;
     detailLoading = true;
-    expandedThemes = new Set();
     try {
       reportDetail = await invoke<ThemeReportDetail>("get_theme_report_detail", {
         reportId: reportId,
@@ -139,8 +137,7 @@
       await loadReports();
       reportDetail = detail;
       selectedReportId = detail.report.id;
-      expandedThemes = new Set();
-    } catch (e) {
+      } catch (e) {
       log.error("Error generating theme report:", e);
     } finally {
       generating = false;
@@ -175,21 +172,11 @@
       reports = reports.filter((r) => r.id !== selectedReportId);
       selectedReportId = null;
       reportDetail = null;
-      expandedThemes = new Set();
-    } catch (e) {
+      } catch (e) {
       log.error("Error deleting theme report:", e);
     }
   }
 
-  function toggleTheme(themeId: number) {
-    const next = new Set(expandedThemes);
-    if (next.has(themeId)) {
-      next.delete(themeId);
-    } else {
-      next.add(themeId);
-    }
-    expandedThemes = next;
-  }
 </script>
 
 <div class="theme-report-view">
@@ -262,8 +249,6 @@
             {#each reportDetail.themes as theme (theme.id)}
               <ThemeCard
                 {theme}
-                expanded={expandedThemes.has(theme.id)}
-                ontoggle={() => toggleTheme(theme.id)}
                 onretry={handleRetry}
                 onarticlenavigate={() => {}}
               />
