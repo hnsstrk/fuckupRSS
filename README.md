@@ -164,6 +164,12 @@ See [docs/](docs/) for architecture documentation and [CLAUDE.md](CLAUDE.md) for
 
 MIT License — see [LICENSE](LICENSE)
 
+## Acknowledgments
+
+- Robert Shea and Robert Anton Wilson for the [Illuminatus! Trilogy](https://en.wikipedia.org/wiki/The_Illuminatus!_Trilogy). fuckupRSS is an independent project — a tribute, not a derivative work.
+- The [Ollama](https://ollama.com/) team for making local LLMs accessible
+- The [Tauri](https://tauri.app/) team for the framework
+
 ---
 
 ```text
