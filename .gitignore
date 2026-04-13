@@ -34,6 +34,7 @@ database.db
 src-tauri/data/*.db
 src-tauri/data/*.db-shm
 src-tauri/data/*.db-wal
+src-tauri/data/*.db.backup-*
 
 # npm
 # package-lock.json is tracked for reproducible builds and SBOM generation
@@ -50,4 +51,10 @@ sbom/
 .playwright-cli/
 traces/
 *.auth-state.json
+
+# Claude Code (personal dev environment)
+.claude/
+
+# MCP server config (personal dev environment)
+.mcp.json
 
