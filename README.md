@@ -1,367 +1,172 @@
 # fuckupRSS
 
-**First Universal Cybernetic-Kinetic RSS Processor**
+## First Universal Cybernetic-Kinetic RSS Processor
 
 > *"The only truly free person is the one who can read all the feeds without being programmed by them."*  
 > — Hagbard Celine (probably)
 
-Ein RSS-Aggregator und Reader mit lokaler KI-Integration. Keine Cloud. Keine Tracker. Nur du und die Wahrheit hinter den Fnords.
+An RSS aggregator and reader with local AI integration. No cloud. No trackers. Just you and the truth behind the Fnords.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey.svg)
-![Status](https://img.shields.io/badge/status-in%20development-orange.svg)
+![Status](https://img.shields.io/badge/status-experimental-orange.svg)
 
 ---
 
-## Was ist fuckupRSS?
+## What is this?
 
-fuckupRSS ist ein moderner RSS/Atom-Reader, der lokale KI-Modelle nutzt, um dir beim Durchblicken der täglichen Informationsflut zu helfen. Benannt nach **F.U.C.K.U.P.** (First Universal Cybernetic-Kinetic Ultra-micro Programmer) aus der [Illuminatus!-Trilogie](https://de.wikipedia.org/wiki/Illuminatus!).
+fuckupRSS is a **personal hobby project** — an experiment in combining RSS reading with local AI analysis. Named after **F.U.C.K.U.P.** (First Universal Cybernetic-Kinetic Ultra-micro Programmer) from the [Illuminatus! Trilogy](https://en.wikipedia.org/wiki/The_Illuminatus!_Trilogy).
 
-**Das Problem:** Du abonnierst 50 Feeds. Du hast keine Zeit, alles zu lesen. Du verpasst Wichtiges. Du ertränkst in Unwichtigem.
+**This is not production-ready software.** It's a playground for exploring what's possible when you throw local LLMs at an RSS reader: automatic summaries, bias detection, keyword networks, article clustering, daily briefings. Some of it works well, some of it is rough around the edges, and the whole thing is in constant flux.
 
-**Die Lösung:** fuckupRSS analysiert jeden Artikel lokal mit KI:
-- Erstellt Zusammenfassungen
-- Kategorisiert automatisch  
-- Erkennt politischen Bias
-- Findet ähnliche Artikel
-- Lernt deine Interessen
-
-Alles läuft **lokal** auf deinem Rechner. Deine Lesegewohnheiten gehören dir.
+If you're looking for a polished RSS reader, use [Miniflux](https://miniflux.app/) or [Newsboat](https://newsboat.org/). If you're curious about what happens when AI meets RSS — read on.
 
 ---
 
-## Features
+## What it does
 
-### 🔍 KI-gestützte Analyse (Discordian Analysis)
-- **Automatische Zusammenfassungen** – 2-3 Sätze pro Artikel
-- **Kategorisierung** – Artikel werden Themen zugeordnet
-- **Stichwort-Extraktion** – Wichtige Begriffe, Personen, Orte
-- **Artikeltyp-Klassifikation** – LLM-basierte Erkennung (news, analysis, opinion, satire, ad, unknown)
-- **Named Entity Recognition (NER)** – Entitäten-Extraktion (Personen, Organisationen, Orte, Events)
-- **Semantische Suche** – Finde Artikel nach Bedeutung, nicht nur Keywords
-- **Erweiterte Embeddings** – snowflake-arctic-embed2 mit bis zu 8.192 Token Kontext (title + summary + content)
-- **Flexible KI-Backends** – Ollama (lokal) oder OpenAI-kompatible APIs (OpenAI, Together.ai, Mistral, Groq etc.)
-- **Structured Outputs** – JSON Schema-basierte Antworten via `/api/chat` für zuverlässigere KI-Ergebnisse
-
-### ⚠️ Bias-Erkennung (Greyface Alert)
-- **Politische Tendenz** – Links ↔ Rechts Spektrum
-- **Sachlichkeit** – Emotional vs. faktenbasiert
-- **Quellenqualität** – Sterne-Bewertung
-- **Artikeltyp** – Nachricht, Analyse, Meinung, Satire, Werbung
-
-### 📰 Volltext-Abruf (Hagbard's Retrieval)
-- Automatisches Nachladen für alle neuen Artikel
-- Readability-Extraktion (entfernt Werbung, Navigation etc.)
-- KI-Analysen verwenden ausschließlich den Volltext
-- Keine Paywall-Umgehung – nur öffentlich zugängliche Inhalte
-
-### 🧠 Intelligente Kategorisierung
-- **Dual-Analyse:** LLM + statistische Textanalyse (TF-IDF mit Corpus-Statistiken)
-- **Lernfähig:** System verbessert sich durch Benutzer-Korrekturen und LLM-Feedback
-- **Transparent:** Jedes Keyword/Kategorie zeigt Quelle (KI/Statistik/Manuell) und Konfidenz
-- **Editierbar:** Keywords und Kategorien manuell anpassen
-- **Bias-Gewichtungen:** Aus Korrekturen gelernte Präferenzen
-- **Source-Gewichtungen:** Manuelle Einträge werden höher gewichtet als statistische
-
-### 🎯 Personalisierung (Operation Mindfuck)
-- Personalisierte Empfehlungen basierend auf Leseverhalten
-- Relevanz-Scoring mit Embedding-Similarity und Keyword-Overlap
-- Quellenvielfalt durch Diversity-Reranking
-- Artikel speichern und ausblenden für Feedback-Loop
-
-### 🔗 Ähnliche Artikel & Story Clustering
-- Vektorbasierte Ähnlichkeitssuche mit snowflake-arctic-embed2
-- **Story Clustering** – Union-Find Algorithmus gruppiert Artikel zum selben Thema (Embedding-Ähnlichkeit > 0.78)
-- **Perspektiven-Vergleich** – Verschiedene Quellen zum selben Thema nebeneinander sehen
-- Thematisch verwandte Artikel entdecken, auch ohne gemeinsame Keywords
-
-### 📋 Tägliche Briefings
-- **KI-generierte Zusammenfassungen** der wichtigsten Artikel des Tages
-- Überblick über die Top-Themen auf einen Blick
-- Automatische Generierung basierend auf verarbeiteten Artikeln
-
-### 🏷️ Named Entity Recognition (NER)
-- **Entitäten-Extraktion** – Personen, Organisationen, Orte, Events
-- **EntityBadge** – Visuelle Darstellung erkannter Entitäten in Artikeln
-- **EntityExplorer** – Entitäten durchsuchen und verwandte Artikel finden
+- **AI-powered article analysis** — summaries, categorization, keyword extraction, article type classification, named entity recognition (all running locally via Ollama)
+- **Bias detection** — political tendency, objectivity rating, source quality
+- **Full-text retrieval** — fetches complete article text, not just RSS snippets
+- **Semantic search** — find articles by meaning using vector embeddings
+- **Daily briefings** — AI-generated overview of the day's most relevant articles
+- **Theme reports** — multi-signal topic detection across sources
+- **Personalized recommendations** — learns from your reading behavior
+- **Keyboard-driven UI** — Vim-style navigation
+- **Fully local** — everything runs on your machine, your data stays yours
+- **Flexible AI backend** — Ollama (default, local) or OpenAI-compatible APIs
 
 ---
 
-## Illuminatus!-Terminologie
+## Illuminatus! Terminology
 
-fuckupRSS verwendet durchgängig Begriffe aus der Illuminatus!-Trilogie:
+fuckupRSS uses terms from the Illuminatus! Trilogy throughout:
 
-| Begriff | Bedeutung |
-|---------|-----------|
-| **Fnord** | Geänderter Artikel (mit Revisionen) |
-| **Concealed** ● | Ungelesener Artikel |
-| **Illuminated** ○ | Gelesener Artikel |
-| **Golden Apple** ✦ | Favorit |
-| **Pentacle** | Feed-Quelle |
-| **Sephiroth** | Kategorie |
-| **Immanentize** | Stichwort/Tag |
-| **Greyface Alert** | Bias-Warnung |
-| **Hagbard's Retrieval** | Volltext-Abruf |
-| **Discordian Analysis** | KI-Zusammenfassung |
-| **Briefing** | Tägliche KI-Zusammenfassung der Top-Artikel |
-| **Story Cluster** | Thematisch gruppierte Artikel aus verschiedenen Quellen |
-| **Operation Mindfuck** | Interessen-Profil |
+| Term    | Meaning  |
+|---------|----------|
+| **Fnord** | Modified article (with revisions) |
+| **Concealed** / **Illuminated** | Unread / Read |
+| **Golden Apple** | Favorite |
+| **Pentacle** | Feed source |
+| **Sephiroth** | Category |
+| **Immanentize** | Keyword / tag |
+| **Greyface Alert** | Bias warning |
+| **Discordian Analysis** | AI summary |
 
 ---
 
 ## Screenshots
 
-### Artikel-Detailansicht mit Discordian Analysis
+### Article Detail with AI Analysis
 
-![fuckupRSS Hauptansicht — Artikel mit KI-Analyse, Bias-Erkennung und Kategorien](docs/screenshots/fuckuprss-artikel-detail.png)
+![fuckupRSS main view — article with AI analysis, bias detection, and categories](docs/screenshots/fuckuprss-artikel-detail.png)
 
-Jeder Artikel zeigt auf einen Blick: KI-generierte Zusammenfassung (Discordian Analysis), politische Einordnung (Greyface Alert), Sachlichkeitsbewertung, automatisch erkannte Kategorien (Sephiroth) und extrahierte Schlagworte (Immanentize).
+### Daily Briefing
 
-### Tages-Briefing
-
-![fuckupRSS Briefing — KI-generierter Tagesüberblick mit TL;DR und thematischer Gliederung](docs/screenshots/fuckuprss-briefing.png)
-
-Das tägliche Briefing fasst die relevantesten Artikel aus allen Quellen zusammen — mit TL;DR, thematischer Gliederung und direkten Verweisen auf die zugrunde liegenden Artikel.
+![fuckupRSS Briefing — AI-generated daily overview](docs/screenshots/fuckuprss-briefing.png)
 
 ---
 
-## Systemanforderungen
+## Tech Stack
 
-### Hardware
-- **GPU:** NVIDIA mit 12 GB VRAM (empfohlen) oder Apple Silicon
-- **RAM:** 16 GB (32 GB empfohlen)
-- **Speicher:** 2 GB für App + Modelle + Datenbank
-
-### Software
-- **Linux:** Ubuntu 22.04+, Fedora 38+, Arch Linux
-- **macOS:** 13.0+ (Ventura) auf Apple Silicon
-- **Ollama:** Für lokale KI-Modelle
-
----
-
-## Installation
-
-### 1. Ollama installieren
-
-**Linux:**
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-```
-
-**macOS:**
-```bash
-brew install ollama
-```
-
-### 2. KI-Modelle herunterladen
-
-```bash
-ollama pull ministral-3:latest
-ollama pull snowflake-arctic-embed2
-```
-
-> **Hinweis:** fuckupRSS nutzt die Ollama `/api/chat` API mit **Structured Outputs** (JSON Schema). Dies erfordert Ollama 0.5.0+ und sorgt für zuverlässigere, schema-konforme KI-Antworten. Das Embedding-Modell snowflake-arctic-embed2 unterstützt bis zu 8.192 Tokens und wird mit erweitertem Kontext (Titel + Zusammenfassung + Artikeltext) gefüttert.
-
-### 3. Ollama konfigurieren (Linux)
-
-```bash
-sudo systemctl edit ollama.service
-```
-
-Füge hinzu:
-```ini
-[Service]
-Environment="OLLAMA_MAX_LOADED_MODELS=2"
-Environment="OLLAMA_FLASH_ATTENTION=1"
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart ollama
-```
-
-### Ollama LAN-Proxy (macOS Tahoe)
-
-Unter **macOS Tahoe (15.x)** koennen ad-hoc-signierte Binaries (wie Tauri-Dev-Builds) nicht direkt auf LAN-IP-Adressen zugreifen. fuckupRSS enthält einen integrierten LAN-Proxy als Workaround:
-
-- Leitet Ollama-Requests von `localhost:11435` an eine Remote-Ollama-Instanz im LAN weiter
-- Konfigurierbar in **Einstellungen → Ollama → LAN-Proxy**
-- Startet automatisch beim nächsten App-Start, wenn zuvor aktiviert
-- Wird nur benötigt, wenn Ollama auf einem anderen Rechner im Netzwerk läuft
-
-> **Hinweis:** Production-Builds (.dmg) mit gültigem Signing sind nicht betroffen. Der Proxy wird nur für die Entwicklung oder ad-hoc-signierte Builds benötigt.
-
-### 4. fuckupRSS installieren
-
-**Aus Releases (empfohlen):**
-```bash
-# Linux (.deb)
-sudo dpkg -i fuckuprss_0.1.0_amd64.deb
-
-# Linux (.rpm)
-sudo rpm -i fuckuprss-0.1.0.x86_64.rpm
-
-# Linux (AppImage)
-chmod +x fuckupRSS-0.1.0.AppImage
-./fuckupRSS-0.1.0.AppImage
-```
-
-**macOS:**
-```bash
-# .dmg herunterladen und installieren
-```
-
-**Aus Source:**
-```bash
-git clone https://github.com/yourusername/fuckuprss.git
-cd fuckuprss
-cargo tauri build
-```
-
----
-
-## Schnellstart
-
-1. **fuckupRSS starten**
-2. **Feeds hinzufügen** – OPML importieren oder URLs eingeben
-3. **Warten** – Die erste Synchronisation läuft automatisch
-4. **Lesen** – Artikel werden analysiert und kategorisiert
-
-### Keyboard-Shortcuts
-
-| Taste | Aktion |
-|-------|--------|
-| `j` / `k` | Nächster / Vorheriger Artikel |
-| `o` | Artikel öffnen |
-| `r` | Als gelesen markieren |
-| `s` | Golden Apple (Favorit) |
-| `v` | Im Browser öffnen |
-| `/` | Suche |
-| `?` | Alle Shortcuts anzeigen |
-
----
-
-## Konfiguration
-
-Alle Einstellungen werden in der lokalen SQLite-Datenbank gespeichert:
-- **Datenbank:** `./data/fuckup.db` (im Projektordner)
-
-Die Einstellungen können direkt in der App unter "Einstellungen" geändert werden:
-
-### Allgemein
-- Sprache (Deutsch/English)
-- Theme (Mocha, Macchiato, Frappé, Latte)
-- Tooltips für Illuminatus!-Begriffe
-
-### KI-Provider
-- **Ollama (Standard):** Lokale Modelle, vollständig offline
-- **OpenAI-kompatible APIs:** OpenAI, Together.ai, Mistral, Groq etc. als Alternative für Textgenerierung
-- Modell-Auswahl (Hauptmodell, Embedding-Modell)
-- Empfohlene Modelle direkt herunterladen
-- **LAN-Proxy:** Integrierter Proxy für Ollama-Instanzen im lokalen Netzwerk (Workaround für macOS Tahoe, siehe unten)
-- **Hinweis:** Embeddings (für Ähnlichkeitssuche) erfordern weiterhin Ollama
-
-### Prompts
-- Anpassbare KI-Prompts für Zusammenfassung und Analyse
-- Reset auf Standard-Prompts
-- Ausgabesprache folgt den Spracheinstellungen
-
----
-
-## Technologie
-
-| Komponente | Technologie |
-|------------|-------------|
+| Component  | Technology   |
+|------------|--------------|
 | Framework | [Tauri](https://tauri.app/) 2.x |
 | Backend | Rust |
 | Frontend | Svelte 5 |
-| Datenbank | SQLite + sqlite-vec |
-| i18n | [svelte-i18n](https://github.com/kaisermann/svelte-i18n) |
-| KI | [Ollama](https://ollama.com/) (lokal, `/api/chat` + Structured Outputs) + OpenAI-kompatible APIs |
-| Modelle | ministral-3:latest, snowflake-arctic-embed2:latest (8.192 Token Kontext) |
-
-### Mehrsprachigkeit
-
-fuckupRSS unterstützt mehrere Sprachen:
-- Deutsch (Standard)
-- English
-
-Die Sprache kann in den Einstellungen gewechselt werden.
+| Database | SQLite + sqlite-vec |
+| AI | [Ollama](https://ollama.com/) + OpenAI-compatible APIs |
+| Models | ministral-3 (text), snowflake-arctic-embed2 (embeddings) |
+| Icons | Font Awesome Free 6.7.2 |
 
 ---
 
-## Warum lokal?
+## Getting Started
 
-- **Privatsphäre** – Deine Lesegewohnheiten bleiben bei dir
-- **Offline** – Funktioniert ohne Internet (nach erstem Sync)
-- **Kontrolle** – Du entscheidest, welche Modelle laufen
-- **Keine Kosten** – Keine API-Gebühren, keine Abos
-- **Keine Zensur** – Keine Cloud-ToS, die bestimmen was du lesen darfst
+### Requirements
+
+- **Ollama** — for local AI models
+- **GPU** — NVIDIA with 12 GB VRAM (recommended) or Apple Silicon
+- **RAM** — 16 GB minimum, 32 GB recommended
+- **OS** — Linux (Ubuntu 22.04+, Fedora 38+, Arch) or macOS 13+ (Apple Silicon)
+
+### Setup
+
+```bash
+# 1. Install Ollama (https://ollama.com)
+# Linux:
+curl -fsSL https://ollama.com/install.sh | sh
+# macOS:
+brew install ollama
+
+# 2. Pull models
+ollama pull ministral-3:latest
+ollama pull snowflake-arctic-embed2:latest
+
+# 3. Clone and build
+git clone https://github.com/yourusername/fuckuprss.git
+cd fuckuprss
+npm install
+cargo tauri dev    # Development
+cargo tauri build  # Production build
+```
+
+### Quick Start
+
+1. Launch fuckupRSS
+2. Add feeds (import OPML or enter URLs)
+3. Wait for the first sync
+4. Articles are automatically analyzed and categorized
 
 ---
 
-## Roadmap
+## Project Structure
 
-**Aktueller Status:** Phase 4 (Polish & Advanced Features) in Entwicklung – Ollama Modernization, Briefings, Story Clustering, NER, Article Type Classification abgeschlossen
+```text
+fuckupRSS/
+├── src/              # Svelte 5 frontend
+├── src-tauri/        # Rust backend
+├── docs/             # Technical documentation
+├── scripts/          # Build and utility scripts
+└── static/           # Static assets (Font Awesome)
+```
 
-Detaillierte Planung und Phasen-Übersicht: siehe [`docs/ANFORDERUNGEN.md`](docs/ANFORDERUNGEN.md#5-roadmap-nächste-schritte)
+See [CLAUDE.md](CLAUDE.md) for detailed project structure, conventions, and architecture notes.
 
 ---
 
 ## Contributing
 
-Contributions sind willkommen! Siehe [CLAUDE.md](CLAUDE.md) für Entwickler-Richtlinien.
+This is a hobby project, but contributions and ideas are welcome. The codebase has tests and linting set up:
 
 ```bash
-# Entwicklungsumgebung aufsetzen
-git clone https://github.com/yourusername/fuckuprss.git
-cd fuckuprss
-npm install
-cargo tauri dev
+npm run test                                     # Frontend (Vitest)
+cargo test --manifest-path src-tauri/Cargo.toml  # Backend (Rust)
+npm run lint                                     # ESLint
+npm run rust:clippy                              # Clippy
 ```
 
-### Voraussetzungen für Entwicklung
-- Rust 1.75+
-- Node.js 22+
-- Tauri CLI (`cargo install tauri-cli`)
-
-### Tests
-
-Das Projekt hat umfangreiche Tests (260 insgesamt):
-
-```bash
-# Rust Backend Tests (160 Tests)
-cargo test --manifest-path src-tauri/Cargo.toml
-
-# Frontend Unit Tests (89 Tests)
-npm run test
-
-# E2E Tests (11 Tests)
-npm run test:e2e
-```
-
-**Wichtig:** Alle neuen Features und Bugfixes müssen mit Tests abgedeckt werden.
+See [docs/](docs/) for architecture documentation and [CLAUDE.md](CLAUDE.md) for development guidelines.
 
 ---
 
-## Lizenz
+## Why Local?
 
-MIT License – siehe [LICENSE](LICENSE)
-
----
-
-## Danksagungen
-
-- Robert Shea und Robert Anton Wilson für die Illuminatus!-Trilogie
-- Das [Ollama](https://ollama.com/)-Team für lokale LLMs
-- Das [Tauri](https://tauri.app/)-Team für das Framework
-- [Qwen](https://github.com/QwenLM/Qwen)-Team für die Modelle
+- **Privacy** — your reading habits stay with you
+- **Offline** — works without internet (after first sync)
+- **Control** — you decide which models run
+- **No costs** — no API fees, no subscriptions
+- **No censorship** — no cloud ToS dictating what you're allowed to read
 
 ---
 
-## Fnord
+## License
 
-```
+MIT License — see [LICENSE](LICENSE)
+
+---
+
+```text
         ▲
        ╱ ╲
       ╱   ╲
@@ -374,4 +179,4 @@ MIT License – siehe [LICENSE](LICENSE)
   ONE FEED AT A TIME
 ```
 
-*"Denke selbst. Hinterfrage alles. Lies die Fnords."*
+> *"Think for yourself. Question everything. Read the Fnords."*

@@ -5,7 +5,7 @@ This document provides a comprehensive overview of the fuckupRSS SQLite database
 **Related documentation:**
 - Database patterns and best practices: See [CLAUDE.md](../../CLAUDE.md#database-patterns--best-practices)
 - Full schema implementation: `src-tauri/src/db/schema.rs`
-- Technical specification: `docs/ANFORDERUNGEN.md` Kapitel 6b + 10
+- Technical specification: `docs/ROADMAP.md` chapters 6b + 10
 
 ---
 

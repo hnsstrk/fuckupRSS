@@ -1009,6 +1009,6 @@ await invoke('process_batch_clustered', {
 ## Related Documentation
 
 - [CLAUDE.md](../../CLAUDE.md) - Main developer guide
-- [docs/ANFORDERUNGEN.md](../../docs/ANFORDERUNGEN.md) - Technical specification
+- [docs/ROADMAP.md](../../docs/ROADMAP.md) - Technical specification and roadmap
 - [KEYWORDS_SCHEMA.md](../features/immanentize/KEYWORDS_SCHEMA.md) - Keyword database schema
 - [STOPWORD_KEYWORD_REPORT.md](../archive/STOPWORD_KEYWORD_REPORT.md) - Stopword and keyword analysis report

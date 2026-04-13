@@ -7,7 +7,7 @@ Debug-Builds) koennen nicht auf LAN-IPs zugreifen. Dieses Script laeuft
 unter /usr/bin/python3 (Apple-signiert) und leitet den Traffic weiter.
 
 Usage:
-    /usr/bin/python3 scripts/ollama-proxy.py                          # Default: 11435 -> 192.168.177.22:11434
+    /usr/bin/python3 scripts/ollama-proxy.py                          # Default: 11435 -> <remote-host>:11434
     /usr/bin/python3 scripts/ollama-proxy.py --remote 10.0.0.5        # Anderer Remote-Host
     /usr/bin/python3 scripts/ollama-proxy.py --local-port 11440       # Anderer lokaler Port
     /usr/bin/python3 scripts/ollama-proxy.py --remote-port 8080       # Anderer Remote-Port
@@ -22,7 +22,7 @@ import sys
 import threading
 import time
 
-DEFAULT_REMOTE_HOST = "192.168.177.22"
+DEFAULT_REMOTE_HOST = "localhost"
 DEFAULT_REMOTE_PORT = 11434
 DEFAULT_LOCAL_PORT = 11435
 BUFFER_SIZE = 65536

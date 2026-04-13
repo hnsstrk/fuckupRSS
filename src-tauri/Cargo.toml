@@ -3,6 +3,7 @@ name = "fuckuprss"
 version = "0.1.0"
 description = "First Universal Cybernetic-Kinetic RSS Processor"
 authors = ["fuckupRSS"]
+license = "MIT"
 edition = "2021"
 
 [lib]

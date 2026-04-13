@@ -1,47 +1,15 @@
-# Keyboard-Shortcuts
+# Keyboard Shortcuts
 
-fuckupRSS bietet Vim-ähnliche Tastenkombinationen für eine effiziente Navigation ohne Maus.
+fuckupRSS offers basic Vim-like keyboard shortcuts for article navigation.
 
-## Navigation
+## Article Navigation
 
-| Taste | Aktion |
-|-------|--------|
-| `j` | Nächster Artikel |
-| `k` | Vorheriger Artikel |
-| `g g` | Zum Anfang der Liste |
-| `G` | Zum Ende der Liste |
-| `h` | Vorheriger Feed/Ordner |
-| `l` | Nächster Feed/Ordner |
+| Key | Action |
+|-----|--------|
+| `j` | Next article |
+| `k` | Previous article |
+| `s` | Toggle Golden Apple (favorite) |
 
-## Aktionen
+## Source Files
 
-| Taste | Aktion |
-|-------|--------|
-| `o` / `Enter` | Artikel öffnen/schließen |
-| `v` | Im Browser öffnen |
-| `r` | Als gelesen markieren |
-| `u` | Als ungelesen markieren |
-| `s` | Golden Apple (Favorit) toggle |
-| `a` | Alle als gelesen markieren |
-
-## Suche und Filter
-
-| Taste | Aktion |
-|-------|--------|
-| `/` | Suche öffnen |
-| `Esc` | Suche/Dialog schließen |
-| `f` | Filter-Panel toggle |
-
-## System
-
-| Taste | Aktion |
-|-------|--------|
-| `Ctrl+R` | Feeds synchronisieren |
-| `Ctrl+,` | Einstellungen öffnen |
-| `?` | Shortcut-Hilfe anzeigen |
-
-## Relevante Quelldateien
-
-- `src/App.svelte` - Globale Keyboard-Event-Handler
-- `src/lib/components/ArticleList.svelte` - Artikel-Navigation
-- `src/lib/stores/state.svelte.ts` - Keyboard-State Management
+- `src/lib/components/ArticleList.svelte` — keyboard event handlers

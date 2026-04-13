@@ -6,34 +6,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 fuckupRSS is an RSS aggregator/reader with local AI integration (Tauri v2 + Svelte 5 + Rust + SQLite), named after F.U.C.K.U.P. from the Illuminatus! trilogy. It supports Ollama (local) and OpenAI-compatible APIs for text generation. Ollama remains required for embeddings.
 
-**Status:** Phase 4 (Polish & Advanced Features) — Ollama Modernization, Briefings, Theme Reports, NER, Article Type Classification abgeschlossen.
+**Status:** Experimental hobby project — actively developed. Features include Ollama Modernization, Briefings, Theme Reports, NER, Article Type Classification.
 
-**Architektur-Dokumentation:** Obsidian Vault [[fuckupRSS Arc42 Architekturdokumentation]]
+## Reference Documentation (docs/)
 
-## Referenzdokumentation (docs/)
+| Document | Contents |
+|----------|----------|
+| [docs/README.md](docs/README.md) | Navigation hub for all docs/ |
+| [docs/api/TAURI_COMMANDS_REFERENCE.md](docs/api/TAURI_COMMANDS_REFERENCE.md) | All Tauri commands (Frontend → Backend) |
+| [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md) | AI pipeline, prompt design, keyword extraction |
+| [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md) | DB tables, revision management, settings |
+| [docs/guides/TESTING.md](docs/guides/TESTING.md) | Test commands, patterns, requirements |
+| [docs/guides/QUALITY_CHECKLIST.md](docs/guides/QUALITY_CHECKLIST.md) | Frontend-backend communication checklist |
+| [README.md](README.md) | Project overview, tech stack, setup |
 
-| Dokument | Inhalt |
-|----------|--------|
-| [docs/README.md](docs/README.md) | Navigation Hub fuer alle docs/ |
-| [docs/api/TAURI_COMMANDS_REFERENCE.md](docs/api/TAURI_COMMANDS_REFERENCE.md) | Alle Tauri Commands (Frontend -> Backend) |
-| [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md) | KI-Pipeline, Prompt-Design, Keyword-Extraktion |
-| [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md) | DB-Tabellen, Revisionsverwaltung, Settings |
-| [docs/guides/TESTING.md](docs/guides/TESTING.md) | Test-Befehle, Patterns, Anforderungen |
-| [docs/guides/CI_CD_SETUP.md](docs/guides/CI_CD_SETUP.md) | CI/CD Pipeline, Gitea Actions Runner |
-| [docs/guides/QUALITY_CHECKLIST.md](docs/guides/QUALITY_CHECKLIST.md) | Frontend-Backend-Kommunikation Checkliste |
-| [docs/guides/HARDWARE_OPTIMIZATION.md](docs/guides/HARDWARE_OPTIMIZATION.md) | VRAM-Optimierung, Ollama-Konfiguration |
-| [docs/ANFORDERUNGEN.md](docs/ANFORDERUNGEN.md) | Roadmap, Governance, Entscheidungen |
-| [README.md](README.md) | Technology Stack, Illuminatus! Terminologie, Ollama Setup |
-
-**WICHTIG:** Bei groesseren Arbeitsschritten muessen README.md, CLAUDE.md, docs/ANFORDERUNGEN.md und docs/guides/QUALITY_CHECKLIST.md geprueft und ggf. aktualisiert werden.
+**IMPORTANT:** For major changes, check and update README.md, CLAUDE.md, and docs/guides/QUALITY_CHECKLIST.md.
 
 ## Task Management
 
-Alle offenen Tasks in **Taskwarrior** (Projekt: `fuckupRSS`):
+All open tasks tracked in **Taskwarrior** (project: `fuckupRSS`):
 
 ```bash
-task project:fuckupRSS list          # Alle offenen Tasks
-task project:fuckupRSS +bug list     # Nur Bugs
+task project:fuckupRSS list          # All open tasks
+task project:fuckupRSS +bug list     # Bugs only
 task project:fuckupRSS +refactor list
 ```
 
@@ -42,13 +37,13 @@ task project:fuckupRSS +refactor list
 ```bash
 npm install                          # Dependencies
 npm run tauri dev                    # Development (Vite + Tauri)
-npm run tauri build                  # Production Build
-npm run dev                          # Nur Frontend (ohne Tauri)
+npm run tauri build                  # Production build
+npm run dev                          # Frontend only (without Tauri)
 ```
 
 ## Testing
 
-Siehe [docs/guides/TESTING.md](docs/guides/TESTING.md) fuer die vollstaendige Dokumentation.
+See [docs/guides/TESTING.md](docs/guides/TESTING.md) for full documentation.
 
 ```bash
 npm run test                                     # Frontend (Vitest)
@@ -56,133 +51,132 @@ npm run test:e2e                                 # E2E (Playwright)
 cargo test --manifest-path src-tauri/Cargo.toml  # Backend (Rust)
 ```
 
-**WICHTIG:** Alle neuen Features und Bugfixes MUESSEN mit Tests abgedeckt werden.
+**IMPORTANT:** All new features and bugfixes MUST include tests.
 
 ## Linting & Formatting
 
 ```bash
 npm run lint && npm run lint:fix     # ESLint
 npm run format                       # Prettier
-npm run rust:fmt                     # Rust formatieren
+npm run rust:fmt                     # Rust formatting
 npm run rust:clippy                  # Clippy
 npm run security:scan                # Semgrep
 ```
 
-## Projektstruktur
+## Project Structure
 
 ```
 fuckupRSS/
 ├── src/                          # Svelte 5 Frontend
 │   ├── lib/
-│   │   ├── components/           # UI-Komponenten
-│   │   │   ├── article/          # Artikel-Detail (KeywordChip, Suggestions, Search)
-│   │   │   ├── keywords/         # Compound-Keyword-Verwaltung (Toolbar, Table)
-│   │   │   ├── network/          # Keyword-Netzwerk (Detail, Synonyms, Sub-Komponenten)
-│   │   │   ├── recommendation/   # Empfehlungskarten
-│   │   │   ├── theme/            # Theme Reports Sub-Komponenten
-│   │   │   └── settings/         # Settings Sub-Komponenten (AI, Ollama, Prompts, etc.)
-│   │   ├── stores/               # Runes-basiertes State Management
-│   │   ├── i18n/                 # Internationalisierung (de, en)
-│   │   └── utils/                # Hilfsfunktionen (sanitizer.ts)
+│   │   ├── components/           # UI components
+│   │   │   ├── article/          # Article detail (KeywordChip, Suggestions, Search)
+│   │   │   ├── keywords/         # Compound keyword management (Toolbar, Table)
+│   │   │   ├── network/          # Keyword network (Detail, Synonyms, sub-components)
+│   │   │   ├── recommendation/   # Recommendation cards
+│   │   │   ├── theme/            # Theme Reports sub-components
+│   │   │   └── settings/         # Settings sub-components (AI, Ollama, Prompts, etc.)
+│   │   ├── stores/               # Runes-based state management
+│   │   ├── i18n/                 # Internationalization (de, en)
+│   │   └── utils/                # Utility functions (sanitizer.ts)
 │   ├── App.svelte
-│   └── app.css                   # TailwindCSS + Custom Styles
+│   └── app.css                   # TailwindCSS + custom styles
 ├── src-tauri/                    # Rust Backend
 │   ├── src/
-│   │   ├── lib.rs                # Tauri Setup + State
-│   │   ├── ai_provider/          # AI Provider Abstraction (Ollama + OpenAI)
-│   │   ├── proxy.rs              # Ollama LAN-Proxy
+│   │   ├── lib.rs                # Tauri setup + state
+│   │   ├── ai_provider/          # AI provider abstraction (Ollama + OpenAI)
+│   │   ├── proxy.rs              # Ollama LAN proxy
 │   │   ├── db/                   # Database (schema.rs)
 │   │   ├── theme_clustering.rs   # Theme Reports (Multi-Signal Topic Detection + LLM)
-│   │   ├── commands/             # Tauri Commands (IPC) — inkl. theme_report
-│   │   └── keywords/             # Keyword-Extraktion + Deduplication
+│   │   ├── commands/             # Tauri commands (IPC) — incl. theme_report
+│   │   └── keywords/             # Keyword extraction + deduplication
 │   └── Cargo.toml
-├── docs/                         # Referenzdokumentation (siehe docs/README.md)
-├── scripts/                      # Build-Scripts (build-macos.sh)
+├── docs/                         # Reference documentation (see docs/README.md)
+├── scripts/                      # Build scripts (build-macos.sh)
 ├── .gitea/workflows/             # CI/CD (ci.yaml, release.yaml)
-└── .husky/                       # Git Hooks (pre-commit, pre-push)
+└── .husky/                       # Git hooks (pre-commit, pre-push)
 ```
 
-## Kritische Konventionen
+## Critical Conventions
 
-### Commit-Konventionen
+### Commit Conventions
 
-[Conventional Commits](https://www.conventionalcommits.org/) Format: `feat:`, `fix:`, `refactor:`, `docs:`, `style:`, `test:`, `chore:`
+[Conventional Commits](https://www.conventionalcommits.org/) format: `feat:`, `fix:`, `refactor:`, `docs:`, `style:`, `test:`, `chore:`
 
-**Commit-Frequenz:** Nach jedem logischen Arbeitsschritt sofort committen. Lieber zu viele kleine als zu wenige grosse Commits.
+**Commit frequency:** Commit after each logical work step. Prefer many small commits over few large ones.
 
-### Branch-Strategie
+### Branch Strategy
 
-`main` (stabil), `feature/*`, `fix/*`, `refactor/*`
+`main` (stable), `feature/*`, `fix/*`, `refactor/*`
 
 ### Database Patterns
 
-SQLite mit `Arc<Mutex<Connection>>`. Kritische Regeln:
+SQLite with `Arc<Mutex<Connection>>`. Critical rules:
 
-- **Locks kurz halten** — nur fuer DB-Operation, keine I/O waehrend Lock
-- **Pro-Item Locks** — in Loops Lock pro Item, nicht fuer gesamte Schleife
-- **Transactions** — zusammengehoerige Operationen MUESSEN in Transaction
-- **Yield nach Release** — `tokio::task::yield_now().await` fuer Concurrency
+- **Keep locks short** — only for DB operations, no I/O while holding lock
+- **Per-item locks** — in loops, acquire lock per item, not for entire loop
+- **Transactions** — related operations MUST use transactions
+- **Yield after release** — `tokio::task::yield_now().await` for concurrency
 
-Vollstaendige Patterns: [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md)
+Full patterns: [docs/architecture/DATABASE_SCHEMA.md](docs/architecture/DATABASE_SCHEMA.md)
 
-### Frontend Event-System
+### Frontend Event System
 
-Komponenten die Backend-Daten anzeigen MUESSEN auf CustomEvents lauschen:
+Components displaying backend data MUST listen to CustomEvents:
 
-| Event | Wann |
+| Event | When |
 |-------|------|
-| `batch-complete` | Nach Batch-Processing |
-| `keywords-changed` | Nach Keyword-Mutationen |
+| `batch-complete` | After batch processing |
+| `keywords-changed` | After keyword mutations |
 
 Pattern: `onMount` → `addEventListener`, `onDestroy` → `removeEventListener`
 
-### Markdown-Rendering (LLM-Texte)
+### Markdown Rendering (LLM Text)
 
-Zentrale Funktion: `src/lib/utils/sanitizer.ts` → `renderMarkdown(markdown)`
+Central function: `src/lib/utils/sanitizer.ts` → `renderMarkdown(markdown)`
 
 ```svelte
 <div class="markdown-content">{@html renderMarkdown(text)}</div>
 ```
 
-**WICHTIG:** Fuer LLM-Texte immer `renderMarkdown()`, nie `sanitizeArticleContent()`.
+**IMPORTANT:** For LLM text always use `renderMarkdown()`, never `sanitizeArticleContent()`.
 
 ### Icons
 
-Font Awesome 6.4 Pro: `static/fontawesome/`. Styles: `fa-solid`, `fa-regular`, `fa-light`, `fa-thin`, `fa-brands`, `fa-duotone`
+Font Awesome Free 6.7.2: `static/fontawesome/`. Styles: `fa-solid`, `fa-regular`, `fa-brands`
 
 ## Ollama Setup
 
 ```bash
-ollama pull ministral-3:latest           # Text-Generierung
+ollama pull ministral-3:latest           # Text generation
 ollama pull snowflake-arctic-embed2:latest # Embeddings
 ```
 
-- **API:** `/api/chat` (Structured Outputs, JSON Schema) — erfordert Ollama 0.5.0+
-- **Embeddings:** `/api/embed` Batch-Endpunkt, snowflake-arctic-embed2 (8.192 Tokens)
-- **Alternative:** OpenAI-kompatible API konfigurierbar in Settings (Ollama bleibt fuer Embeddings)
-- **Concurrency:** `ollama_concurrency` Setting (Standard: 1)
+- **API:** `/api/chat` (Structured Outputs, JSON Schema) — requires Ollama 0.5.0+
+- **Embeddings:** `/api/embed` batch endpoint, snowflake-arctic-embed2 (8,192 tokens)
+- **Alternative:** OpenAI-compatible API configurable in Settings (Ollama remains required for embeddings)
+- **Concurrency:** `ollama_concurrency` setting (default: 1)
 
-## AI Pipeline (Kurzuebersicht)
+## AI Pipeline (Overview)
 
-1. **Hagbard's Retrieval** — Volltext abrufen
-2. **Discordian Analysis** — Zusammenfassung, Kategorien, Keywords, Artikeltyp, NER (Structured Outputs)
+1. **Hagbard's Retrieval** — Full-text fetching
+2. **Discordian Analysis** — Summary, categories, keywords, article type, NER (Structured Outputs)
 3. **Article Embedding** — title + summary + content_full (snowflake-arctic-embed2)
-4. **Greyface Alert** — Bias-Erkennung (political_bias, sachlichkeit)
-5. **Immanentize Network** — Schlagwort-Verarbeitung und Synonyme
-6. **Theme Reports** — Multi-Signal Topic Detection + LLM-Tiefenanalyse
-7. **Briefings** — Hybrid-Scoring + Diversitaets-Postprocessing (BRIEFING_NUM_CTX=16384)
-8. **NER** — Entitaeten (person, organization, location, event)
+4. **Greyface Alert** — Bias detection (political_bias, sachlichkeit)
+5. **Immanentize Network** — Keyword processing and synonyms
+6. **Theme Reports** — Multi-Signal Topic Detection + LLM deep analysis
+7. **Briefings** — Hybrid scoring + diversity post-processing (BRIEFING_NUM_CTX=16384)
+8. **NER** — Entities (person, organization, location, event)
 
 Details: [docs/architecture/AI_PROCESSING_PIPELINE.md](docs/architecture/AI_PROCESSING_PIPELINE.md)
 
 ## Data Paths
 
-- **Datenbank:** `src-tauri/data/fuckup.db` (SQLite WAL, in .gitignore)
-- **Schnellzugriff:** `sqlite3 /Users/hnsstrk/Repositories/fuckupRSS/src-tauri/data/fuckup.db`
+- **Database:** `src-tauri/data/fuckup.db` (SQLite WAL, in .gitignore)
 
-## MCP-Server
+## MCP Servers
 
-Konfiguration in `.mcp.json`: `ollama` (KI-Interaktion), `fetch` (Web-Requests), `memory` (persistenter Kontext)
+Configuration in `.mcp.json`: `ollama` (AI interaction), `fetch` (web requests), `memory` (persistent context)
 
 ## Git Hooks (Husky)
 
@@ -191,6 +185,4 @@ Konfiguration in `.mcp.json`: `ollama` (KI-Interaktion), `fetch` (Web-Requests),
 
 ## CI/CD
 
-Pipeline: `.gitea/workflows/ci.yaml` — Security Scan + SBOM auf Callisto (Linux). Release: Tag-basiert (`git tag v1.x.x && git push --tags`). macOS-Build: lokal via `scripts/build-macos.sh`.
-
-Details: [docs/guides/CI_CD_SETUP.md](docs/guides/CI_CD_SETUP.md)
+Pipeline: `.gitea/workflows/ci.yaml` — Security Scan + SBOM on dedicated Linux runner. Release: tag-based (`git tag v1.x.x && git push --tags`). macOS build: local via `scripts/build-macos.sh`.

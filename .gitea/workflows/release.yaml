@@ -104,7 +104,7 @@ jobs:
         run: |
           CHANGELOG=$(cat changelog.txt)
           REPO="hnsstrk/fuckupRSS"
-          API_URL="http://192.168.177.11:3000/api/v1"
+          API_URL="${GITEA_URL:-http://localhost:3000}/api/v1"
 
           # Create release
           RELEASE_RESPONSE=$(curl -s -X POST \

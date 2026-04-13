@@ -6,7 +6,7 @@
 
 set -e
 
-DB_PATH="/Users/hnsstrk/Repositories/fuckupRSS/src-tauri/data/fuckup.db"
+DB_PATH="$(cd "$(dirname "$0")/.." && pwd)/src-tauri/data/fuckup.db"
 
 if [ ! -f "$DB_PATH" ]; then
     echo "❌ Error: Database not found at $DB_PATH"
