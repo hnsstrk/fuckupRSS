@@ -67,6 +67,7 @@
   let progress = $state<ThemeProgressData | null>(null);
   let days = $state(1);
   let searchQuery = $state("");
+  let minSources = $state(2);
   let expandedThemes = new SvelteSet<number>();
   let loading = $state(false);
   let detailLoading = $state(false);
@@ -79,12 +80,9 @@
   onMount(async () => {
     detailPanelRef?.scrollTo({ top: 0 });
     try {
-      unlistenProgress = await listen<ThemeProgressData>(
-        "theme-report-progress",
-        (event) => {
-          progress = event.payload;
-        },
-      );
+      unlistenProgress = await listen<ThemeProgressData>("theme-report-progress", (event) => {
+        progress = event.payload;
+      });
     } catch (e) {
       log.error("Failed to listen for theme-report-progress:", e);
     }
@@ -135,6 +133,7 @@
       const detail = await invoke<ThemeReportDetail>("generate_theme_report", {
         days,
         searchQuery: searchQuery || null,
+        minSources: minSources,
       });
       // Refresh reports list and select new one
       await loadReports();
@@ -158,9 +157,7 @@
       if (reportDetail) {
         reportDetail = {
           ...reportDetail,
-          themes: reportDetail.themes.map((t) =>
-            t.id === themeId ? updatedTheme : t,
-          ),
+          themes: reportDetail.themes.map((t) => (t.id === themeId ? updatedTheme : t)),
         };
       }
     } catch (e) {
@@ -197,10 +194,12 @@
   <ThemeReportHeader
     {days}
     {searchQuery}
+    {minSources}
     {generating}
     ongenerate={handleGenerate}
     ondayschange={(d) => (days = d)}
     onsearchchange={(q) => (searchQuery = q)}
+    onminsourceschange={(v) => (minSources = v)}
   />
 
   <div class="tr-panels">
@@ -211,11 +210,7 @@
           <i class="fa-solid fa-spinner fa-spin"></i>
         </div>
       {:else}
-        <ThemeReportList
-          {reports}
-          {selectedReportId}
-          onselectreport={selectReport}
-        />
+        <ThemeReportList {reports} {selectedReportId} onselectreport={selectReport} />
       {/if}
     </div>
 
@@ -254,11 +249,7 @@
                 </span>
               {/if}
             </div>
-            <button
-              class="tr-btn-danger"
-              onclick={handleDelete}
-              title={$_("themeReport.delete")}
-            >
+            <button class="tr-btn-danger" onclick={handleDelete} title={$_("themeReport.delete")}>
               <i class="fa-solid fa-trash"></i>
               {$_("themeReport.delete")}
             </button>

@@ -1251,6 +1251,7 @@
     "day14": "14 Tage",
     "pending": "Ausstehend",
     "failed": "Fehlgeschlagen",
-    "complete": "Fertig"
+    "complete": "Fertig",
+    "minSources": "Min. Quellen"
   }
 }

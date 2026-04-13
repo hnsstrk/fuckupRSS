@@ -4,17 +4,21 @@
   let {
     days,
     searchQuery,
+    minSources,
     generating,
     ongenerate,
     ondayschange,
     onsearchchange,
+    onminsourceschange,
   }: {
     days: number;
     searchQuery: string;
+    minSources: number;
     generating: boolean;
     ongenerate: () => void;
     ondayschange: (days: number) => void;
     onsearchchange: (query: string) => void;
+    onminsourceschange: (val: number) => void;
   } = $props();
 
   const dayOptions = [
@@ -44,6 +48,17 @@
           <option value={opt.value}>{$_(opt.label)}</option>
         {/each}
       </select>
+    </div>
+    <div class="tr-min-sources">
+      <label for="tr-min-sources">{$_("themeReport.minSources")}:</label>
+      <input
+        id="tr-min-sources"
+        type="number"
+        min="1"
+        max="5"
+        value={minSources}
+        onchange={(e) => onminsourceschange(Number((e.target as HTMLInputElement).value))}
+      />
     </div>
     <div class="tr-search">
       <i class="fa-solid fa-search tr-search-icon"></i>
@@ -119,6 +134,29 @@
     color: var(--text-primary);
     font-size: 0.82rem;
     cursor: pointer;
+  }
+
+  .tr-min-sources {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .tr-min-sources label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .tr-min-sources input {
+    padding: 0.3rem 0.5rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    width: 52px;
+    text-align: center;
   }
 
   .tr-search {

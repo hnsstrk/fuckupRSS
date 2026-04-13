@@ -10,7 +10,7 @@ use crate::commands::ai::helpers::{create_embedding_provider_from_db, create_tex
 use crate::error::{CmdResult, FuckupError};
 use crate::theme_clustering::{
     agglomerative_cluster, decay_hours_for_days, topic_score, ArticlePair, ArticleSignals,
-    ClusterCandidate, ANN_PREFILTER_THRESHOLD, MIN_ARTICLES_FOR_REPORT,
+    ClusterCandidate, ANN_PREFILTER_THRESHOLD, MIN_ARTICLES_FOR_REPORT, MIN_SOURCE_COUNT,
 };
 use crate::AppState;
 use log::{error, info, warn};
@@ -311,6 +311,7 @@ fn run_phase1_clustering(
     conn: &rusqlite::Connection,
     articles: &[ArticleSignals],
     days: i32,
+    min_sources: usize,
 ) -> CmdResult<Vec<ClusterCandidate>> {
     let article_ids: Vec<i64> = articles.iter().map(|a| a.fnord_id).collect();
 
@@ -356,7 +357,7 @@ fn run_phase1_clustering(
         }
     }
 
-    let candidates = agglomerative_cluster(&article_ids, &distances, &pentacle_map);
+    let candidates = agglomerative_cluster(&article_ids, &distances, &pentacle_map, min_sources);
     info!("Phase 1: {} cluster candidates found", candidates.len());
     Ok(candidates)
 }
@@ -648,11 +649,13 @@ pub async fn generate_theme_report(
     app_handle: tauri::AppHandle,
     days: i32,
     search_query: Option<String>,
+    min_sources: Option<usize>,
 ) -> CmdResult<ThemeReportDetail> {
     let days = days.clamp(1, 14);
+    let min_sources = min_sources.unwrap_or(MIN_SOURCE_COUNT).clamp(1, 5);
     info!(
-        "Generating theme report (days={}, search={:?})",
-        days, search_query
+        "Generating theme report (days={}, search={:?}, min_sources={})",
+        days, search_query, min_sources
     );
 
     // Calculate period
@@ -729,7 +732,7 @@ pub async fn generate_theme_report(
     // Phase 1: Statistical clustering (short lock for ANN queries)
     let candidates = {
         let db = state.db_conn()?;
-        run_phase1_clustering(db.conn(), &articles, days)?
+        run_phase1_clustering(db.conn(), &articles, days, min_sources)?
     };
 
     if candidates.is_empty() {

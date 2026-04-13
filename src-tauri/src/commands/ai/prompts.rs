@@ -159,10 +159,7 @@ pub fn reset_prompts(state: State<AppState>) -> Result<PromptTemplates, String> 
         .map_err(|e| e.to_string())?;
 
     db.conn()
-        .execute(
-            "DELETE FROM settings WHERE key = 'theme_report_prompt'",
-            [],
-        )
+        .execute("DELETE FROM settings WHERE key = 'theme_report_prompt'", [])
         .map_err(|e| e.to_string())?;
 
     Ok(PromptTemplates {

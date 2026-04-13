@@ -270,6 +270,7 @@ pub fn agglomerative_cluster(
     article_ids: &[i64],
     distances: &HashMap<(i64, i64), f64>,
     pentacle_map: &HashMap<i64, i64>,
+    min_sources: usize,
 ) -> Vec<ClusterCandidate> {
     if article_ids.is_empty() {
         return vec![];
@@ -388,7 +389,7 @@ pub fn agglomerative_cluster(
             .collect();
 
         // Skip clusters with too few unique sources
-        if source_set.len() < MIN_SOURCE_COUNT {
+        if source_set.len() < min_sources {
             continue;
         }
 
@@ -559,7 +560,8 @@ mod tests {
         pentacle_map.insert(3, 102);
         pentacle_map.insert(4, 103);
 
-        let result = agglomerative_cluster(&article_ids, &distances, &pentacle_map);
+        let result =
+            agglomerative_cluster(&article_ids, &distances, &pentacle_map, MIN_SOURCE_COUNT);
 
         assert_eq!(result.len(), 2, "Expected 2 clusters, got {}", result.len());
 
@@ -575,7 +577,8 @@ mod tests {
         let distances: HashMap<(i64, i64), f64> = HashMap::new();
         let pentacle_map: HashMap<i64, i64> = HashMap::new();
 
-        let result = agglomerative_cluster(&article_ids, &distances, &pentacle_map);
+        let result =
+            agglomerative_cluster(&article_ids, &distances, &pentacle_map, MIN_SOURCE_COUNT);
         assert!(result.is_empty());
     }
 
