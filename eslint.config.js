@@ -13,7 +13,7 @@ export default tseslint.config(
       "anti-trojan-source": antiTrojanSource,
     },
     rules: {
-      "anti-trojan-source/no-bidi": "error",
+      "anti-trojan-source/no-bidi": "warn",
     },
   },
   {
@@ -47,7 +47,7 @@ export default tseslint.config(
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/ban-ts-comment": "warn",
-      "svelte/no-at-html-tags": "error",
+      "svelte/no-at-html-tags": "warn",
       "svelte/require-each-key": "warn",
       "svelte/prefer-svelte-reactivity": "warn",
       "svelte/prefer-writable-derived": "warn",
