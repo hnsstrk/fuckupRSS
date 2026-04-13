@@ -17,6 +17,10 @@ pub const MIN_ARTICLES_FOR_REPORT: usize = 5;
 /// Minimum articles per cluster candidate
 pub const MIN_CLUSTER_SIZE: usize = 2;
 
+/// Minimum unique sources per cluster candidate.
+/// A theme reported by only one source is not significant enough.
+pub const MIN_SOURCE_COUNT: usize = 2;
+
 /// Signal weights for topic score calculation
 const W_EMBEDDING: f64 = 0.35;
 const W_KEYWORD: f64 = 0.25;
@@ -382,6 +386,11 @@ pub fn agglomerative_cluster(
             .iter()
             .filter_map(|id| pentacle_map.get(id).copied())
             .collect();
+
+        // Skip clusters with too few unique sources
+        if source_set.len() < MIN_SOURCE_COUNT {
+            continue;
+        }
 
         results.push(ClusterCandidate {
             cluster_id: cluster_counter,
