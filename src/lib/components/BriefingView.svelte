@@ -222,7 +222,7 @@
       </div>
     {:else if briefings.length === 0}
       <div class="empty-state">
-        <i class="fa-light fa-file-lines empty-icon"></i>
+        <i class="fa-solid fa-file-lines empty-icon"></i>
         <p>{$_("briefing.empty")}</p>
       </div>
     {:else}

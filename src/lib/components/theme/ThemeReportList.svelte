@@ -54,7 +54,7 @@
 <div class="tr-list-panel">
   {#if reports.length === 0}
     <div class="tr-empty">
-      <i class="fa-light fa-newspaper"></i>
+      <i class="fa-solid fa-newspaper"></i>
       <p>{$_("themeReport.noReports")}</p>
     </div>
   {:else}

@@ -344,7 +344,7 @@
     <!-- Empty State -->
     <div class="empty-state">
       <div class="empty-icon">
-        <i class="fa-duotone fa-wand-magic-sparkles"></i>
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
       </div>
       <h3>{$_("recommendations.empty.title") || "Noch keine Empfehlungen"}</h3>
       <p class="empty-reason">{getEmptyReasonText(loadState.reason)}</p>

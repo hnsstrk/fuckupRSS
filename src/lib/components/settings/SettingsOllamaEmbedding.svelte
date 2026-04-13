@@ -77,7 +77,7 @@
 <div class="setting-group">
   <span class="label">{$_("settings.ollama.embeddingSection")}</span>
   <p class="setting-description embedding-note">
-    <i class="fa-light fa-circle-info"></i>
+    <i class="fa-solid fa-circle-info"></i>
     {$_("settings.ollama.embeddingNote")}
   </p>
 
@@ -301,7 +301,7 @@
         {/each}
       </div>
       <p class="setting-description">
-        <i class="fa-light fa-circle-info"></i>
+        <i class="fa-solid fa-circle-info"></i>
         {$_("settings.ollama.openaiEmbeddingNote")}
       </p>
     </div>

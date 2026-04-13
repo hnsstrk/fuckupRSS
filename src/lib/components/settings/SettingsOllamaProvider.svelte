@@ -244,7 +244,7 @@
   <!-- LAN-Proxy Section -->
   <div class="proxy-section">
     <div class="proxy-header">
-      <i class="fa-light fa-network-wired"></i>
+      <i class="fa-solid fa-network-wired"></i>
       <span class="proxy-title">{$_("settings.ollama.proxy.title")}</span>
       <span class="status-dot {proxyRunning ? 'online' : 'offline'}"></span>
       <span class="proxy-status-text">
@@ -286,7 +286,7 @@
           {$_("settings.ollama.proxy.stop")}
         </button>
         <span class="proxy-routing">
-          <i class="fa-light fa-route"></i>
+          <i class="fa-solid fa-route"></i>
           {$_("settings.ollama.proxy.routingVia", { values: { port: 11435 } })}
         </span>
       {:else}

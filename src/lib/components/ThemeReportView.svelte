@@ -230,7 +230,7 @@
         </div>
       {:else if !selectedReportId}
         <div class="tr-empty">
-          <i class="fa-light fa-newspaper"></i>
+          <i class="fa-solid fa-newspaper"></i>
           <p>{$_("themeReport.selectReport")}</p>
         </div>
       {:else if detailLoading}
@@ -279,7 +279,7 @@
         </div>
       {:else}
         <div class="tr-empty">
-          <i class="fa-light fa-triangle-exclamation"></i>
+          <i class="fa-solid fa-triangle-exclamation"></i>
           <p>{$_("themeReport.noResults")}</p>
         </div>
       {/if}

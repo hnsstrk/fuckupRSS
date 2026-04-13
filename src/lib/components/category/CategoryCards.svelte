@@ -167,7 +167,7 @@
     </button>
   {:else}
     <div class="empty-cards">
-      <i class="fa-light fa-chart-bar empty-icon"></i>
+      <i class="fa-solid fa-chart-bar empty-icon"></i>
       <p>{emptyMessage || $_("fnordView.noData") || "Keine Daten"}</p>
     </div>
   {/each}
