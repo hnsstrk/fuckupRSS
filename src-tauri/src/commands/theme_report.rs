@@ -271,6 +271,8 @@ fn load_theme_articles(
     conn: &rusqlite::Connection,
     theme_id: i64,
 ) -> Result<Vec<ThemeArticle>, rusqlite::Error> {
+    // GROUP BY title + source to deduplicate articles that appear multiple times
+    // in the same feed (RSS feeds sometimes publish the same article twice)
     let mut stmt = conn.prepare(
         "SELECT f.id, f.title, f.summary, COALESCE(p.title, p.url), f.political_bias,
                 f.sachlichkeit, f.published_at, tra.topic_score
@@ -278,6 +280,7 @@ fn load_theme_articles(
          JOIN fnords f ON f.id = tra.fnord_id
          JOIN pentacles p ON p.id = f.pentacle_id
          WHERE tra.theme_id = ?1
+         GROUP BY f.title, COALESCE(p.title, p.url)
          ORDER BY f.published_at ASC",
     )?;
 
