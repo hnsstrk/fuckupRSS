@@ -95,7 +95,7 @@ struct ScoredArticle {
 ///
 /// Scoring dimensions:
 /// 1. Trending keywords with spike detection (immanentize_daily)
-/// 2. Story cluster membership (story_cluster_articles)
+/// 2. Theme report membership (theme_report_articles)
 /// 3. Article quality/sachlichkeit
 /// 4. Post-processing: source diversity + category diversity
 fn select_briefing_articles(
@@ -166,12 +166,12 @@ fn select_briefing_articles(
                  ORDER BY fs.confidence DESC LIMIT 1) AS category_id,
                 -- Dimension 1: Normalized trending score
                 aks.trend_score,
-                -- Dimension 2: Story cluster membership (compact clusters only)
+                -- Dimension 2: Theme report membership (articles part of a detected theme)
                 CASE WHEN EXISTS(
-                    SELECT 1 FROM story_cluster_articles sca
-                    JOIN story_clusters sc ON sc.id = sca.cluster_id
-                    WHERE sca.fnord_id = f.id
-                      AND sc.article_count <= {max_cluster}
+                    SELECT 1 FROM theme_report_articles tra
+                    JOIN theme_report_themes trt ON trt.id = tra.theme_id
+                    WHERE tra.fnord_id = f.id
+                      AND trt.article_count <= {max_cluster}
                 ) THEN {w_cluster} ELSE 0.0 END AS cluster_score,
                 -- Dimension 3: Quality (sachlichkeit 0-4 -> 0-1)
                 COALESCE(f.sachlichkeit, 2) * 0.25 * {w_quality} AS quality_score,
