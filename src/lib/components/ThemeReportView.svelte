@@ -3,7 +3,6 @@
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { SvelteSet } from "svelte/reactivity";
   import { createLogger } from "$lib/logger";
   import ThemeReportHeader from "./theme/ThemeReportHeader.svelte";
   import ThemeReportList from "./theme/ThemeReportList.svelte";
@@ -68,7 +67,7 @@
   let days = $state(1);
   let searchQuery = $state("");
   let minSources = $state(2);
-  let expandedThemes = new SvelteSet<number>();
+  let expandedThemes = $state<Set<number>>(new Set());
   let loading = $state(false);
   let detailLoading = $state(false);
 
@@ -111,9 +110,10 @@
   }
 
   async function selectReport(reportId: number) {
+    if (detailLoading) return;
     selectedReportId = reportId;
     detailLoading = true;
-    expandedThemes.clear();
+    expandedThemes = new Set();
     try {
       reportDetail = await invoke<ThemeReportDetail>("get_theme_report_detail", {
         reportId: reportId,
@@ -139,7 +139,7 @@
       await loadReports();
       reportDetail = detail;
       selectedReportId = detail.report.id;
-      expandedThemes.clear();
+      expandedThemes = new Set();
     } catch (e) {
       log.error("Error generating theme report:", e);
     } finally {
@@ -175,18 +175,20 @@
       reports = reports.filter((r) => r.id !== selectedReportId);
       selectedReportId = null;
       reportDetail = null;
-      expandedThemes.clear();
+      expandedThemes = new Set();
     } catch (e) {
       log.error("Error deleting theme report:", e);
     }
   }
 
   function toggleTheme(themeId: number) {
-    if (expandedThemes.has(themeId)) {
-      expandedThemes.delete(themeId);
+    const next = new Set(expandedThemes);
+    if (next.has(themeId)) {
+      next.delete(themeId);
     } else {
-      expandedThemes.add(themeId);
+      next.add(themeId);
     }
+    expandedThemes = next;
   }
 </script>
 

@@ -91,7 +91,7 @@ fuckupRSS/
 │   └── Cargo.toml
 ├── docs/                         # Reference documentation (see docs/README.md)
 ├── scripts/                      # Build scripts (build-macos.sh)
-├── .gitea/workflows/             # CI/CD (ci.yaml, release.yaml)
+├── .github/workflows/            # CI/CD (ci.yml, release.yml)
 └── .husky/                       # Git hooks (pre-commit, pre-push)
 ```
 
@@ -183,4 +183,4 @@ Configuration in `.mcp.json`: `ollama` (AI interaction), `fetch` (web requests),
 
 ## CI/CD
 
-Pipeline: `.gitea/workflows/ci.yaml` — Security Scan + SBOM on dedicated Linux runner. Release: tag-based (`git tag v1.x.x && git push --tags`). macOS build: local via `scripts/build-macos.sh`.
+Pipeline: `.github/workflows/ci.yml` — Lint, tests, Rust clippy, Svelte type check, npm audit, cargo audit (on `ubuntu-latest`). Release: `.github/workflows/release.yml`, triggered by tag push (`git tag v1.x.x && git push --tags`), builds Linux artifacts (.deb, .AppImage) and creates a GitHub Release. macOS build: local via `scripts/build-macos.sh`.
