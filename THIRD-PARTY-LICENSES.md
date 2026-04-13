@@ -26,16 +26,13 @@ Source: https://fontawesome.com/license/free
 
 | Crate | License | Compatibility Notes |
 |-------|---------|---------------------|
-| `keyword_extraction` | LGPL-3.0-or-later | **Requires review** — LGPL with static linking may impose obligations. See note below. |
 | `cssparser`, `cssparser-macros` | MPL-2.0 | Compatible — MPL-2.0 is file-level copyleft, does not affect the overall project license. |
 | `dtoa-short` | MPL-2.0 | Compatible — same as above. |
 | `selectors` | MPL-2.0 | Compatible — same as above. |
 | `option-ext` | MPL-2.0 | Compatible — same as above. |
 | `r-efi` | MIT OR Apache-2.0 OR LGPL-2.1+ | Compatible — MIT/Apache-2.0 option available. |
 
-### LGPL Note: keyword_extraction
-
-The `keyword_extraction` crate (RAKE algorithm) is licensed under LGPL-3.0-or-later. Rust compiles dependencies statically, which may trigger LGPL's relinking requirements. This dependency is under review for replacement with a permissively licensed alternative.
+No LGPL dependencies. The RAKE algorithm for keyword extraction uses a local implementation.
 
 ## npm Dependencies (Frontend)
 

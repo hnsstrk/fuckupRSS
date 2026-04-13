@@ -4,7 +4,7 @@ use crate::text_analysis::keyword_seeds::{
     KNOWN_PERSONS as SEED_PERSONS, KNOWN_SPORTS as SEED_SPORTS,
 };
 use crate::text_analysis::STOPWORDS;
-use keyword_extraction::rake::{Rake, RakeParams};
+mod rake;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
@@ -373,9 +373,7 @@ impl KeywordExtractor {
     }
 
     fn extract_rake(&self, text: &str, stopwords: &HashSet<String>) -> Vec<ExtractedKeyword> {
-        let stopwords_vec: Vec<String> = stopwords.iter().cloned().collect();
-        let rake = Rake::new(RakeParams::WithDefaults(text, &stopwords_vec));
-        let keywords = rake.get_ranked_keyword_scores(self.max_keywords * 2);
+        let keywords = rake::extract(text, stopwords, self.max_keywords * 2);
 
         keywords
             .into_iter()

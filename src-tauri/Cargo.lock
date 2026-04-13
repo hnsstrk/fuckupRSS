@@ -1211,7 +1211,6 @@ dependencies = [
  "dirs 5.0.1",
  "feed-rs",
  "futures",
- "keyword_extraction",
  "log",
  "opml",
  "readability",
@@ -2303,16 +2302,6 @@ checksum = "b750dcadc39a09dbadd74e118f6dd6598df77fa01df0cfcdc52c28dece74528a"
 dependencies = [
  "bitflags 2.10.0",
  "serde",
- "unicode-segmentation",
-]
-
-[[package]]
-name = "keyword_extraction"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bab83c382982b79063036f88b9e722b899c23e750f1318ceead83ccd7413f874"
-dependencies = [
- "regex",
  "unicode-segmentation",
 ]
 

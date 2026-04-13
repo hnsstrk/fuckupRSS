@@ -33,7 +33,6 @@ readability = "0.3"
 url = "2"
 bytes = "1"
 sha2 = "0.10"
-keyword_extraction = { version = "1.5", features = ["rake", "tf_idf", "text_rank"] }
 yake-rust = "1.0"
 whatlang = "0.16"
 regex = "1"
