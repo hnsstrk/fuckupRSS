@@ -179,8 +179,8 @@
               {@html renderMarkdown(parsedReport.tldr.core_message)}
             </div>
             {#if parsedReport.tldr.key_divergence}
-              <div class="tr-tldr-divergence">
-                {parsedReport.tldr.key_divergence}
+              <div class="tr-tldr-divergence markdown-content">
+                {@html renderMarkdown(parsedReport.tldr.key_divergence)}
               </div>
             {/if}
           </div>
@@ -195,7 +195,7 @@
             </h4>
             <ul class="tr-consensus-list">
               {#each parsedReport.consensus as point, i (i)}
-                <li>{point}</li>
+                <li class="markdown-content">{@html renderMarkdown(point)}</li>
               {/each}
             </ul>
           </div>
@@ -212,7 +212,9 @@
               {#each parsedReport.timeline as entry, i (i)}
                 <div class="tr-timeline-entry">
                   <span class="tr-timeline-date">{entry.date}</span>
-                  <span class="tr-timeline-desc">{entry.development}</span>
+                  <span class="tr-timeline-desc markdown-content"
+                    >{@html renderMarkdown(entry.development)}</span
+                  >
                 </div>
               {/each}
             </div>
@@ -232,7 +234,9 @@
                 <div class="tr-positions">
                   {#each div.positions as pos, pi (pi)}
                     <div class="tr-position-card">
-                      <div class="tr-position-stance">{pos.stance}</div>
+                      <div class="tr-position-stance markdown-content">
+                        {@html renderMarkdown(pos.stance)}
+                      </div>
                       <div class="tr-position-sources">
                         {#each pos.sources as source (source)}
                           <span class="tr-source-badge">{source}</span>
@@ -557,7 +561,8 @@
   }
 
   .tr-timeline-entry {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto 1fr;
     gap: 0.75rem;
     font-size: 0.85rem;
     padding: 0.5rem 0 0.5rem 0.75rem;
@@ -592,6 +597,8 @@
   .tr-timeline-desc {
     color: var(--text-primary);
     line-height: 1.6;
+    min-width: 0;
+    overflow-wrap: break-word;
   }
 
   /* Divergences */
