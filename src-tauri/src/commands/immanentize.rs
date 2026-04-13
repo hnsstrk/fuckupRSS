@@ -4201,11 +4201,19 @@ pub(crate) fn truncate_at_word_boundary(text: &str, max_len: usize) -> &str {
         return text;
     }
 
-    // Find last space before max_len
-    if let Some(last_space) = text[..max_len].rfind(' ') {
+    // Find a char boundary at or before max_len
+    let boundary = text
+        .char_indices()
+        .take_while(|(i, _)| *i <= max_len)
+        .last()
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+
+    // Find last space before the boundary
+    if let Some(last_space) = text[..boundary].rfind(' ') {
         &text[..last_space]
     } else {
-        &text[..max_len]
+        &text[..boundary]
     }
 }
 

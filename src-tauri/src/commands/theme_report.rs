@@ -540,8 +540,9 @@ fn fallback_labels(
                 .and_then(|id| article_map.get(id))
                 .map(|a| {
                     let max_len = 60;
-                    if a.title.len() > max_len {
-                        format!("{}...", &a.title[..max_len])
+                    if a.title.chars().count() > max_len {
+                        let truncated: String = a.title.chars().take(max_len).collect();
+                        format!("{}...", truncated)
                     } else {
                         a.title.clone()
                     }

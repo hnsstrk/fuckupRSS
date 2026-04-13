@@ -420,10 +420,10 @@ mod tests {
         if !near_dup_examples.is_empty() {
             println!("Examples of near-duplicates found (OLD method):");
             for (title, pairs) in near_dup_examples.iter().take(5) {
-                let short_title = if title.len() > 50 {
-                    &title[..50]
+                let short_title: String = if title.chars().count() > 50 {
+                    title.chars().take(50).collect()
                 } else {
-                    title
+                    title.to_string()
                 };
                 println!("  Article: '{}'", short_title);
                 for (a, b, dist) in pairs.iter().take(3) {
