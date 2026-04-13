@@ -356,51 +356,6 @@ pub async fn test_ai_provider(
                 }
             }
         }
-        ProviderType::GeminiCli => {
-            let provider = crate::ai_provider::gemini_cli_provider::GeminiCliProvider::new(120);
-            let latency = start.elapsed().as_millis() as u64;
-            if provider.is_available().await {
-                Ok(ProviderTestResult {
-                    success: true,
-                    latency_ms: latency,
-                    models: vec!["gemini-cli".to_string()],
-                    error: None,
-                })
-            } else {
-                Ok(ProviderTestResult {
-                    success: false,
-                    latency_ms: latency,
-                    models: vec![],
-                    error: Some(
-                        "Gemini CLI binary not found. Install: npm i -g @anthropic-ai/gemini"
-                            .to_string(),
-                    ),
-                })
-            }
-        }
-        ProviderType::ClaudeCodeCli => {
-            let provider =
-                crate::ai_provider::claude_cli_provider::ClaudeCodeCliProvider::new("", 0.0, 120);
-            let latency = start.elapsed().as_millis() as u64;
-            if provider.is_available().await {
-                Ok(ProviderTestResult {
-                    success: true,
-                    latency_ms: latency,
-                    models: vec!["claude-code-cli".to_string()],
-                    error: None,
-                })
-            } else {
-                Ok(ProviderTestResult {
-                    success: false,
-                    latency_ms: latency,
-                    models: vec![],
-                    error: Some(
-                        "Claude Code CLI binary not found. Install: npm i -g @anthropic-ai/claude-code"
-                            .to_string(),
-                    ),
-                })
-            }
-        }
     }
 }
 

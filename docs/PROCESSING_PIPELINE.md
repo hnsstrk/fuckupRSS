@@ -32,14 +32,12 @@ RSS Feed
 
 ## AI Providers
 
-fuckupRSS supports multiple AI backends. Ollama is the default and the only provider that supports embeddings.
+fuckupRSS supports two AI backends. Ollama is the default and the only provider that supports embeddings.
 
 | Provider | Use Case | Embedding Support |
 |----------|----------|-------------------|
 | **Ollama** (default) | Local inference, fully offline | Yes |
 | **OpenAI-compatible** | OpenAI, Together.ai, Mistral, Groq, etc. | No (falls back to Ollama) |
-| **Gemini CLI** | Google Gemini via CLI | No (falls back to Ollama) |
-| **Claude Code CLI** | Anthropic Claude via CLI | No (falls back to Ollama) |
 
 **Default models:** `ministral-3:latest` (text), `snowflake-arctic-embed2:latest` (embeddings, 1024 dimensions)
 

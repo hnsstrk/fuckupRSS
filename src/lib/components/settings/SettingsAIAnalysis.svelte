@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
 
-  type ProviderType = "ollama" | "openai_compatible" | "gemini_cli" | "claude_code_cli";
+  type ProviderType = "ollama" | "openai_compatible";
 
   type OllamaStatus = {
     available: boolean;

@@ -335,8 +335,6 @@
       "contextLength": "Kontext-Länge",
       "providerOllama": "Ollama (lokal)",
       "providerOpenAi": "OpenAI-kompatibel",
-      "providerGeminiCli": "Gemini CLI",
-      "providerClaudeCli": "Claude Code CLI",
       "autoDetected": "Erkannt",
       "suggested": "Empfohlen",
       "fastDescription": "Schnelle Analyse für Zusammenfassungen, Kategorisierung und Keywords",

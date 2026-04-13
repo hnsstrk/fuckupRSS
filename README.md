@@ -106,8 +106,8 @@ ollama pull ministral-3:latest
 ollama pull snowflake-arctic-embed2:latest
 
 # 3. Clone and build
-git clone https://github.com/yourusername/fuckuprss.git
-cd fuckuprss
+git clone https://github.com/hnsstrk/fuckupRSS.git
+cd fuckupRSS
 npm install
 cargo tauri dev    # Development
 cargo tauri build  # Production build
