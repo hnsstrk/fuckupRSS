@@ -134,11 +134,13 @@
     <div class="tr-theme-meta">
       <span class="tr-meta-item">
         <i class="fa-solid fa-newspaper"></i>
-        {theme.article_count} {$_("themeReport.articles")}
+        {theme.article_count}
+        {$_("themeReport.articles")}
       </span>
       <span class="tr-meta-item">
         <i class="fa-solid fa-rss"></i>
-        {theme.source_count} {$_("themeReport.sources")}
+        {theme.source_count}
+        {$_("themeReport.sources")}
       </span>
       <i
         class="fa-solid tr-expand-icon"
@@ -257,7 +259,7 @@
                   <span class="tr-source-name">{src.name}</span>
                   <span class="tr-source-count">{src.article_count}</span>
                   <span class="tr-source-bias">{src.bias_label}</span>
-                  <span class="tr-source-sach">{src.avg_sachlichkeit.toFixed(1)}</span>
+                  <span class="tr-source-sach">{(src.avg_sachlichkeit ?? 0).toFixed(1)}</span>
                 </div>
               {/each}
             </div>
@@ -269,7 +271,8 @@
           <div class="tr-section">
             <h4 class="tr-section-title">
               <i class="fa-solid fa-newspaper"></i>
-              {theme.articles.length} {$_("themeReport.articles")}
+              {theme.articles.length}
+              {$_("themeReport.articles")}
             </h4>
             <div class="tr-articles">
               {#each theme.articles as article (article.fnord_id)}
@@ -280,7 +283,9 @@
                 >
                   <span class="tr-article-source">{article.source_name}</span>
                   {#if article.political_bias !== null}
-                    <span class="tr-bias-indicator bias-{getBiasColor(article.political_bias, 'class')}">
+                    <span
+                      class="tr-bias-indicator bias-{getBiasColor(article.political_bias, 'class')}"
+                    >
                       {biasIndicator(article.political_bias)}
                     </span>
                   {/if}
@@ -301,8 +306,10 @@
     border: 1px solid var(--border-color);
     border-radius: 10px;
     background: var(--bg-primary);
-    overflow: hidden;
-    transition: all 0.2s;
+    overflow: clip;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
 
