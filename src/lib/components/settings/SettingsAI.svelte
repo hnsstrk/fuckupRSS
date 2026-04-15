@@ -8,6 +8,7 @@
   import SettingsOpenAiProvider from "./SettingsOpenAiProvider.svelte";
   import SettingsAIAnalysis from "./SettingsAIAnalysis.svelte";
   import SettingsAIEmbeddings from "./SettingsAIEmbeddings.svelte";
+  import { modelDownloadStore } from "../../stores/model-downloads.svelte";
   import { createLogger } from "$lib/logger";
 
   const log = createLogger("SettingsAI");
@@ -95,10 +96,9 @@
       parameter_size: string;
     }[]
   >([]);
-  let downloadingModel = $state<string | null>(null);
-  let downloadError = $state<string | null>(null);
   let loadingModels = $state(false);
   let pullUnlisten: UnlistenFn | null = $state(null);
+  let destroyed = false;
 
   // Ollama concurrency
   let ollamaConcurrency = $state(1);
@@ -372,6 +372,7 @@
   }
 
   onDestroy(() => {
+    destroyed = true;
     if (pullUnlisten) {
       pullUnlisten();
     }
@@ -610,22 +611,9 @@
   }
 
   async function handleDownloadModel(model: string) {
-    if (downloadingModel) return;
-    downloadingModel = model;
-    downloadError = null;
-    try {
-      const result = await invoke<{ success: boolean; error: string | null }>("pull_model", {
-        model,
-      });
-      if (result.success) {
-        await loadOllamaStatus();
-      } else {
-        downloadError = result.error || "Unknown error";
-      }
-    } catch (e) {
-      downloadError = String(e);
-    } finally {
-      downloadingModel = null;
+    const result = await modelDownloadStore.pullModel(model);
+    if (result.success && !destroyed) {
+      await loadOllamaStatus();
     }
   }
 
@@ -734,7 +722,6 @@
     embeddingModelDropdownOpen = false;
     numCtxDropdownOpen = false;
   }
-
 </script>
 
 <h3>{$_("settings.ai.title")}</h3>
@@ -772,7 +759,7 @@
   {openaiEmbeddingPresets}
   {ollamaStatus}
   bind:embeddingModelDropdownOpen
-  {downloadingModel}
+  downloadingModel={modelDownloadStore.downloadingModel}
   onEmbeddingProviderChange={handleEmbeddingProviderChange}
   onSelectEmbeddingModel={selectEmbeddingModel}
   onSaveOpenaiEmbeddingModel={saveOpenaiEmbeddingModel}
@@ -827,8 +814,8 @@
           {selectedEmbeddingModel}
           bind:ollamaNumCtx
           bind:ollamaConcurrency
-          {downloadingModel}
-          {downloadError}
+          downloadingModel={modelDownloadStore.downloadingModel}
+          downloadError={modelDownloadStore.downloadError}
           {testingOllama}
           {ollamaTestResult}
           bind:mainModelDropdownOpen
@@ -911,9 +898,9 @@
   </div>
 {/if}
 
-{#if downloadError}
+{#if modelDownloadStore.downloadError}
   <div class="error-message">
-    {$_("settings.ollama.downloadError")}: {downloadError}
+    {$_("settings.ollama.downloadError")}: {modelDownloadStore.downloadError}
   </div>
 {/if}
 
@@ -982,11 +969,6 @@
     font-weight: 600;
     font-size: 0.9375rem;
     color: var(--text-primary);
-  }
-
-  .card-description {
-    font-size: 0.8125rem;
-    color: var(--text-muted);
   }
 
   .card-header-status {

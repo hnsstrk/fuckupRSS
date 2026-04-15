@@ -1,244 +1,92 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
+  import { onMount } from "svelte";
   import { _ } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
-  import { listen } from "@tauri-apps/api/event";
-  import { createLogger } from "$lib/logger";
+  import { themeReportStore } from "$lib/stores/themeReports.svelte";
   import ThemeReportHeader from "./theme/ThemeReportHeader.svelte";
   import ThemeReportList from "./theme/ThemeReportList.svelte";
   import ThemeCard from "./theme/ThemeCard.svelte";
   import ThemeProgress from "./theme/ThemeProgress.svelte";
 
-  const log = createLogger("ThemeReportView");
-
-  // Types matching backend
-  interface ThemeReportSummary {
-    id: number;
-    period_start: string;
-    period_end: string;
-    search_query: string | null;
-    theme_count: number;
-    model_used: string | null;
-    locale: string;
-    created_at: string;
-  }
-
-  interface ThemeArticle {
-    fnord_id: number;
-    title: string;
-    summary: string | null;
-    source_name: string;
-    political_bias: number | null;
-    sachlichkeit: number | null;
-    published_at: string;
-    topic_score: number;
-  }
-
-  interface ThemeReportTheme {
-    id: number;
-    label: string;
-    headline: string | null;
-    report_json: string | null;
-    report_status: string;
-    cluster_score: number;
-    article_count: number;
-    source_count: number;
-    articles: ThemeArticle[];
-  }
-
-  interface ThemeReportDetail {
-    report: ThemeReportSummary;
-    themes: ThemeReportTheme[];
-  }
-
-  interface ThemeProgressData {
-    report_id: number;
-    themes_complete: number;
-    themes_total: number;
-    current_theme: string;
-  }
-
   // State
-  let reports = $state<ThemeReportSummary[]>([]);
-  let selectedReportId = $state<number | null>(null);
-  let reportDetail = $state<ThemeReportDetail | null>(null);
-  let generating = $state(false);
-  let progress = $state<ThemeProgressData | null>(null);
-  let days = $state(1);
-  let searchQuery = $state("");
-  let minSources = $state(2);
-  let loading = $state(false);
-  let detailLoading = $state(false);
-
   let detailPanelRef = $state<HTMLDivElement | null>(null);
-
-  // Tauri event unlisten function
-  let unlistenProgress: (() => void) | null = null;
 
   onMount(async () => {
     detailPanelRef?.scrollTo({ top: 0 });
-    try {
-      unlistenProgress = await listen<ThemeProgressData>("theme-report-progress", (event) => {
-        progress = event.payload;
-      });
-    } catch (e) {
-      log.error("Failed to listen for theme-report-progress:", e);
-    }
-    await loadReports();
+    await themeReportStore.ensureLoaded();
   });
-
-  onDestroy(() => {
-    if (unlistenProgress) {
-      unlistenProgress();
-      unlistenProgress = null;
-    }
-  });
-
-  async function loadReports() {
-    loading = true;
-    try {
-      reports = await invoke<ThemeReportSummary[]>("get_theme_reports", {
-        limit: 30,
-      });
-    } catch (e) {
-      log.error("Error loading theme reports:", e);
-      reports = [];
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function selectReport(reportId: number) {
-    if (detailLoading) return;
-    selectedReportId = reportId;
-    detailLoading = true;
-    try {
-      reportDetail = await invoke<ThemeReportDetail>("get_theme_report_detail", {
-        reportId: reportId,
-      });
-    } catch (e) {
-      log.error("Error loading report detail:", e);
-      reportDetail = null;
-    } finally {
-      detailLoading = false;
-    }
-  }
-
-  async function handleGenerate() {
-    generating = true;
-    progress = null;
-    try {
-      const detail = await invoke<ThemeReportDetail>("generate_theme_report", {
-        days,
-        searchQuery: searchQuery || null,
-        minSources: minSources,
-      });
-      // Refresh reports list and select new one
-      await loadReports();
-      reportDetail = detail;
-      selectedReportId = detail.report.id;
-      } catch (e) {
-      log.error("Error generating theme report:", e);
-    } finally {
-      generating = false;
-      progress = null;
-    }
-  }
-
-  async function handleRetry(themeId: number) {
-    try {
-      const updatedTheme = await invoke<ThemeReportTheme>("retry_theme_analysis", {
-        themeId: themeId,
-      });
-      // Update the theme in the detail view
-      if (reportDetail) {
-        reportDetail = {
-          ...reportDetail,
-          themes: reportDetail.themes.map((t) => (t.id === themeId ? updatedTheme : t)),
-        };
-      }
-    } catch (e) {
-      log.error("Error retrying theme analysis:", e);
-    }
-  }
-
-  async function handleDelete() {
-    if (!selectedReportId) return;
-    if (!confirm($_("themeReport.deleteConfirm"))) return;
-    try {
-      await invoke("delete_theme_report", {
-        reportId: selectedReportId,
-      });
-      reports = reports.filter((r) => r.id !== selectedReportId);
-      selectedReportId = null;
-      reportDetail = null;
-      } catch (e) {
-      log.error("Error deleting theme report:", e);
-    }
-  }
-
 </script>
 
 <div class="theme-report-view">
   <ThemeReportHeader
-    {days}
-    {searchQuery}
-    {minSources}
-    {generating}
-    ongenerate={handleGenerate}
-    ondayschange={(d) => (days = d)}
-    onsearchchange={(q) => (searchQuery = q)}
-    onminsourceschange={(v) => (minSources = v)}
+    days={themeReportStore.days}
+    searchQuery={themeReportStore.searchQuery}
+    minSources={themeReportStore.minSources}
+    generating={themeReportStore.generating}
+    ongenerate={() => themeReportStore.generateReport()}
+    ondayschange={(d) => (themeReportStore.days = d)}
+    onsearchchange={(q) => (themeReportStore.searchQuery = q)}
+    onminsourceschange={(v) => (themeReportStore.minSources = v)}
   />
 
   <div class="tr-panels">
     <!-- Left: Report list -->
     <div class="tr-list-column">
-      {#if loading}
+      {#if themeReportStore.loading}
         <div class="tr-loading">
           <i class="fa-solid fa-spinner fa-spin"></i>
         </div>
       {:else}
-        <ThemeReportList {reports} {selectedReportId} onselectreport={selectReport} />
+        <ThemeReportList
+          reports={themeReportStore.reports}
+          selectedReportId={themeReportStore.selectedReportId}
+          onselectreport={(id) => themeReportStore.selectReport(id)}
+        />
       {/if}
     </div>
 
     <!-- Right: Detail panel -->
     <div class="tr-detail-panel" bind:this={detailPanelRef}>
-      {#if generating && progress}
-        <ThemeProgress {progress} />
-      {:else if generating}
+      {#if themeReportStore.generating && themeReportStore.progress}
+        <ThemeProgress progress={themeReportStore.progress} />
+      {:else if themeReportStore.generating}
         <div class="tr-loading">
           <i class="fa-solid fa-spinner fa-spin"></i>
           <span>{$_("themeReport.generating")}</span>
         </div>
-      {:else if !selectedReportId}
+      {:else if !themeReportStore.selectedReportId}
         <div class="tr-empty">
           <i class="fa-solid fa-newspaper"></i>
           <p>{$_("themeReport.selectReport")}</p>
         </div>
-      {:else if detailLoading}
+      {:else if themeReportStore.detailLoading}
         <div class="tr-loading">
           <i class="fa-solid fa-spinner fa-spin"></i>
         </div>
-      {:else if reportDetail}
+      {:else if themeReportStore.reportDetail}
         <div class="tr-detail">
           <!-- Detail header with delete -->
           <div class="tr-detail-header">
             <div class="tr-detail-info">
               <span class="tr-detail-themes">
                 {$_("themeReport.themesFound", {
-                  values: { count: reportDetail.themes.length },
+                  values: { count: themeReportStore.reportDetail.themes.length },
                 })}
               </span>
-              {#if reportDetail.report.model_used}
+              {#if themeReportStore.reportDetail.report.model_used}
                 <span class="tr-detail-model">
                   <i class="fa-solid fa-robot"></i>
-                  {reportDetail.report.model_used}
+                  {themeReportStore.reportDetail.report.model_used}
                 </span>
               {/if}
             </div>
-            <button class="tr-btn-danger" onclick={handleDelete} title={$_("themeReport.delete")}>
+            <button
+              class="tr-btn-danger"
+              onclick={async () => {
+                if (!confirm($_("themeReport.deleteConfirm"))) return;
+                await themeReportStore.deleteReport();
+              }}
+              title={$_("themeReport.delete")}
+            >
               <i class="fa-solid fa-trash"></i>
               {$_("themeReport.delete")}
             </button>
@@ -246,10 +94,10 @@
 
           <!-- Theme cards -->
           <div class="tr-themes-list">
-            {#each reportDetail.themes as theme (theme.id)}
+            {#each themeReportStore.reportDetail.themes as theme (theme.id)}
               <ThemeCard
                 {theme}
-                onretry={handleRetry}
+                onretry={(themeId) => themeReportStore.retryTheme(themeId)}
                 onarticlenavigate={() => {}}
               />
             {/each}

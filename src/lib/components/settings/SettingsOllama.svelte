@@ -4,6 +4,7 @@
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { onDestroy } from "svelte";
   import { appState, toasts } from "../../stores/state.svelte";
+  import { modelDownloadStore } from "../../stores/model-downloads.svelte";
   import SettingsOllamaProvider from "./SettingsOllamaProvider.svelte";
   import SettingsOpenAiProvider from "./SettingsOpenAiProvider.svelte";
   import SettingsOllamaEmbedding from "./SettingsOllamaEmbedding.svelte";
@@ -93,10 +94,9 @@
 
   let selectedMainModel = $state("");
   let selectedEmbeddingModel = $state("");
-  let downloadingModel = $state<string | null>(null);
-  let downloadError = $state<string | null>(null);
   let loadingModels = $state(false);
   let pullUnlisten: UnlistenFn | null = $state(null);
+  let destroyed = false;
 
   // Proxy state
   let proxyRemoteHost = $state("");
@@ -262,6 +262,7 @@
   }
 
   onDestroy(() => {
+    destroyed = true;
     if (pullUnlisten) {
       pullUnlisten();
     }
@@ -523,24 +524,9 @@
   }
 
   async function handleDownloadModel(model: string) {
-    if (downloadingModel) return;
-
-    downloadingModel = model;
-    downloadError = null;
-
-    try {
-      const result = await invoke<{ success: boolean; error: string | null }>("pull_model", {
-        model,
-      });
-      if (result.success) {
-        await loadOllamaStatus();
-      } else {
-        downloadError = result.error || "Unknown error";
-      }
-    } catch (e) {
-      downloadError = String(e);
-    } finally {
-      downloadingModel = null;
+    const result = await modelDownloadStore.pullModel(model);
+    if (result.success && !destroyed) {
+      await loadOllamaStatus();
     }
   }
 
@@ -649,8 +635,8 @@
     {selectedEmbeddingModel}
     bind:ollamaNumCtx
     bind:ollamaConcurrency
-    {downloadingModel}
-    {downloadError}
+    downloadingModel={modelDownloadStore.downloadingModel}
+    downloadError={modelDownloadStore.downloadError}
     {testingOllama}
     {ollamaTestResult}
     bind:mainModelDropdownOpen
@@ -709,7 +695,7 @@
   {openaiEmbeddingPresets}
   {ollamaStatus}
   bind:selectedEmbeddingModel
-  {downloadingModel}
+  downloadingModel={modelDownloadStore.downloadingModel}
   bind:embeddingModelDropdownOpen
   bind:embeddingServerDropdownOpen
   bind:ollamaUrl

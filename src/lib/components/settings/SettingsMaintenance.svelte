@@ -1,9 +1,9 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
-  import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
-  import type { BatchProgress, BatchResult } from "../../types";
+  import { emit } from "@tauri-apps/api/event";
   import { appState } from "../../stores/state.svelte";
+  import { maintenanceStore } from "../../stores/maintenance.svelte";
   import { onDestroy } from "svelte";
   import MaintenanceProgress from "./MaintenanceProgress.svelte";
   import ActionButton from "$lib/components/ui/ActionButton.svelte";
@@ -19,7 +19,6 @@
   let { ollamaAvailable }: Props = $props();
 
   // Maintenance state
-  let maintenanceRunning = $state<string | null>(null);
   let maintenanceResult = $state<string | null>(null);
 
   // Confirmation dialog state
@@ -33,30 +32,6 @@
     low_quality: number;
   } | null>(null);
 
-  // Reanalyze progress state
-  let reanalyzeProgress = $state<BatchProgress | null>(null);
-  let reanalyzeRunning = $state(false);
-  // Result stored for potential future display (assigned in handleResetForReprocessing)
-  // @ts-expect-error - stored for future display, currently write-only
-  let _reanalyzeResult = $state<BatchResult | null>(null);
-  let progressUnlisten: UnlistenFn | null = null;
-
-  // Statistical analysis progress state
-  let statisticalProgress = $state<BatchProgress | null>(null);
-  let statisticalRunning = $state(false);
-  let statisticalUnlisten: UnlistenFn | null = null;
-
-  // Quality score calculation progress state
-  interface QualityScoreProgress {
-    current: number;
-    total: number;
-    keyword_name: string;
-    score: number | null;
-  }
-  let qualityProgress = $state<QualityScoreProgress | null>(null);
-  let qualityRunning = $state(false);
-  let qualityUnlisten: UnlistenFn | null = null;
-
   // Prototype status for semantic keyword type detection
   let prototypeStatus = $state<{
     total: number;
@@ -64,7 +39,7 @@
     complete: boolean;
     by_type: Record<string, number>;
   } | null>(null);
-  let generatingPrototypes = $state(false);
+  let destroyed = false;
 
   export async function init() {
     // Don't reset maintenanceResult - keep showing the last result
@@ -80,15 +55,7 @@
   }
 
   onDestroy(() => {
-    if (progressUnlisten) {
-      progressUnlisten();
-    }
-    if (statisticalUnlisten) {
-      statisticalUnlisten();
-    }
-    if (qualityUnlisten) {
-      qualityUnlisten();
-    }
+    destroyed = true;
   });
 
   async function loadKeywordStats() {
@@ -134,102 +101,27 @@
     }
   }
 
-  async function handleCalculateScores() {
-    maintenanceRunning = "scores";
+  function clearResultMessages() {
     maintenanceResult = null;
-    qualityProgress = null;
-    qualityRunning = true;
+    maintenanceStore.clearResult();
+  }
 
-    try {
-      // Set up progress listener
-      qualityUnlisten = await listen<QualityScoreProgress>("quality-score-progress", (event) => {
-        qualityProgress = { ...event.payload };
-      });
-
-      const result = await invoke<{
-        updated_count: number;
-        avg_score: number;
-        low_quality_count: number;
-      }>("calculate_keyword_quality_scores", {});
-
-      if (result.updated_count === 0) {
-        maintenanceResult = $_("settings.maintenance.noKeywordsToUpdate");
-      } else {
-        maintenanceResult = `${result.updated_count} ${$_("settings.maintenance.updated")} (Ø ${result.avg_score.toFixed(2)})`;
-      }
-
-      // Refresh stats after calculation
+  async function handleCalculateScores() {
+    clearResultMessages();
+    await maintenanceStore.calculateQualityScores();
+    if (!destroyed) {
       await loadKeywordStats();
-    } catch (e) {
-      maintenanceResult = `Error: ${e}`;
-    } finally {
-      maintenanceRunning = null;
-      qualityRunning = false;
-      qualityProgress = null;
-      if (qualityUnlisten) {
-        qualityUnlisten();
-        qualityUnlisten = null;
-      }
     }
   }
 
   async function handleGenerateEmbeddings() {
-    maintenanceRunning = "embeddings";
-    maintenanceResult = null;
-    try {
-      const queuedCount = await invoke<number>("queue_missing_embeddings");
-      maintenanceResult = `${queuedCount} ${$_("settings.maintenance.queued")}`;
-    } catch (e) {
-      maintenanceResult = `Error: ${e}`;
-    } finally {
-      maintenanceRunning = null;
-    }
+    clearResultMessages();
+    await maintenanceStore.queueEmbeddings();
   }
 
   async function handleStatisticalAnalysis() {
-    maintenanceRunning = "statistical";
-    maintenanceResult = null;
-    statisticalProgress = null;
-
-    try {
-      const count = await invoke<number>("get_unprocessed_statistical_count");
-      if (count === 0) {
-        maintenanceResult = $_("settings.maintenance.noUnprocessedArticles");
-        maintenanceRunning = null;
-        return;
-      }
-
-      statisticalRunning = true;
-      statisticalProgress = {
-        current: 0,
-        total: count,
-        fnord_id: 0,
-        title: $_("batch.starting"),
-        success: true,
-        error: null,
-      };
-
-      statisticalUnlisten = await listen<BatchProgress>("statistical-progress", (event) => {
-        statisticalProgress = { ...event.payload };
-      });
-
-      const result = await invoke<{
-        processed: number;
-        total: number;
-        errors: string[];
-      }>("process_statistical_batch", { limit: 10000 });
-
-      maintenanceResult = `${result.processed} ${$_("settings.maintenance.articlesAnalyzed")}`;
-    } catch (e) {
-      maintenanceResult = `Error: ${e}`;
-    } finally {
-      maintenanceRunning = null;
-      statisticalRunning = false;
-      if (statisticalUnlisten) {
-        statisticalUnlisten();
-        statisticalUnlisten = null;
-      }
-    }
+    clearResultMessages();
+    await maintenanceStore.processStatisticalAnalysis();
   }
 
   function showPruneConfirmation() {
@@ -246,8 +138,8 @@
 
   async function handlePruneLowQuality() {
     confirmAction = null;
-    maintenanceRunning = "prune";
-    maintenanceResult = null;
+    maintenanceStore.maintenanceRunning = "prune";
+    clearResultMessages();
     try {
       const result = await invoke<{
         pruned_count: number;
@@ -267,16 +159,15 @@
       log.error("Prune error:", e);
       maintenanceResult = `Error: ${e}`;
     } finally {
-      maintenanceRunning = null;
+      maintenanceStore.maintenanceRunning = null;
     }
   }
 
   async function handleResetForReprocessing() {
     confirmAction = null;
-    maintenanceRunning = "reset";
-    maintenanceResult = null;
-    reanalyzeProgress = null;
-    _reanalyzeResult = null;
+    maintenanceStore.maintenanceRunning = "reset";
+    clearResultMessages();
+    maintenanceStore.reanalyzeProgress = null;
 
     try {
       const resetResult = await invoke<{ reset_count: number }>("reset_articles_for_reprocessing", {
@@ -285,7 +176,7 @@
 
       if (resetResult.reset_count === 0) {
         maintenanceResult = $_("settings.maintenance.noArticlesToReset");
-        maintenanceRunning = null;
+        maintenanceStore.maintenanceRunning = null;
         return;
       }
 
@@ -295,100 +186,33 @@
       const model = appState.selectedModel || appState.ollamaStatus.models[0];
       if (!model || !appState.ollamaStatus.available) {
         maintenanceResult = `${resetResult.reset_count} ${$_("settings.maintenance.articles")} ${$_("settings.maintenance.reset")}. ${$_("settings.maintenance.ollamaUnavailable")}`;
-        maintenanceRunning = null;
+        maintenanceStore.maintenanceRunning = null;
         return;
       }
 
-      reanalyzeRunning = true;
-      maintenanceRunning = "reanalyze";
-      appState.batchProcessing = true;
-      reanalyzeProgress = {
-        current: 0,
-        total: resetResult.reset_count,
-        fnord_id: 0,
-        title: $_("batch.starting"),
-        success: true,
-        error: null,
-      };
-
-      progressUnlisten = await listen<BatchProgress>("batch-progress", (event) => {
-        reanalyzeProgress = { ...event.payload };
-      });
-
-      const batchResult = await invoke<BatchResult>("process_batch", {
-        model,
-        limit: null,
-      });
-
-      _reanalyzeResult = batchResult;
-      maintenanceResult = $_("settings.maintenance.reanalyzeComplete", {
-        values: {
-          succeeded: batchResult.succeeded,
-          failed: batchResult.failed,
-        },
-      });
-
-      await appState.loadFnords();
-      await appState.loadPentacles();
-      await appState.loadUnprocessedCount();
-
-      window.dispatchEvent(new CustomEvent("batch-complete"));
+      await maintenanceStore.startReanalyze(resetResult.reset_count, model);
     } catch (e) {
       maintenanceResult = `Error: ${e}`;
     } finally {
-      maintenanceRunning = null;
-      reanalyzeRunning = false;
-      appState.batchProcessing = false;
-      if (progressUnlisten) {
-        progressUnlisten();
-        progressUnlisten = null;
-      }
+      maintenanceStore.maintenanceRunning = null;
     }
   }
 
   async function handleCancelReanalyze() {
-    try {
-      await invoke("cancel_batch");
-      maintenanceResult = $_("settings.maintenance.reanalyzeCancelled");
-    } catch (e) {
-      log.error("Failed to cancel reanalyze:", e);
-    }
+    await maintenanceStore.cancelReanalyze();
   }
 
   async function handleGeneratePrototypes() {
-    generatingPrototypes = true;
-    maintenanceResult = null;
-    try {
-      const result = await invoke<{
-        total: number;
-        generated: number;
-        errors: number;
-      }>("generate_keyword_type_prototypes");
-
-      if (result.errors > 0) {
-        maintenanceResult = $_("settings.maintenance.prototypesGeneratedWithErrors", {
-          values: {
-            count: result.generated,
-            errors: result.errors,
-          },
-        });
-      } else {
-        maintenanceResult = $_("settings.maintenance.prototypesGenerated", {
-          values: { count: result.generated },
-        });
-      }
-
+    clearResultMessages();
+    await maintenanceStore.generatePrototypes();
+    if (!destroyed) {
       await loadPrototypeStatus();
-    } catch (e) {
-      maintenanceResult = `Error: ${e}`;
-    } finally {
-      generatingPrototypes = false;
     }
   }
 
   async function handleUpdateKeywordTypes() {
-    maintenanceRunning = "keywordTypes";
-    maintenanceResult = null;
+    maintenanceStore.maintenanceRunning = "keywordTypes";
+    clearResultMessages();
     try {
       // Use hybrid detection (heuristic + semantic)
       const result = await invoke<{
@@ -424,13 +248,13 @@
     } catch (e) {
       maintenanceResult = `Error: ${e}`;
     } finally {
-      maintenanceRunning = null;
+      maintenanceStore.maintenanceRunning = null;
     }
   }
 
   async function handleExtractEntities() {
-    maintenanceRunning = "entities";
-    maintenanceResult = null;
+    maintenanceStore.maintenanceRunning = "entities";
+    clearResultMessages();
     try {
       const result = await invoke<{
         processed: number;
@@ -459,12 +283,8 @@
     } catch (e) {
       maintenanceResult = `Error: ${e}`;
     } finally {
-      maintenanceRunning = null;
+      maintenanceStore.maintenanceRunning = null;
     }
-  }
-
-  function handleShortContentResult(msg: string) {
-    maintenanceResult = msg;
   }
 
   // Category Fix handler
@@ -475,8 +295,8 @@
   }
 
   async function handleFixCategories() {
-    maintenanceRunning = "fixCategories";
-    maintenanceResult = null;
+    maintenanceStore.maintenanceRunning = "fixCategories";
+    clearResultMessages();
     try {
       const result = await invoke<CategoryFixResult>("fix_category_assignments");
       if (result.fixed_count > 0) {
@@ -495,7 +315,7 @@
     } catch (e) {
       maintenanceResult = `Error: ${e}`;
     } finally {
-      maintenanceRunning = null;
+      maintenanceStore.maintenanceRunning = null;
     }
   }
 </script>
@@ -556,9 +376,9 @@
 
 <h3>{$_("settings.maintenance.keywordQuality")}</h3>
 
-{#if maintenanceResult}
+{#if maintenanceStore.resultMessage || maintenanceResult}
   <div class="maintenance-result">
-    {$_("settings.maintenance.result")}: {maintenanceResult}
+    {$_("settings.maintenance.result")}: {maintenanceStore.resultMessage ?? maintenanceResult}
   </div>
 {/if}
 
@@ -570,23 +390,26 @@
         {$_("settings.maintenance.calculateScoresDesc")}
       </p>
     </div>
-    {#if maintenanceRunning !== "scores"}
-      <ActionButton onclick={handleCalculateScores} disabled={maintenanceRunning !== null}>
+    {#if maintenanceStore.maintenanceRunning !== "scores"}
+      <ActionButton
+        onclick={handleCalculateScores}
+        disabled={maintenanceStore.maintenanceRunning !== null}
+      >
         {$_("settings.maintenance.calculateScores")}
       </ActionButton>
     {/if}
   </div>
 
-  {#if qualityRunning && qualityProgress}
+  {#if maintenanceStore.qualityRunning && maintenanceStore.qualityProgress}
     <MaintenanceProgress
       mode="determinate"
-      current={qualityProgress.current}
-      total={qualityProgress.total}
+      current={maintenanceStore.qualityProgress.current}
+      total={maintenanceStore.qualityProgress.total}
       label={$_("settings.maintenance.calculatingScores")}
-      message={qualityProgress.keyword_name}
+      message={maintenanceStore.qualityProgress.keyword_name}
       status="running"
     />
-  {:else if maintenanceRunning === "scores"}
+  {:else if maintenanceStore.maintenanceRunning === "scores"}
     <MaintenanceProgress
       mode="indeterminate"
       label={$_("settings.maintenance.calculateScores")}
@@ -601,17 +424,17 @@
         {$_("settings.maintenance.generateEmbeddingsDesc")}
       </p>
     </div>
-    {#if maintenanceRunning !== "embeddings"}
+    {#if maintenanceStore.maintenanceRunning !== "embeddings"}
       <ActionButton
         onclick={handleGenerateEmbeddings}
-        disabled={maintenanceRunning !== null || !ollamaAvailable}
+        disabled={maintenanceStore.maintenanceRunning !== null || !ollamaAvailable}
       >
         {$_("settings.maintenance.generateEmbeddings")}
       </ActionButton>
     {/if}
   </div>
 
-  {#if maintenanceRunning === "embeddings"}
+  {#if maintenanceStore.maintenanceRunning === "embeddings"}
     <MaintenanceProgress
       mode="indeterminate"
       label={$_("settings.maintenance.generateEmbeddings")}
@@ -626,27 +449,27 @@
         {$_("settings.maintenance.statisticalAnalysisDesc")}
       </p>
     </div>
-    {#if !statisticalRunning}
+    {#if !maintenanceStore.statisticalRunning}
       <button
         type="button"
         class="btn-action"
         onclick={handleStatisticalAnalysis}
-        disabled={maintenanceRunning !== null}
+        disabled={maintenanceStore.maintenanceRunning !== null}
       >
         {$_("settings.maintenance.statisticalAnalysis")}
       </button>
     {/if}
   </div>
 
-  {#if statisticalRunning && statisticalProgress}
+  {#if maintenanceStore.statisticalRunning && maintenanceStore.statisticalProgress}
     <MaintenanceProgress
       mode="determinate"
-      current={statisticalProgress.current}
-      total={statisticalProgress.total}
+      current={maintenanceStore.statisticalProgress.current}
+      total={maintenanceStore.statisticalProgress.total}
       label={$_("settings.maintenance.analyzing")}
-      message={statisticalProgress.title}
-      status={!statisticalProgress.success ? "error" : "running"}
-      error={statisticalProgress.error}
+      message={maintenanceStore.statisticalProgress.title}
+      status={!maintenanceStore.statisticalProgress.success ? "error" : "running"}
+      error={maintenanceStore.statisticalProgress.error}
     />
   {/if}
 
@@ -655,19 +478,19 @@
       <span class="action-title">{$_("settings.maintenance.fixCategories")}</span>
       <p class="action-desc">{$_("settings.maintenance.fixCategoriesDesc")}</p>
     </div>
-    {#if maintenanceRunning !== "fixCategories"}
+    {#if maintenanceStore.maintenanceRunning !== "fixCategories"}
       <button
         type="button"
         class="btn-action"
         onclick={handleFixCategories}
-        disabled={maintenanceRunning !== null}
+        disabled={maintenanceStore.maintenanceRunning !== null}
       >
         {$_("settings.maintenance.fixCategories")}
       </button>
     {/if}
   </div>
 
-  {#if maintenanceRunning === "fixCategories"}
+  {#if maintenanceStore.maintenanceRunning === "fixCategories"}
     <MaintenanceProgress
       mode="indeterminate"
       label={$_("settings.maintenance.fixCategories")}
@@ -682,19 +505,19 @@
         {$_("settings.maintenance.extractEntitiesDesc")}
       </p>
     </div>
-    {#if maintenanceRunning !== "entities"}
+    {#if maintenanceStore.maintenanceRunning !== "entities"}
       <button
         type="button"
         class="btn-action"
         onclick={handleExtractEntities}
-        disabled={maintenanceRunning !== null}
+        disabled={maintenanceStore.maintenanceRunning !== null}
       >
         {$_("settings.maintenance.extractEntities")}
       </button>
     {/if}
   </div>
 
-  {#if maintenanceRunning === "entities"}
+  {#if maintenanceStore.maintenanceRunning === "entities"}
     <MaintenanceProgress
       mode="indeterminate"
       label={$_("settings.maintenance.extractEntities")}
@@ -709,18 +532,18 @@
         {$_("settings.maintenance.pruneLowQualityDesc")}
       </p>
     </div>
-    {#if maintenanceRunning !== "prune"}
+    {#if maintenanceStore.maintenanceRunning !== "prune"}
       <ActionButton
         variant="danger"
         onclick={showPruneConfirmation}
-        disabled={maintenanceRunning !== null}
+        disabled={maintenanceStore.maintenanceRunning !== null}
       >
         {$_("settings.maintenance.pruneLowQuality")}
       </ActionButton>
     {/if}
   </div>
 
-  {#if maintenanceRunning === "prune"}
+  {#if maintenanceStore.maintenanceRunning === "prune"}
     <MaintenanceProgress
       mode="indeterminate"
       label={$_("settings.maintenance.pruneLowQuality")}
@@ -765,14 +588,16 @@
             .length}</span
         >
       </div>
-      {#if !prototypeStatus.complete || !generatingPrototypes}
+      {#if !prototypeStatus.complete || !maintenanceStore.generatingPrototypes}
         <button
           type="button"
           class="btn-action btn-small"
           onclick={handleGeneratePrototypes}
-          disabled={generatingPrototypes || maintenanceRunning !== null || !ollamaAvailable}
+          disabled={maintenanceStore.generatingPrototypes ||
+            maintenanceStore.maintenanceRunning !== null ||
+            !ollamaAvailable}
         >
-          {#if generatingPrototypes}
+          {#if maintenanceStore.generatingPrototypes}
             <i class="fa-solid fa-spinner fa-spin"></i>
           {:else}
             <i class="fa-solid fa-wand-magic-sparkles"></i>
@@ -792,19 +617,19 @@
         {$_("settings.maintenance.updateKeywordTypesDescSemantic")}
       </p>
     </div>
-    {#if maintenanceRunning !== "keywordTypes"}
+    {#if maintenanceStore.maintenanceRunning !== "keywordTypes"}
       <button
         type="button"
         class="btn-action"
         onclick={handleUpdateKeywordTypes}
-        disabled={maintenanceRunning !== null}
+        disabled={maintenanceStore.maintenanceRunning !== null}
       >
         {$_("settings.maintenance.updateKeywordTypes")}
       </button>
     {/if}
   </div>
 
-  {#if maintenanceRunning === "keywordTypes"}
+  {#if maintenanceStore.maintenanceRunning === "keywordTypes"}
     <MaintenanceProgress
       mode="indeterminate"
       label={$_("settings.maintenance.updateKeywordTypes")}
@@ -825,18 +650,18 @@
         {$_("settings.maintenance.resetForReprocessingDesc")}
       </p>
     </div>
-    {#if !reanalyzeRunning && maintenanceRunning !== "reset"}
+    {#if !maintenanceStore.reanalyzeRunning && maintenanceStore.maintenanceRunning !== "reset"}
       <ActionButton
         variant="danger"
         onclick={showResetConfirmation}
-        disabled={maintenanceRunning !== null}
+        disabled={maintenanceStore.maintenanceRunning !== null}
       >
         {$_("settings.maintenance.resetForReprocessing")}
       </ActionButton>
     {/if}
   </div>
 
-  {#if maintenanceRunning === "reset" && !reanalyzeRunning}
+  {#if maintenanceStore.maintenanceRunning === "reset" && !maintenanceStore.reanalyzeRunning}
     <MaintenanceProgress
       mode="indeterminate"
       label={$_("settings.maintenance.resetForReprocessing")}
@@ -844,15 +669,15 @@
     />
   {/if}
 
-  {#if reanalyzeRunning && reanalyzeProgress}
+  {#if maintenanceStore.reanalyzeRunning && maintenanceStore.reanalyzeProgress}
     <MaintenanceProgress
       mode="determinate"
-      current={reanalyzeProgress.current}
-      total={reanalyzeProgress.total}
+      current={maintenanceStore.reanalyzeProgress.current}
+      total={maintenanceStore.reanalyzeProgress.total}
       label={$_("settings.maintenance.reanalyzing")}
-      message={reanalyzeProgress.title}
-      status={!reanalyzeProgress.success ? "error" : "running"}
-      error={reanalyzeProgress.error}
+      message={maintenanceStore.reanalyzeProgress.title}
+      status={!maintenanceStore.reanalyzeProgress.success ? "error" : "running"}
+      error={maintenanceStore.reanalyzeProgress.error}
       showCancel={true}
       onCancel={handleCancelReanalyze}
     />
@@ -860,10 +685,10 @@
 </div>
 
 <!-- Orphaned Articles Section -->
-<MaintenanceOrphans {maintenanceRunning} />
+<MaintenanceOrphans maintenanceRunning={maintenanceStore.maintenanceRunning} />
 
 <!-- Short Content Analysis Section -->
-<MaintenanceShortContent {maintenanceRunning} onResult={handleShortContentResult} />
+<MaintenanceShortContent />
 
 <style>
   h3 {

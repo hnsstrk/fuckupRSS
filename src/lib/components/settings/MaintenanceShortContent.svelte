@@ -1,187 +1,34 @@
 <script lang="ts">
   import { _ } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
-  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-  import { appState } from "../../stores/state.svelte";
   import { settings } from "../../stores/settings.svelte";
-  import { onDestroy } from "svelte";
+  import { maintenanceStore } from "../../stores/maintenance.svelte";
   import MaintenanceProgress from "./MaintenanceProgress.svelte";
 
-  let {
-    maintenanceRunning,
-    onResult,
-  }: {
-    maintenanceRunning: string | null;
-    onResult: (msg: string) => void;
-  } = $props();
-
-  // Short Content Analysis state
-  interface ShortContentStats {
-    total_fetched: number;
-    content_null_or_empty: number;
-    content_under_200: number;
-    content_200_to_500: number;
-    content_over_500: number;
-    by_feed: {
-      pentacle_id: number;
-      pentacle_title: string;
-      short_articles: number;
-    }[];
-  }
-  interface RefetchProgress {
-    current: number;
-    total: number;
-    fnord_id: number;
-    title: string;
-    success: boolean;
-    error: string | null;
-  }
-  interface RefetchResponse {
-    total_found: number;
-    processed: number;
-    improved: number;
-    unchanged: number;
-    failed: number;
-  }
-
-  let shortContentAnalyzing = $state(false);
-  let shortContentStats = $state<ShortContentStats | null>(null);
-  let shortContentError = $state<string | null>(null);
-  let shortContentRefetching = $state(false);
-  let shortContentRefetchResult = $state<RefetchResponse | null>(null);
-  let shortContentProgress = $state<RefetchProgress | null>(null);
-  let shortContentUnlisten: UnlistenFn | null = null;
-  let feedListExpanded = $state(false);
   let confirmDeleteNull = $state(false);
-  let refetchingFeed = $state<number | null>(null);
-
-  onDestroy(() => {
-    if (shortContentUnlisten) {
-      shortContentUnlisten();
-    }
-  });
 
   async function handleAnalyzeShortContent() {
-    shortContentAnalyzing = true;
-    shortContentError = null;
-    shortContentStats = null;
-    shortContentRefetchResult = null;
-    feedListExpanded = false;
-
-    try {
-      const stats = await invoke<ShortContentStats>("get_short_content_stats");
-      shortContentStats = stats;
-    } catch (e) {
-      shortContentError = String(e);
-    } finally {
-      shortContentAnalyzing = false;
-    }
+    await maintenanceStore.analyzeShortContent();
   }
 
   async function handleRefetchShortContent() {
-    if (!settings.enableHeadlessBrowser) return;
-
-    shortContentRefetching = true;
-    shortContentError = null;
-    shortContentRefetchResult = null;
-    shortContentProgress = null;
-
-    try {
-      shortContentUnlisten = await listen<RefetchProgress>("refetch-progress", (event) => {
-        shortContentProgress = { ...event.payload };
-      });
-
-      const result = await invoke<RefetchResponse>("refetch_short_articles", {
-        min_content_length: 500,
-        limit: 100,
-      });
-      shortContentRefetchResult = result;
-      const stats = await invoke<ShortContentStats>("get_short_content_stats");
-      shortContentStats = stats;
-    } catch (e) {
-      shortContentError = String(e);
-    } finally {
-      shortContentRefetching = false;
-      shortContentProgress = null;
-      if (shortContentUnlisten) {
-        shortContentUnlisten();
-        shortContentUnlisten = null;
-      }
-    }
+    await maintenanceStore.refetchShortContent();
   }
 
   async function handleRefetchFeedShortContent(pentacleId: number) {
-    if (!settings.enableHeadlessBrowser) return;
-
-    refetchingFeed = pentacleId;
-    shortContentError = null;
-    shortContentProgress = null;
-
-    try {
-      shortContentUnlisten = await listen<RefetchProgress>("refetch-progress", (event) => {
-        shortContentProgress = { ...event.payload };
-      });
-
-      const result = await invoke<RefetchResponse>("refetch_feed_short_articles", {
-        pentacle_id: pentacleId,
-        min_content_length: 500,
-        limit: 50,
-      });
-      shortContentRefetchResult = result;
-      const stats = await invoke<ShortContentStats>("get_short_content_stats");
-      shortContentStats = stats;
-    } catch (e) {
-      shortContentError = String(e);
-    } finally {
-      refetchingFeed = null;
-      shortContentProgress = null;
-      if (shortContentUnlisten) {
-        shortContentUnlisten();
-        shortContentUnlisten = null;
-      }
-    }
+    await maintenanceStore.refetchFeedShortContent(pentacleId);
   }
 
   async function handleDeleteNullArticles() {
     confirmDeleteNull = false;
-    shortContentError = null;
-
-    try {
-      const result = await invoke<{ deleted_count: number }>("delete_null_content_articles");
-      onResult(
-        $_("settings.maintenance.shortContent.deleted", {
-          values: { count: result.deleted_count },
-        }),
-      );
-      const stats = await invoke<ShortContentStats>("get_short_content_stats");
-      shortContentStats = stats;
-      await appState.loadFnords();
-      await appState.loadPentacles();
-    } catch (e) {
-      shortContentError = String(e);
-    }
+    await maintenanceStore.deleteNullArticles();
   }
 
   async function handleExcludeShortFromAi() {
-    shortContentError = null;
-
-    try {
-      const excluded = await invoke<number>("exclude_short_from_ai", {
-        max_length: 200,
-      });
-      onResult(
-        $_("settings.maintenance.shortContent.excluded", {
-          values: { count: excluded },
-        }),
-      );
-      await appState.loadUnprocessedCount();
-    } catch (e) {
-      shortContentError = String(e);
-    }
+    await maintenanceStore.excludeShortFromAi();
   }
 
   function toggleFeedList() {
-    feedListExpanded = !feedListExpanded;
+    maintenanceStore.toggleShortContentFeedList();
   }
 
   function showDeleteNullConfirmation() {
@@ -198,12 +45,12 @@
 </h3>
 
 <!-- Delete NULL Confirmation Dialog -->
-{#if confirmDeleteNull && shortContentStats}
+{#if confirmDeleteNull && maintenanceStore.shortContentStats}
   <div class="confirm-overlay">
     <div class="confirm-dialog">
       <p class="confirm-message">
         {$_("settings.maintenance.shortContent.deleteNullConfirm", {
-          values: { count: shortContentStats.content_null_or_empty },
+          values: { count: maintenanceStore.shortContentStats.content_null_or_empty },
         })}
       </p>
       <div class="confirm-actions">
@@ -230,9 +77,10 @@
       type="button"
       class="btn-action"
       onclick={handleAnalyzeShortContent}
-      disabled={shortContentAnalyzing || maintenanceRunning !== null}
+      disabled={maintenanceStore.shortContentAnalyzing ||
+        maintenanceStore.maintenanceRunning !== null}
     >
-      {#if shortContentAnalyzing}
+      {#if maintenanceStore.shortContentAnalyzing}
         <i class="fa-solid fa-spinner fa-spin"></i>
         {$_("settings.maintenance.shortContent.analyzing")}
       {:else}
@@ -242,15 +90,15 @@
     </button>
   </div>
 
-  {#if shortContentError}
-    <div class="short-content-error">{shortContentError}</div>
+  {#if maintenanceStore.shortContentError}
+    <div class="short-content-error">{maintenanceStore.shortContentError}</div>
   {/if}
 
-  {#if shortContentStats}
+  {#if maintenanceStore.shortContentStats}
     {@const totalShort =
-      shortContentStats.content_null_or_empty +
-      shortContentStats.content_under_200 +
-      shortContentStats.content_200_to_500}
+      maintenanceStore.shortContentStats.content_null_or_empty +
+      maintenanceStore.shortContentStats.content_under_200 +
+      maintenanceStore.shortContentStats.content_200_to_500}
     <div class="short-content-stats">
       <div class="short-stats-header">
         {$_("settings.maintenance.shortContent.found", {
@@ -262,25 +110,32 @@
           <span class="short-stat-label"
             >{$_("settings.maintenance.shortContent.breakdown.nullEmpty")}</span
           >
-          <span class="short-stat-value">{shortContentStats.content_null_or_empty}</span>
+          <span class="short-stat-value"
+            >{maintenanceStore.shortContentStats.content_null_or_empty}</span
+          >
         </div>
         <div class="short-stat-item very-short">
           <span class="short-stat-label"
             >{$_("settings.maintenance.shortContent.breakdown.veryShort")}</span
           >
-          <span class="short-stat-value">{shortContentStats.content_under_200}</span>
+          <span class="short-stat-value"
+            >{maintenanceStore.shortContentStats.content_under_200}</span
+          >
         </div>
         <div class="short-stat-item short">
           <span class="short-stat-label"
             >{$_("settings.maintenance.shortContent.breakdown.short")}</span
           >
-          <span class="short-stat-value">{shortContentStats.content_200_to_500}</span>
+          <span class="short-stat-value"
+            >{maintenanceStore.shortContentStats.content_200_to_500}</span
+          >
         </div>
         <div class="short-stat-item ok">
           <span class="short-stat-label"
             >{$_("settings.maintenance.shortContent.breakdown.ok")}</span
           >
-          <span class="short-stat-value">{shortContentStats.content_over_500}</span>
+          <span class="short-stat-value">{maintenanceStore.shortContentStats.content_over_500}</span
+          >
         </div>
       </div>
 
@@ -296,43 +151,48 @@
               <i class="fa-solid fa-triangle-exclamation"></i>
               {$_("settings.maintenance.shortContent.headlessRequired")}
             </div>
-          {:else if shortContentRefetching && shortContentProgress}
+          {:else if maintenanceStore.shortContentRefetching && maintenanceStore.shortContentProgress}
             <MaintenanceProgress
               mode="determinate"
-              current={shortContentProgress.current}
-              total={shortContentProgress.total}
+              current={maintenanceStore.shortContentProgress.current}
+              total={maintenanceStore.shortContentProgress.total}
               label={$_("settings.maintenance.shortContent.refetching")}
-              message={shortContentProgress.title}
-              status={!shortContentProgress.success ? "error" : "running"}
-              error={shortContentProgress.error}
+              message={maintenanceStore.shortContentProgress.title}
+              status={!maintenanceStore.shortContentProgress.success ? "error" : "running"}
+              error={maintenanceStore.shortContentProgress.error}
             />
           {:else}
             <button
               type="button"
               class="btn-action btn-refetch"
               onclick={handleRefetchShortContent}
-              disabled={shortContentRefetching ||
-                refetchingFeed !== null ||
-                maintenanceRunning !== null}
+              disabled={maintenanceStore.shortContentRefetching ||
+                maintenanceStore.refetchingFeed !== null ||
+                maintenanceStore.maintenanceRunning !== null}
             >
               <i class="fa-solid fa-rotate"></i>
               {$_("settings.maintenance.shortContent.refetch")}
             </button>
           {/if}
 
-          {#if shortContentRefetchResult}
+          {#if maintenanceStore.shortContentRefetchResult}
             <div class="refetch-result-detailed">
               <div class="result-item improved">
-                <span class="result-count">{shortContentRefetchResult.improved}</span>
+                <span class="result-count"
+                  >{maintenanceStore.shortContentRefetchResult.improved}</span
+                >
                 <span class="result-label">{$_("settings.maintenance.shortContent.improved")}</span>
               </div>
               <div class="result-item unchanged">
-                <span class="result-count">{shortContentRefetchResult.unchanged}</span>
+                <span class="result-count"
+                  >{maintenanceStore.shortContentRefetchResult.unchanged}</span
+                >
                 <span class="result-label">{$_("settings.maintenance.shortContent.unchanged")}</span
                 >
               </div>
               <div class="result-item failed">
-                <span class="result-count">{shortContentRefetchResult.failed}</span>
+                <span class="result-count">{maintenanceStore.shortContentRefetchResult.failed}</span
+                >
                 <span class="result-label">{$_("settings.maintenance.shortContent.failed")}</span>
               </div>
             </div>
@@ -340,17 +200,21 @@
         </div>
 
         <!-- Feed-specific Statistics -->
-        {#if shortContentStats.by_feed.length > 0}
+        {#if maintenanceStore.shortContentStats.by_feed.length > 0}
           <div class="feed-stats-section">
             <button type="button" class="feed-toggle-btn" onclick={toggleFeedList}>
-              <i class="fa-solid {feedListExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}"></i>
-              {$_("settings.maintenance.shortContent.feedsWithShort")} ({shortContentStats.by_feed
-                .length})
+              <i
+                class="fa-solid {maintenanceStore.shortContentFeedListExpanded
+                  ? 'fa-chevron-down'
+                  : 'fa-chevron-right'}"
+              ></i>
+              {$_("settings.maintenance.shortContent.feedsWithShort")} ({maintenanceStore
+                .shortContentStats.by_feed.length})
             </button>
 
-            {#if feedListExpanded}
+            {#if maintenanceStore.shortContentFeedListExpanded}
               <div class="feed-list">
-                {#each shortContentStats.by_feed as feed (feed.pentacle_id)}
+                {#each maintenanceStore.shortContentStats.by_feed as feed (feed.pentacle_id)}
                   <div class="feed-item">
                     <div class="feed-info">
                       <span class="feed-title">{feed.pentacle_title}</span>
@@ -360,10 +224,11 @@
                       >
                     </div>
                     {#if settings.enableHeadlessBrowser}
-                      {#if refetchingFeed === feed.pentacle_id && shortContentProgress}
+                      {#if maintenanceStore.refetchingFeed === feed.pentacle_id && maintenanceStore.shortContentProgress}
                         <div class="feed-progress">
                           <span class="progress-text"
-                            >{shortContentProgress.current}/{shortContentProgress.total}</span
+                            >{maintenanceStore.shortContentProgress.current}/{maintenanceStore
+                              .shortContentProgress.total}</span
                           >
                         </div>
                       {:else}
@@ -371,9 +236,9 @@
                           type="button"
                           class="btn-feed-refetch"
                           onclick={() => handleRefetchFeedShortContent(feed.pentacle_id)}
-                          disabled={shortContentRefetching ||
-                            refetchingFeed !== null ||
-                            maintenanceRunning !== null}
+                          disabled={maintenanceStore.shortContentRefetching ||
+                            maintenanceStore.refetchingFeed !== null ||
+                            maintenanceStore.maintenanceRunning !== null}
                           title={$_("settings.maintenance.shortContent.refetchFeed")}
                         >
                           <i class="fa-solid fa-rotate"></i>
@@ -397,24 +262,25 @@
           </div>
 
           <div class="action-buttons">
-            {#if shortContentStats.content_null_or_empty > 0}
+            {#if maintenanceStore.shortContentStats.content_null_or_empty > 0}
               <button
                 type="button"
                 class="btn-action btn-danger btn-small"
                 onclick={showDeleteNullConfirmation}
-                disabled={maintenanceRunning !== null}
+                disabled={maintenanceStore.maintenanceRunning !== null}
               >
                 <i class="fa-solid fa-trash"></i>
-                {$_("settings.maintenance.shortContent.deleteNull")} ({shortContentStats.content_null_or_empty})
+                {$_("settings.maintenance.shortContent.deleteNull")} ({maintenanceStore
+                  .shortContentStats.content_null_or_empty})
               </button>
             {/if}
 
-            {#if shortContentStats.content_null_or_empty + shortContentStats.content_under_200 > 0}
+            {#if maintenanceStore.shortContentStats.content_null_or_empty + maintenanceStore.shortContentStats.content_under_200 > 0}
               <button
                 type="button"
                 class="btn-action btn-small"
                 onclick={handleExcludeShortFromAi}
-                disabled={maintenanceRunning !== null}
+                disabled={maintenanceStore.maintenanceRunning !== null}
               >
                 <i class="fa-solid fa-ban"></i>
                 {$_("settings.maintenance.shortContent.excludeFromAi")}

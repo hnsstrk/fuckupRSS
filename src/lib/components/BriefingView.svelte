@@ -1,110 +1,21 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { _ } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
   import { renderMarkdown, renderMarkdownInline } from "$lib/utils/sanitizer";
-  import { formatError } from "$lib/utils/formatError";
   import { networkStore } from "$lib/stores/state.svelte";
   import { navigationStore } from "$lib/stores/navigation.svelte";
-  import { createLogger } from "$lib/logger";
+  import {
+    briefingStore,
+    type ArticleRef,
+    type StructuredBriefing,
+  } from "$lib/stores/briefings.svelte";
 
-  const log = createLogger("BriefingView");
-  interface ArticleRef {
-    index: number;
-    fnord_id: number;
-    title: string;
-    source: string;
-  }
-
-  interface BriefingTldr {
-    overview: string;
-    trends: string;
-    conclusion: string;
-  }
-
-  interface BriefingTopic {
-    title: string;
-    body: string;
-    article_indices: number[];
-    keywords: string[];
-  }
-
-  interface StructuredBriefing {
-    tldr: BriefingTldr;
-    topics: BriefingTopic[];
-  }
-
-  interface Briefing {
-    id: number;
-    period_type: string;
-    period_start: string;
-    period_end: string;
-    content: string;
-    top_keywords: string | null;
-    article_count: number;
-    model_used: string | null;
-    created_at: string;
-    article_refs: string | null;
-  }
-
-  // State
-  let briefings = $state<Briefing[]>([]);
-  let loading = $state(true);
-  let generating = $state(false);
-  let error = $state<string | null>(null);
-  let expandedId = $state<number | null>(null);
   let briefingContentRef = $state<HTMLDivElement | null>(null);
 
   onMount(async () => {
     briefingContentRef?.scrollTo({ top: 0 });
-    await loadBriefings();
+    await briefingStore.ensureLoaded();
   });
-
-  async function loadBriefings() {
-    loading = true;
-    error = null;
-    try {
-      briefings = await invoke<Briefing[]>("get_briefings", { limit: 20 });
-    } catch (e) {
-      log.error("[BriefingView] Error loading briefings:", e);
-      error = formatError(e);
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function handleGenerate(periodType: string) {
-    generating = true;
-    error = null;
-    try {
-      const newBriefing = await invoke<Briefing>("generate_briefing", {
-        periodType,
-      });
-      // Add to top of list
-      briefings = [newBriefing, ...briefings];
-      expandedId = newBriefing.id;
-    } catch (e) {
-      log.error("[BriefingView] Error generating briefing:", e);
-      error = formatError(e);
-    } finally {
-      generating = false;
-    }
-  }
-
-  async function handleDelete(id: number) {
-    if (!confirm($_("briefing.deleteConfirm"))) return;
-    try {
-      await invoke("delete_briefing", { id });
-      briefings = briefings.filter((b) => b.id !== id);
-      if (expandedId === id) expandedId = null;
-    } catch (e) {
-      log.error("[BriefingView] Error deleting briefing:", e);
-    }
-  }
-
-  function toggleExpand(id: number) {
-    expandedId = expandedId === id ? null : id;
-  }
 
   function formatPeriod(start: string, end: string): string {
     const startDate = new Date(start + "Z");
@@ -181,16 +92,16 @@
       <div class="header-actions">
         <button
           class="btn btn-primary"
-          onclick={() => handleGenerate("daily")}
-          disabled={generating}
+          onclick={() => briefingStore.generateBriefing("daily")}
+          disabled={briefingStore.generating}
         >
           <i class="fa-solid fa-sun"></i>
           {$_("briefing.daily")}
         </button>
         <button
           class="btn btn-primary"
-          onclick={() => handleGenerate("weekly")}
-          disabled={generating}
+          onclick={() => briefingStore.generateBriefing("weekly")}
+          disabled={briefingStore.generating}
         >
           <i class="fa-solid fa-calendar-week"></i>
           {$_("briefing.weekly")}
@@ -200,7 +111,7 @@
   </div>
 
   <div class="briefing-content" bind:this={briefingContentRef}>
-    {#if generating}
+    {#if briefingStore.generating}
       <div class="generating-overlay">
         <div class="generating-spinner">
           <i class="fa-solid fa-spinner fa-spin"></i>
@@ -209,27 +120,30 @@
       </div>
     {/if}
 
-    {#if error}
+    {#if briefingStore.error}
       <div class="error-banner">
         <i class="fa-solid fa-triangle-exclamation"></i>
-        {error}
+        {briefingStore.error}
       </div>
     {/if}
 
-    {#if loading}
+    {#if briefingStore.loading}
       <div class="loading-state">
         <i class="fa-solid fa-spinner fa-spin"></i>
       </div>
-    {:else if briefings.length === 0}
+    {:else if briefingStore.briefings.length === 0}
       <div class="empty-state">
         <i class="fa-solid fa-file-lines empty-icon"></i>
         <p>{$_("briefing.empty")}</p>
       </div>
     {:else}
       <div class="briefing-list">
-        {#each briefings as briefing (briefing.id)}
-          <div class="briefing-card" class:expanded={expandedId === briefing.id}>
-            <button class="briefing-card-header" onclick={() => toggleExpand(briefing.id)}>
+        {#each briefingStore.briefings as briefing (briefing.id)}
+          <div class="briefing-card" class:expanded={briefingStore.expandedId === briefing.id}>
+            <button
+              class="briefing-card-header"
+              onclick={() => briefingStore.toggleExpand(briefing.id)}
+            >
               <div class="card-left">
                 <span class="period-badge {getPeriodBadgeClass(briefing.period_type)}">
                   {briefing.period_type === "daily" ? $_("briefing.daily") : $_("briefing.weekly")}
@@ -251,14 +165,14 @@
                   {formatCreatedAt(briefing.created_at)}
                 </span>
                 <i
-                  class="fa-solid {expandedId === briefing.id
+                  class="fa-solid {briefingStore.expandedId === briefing.id
                     ? 'fa-chevron-up'
                     : 'fa-chevron-down'} expand-icon"
                 ></i>
               </div>
             </button>
 
-            {#if expandedId === briefing.id}
+            {#if briefingStore.expandedId === briefing.id}
               {@const structured = parseStructuredContent(briefing.content)}
               {@const articleRefs = parseArticleRefs(briefing.article_refs)}
               <div class="briefing-card-body">
@@ -361,7 +275,9 @@
                     class="btn btn-danger btn-sm"
                     onclick={(e: MouseEvent) => {
                       e.stopPropagation();
-                      handleDelete(briefing.id);
+                      if (confirm($_("briefing.deleteConfirm"))) {
+                        briefingStore.deleteBriefing(briefing.id);
+                      }
                     }}
                   >
                     <i class="fa-solid fa-trash"></i>
@@ -680,7 +596,6 @@
   .briefing-text :global(p:last-child) {
     margin-bottom: 0;
   }
-
 
   .briefing-card-actions {
     display: flex;
