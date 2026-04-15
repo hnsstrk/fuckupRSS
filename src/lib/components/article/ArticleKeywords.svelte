@@ -43,7 +43,7 @@
   let loadingNeighbors = $state(false);
 
   // Semantic scores for suggestions
-  let semanticScores: SvelteMap<string, number> = new SvelteMap();
+  const semanticScores = new SvelteMap<string, number>();
   let loadingSemanticScores = $state(false);
 
   // Search for keywords
@@ -147,11 +147,10 @@
       const scores = await invoke<
         { keyword: string; semantic_score: number; combined_score: number }[]
       >("score_keywords_semantically", { fnordId, keywords: keywordTerms, semanticWeight: 0.4 });
-      const newScores = new SvelteMap<string, number>();
+      semanticScores.clear();
       for (const score of scores) {
-        newScores.set(score.keyword.toLowerCase(), score.semantic_score);
+        semanticScores.set(score.keyword.toLowerCase(), score.semantic_score);
       }
-      semanticScores = newScores;
 
       suggestedKeywords = [...suggestedKeywords].sort((a, b) => {
         const aSemanticScore = semanticScores.get(a.term.toLowerCase()) ?? 0;
@@ -285,7 +284,7 @@
     if (!editing) return;
     suggestedKeywords = [];
     similarKeywords = [];
-    semanticScores = new SvelteMap();
+    semanticScores.clear();
     loadSuggestions();
     loadSimilarFromNetwork();
   }

@@ -205,6 +205,7 @@
     line-height: 1.3;
     transition: color 0.15s ease;
 
+    line-clamp: 2;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -240,6 +241,7 @@
     color: var(--text-secondary);
     line-height: 1.5;
 
+    line-clamp: 3;
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;

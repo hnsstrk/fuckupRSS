@@ -85,23 +85,9 @@
   function handleCardClick() {
     onclick?.();
   }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onclick?.();
-    }
-  }
 </script>
 
-<div
-  class="article-card"
-  class:clickable={!!onclick}
-  onclick={handleCardClick}
-  onkeydown={handleKeydown}
-  role={onclick ? "button" : undefined}
-  tabindex={onclick ? 0 : undefined}
->
+{#snippet cardContent()}
   <div class="card-main">
     <span class="card-title">{title}</span>
     <div class="card-meta-row">
@@ -159,10 +145,27 @@
       {formatSimilarity(similarity)}
     </span>
   {/if}
-</div>
+{/snippet}
+
+{#if onclick}
+  <button
+    type="button"
+    class="article-card"
+    class:clickable={true}
+    onclick={handleCardClick}
+    aria-label={title}
+  >
+    {@render cardContent()}
+  </button>
+{:else}
+  <div class="article-card">
+    {@render cardContent()}
+  </div>
+{/if}
 
 <style>
   .article-card {
+    appearance: none;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
@@ -174,6 +177,7 @@
     text-align: left;
     transition: all 0.2s;
     width: 100%;
+    font: inherit;
   }
 
   .article-card.clickable {

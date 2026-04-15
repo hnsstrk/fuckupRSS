@@ -195,7 +195,10 @@
             <div class="article-item">
               <div class="article-title">{article.title}</div>
               {#if article.summary}
-                <div class="article-summary markdown-content">{@html renderMarkdown(article.summary)}</div>
+                <!-- eslint-disable svelte/no-at-html-tags -->
+                <div class="article-summary markdown-content">
+                  {@html renderMarkdown(article.summary)}
+                </div>
               {/if}
               <div class="article-meta">
                 {#if article.published_at}
@@ -418,6 +421,7 @@
     font-size: 0.7rem;
     color: var(--text-secondary);
     line-height: 1.3;
+    line-clamp: 2;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;

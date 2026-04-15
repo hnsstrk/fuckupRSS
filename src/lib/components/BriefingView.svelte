@@ -186,6 +186,7 @@
                   </span>
                 </div>
 
+                <!-- eslint-disable svelte/no-at-html-tags -->
                 {#if structured}
                   <!-- Strukturiertes Briefing (neues Format) -->
                   <div class="briefing-tldr">

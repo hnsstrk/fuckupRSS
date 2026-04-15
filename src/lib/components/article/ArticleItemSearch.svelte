@@ -103,6 +103,7 @@
     line-height: 1.4;
     margin: 0;
     color: var(--text-primary);
+    line-clamp: 2;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -133,6 +134,7 @@
     font-size: 0.75rem;
     color: var(--text-muted);
     line-height: 1.4;
+    line-clamp: 2;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;

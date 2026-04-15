@@ -13,7 +13,7 @@
 
   let { centerId, centerName, neighbors, onNodeClick }: Props = $props();
 
-  let container: HTMLDivElement;
+  let container = $state<HTMLDivElement | null>(null);
   // Note: cy is NOT $state() to avoid triggering effects when it changes
   let cy: cytoscape.Core | null = null;
 
@@ -181,14 +181,14 @@
     // Hover effects
     cy.on("mouseover", "node[!isCenter]", (evt: cytoscape.EventObject) => {
       evt.target.style("background-color", colors.neighborHover);
-      container.style.cursor = "pointer";
+      container?.style.setProperty("cursor", "pointer");
     });
 
     cy.on("mouseout", "node[!isCenter]", (evt: cytoscape.EventObject) => {
       if (!evt.target.selected()) {
         evt.target.style("background-color", colors.neighborNode);
       }
-      container.style.cursor = "default";
+      container?.style.setProperty("cursor", "default");
     });
 
     // Fit to view after layout
