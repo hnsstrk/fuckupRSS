@@ -47,11 +47,10 @@ export class BriefingStore {
   loading = $state(false);
   generating = $state(false);
   error = $state<string | null>(null);
-  expandedId = $state<number | null>(null);
 
   private initialized = false;
   private loadPromise: Promise<void> | null = null;
-  private generatePromise: Promise<void> | null = null;
+  private generatePromise: Promise<Briefing | null> | null = null;
 
   async ensureLoaded(): Promise<void> {
     if (this.initialized || this.loading) {
@@ -92,7 +91,7 @@ export class BriefingStore {
     return this.loadPromise;
   }
 
-  async generateBriefing(periodType: string): Promise<void> {
+  async generateBriefing(periodType: string): Promise<Briefing | null> {
     if (this.generatePromise) {
       return this.generatePromise;
     }
@@ -110,11 +109,12 @@ export class BriefingStore {
           newBriefing,
           ...this.briefings.filter((briefing) => briefing.id !== newBriefing.id),
         ];
-        this.expandedId = newBriefing.id;
         this.initialized = true;
+        return newBriefing;
       } catch (e) {
         log.error("Error generating briefing:", e);
         this.error = formatError(e);
+        return null;
       } finally {
         this.generating = false;
         this.generatePromise = null;
@@ -128,17 +128,10 @@ export class BriefingStore {
     try {
       await invoke("delete_briefing", { id });
       this.briefings = this.briefings.filter((briefing) => briefing.id !== id);
-      if (this.expandedId === id) {
-        this.expandedId = null;
-      }
     } catch (e) {
       log.error("Error deleting briefing:", e);
       this.error = formatError(e);
     }
-  }
-
-  toggleExpand(id: number): void {
-    this.expandedId = this.expandedId === id ? null : id;
   }
 }
 

@@ -43,12 +43,12 @@ describe("BriefingStore", () => {
       article_refs: null,
     });
 
-    await pendingGeneration;
+    const newBriefing = await pendingGeneration;
 
     expect(store.generating).toBe(false);
     expect(store.briefings).toHaveLength(1);
     expect(store.briefings[0].id).toBe(7);
-    expect(store.expandedId).toBe(7);
+    expect(newBriefing?.id).toBe(7);
   });
 
   it("preserves a locally generated briefing when a stale load result arrives later", async () => {
