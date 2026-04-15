@@ -11,6 +11,7 @@ use crate::text_analysis::{
     CorrectionRecord, CorrectionType, TfIdfExtractor,
 };
 use crate::{find_canonical_keyword_with_db, AppState};
+use log::{debug, info, warn};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, State};
@@ -1404,6 +1405,15 @@ pub fn fix_category_assignments(state: State<AppState>) -> Result<CategoryFixRes
         .filter_map(|r| r.ok())
         .collect();
 
+    info!(
+        "Starting category fix maintenance: scanned_articles={}, subcategories={}, min_score_threshold={}, min_keywords_for_category={}, max_keyword_categories={}",
+        total_scanned,
+        categories.len(),
+        min_score_threshold,
+        min_keywords_for_category,
+        max_keyword_categories
+    );
+
     // For each article with keywords, calculate category scores from keyword network
     // SQL approach: aggregate category scores from keywords in a single query per category
     for (sephiroth_id, category_name) in &categories {
@@ -1470,20 +1480,37 @@ pub fn fix_category_assignments(state: State<AppState>) -> Result<CategoryFixRes
             .unwrap_or(0) as i64;
 
         if affected > 0 {
+            debug!(
+                "Category fix added assignments: category='{}', sephiroth_id={}, added_assignments={}",
+                category_name,
+                sephiroth_id,
+                affected
+            );
             categories_added.insert(category_name.clone(), affected);
             fixed_count += affected;
         }
     }
 
     // Update article_count for affected categories
-    conn.execute_batch(
+    if let Err(err) = conn.execute_batch(
         r#"
         UPDATE sephiroth SET article_count = (
             SELECT COUNT(DISTINCT fnord_id) FROM fnord_sephiroth WHERE sephiroth_id = sephiroth.id
         );
         "#,
-    )
-    .ok();
+    ) {
+        warn!(
+            "Failed to refresh category article counts after category fix maintenance: {}",
+            err
+        );
+    }
+
+    info!(
+        "Completed category fix maintenance: added_assignments={}, affected_categories={}, scanned_articles={}",
+        fixed_count,
+        categories_added.len(),
+        total_scanned
+    );
 
     Ok(CategoryFixResult {
         fixed_count,
