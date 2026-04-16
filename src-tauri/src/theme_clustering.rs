@@ -37,6 +37,12 @@ const DYNAMIC_CUT_FACTOR: f64 = 1.5;
 /// Minimum embedding similarity for ANN pre-filter
 pub const ANN_PREFILTER_THRESHOLD: f64 = 0.3;
 
+/// Minimum max-pairwise topic_score required to attach an orphan article to an
+/// existing validated theme. Set higher than ANN_PREFILTER_THRESHOLD so the
+/// orphan-attach pass stays conservative — a false positive turns a coherent
+/// theme into a noisy one.
+pub const ORPHAN_ATTACH_THRESHOLD: f64 = 0.5;
+
 /// Bonus multiplier when both person AND org entities overlap
 const PERSON_ORG_BONUS: f64 = 1.3;
 
@@ -221,9 +227,19 @@ pub fn temporal_proximity(published_a: &str, published_b: &str, decay_hours: f64
     (-hours_apart / decay_hours).exp()
 }
 
-/// Weighted topic score combining all 5 signals.
+/// Weighted topic score combining 5 signals with **adaptive weight normalization**.
 ///
-/// 0.35*embedding + 0.25*keyword + 0.20*entity + 0.10*category + 0.10*temporal
+/// Base weights: 0.35 embedding, 0.25 keyword, 0.20 entity, 0.10 category, 0.10 temporal.
+///
+/// Because NER entity coverage is currently sparse (≈1.5% of articles), the full
+/// weight sum (1.0) is rarely reachable — a non-existent entity signal silently
+/// zeros out 20% of the achievable score. We therefore normalize by the sum of
+/// weights whose underlying signals actually have data for at least one article
+/// in the pair. Embedding and temporal are always active. Keyword, entity and
+/// category are active iff at least one article has non-empty data for that signal.
+///
+/// This keeps the *relative* importance of signals, but prevents dead signals
+/// from dragging scores below the clustering merge threshold.
 #[allow(clippy::too_many_arguments)]
 pub fn topic_score(
     embedding_sim: f64,
@@ -242,11 +258,33 @@ pub fn topic_score(
     let cat = category_match(cats_a, cats_b);
     let temp = temporal_proximity(pub_a, pub_b, decay_hours);
 
-    W_EMBEDDING * embedding_sim
-        + W_KEYWORD * kw
-        + W_ENTITY * ent
-        + W_CATEGORY * cat
-        + W_TEMPORAL * temp
+    // Embedding and temporal are always active (defined for every article pair).
+    let mut weighted_sum = W_EMBEDDING * embedding_sim + W_TEMPORAL * temp;
+    let mut active_weight = W_EMBEDDING + W_TEMPORAL;
+
+    // Keyword signal is active if at least one article has keywords.
+    if !kw_a.is_empty() || !kw_b.is_empty() {
+        weighted_sum += W_KEYWORD * kw;
+        active_weight += W_KEYWORD;
+    }
+
+    // Entity signal is active if at least one article has NER entities.
+    if !ents_a.is_empty() || !ents_b.is_empty() {
+        weighted_sum += W_ENTITY * ent;
+        active_weight += W_ENTITY;
+    }
+
+    // Category signal is active if at least one article has categories.
+    if !cats_a.is_empty() || !cats_b.is_empty() {
+        weighted_sum += W_CATEGORY * cat;
+        active_weight += W_CATEGORY;
+    }
+
+    if active_weight > 0.0 {
+        weighted_sum / active_weight
+    } else {
+        0.0
+    }
 }
 
 // ============================================================
@@ -536,6 +574,78 @@ mod tests {
             12.0,
         );
         assert!(score >= 0.0 && score <= 1.0, "score={} out of range", score);
+    }
+
+    #[test]
+    fn test_topic_score_adaptive_dead_entity_signal() {
+        // Two articles with no NER entities, but matching category and decent embedding.
+        // Under the old non-adaptive scoring, the W_ENTITY=0.20 weight silently
+        // zeroed out 20% of the possible score. Under adaptive normalization the
+        // entity weight is excluded from the denominator, lifting the score.
+        let empty_ents: Vec<(i64, String)> = vec![];
+        let score_no_entities = topic_score(
+            0.6,
+            &[1, 2, 3],
+            &[3, 4, 5],
+            &empty_ents,
+            &empty_ents,
+            &[201],
+            &[201],
+            "2026-04-10 12:00:00",
+            "2026-04-10 12:00:00",
+            12.0,
+        );
+
+        // Hand calculation (adaptive):
+        // emb=0.6 -> 0.35*0.6 = 0.21
+        // kw jaccard {1,2,3}∩{3,4,5}={3}, union=5 -> 0.2 -> 0.25*0.2 = 0.05
+        // cat exact match -> 1.0 -> 0.10*1.0 = 0.10
+        // temp same timestamp -> 1.0 -> 0.10*1.0 = 0.10
+        // sum = 0.46, active_weight = 0.35+0.25+0.10+0.10 = 0.80
+        // adaptive = 0.46 / 0.80 = 0.575
+        assert!(
+            (score_no_entities - 0.575).abs() < 1e-6,
+            "expected ~0.575, got {}",
+            score_no_entities
+        );
+
+        // The same score under the OLD non-adaptive formula would be 0.46
+        // (because 0.20 weight for the dead entity signal is still counted).
+        // The adaptive score must be strictly higher, i.e. above the merge
+        // threshold 0.45 → distance 0.425 ≤ 0.55.
+        assert!(
+            score_no_entities > 0.46,
+            "adaptive score must exceed old non-adaptive score of 0.46"
+        );
+    }
+
+    #[test]
+    fn test_topic_score_adaptive_all_signals_present() {
+        // When ALL signals have data, adaptive == non-adaptive (active_weight = 1.0).
+        let score = topic_score(
+            0.8,
+            &[1, 2, 3],
+            &[2, 3, 4],
+            &[(1, "person".to_string())],
+            &[(1, "person".to_string())],
+            &[201],
+            &[201],
+            "2026-04-10 12:00:00",
+            "2026-04-10 12:00:00",
+            12.0,
+        );
+        // Hand calculation:
+        // emb=0.8 -> 0.35*0.8 = 0.28
+        // kw jaccard {1,2,3}∩{2,3,4}={2,3}, union=4 -> 0.5 -> 0.25*0.5 = 0.125
+        // ent jaccard {1}∩{1}={1}, union=1 -> 1.0 -> 0.20*1.0 = 0.20
+        // cat exact -> 1.0 -> 0.10*1.0 = 0.10
+        // temp same -> 1.0 -> 0.10*1.0 = 0.10
+        // sum = 0.805, active_weight = 1.0 -> score = 0.805
+        assert!(
+            (score - 0.805).abs() < 1e-6,
+            "expected ~0.805, got {}",
+            score
+        );
     }
 
     #[test]

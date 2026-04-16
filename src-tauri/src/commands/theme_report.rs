@@ -7,10 +7,12 @@
 
 use crate::ai_provider::TaskType;
 use crate::commands::ai::helpers::{create_embedding_provider_from_db, create_text_provider};
+use crate::embeddings::blob_to_embedding;
 use crate::error::{CmdResult, FuckupError};
 use crate::theme_clustering::{
     agglomerative_cluster, decay_hours_for_days, topic_score, ArticlePair, ArticleSignals,
     ClusterCandidate, ANN_PREFILTER_THRESHOLD, MIN_ARTICLES_FOR_REPORT, MIN_SOURCE_COUNT,
+    ORPHAN_ATTACH_THRESHOLD,
 };
 use crate::AppState;
 use log::{error, info, warn};
@@ -104,8 +106,8 @@ fn load_articles_with_signals(
          JOIN pentacles p ON p.id = f.pentacle_id
          WHERE f.embedding IS NOT NULL
            AND f.processed_at IS NOT NULL
-           AND f.published_at >= ?1
-           AND f.published_at <= ?2
+           AND datetime(f.published_at) >= datetime(?1)
+           AND datetime(f.published_at) <= datetime(?2)
          ORDER BY f.published_at ASC",
     )?;
 
@@ -177,58 +179,81 @@ fn load_articles_with_signals(
     Ok(articles)
 }
 
-/// Get ANN pairs from vec_fnords for all articles in the set
+/// Compute cosine similarity between two embedding vectors.
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
+    let mut dot = 0.0f64;
+    let mut norm_a = 0.0f64;
+    let mut norm_b = 0.0f64;
+    for (x, y) in a.iter().zip(b.iter()) {
+        let x = *x as f64;
+        let y = *y as f64;
+        dot += x * y;
+        norm_a += x * x;
+        norm_b += y * y;
+    }
+    let denom = norm_a.sqrt() * norm_b.sqrt();
+    if denom == 0.0 {
+        0.0
+    } else {
+        dot / denom
+    }
+}
+
+/// Get article pairs by computing pairwise cosine similarity for in-period articles.
+/// Uses fnords.embedding (regular table) instead of vec_fnords (virtual table)
+/// to ensure reliable blob access in the expected f32-LE format.
 fn get_ann_pairs(
     conn: &rusqlite::Connection,
     article_ids: &[i64],
 ) -> Result<Vec<ArticlePair>, rusqlite::Error> {
-    let mut pairs = Vec::new();
-    let id_set: HashSet<i64> = article_ids.iter().copied().collect();
-
-    let mut stmt = conn.prepare(
-        "SELECT v.fnord_id, v.distance
-         FROM vec_fnords v
-         WHERE v.embedding MATCH (SELECT embedding FROM vec_fnords WHERE fnord_id = ?1)
-           AND k = 50
-           AND v.fnord_id != ?1
-         ORDER BY v.distance ASC",
-    )?;
+    // Load embeddings from fnords table (regular table, reliable blob format)
+    let mut embeddings: HashMap<i64, Vec<f32>> = HashMap::new();
+    let mut stmt =
+        conn.prepare("SELECT embedding FROM fnords WHERE id = ?1 AND embedding IS NOT NULL")?;
 
     for &fnord_id in article_ids {
-        let neighbors: Vec<(i64, f64)> = stmt
-            .query_map(params![fnord_id], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, f64>(1)?))
-            })?
-            .filter_map(|r| r.ok())
-            .collect();
-
-        for (neighbor_id, distance) in neighbors {
-            if !id_set.contains(&neighbor_id) {
-                continue;
+        let blob: Option<Vec<u8>> = stmt.query_row(params![fnord_id], |row| row.get(0)).ok();
+        if let Some(blob) = blob {
+            let emb = blob_to_embedding(&blob);
+            if emb.len() == 1024 {
+                embeddings.insert(fnord_id, emb);
             }
-            let similarity = 1.0 - (distance / 2.0);
-            if similarity >= ANN_PREFILTER_THRESHOLD {
-                let (a, b) = if fnord_id < neighbor_id {
-                    (fnord_id, neighbor_id)
-                } else {
-                    (neighbor_id, fnord_id)
-                };
+        }
+    }
+    info!(
+        "Pairwise: loaded {} embeddings for {} articles",
+        embeddings.len(),
+        article_ids.len()
+    );
+
+    // Compute pairwise cosine similarity for all unique pairs
+    let ids: Vec<i64> = embeddings.keys().copied().collect();
+    let mut pairs = Vec::new();
+
+    for i in 0..ids.len() {
+        for j in (i + 1)..ids.len() {
+            let (a_id, b_id) = if ids[i] < ids[j] {
+                (ids[i], ids[j])
+            } else {
+                (ids[j], ids[i])
+            };
+            let sim = cosine_similarity(&embeddings[&ids[i]], &embeddings[&ids[j]]);
+            if sim >= ANN_PREFILTER_THRESHOLD {
                 pairs.push(ArticlePair {
-                    fnord_id_a: a,
-                    fnord_id_b: b,
-                    embedding_similarity: similarity,
+                    fnord_id_a: a_id,
+                    fnord_id_b: b_id,
+                    embedding_similarity: sim,
                 });
             }
         }
     }
 
-    // Deduplicate pairs
-    pairs.sort_by(|a, b| {
-        a.fnord_id_a
-            .cmp(&b.fnord_id_a)
-            .then(a.fnord_id_b.cmp(&b.fnord_id_b))
-    });
-    pairs.dedup_by(|a, b| a.fnord_id_a == b.fnord_id_a && a.fnord_id_b == b.fnord_id_b);
+    info!(
+        "Pairwise: {} pairs above threshold {} from {} possible",
+        pairs.len(),
+        ANN_PREFILTER_THRESHOLD,
+        ids.len() * (ids.len().saturating_sub(1)) / 2
+    );
 
     Ok(pairs)
 }
@@ -263,6 +288,25 @@ fn semantic_search_filter(
         .map(|(id, _)| id)
         .collect();
 
+    Ok(results)
+}
+
+/// Search for articles by keyword name match (case-insensitive, supports partial match)
+fn keyword_search_filter(
+    conn: &rusqlite::Connection,
+    query: &str,
+) -> Result<HashSet<i64>, rusqlite::Error> {
+    let pattern = format!("%{}%", query.trim().to_lowercase());
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT fi.fnord_id
+         FROM fnord_immanentize fi
+         JOIN immanentize i ON i.id = fi.immanentize_id
+         WHERE LOWER(i.name) LIKE ?1",
+    )?;
+    let results: HashSet<i64> = stmt
+        .query_map(params![pattern], |row| row.get(0))?
+        .filter_map(|r| r.ok())
+        .collect();
     Ok(results)
 }
 
@@ -390,6 +434,35 @@ struct ValidatedTheme {
     source_count: usize,
 }
 
+/// Safety net for Phase-2 LLM merge suggestions.
+///
+/// Returns true only if at least one article pair (one from each cluster) shares
+/// any keyword_id or any entity_id. Disjoint clusters get rejected — the LLM
+/// occasionally hallucinates `merge_with` between unrelated topics
+/// (e.g. FIFA World Cup ↔ Ukrainian drone strikes).
+fn should_accept_merge(
+    a_ids: &[i64],
+    b_ids: &[i64],
+    article_map: &HashMap<i64, &ArticleSignals>,
+) -> bool {
+    let collect_signals = |ids: &[i64]| -> (HashSet<i64>, HashSet<i64>) {
+        let mut keywords: HashSet<i64> = HashSet::new();
+        let mut entities: HashSet<i64> = HashSet::new();
+        for id in ids {
+            if let Some(a) = article_map.get(id) {
+                keywords.extend(a.keyword_ids.iter().copied());
+                entities.extend(a.entity_ids.iter().map(|(eid, _)| *eid));
+            }
+        }
+        (keywords, entities)
+    };
+
+    let (kw_a, ent_a) = collect_signals(a_ids);
+    let (kw_b, ent_b) = collect_signals(b_ids);
+
+    kw_a.intersection(&kw_b).next().is_some() || ent_a.intersection(&ent_b).next().is_some()
+}
+
 async fn run_phase2_validation(
     state: &State<'_, AppState>,
     candidates: &[ClusterCandidate],
@@ -455,21 +528,62 @@ async fn run_phase2_validation(
     };
     // DB lock released
 
+    let valid_cluster_ids: std::collections::HashSet<usize> =
+        candidates.iter().map(|c| c.cluster_id).collect();
     let schema = crate::ollama::theme_validation_schema();
     match provider.generate_text(&model, &prompt, Some(schema)).await {
-        Ok(result) => match serde_json::from_str::<ValidationResponse>(&result.text) {
+        Ok(result) => {
+            info!(
+                "Phase 2 LLM raw response ({} chars): {}",
+                result.text.len(),
+                &result.text[..result.text.len().min(2000)]
+            );
+            match serde_json::from_str::<ValidationResponse>(&result.text) {
             Ok(response) => {
                 let mut themes = Vec::new();
                 let mut merged_into: HashMap<usize, usize> = HashMap::new();
 
-                // Process merge suggestions
+                // Process merge suggestions — but reject merges between
+                // semantically disjoint clusters (LLM occasionally hallucinates
+                // `merge_with` for unrelated topics).
                 for vc in &response.clusters {
-                    if let Some(merge_target) = vc.merge_with {
-                        merged_into.insert(vc.cluster_id, merge_target);
+                    let Some(merge_target) = vc.merge_with else {
+                        continue;
+                    };
+                    if !valid_cluster_ids.contains(&vc.cluster_id)
+                        || !valid_cluster_ids.contains(&merge_target)
+                    {
+                        continue;
                     }
+                    let from_articles = candidates
+                        .iter()
+                        .find(|c| c.cluster_id == vc.cluster_id)
+                        .map(|c| c.article_ids.as_slice())
+                        .unwrap_or(&[]);
+                    let to_articles = candidates
+                        .iter()
+                        .find(|c| c.cluster_id == merge_target)
+                        .map(|c| c.article_ids.as_slice())
+                        .unwrap_or(&[]);
+                    if !should_accept_merge(from_articles, to_articles, &article_map) {
+                        warn!(
+                            "Phase 2: rejecting LLM merge {} -> {} (no shared keywords/entities)",
+                            vc.cluster_id, merge_target
+                        );
+                        continue;
+                    }
+                    merged_into.insert(vc.cluster_id, merge_target);
                 }
 
                 for vc in &response.clusters {
+                    if !valid_cluster_ids.contains(&vc.cluster_id) {
+                        warn!(
+                            "Phase 2: LLM returned unknown cluster_id {} (valid: {:?}) — skipping",
+                            vc.cluster_id,
+                            valid_cluster_ids
+                        );
+                        continue;
+                    }
                     if !vc.valid || merged_into.contains_key(&vc.cluster_id) {
                         continue;
                     }
@@ -518,7 +632,8 @@ async fn run_phase2_validation(
                 warn!("Phase 2 JSON parse error: {}. Using keyword fallback.", e);
                 Ok(fallback_labels(candidates, articles))
             }
-        },
+            }
+        }
         Err(e) => {
             warn!("Phase 2 LLM error: {}. Using keyword fallback.", e);
             Ok(fallback_labels(candidates, articles))
@@ -561,6 +676,151 @@ fn fallback_labels(
             }
         })
         .collect()
+}
+
+// ============================================================
+// PHASE 2.5: Orphan-Attach Pass
+// ============================================================
+
+/// Attach in-period articles that did not land in any validated theme to the
+/// nearest theme — provided the max pairwise `topic_score` against that theme's
+/// articles exceeds `ORPHAN_ATTACH_THRESHOLD`.
+///
+/// Why: Phase 1 / Phase 2 strict cluster boundaries can drop late-arriving or
+/// minority-source articles even when their topical fit is obvious (e.g. a
+/// Sterlitamak refinery strike report with 4 keywords overlapping the
+/// "Ukrainian drone strikes" theme).
+///
+/// Why this is safe to run after Phase 2:
+/// - All themes already passed `MIN_SOURCE_COUNT` validation; we only grow
+///   article_count, never shrink source_count.
+/// - We never create new themes — orphans either find a strong host or stay
+///   unassigned. `min_sources` cannot be circumvented.
+/// - Threshold is conservative (0.5) — well above the ANN pre-filter (0.3).
+///
+/// Returns a map `theme_index_in_themes -> Vec<(orphan_id, attach_score)>`.
+fn run_orphan_attach(
+    conn: &rusqlite::Connection,
+    themes: &mut [ValidatedTheme],
+    articles: &[ArticleSignals],
+    days: i32,
+) -> HashMap<usize, Vec<(i64, f64)>> {
+    if themes.is_empty() {
+        return HashMap::new();
+    }
+
+    // Collect orphan ids: in `articles` but not in any theme.
+    let assigned: HashSet<i64> = themes
+        .iter()
+        .flat_map(|t| t.article_ids.iter().copied())
+        .collect();
+    let orphans: Vec<&ArticleSignals> = articles
+        .iter()
+        .filter(|a| !assigned.contains(&a.fnord_id))
+        .collect();
+
+    if orphans.is_empty() {
+        info!("Orphan-Attach: no orphans to consider");
+        return HashMap::new();
+    }
+
+    // Load embeddings for orphans + all theme articles (one-shot).
+    let needed_ids: HashSet<i64> = orphans
+        .iter()
+        .map(|a| a.fnord_id)
+        .chain(themes.iter().flat_map(|t| t.article_ids.iter().copied()))
+        .collect();
+
+    let mut embeddings: HashMap<i64, Vec<f32>> = HashMap::new();
+    if let Ok(mut stmt) =
+        conn.prepare("SELECT embedding FROM fnords WHERE id = ?1 AND embedding IS NOT NULL")
+    {
+        for &fid in &needed_ids {
+            let blob: Option<Vec<u8>> = stmt.query_row(params![fid], |row| row.get(0)).ok();
+            if let Some(blob) = blob {
+                let emb = blob_to_embedding(&blob);
+                if emb.len() == 1024 {
+                    embeddings.insert(fid, emb);
+                }
+            }
+        }
+    }
+
+    attach_orphans_with_embeddings(themes, articles, &orphans, &embeddings, days)
+}
+
+/// Pure orphan-attach logic (no DB access) — exposed for unit testing.
+///
+/// For each orphan, find the theme with the highest max-pairwise `topic_score`
+/// across that theme's articles. Attach iff that max score is at least
+/// `ORPHAN_ATTACH_THRESHOLD`.
+fn attach_orphans_with_embeddings(
+    themes: &mut [ValidatedTheme],
+    articles: &[ArticleSignals],
+    orphans: &[&ArticleSignals],
+    embeddings: &HashMap<i64, Vec<f32>>,
+    days: i32,
+) -> HashMap<usize, Vec<(i64, f64)>> {
+    let mut attached_per_theme: HashMap<usize, Vec<(i64, f64)>> = HashMap::new();
+    let decay = decay_hours_for_days(days);
+    let total_orphans = orphans.len();
+    let mut attached = 0usize;
+
+    for orphan in orphans {
+        let Some(orphan_emb) = embeddings.get(&orphan.fnord_id) else {
+            continue;
+        };
+
+        let mut best: Option<(usize, f64)> = None;
+        for (t_idx, theme) in themes.iter().enumerate() {
+            let mut max_score = 0.0_f64;
+            for theme_aid in &theme.article_ids {
+                let Some(other) = articles.iter().find(|a| a.fnord_id == *theme_aid) else {
+                    continue;
+                };
+                let Some(other_emb) = embeddings.get(theme_aid) else {
+                    continue;
+                };
+                let emb_sim = cosine_similarity(orphan_emb, other_emb);
+                let score = topic_score(
+                    emb_sim,
+                    &orphan.keyword_ids,
+                    &other.keyword_ids,
+                    &orphan.entity_ids,
+                    &other.entity_ids,
+                    &orphan.category_ids,
+                    &other.category_ids,
+                    &orphan.published_at,
+                    &other.published_at,
+                    decay,
+                );
+                if score > max_score {
+                    max_score = score;
+                }
+            }
+            if max_score >= ORPHAN_ATTACH_THRESHOLD
+                && best.map(|(_, s)| max_score > s).unwrap_or(true)
+            {
+                best = Some((t_idx, max_score));
+            }
+        }
+
+        if let Some((t_idx, score)) = best {
+            themes[t_idx].article_ids.push(orphan.fnord_id);
+            attached_per_theme
+                .entry(t_idx)
+                .or_default()
+                .push((orphan.fnord_id, score));
+            attached += 1;
+        }
+    }
+
+    info!(
+        "Orphan-Attach: {} of {} orphans attached (threshold {})",
+        attached, total_orphans, ORPHAN_ATTACH_THRESHOLD
+    );
+
+    attached_per_theme
 }
 
 // ============================================================
@@ -685,23 +945,59 @@ pub async fn generate_theme_report(
             .unwrap_or_else(|_| "de".to_string())
     };
 
-    // Optional: semantic search filter
+    // Optional: hybrid keyword + semantic search filter
     let search_ids = if let Some(ref query) = search_query {
         if !query.trim().is_empty() {
-            // Generate embedding for search query
-            let embedding_provider = {
+            // 1. Keyword-based search (fast, exact match via immanentize)
+            let keyword_ids = {
                 let db = state.db_conn()?;
-                create_embedding_provider_from_db(&db, Some(&state.proxy_manager))
+                keyword_search_filter(db.conn(), query).unwrap_or_default()
             };
-            match embedding_provider.generate_embedding(query).await {
-                Ok(emb) => {
+            info!(
+                "Search: {} keyword matches for '{}'",
+                keyword_ids.len(),
+                query
+            );
+
+            // 2. Semantic embedding search (catches near-matches)
+            let embedding_ids = {
+                let embedding_provider = {
                     let db = state.db_conn()?;
-                    semantic_search_filter(db.conn(), &emb, 0.4).ok()
+                    create_embedding_provider_from_db(&db, Some(&state.proxy_manager))
+                };
+                match embedding_provider.generate_embedding(query).await {
+                    Ok(emb) => {
+                        let db = state.db_conn()?;
+                        semantic_search_filter(db.conn(), &emb, 0.3).unwrap_or_default()
+                    }
+                    Err(e) => {
+                        warn!(
+                            "Search embedding failed: {}. Using keyword matches only.",
+                            e
+                        );
+                        HashSet::new()
+                    }
                 }
-                Err(e) => {
-                    warn!("Search embedding failed: {}. Proceeding without filter.", e);
-                    None
-                }
+            };
+            info!(
+                "Search: {} semantic matches for '{}'",
+                embedding_ids.len(),
+                query
+            );
+
+            // 3. Union both sets
+            let mut combined = keyword_ids;
+            combined.extend(embedding_ids);
+            info!(
+                "Search: {} combined unique matches for '{}'",
+                combined.len(),
+                query
+            );
+
+            if combined.is_empty() {
+                None
+            } else {
+                Some(combined)
             }
         } else {
             None
@@ -740,13 +1036,32 @@ pub async fn generate_theme_report(
     }
 
     // Phase 2: LLM validation (async, no lock held)
-    let themes = run_phase2_validation(&state, &candidates, &articles, &locale).await?;
+    let mut themes = run_phase2_validation(&state, &candidates, &articles, &locale).await?;
 
     if themes.is_empty() {
         return Err(FuckupError::Validation(
             "Keine validen Themen nach LLM-Validierung.".to_string(),
         ));
     }
+
+    // Phase 2.5: Orphan-Attach pass — attach in-period articles that did not
+    // land in any theme but show strong topical fit to one. Updates source_count
+    // for each affected theme.
+    let orphan_attachments = {
+        let db = state.db_conn()?;
+        let attached = run_orphan_attach(db.conn(), &mut themes, &articles, days);
+        let pentacle_map: HashMap<i64, i64> =
+            articles.iter().map(|a| (a.fnord_id, a.pentacle_id)).collect();
+        for theme in themes.iter_mut() {
+            theme.source_count = theme
+                .article_ids
+                .iter()
+                .filter_map(|id| pentacle_map.get(id).copied())
+                .collect::<HashSet<_>>()
+                .len();
+        }
+        attached
+    };
 
     // Get model name for DB
     let model_used = {
@@ -777,13 +1092,15 @@ pub async fn generate_theme_report(
         conn.last_insert_rowid()
     };
 
-    // Save themes and articles (short lock)
+    // Save themes and articles (short lock).
+    // Orphan-attached articles use their actual computed attach_score instead
+    // of the cluster avg, which preserves the per-article quality signal.
     let theme_ids: Vec<i64> = {
         let db = state.db_conn()?;
         let conn = db.conn();
         let mut ids = Vec::new();
 
-        for theme in &themes {
+        for (t_idx, theme) in themes.iter().enumerate() {
             conn.execute(
                 "INSERT INTO theme_report_themes
                  (report_id, label, report_status, cluster_score, article_count, source_count)
@@ -800,11 +1117,20 @@ pub async fn generate_theme_report(
             let theme_id = conn.last_insert_rowid();
             ids.push(theme_id);
 
+            let orphan_scores: HashMap<i64, f64> = orphan_attachments
+                .get(&t_idx)
+                .map(|v| v.iter().copied().collect())
+                .unwrap_or_default();
+
             for &fnord_id in &theme.article_ids {
+                let score = orphan_scores
+                    .get(&fnord_id)
+                    .copied()
+                    .unwrap_or(theme.avg_topic_score);
                 let _ = conn.execute(
                     "INSERT OR IGNORE INTO theme_report_articles (theme_id, fnord_id, topic_score)
                      VALUES (?1, ?2, ?3)",
-                    params![theme_id, fnord_id, theme.avg_topic_score],
+                    params![theme_id, fnord_id, score],
                 );
             }
         }
@@ -1132,4 +1458,171 @@ pub async fn delete_theme_report(state: State<'_, AppState>, report_id: i64) -> 
     }
 
     Ok(deleted > 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_article(
+        id: i64,
+        keyword_ids: Vec<i64>,
+        entity_ids: Vec<(i64, &str)>,
+    ) -> ArticleSignals {
+        ArticleSignals {
+            fnord_id: id,
+            pentacle_id: id,
+            title: format!("Article {}", id),
+            summary: None,
+            published_at: "2026-04-16 12:00:00".to_string(),
+            political_bias: None,
+            sachlichkeit: None,
+            source_name: format!("Source {}", id),
+            category_ids: vec![],
+            keyword_ids,
+            entity_ids: entity_ids
+                .into_iter()
+                .map(|(eid, t)| (eid, t.to_string()))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn merge_rejected_when_signals_disjoint() {
+        // Reproduces the FIFA ↔ drone-strike contamination from report 11:
+        // no shared keywords, no shared entities — merge must be rejected.
+        let fifa = make_article(148, vec![1001, 1002], vec![(2001, "organization")]);
+        let drone = make_article(171, vec![1010, 1011], vec![(2010, "location")]);
+        let articles = vec![fifa, drone];
+        let map: HashMap<i64, &ArticleSignals> =
+            articles.iter().map(|a| (a.fnord_id, a)).collect();
+
+        assert!(!should_accept_merge(&[148], &[171], &map));
+    }
+
+    #[test]
+    fn merge_accepted_on_shared_keyword() {
+        let a = make_article(1, vec![100, 101], vec![]);
+        let b = make_article(2, vec![101, 102], vec![]);
+        let articles = vec![a, b];
+        let map: HashMap<i64, &ArticleSignals> =
+            articles.iter().map(|a| (a.fnord_id, a)).collect();
+
+        assert!(should_accept_merge(&[1], &[2], &map));
+    }
+
+    #[test]
+    fn merge_accepted_on_shared_entity_only() {
+        let a = make_article(1, vec![100], vec![(500, "person")]);
+        let b = make_article(2, vec![200], vec![(500, "person")]);
+        let articles = vec![a, b];
+        let map: HashMap<i64, &ArticleSignals> =
+            articles.iter().map(|a| (a.fnord_id, a)).collect();
+
+        assert!(should_accept_merge(&[1], &[2], &map));
+    }
+
+    #[test]
+    fn merge_rejected_when_articles_missing_from_map() {
+        let map: HashMap<i64, &ArticleSignals> = HashMap::new();
+        assert!(!should_accept_merge(&[42], &[43], &map));
+    }
+
+    fn make_theme(article_ids: Vec<i64>) -> ValidatedTheme {
+        ValidatedTheme {
+            label: "Test".to_string(),
+            article_ids,
+            avg_topic_score: 0.7,
+            source_count: 2,
+        }
+    }
+
+    #[test]
+    fn orphan_attaches_when_score_meets_threshold() {
+        // Theme article (id=1) and orphan (id=99) share 3 of 3 keywords,
+        // same published_at, same category → topic_score well above 0.5
+        // even with modest embedding similarity.
+        let host = make_article(1, vec![10, 11, 12], vec![]);
+        let orphan = make_article(99, vec![10, 11, 12], vec![]);
+        let articles = vec![host, orphan];
+        let orphan_refs: Vec<&ArticleSignals> =
+            articles.iter().filter(|a| a.fnord_id == 99).collect();
+
+        let mut embeddings: HashMap<i64, Vec<f32>> = HashMap::new();
+        embeddings.insert(1, vec![1.0, 0.0]);
+        embeddings.insert(99, vec![1.0, 0.0]); // identical → emb_sim = 1.0
+
+        let mut themes = vec![make_theme(vec![1])];
+        let attached =
+            attach_orphans_with_embeddings(&mut themes, &articles, &orphan_refs, &embeddings, 1);
+
+        assert_eq!(themes[0].article_ids, vec![1, 99]);
+        let entries = attached.get(&0).expect("theme 0 should have attachments");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].0, 99);
+        assert!(
+            entries[0].1 >= ORPHAN_ATTACH_THRESHOLD,
+            "attach score {} below threshold {}",
+            entries[0].1,
+            ORPHAN_ATTACH_THRESHOLD
+        );
+    }
+
+    #[test]
+    fn orphan_skipped_when_score_below_threshold() {
+        // Orthogonal embeddings, no shared keywords/entities/categories,
+        // and a large temporal gap → topic_score well below 0.5.
+        let mut host = make_article(1, vec![10], vec![]);
+        host.published_at = "2026-04-01 00:00:00".to_string();
+        let mut orphan = make_article(99, vec![42], vec![]);
+        orphan.published_at = "2026-04-16 12:00:00".to_string();
+        let articles = vec![host, orphan];
+        let orphan_refs: Vec<&ArticleSignals> =
+            articles.iter().filter(|a| a.fnord_id == 99).collect();
+
+        let mut embeddings: HashMap<i64, Vec<f32>> = HashMap::new();
+        embeddings.insert(1, vec![1.0, 0.0]);
+        embeddings.insert(99, vec![0.0, 1.0]); // orthogonal → emb_sim = 0.0
+
+        let mut themes = vec![make_theme(vec![1])];
+        let attached =
+            attach_orphans_with_embeddings(&mut themes, &articles, &orphan_refs, &embeddings, 1);
+
+        assert_eq!(
+            themes[0].article_ids,
+            vec![1],
+            "orphan must not be attached"
+        );
+        assert!(
+            attached.is_empty(),
+            "attached map must be empty, got {:?}",
+            attached
+        );
+    }
+
+    #[test]
+    fn orphan_picks_best_of_multiple_themes() {
+        // Two themes: theme 0 shares a keyword with the orphan, theme 1 does not.
+        // Orphan must land in theme 0, even though both have identical embeddings.
+        let host_a = make_article(1, vec![10, 11], vec![]);
+        let host_b = make_article(2, vec![20, 21], vec![]);
+        let orphan = make_article(99, vec![10, 11], vec![]);
+        let articles = vec![host_a, host_b, orphan];
+        let orphan_refs: Vec<&ArticleSignals> =
+            articles.iter().filter(|a| a.fnord_id == 99).collect();
+
+        let mut embeddings: HashMap<i64, Vec<f32>> = HashMap::new();
+        embeddings.insert(1, vec![1.0, 0.0]);
+        embeddings.insert(2, vec![1.0, 0.0]);
+        embeddings.insert(99, vec![1.0, 0.0]);
+
+        let mut themes = vec![make_theme(vec![1]), make_theme(vec![2])];
+        let attached =
+            attach_orphans_with_embeddings(&mut themes, &articles, &orphan_refs, &embeddings, 1);
+
+        assert_eq!(themes[0].article_ids, vec![1, 99]);
+        assert_eq!(themes[1].article_ids, vec![2]);
+        assert!(attached.contains_key(&0));
+        assert!(!attached.contains_key(&1));
+    }
 }
