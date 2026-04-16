@@ -10,6 +10,19 @@ pub mod headless;
 
 use crate::retrieval::headless::{HeadlessError, HeadlessFetcher};
 
+/// Minimum extracted content length (chars) before the headless fallback is
+/// skipped in `retrieve_with_fallback`. Below this, the regular HTTP + readability
+/// path is treated as insufficient and the JavaScript-rendering fallback kicks in.
+///
+/// Why 1500: RSS-feed snippets at BBC, Le Monde and similar outlets are typically
+/// 500–1200 chars (the BBC sample that triggered this tuning was 662 chars and
+/// was wrongly accepted). Real extracted article bodies sit well above 1500
+/// chars, so this threshold separates "got only the feed teaser" from "got the
+/// actual article". Some fast-news sources (TASS, wire services) can publish
+/// genuine articles below 1500 chars — those will now go through the headless
+/// fallback, which is acceptable as long as headless throughput holds up.
+const MIN_CONTENT_CHARS: usize = 1500;
+
 #[derive(Error, Debug)]
 pub enum RetrievalError {
     #[error("HTTP error: {0}")]
@@ -86,9 +99,9 @@ impl HagbardRetrieval {
     /// Fetch and extract article content with optional headless browser fallback.
     ///
     /// This method first attempts regular HTTP fetch with readability extraction.
-    /// If the extracted content is too short (< 500 chars) and `use_headless` is true,
-    /// it falls back to using the headless browser to render JavaScript and then
-    /// re-extracts the content.
+    /// If the extracted content is shorter than `MIN_CONTENT_CHARS` and `use_headless`
+    /// is true, it falls back to using the headless browser to render JavaScript
+    /// and then re-extracts the content.
     ///
     /// # Arguments
     ///
@@ -134,7 +147,7 @@ impl HagbardRetrieval {
         };
 
         // Check if content is sufficient or if fallback is disabled/unavailable
-        if result.content.len() >= 500 || !use_headless {
+        if result.content.len() >= MIN_CONTENT_CHARS || !use_headless {
             log::debug!(
                 "Regular extraction successful for {} ({} chars)",
                 article_url,
@@ -146,16 +159,18 @@ impl HagbardRetrieval {
         // Fallback: use headless browser if available
         let Some(fetcher) = headless_fetcher else {
             log::warn!(
-                "Content too short ({} chars) for {} but no headless fetcher provided",
+                "Content too short ({} chars, threshold {}) for {} but no headless fetcher provided",
                 result.content.len(),
+                MIN_CONTENT_CHARS,
                 article_url
             );
             return Ok(result);
         };
 
         log::info!(
-            "Content too short ({} chars) for {}, attempting headless fallback",
+            "Content too short ({} chars, threshold {}) for {}, attempting headless fallback",
             result.content.len(),
+            MIN_CONTENT_CHARS,
             article_url
         );
 
