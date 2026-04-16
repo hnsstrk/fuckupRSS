@@ -179,6 +179,57 @@ fn load_articles_with_signals(
     Ok(articles)
 }
 
+/// (keyword_id_to_name, entity_id_to_name) lookup pair.
+type NameMaps = (HashMap<i64, String>, HashMap<i64, String>);
+
+/// Load keyword (immanentize) and entity names for all keyword/entity IDs
+/// referenced by the given articles. Returns (keyword_map, entity_map).
+///
+/// Loaded upfront so Phase 2 can verify that an LLM-generated label actually
+/// mentions at least one keyword or entity from the cluster — guarding against
+/// the model hallucinating labels by mixing up cluster_ids within the batch.
+fn load_keyword_entity_names(
+    conn: &rusqlite::Connection,
+    articles: &[ArticleSignals],
+) -> Result<NameMaps, rusqlite::Error> {
+    let mut keyword_ids: HashSet<i64> = HashSet::new();
+    let mut entity_ids: HashSet<i64> = HashSet::new();
+    for a in articles {
+        keyword_ids.extend(a.keyword_ids.iter().copied());
+        entity_ids.extend(a.entity_ids.iter().map(|(id, _)| *id));
+    }
+
+    let mut keyword_names: HashMap<i64, String> = HashMap::new();
+    if !keyword_ids.is_empty() {
+        let mut stmt = conn.prepare("SELECT id, name FROM immanentize WHERE id = ?1")?;
+        for id in &keyword_ids {
+            if let Ok((i, name)) =
+                stmt.query_row(params![id], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                })
+            {
+                keyword_names.insert(i, name);
+            }
+        }
+    }
+
+    let mut entity_names: HashMap<i64, String> = HashMap::new();
+    if !entity_ids.is_empty() {
+        let mut stmt = conn.prepare("SELECT id, name FROM entities WHERE id = ?1")?;
+        for id in &entity_ids {
+            if let Ok((i, name)) =
+                stmt.query_row(params![id], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                })
+            {
+                entity_names.insert(i, name);
+            }
+        }
+    }
+
+    Ok((keyword_names, entity_names))
+}
+
 /// Compute cosine similarity between two embedding vectors.
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
     let mut dot = 0.0f64;
@@ -410,19 +461,18 @@ fn run_phase1_clustering(
 // PHASE 2: Batch Validation (Fast LLM)
 // ============================================================
 
+/// Per-cluster Phase-2 LLM response.
+///
+/// Phase 2 was reworked from one batched call (with `cluster_id` + `merge_with`
+/// fields) to N parallel single-cluster calls — Fast models reliably mixed up
+/// `cluster_id` ↔ `label` in the batched variant. With one cluster per call,
+/// indexing is unambiguous.
 #[derive(Debug, Deserialize)]
-struct ValidationCluster {
-    cluster_id: usize,
+struct SingleValidation {
     valid: bool,
     label: Option<String>,
-    merge_with: Option<usize>,
     #[allow(dead_code)]
     reason: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ValidationResponse {
-    clusters: Vec<ValidationCluster>,
 }
 
 /// Validated cluster after Phase 2
@@ -434,41 +484,136 @@ struct ValidatedTheme {
     source_count: usize,
 }
 
-/// Safety net for Phase-2 LLM merge suggestions.
+/// Verify that an LLM-generated label is grounded in the cluster's content.
 ///
-/// Returns true only if at least one article pair (one from each cluster) shares
-/// any keyword_id or any entity_id. Disjoint clusters get rejected — the LLM
-/// occasionally hallucinates `merge_with` between unrelated topics
-/// (e.g. FIFA World Cup ↔ Ukrainian drone strikes).
-fn should_accept_merge(
-    a_ids: &[i64],
-    b_ids: &[i64],
+/// Returns true if at least one keyword name or entity name from the cluster's
+/// articles appears (case-insensitive substring) in the label. This catches the
+/// failure mode where the Fast LLM mixes up `cluster_id` ↔ `label` within the
+/// batched validation prompt, attaching e.g. cluster 104's label to cluster 105.
+///
+/// Returns false if the cluster has no keywords/entities (Phase-2 fallback handles
+/// that case) — naked clusters don't have grounding terms to match against.
+fn label_matches_cluster(
+    label: &str,
+    article_ids: &[i64],
     article_map: &HashMap<i64, &ArticleSignals>,
+    keyword_names: &HashMap<i64, String>,
+    entity_names: &HashMap<i64, String>,
 ) -> bool {
-    let collect_signals = |ids: &[i64]| -> (HashSet<i64>, HashSet<i64>) {
-        let mut keywords: HashSet<i64> = HashSet::new();
-        let mut entities: HashSet<i64> = HashSet::new();
-        for id in ids {
-            if let Some(a) = article_map.get(id) {
-                keywords.extend(a.keyword_ids.iter().copied());
-                entities.extend(a.entity_ids.iter().map(|(eid, _)| *eid));
+    let label_lc = label.to_lowercase();
+    if label_lc.trim().is_empty() {
+        return false;
+    }
+
+    let mut terms: HashSet<String> = HashSet::new();
+    for id in article_ids {
+        let Some(a) = article_map.get(id) else {
+            continue;
+        };
+        for kw_id in &a.keyword_ids {
+            if let Some(name) = keyword_names.get(kw_id) {
+                let n = name.trim().to_lowercase();
+                if n.len() >= 3 {
+                    terms.insert(n);
+                }
             }
         }
-        (keywords, entities)
-    };
+        for (ent_id, _) in &a.entity_ids {
+            if let Some(name) = entity_names.get(ent_id) {
+                let n = name.trim().to_lowercase();
+                if n.len() >= 3 {
+                    terms.insert(n);
+                }
+            }
+        }
+    }
 
-    let (kw_a, ent_a) = collect_signals(a_ids);
-    let (kw_b, ent_b) = collect_signals(b_ids);
+    if terms.is_empty() {
+        return false;
+    }
 
-    kw_a.intersection(&kw_b).next().is_some() || ent_a.intersection(&ent_b).next().is_some()
+    terms.iter().any(|t| label_lc.contains(t))
+}
+
+/// Maximum number of parallel Phase-2 cluster validations.
+///
+/// Why 3: User runs ministral-3-class Fast LLMs on consumer hardware (typical
+/// 12GB GPU). 3 concurrent calls keep latency low without saturating VRAM/CPU.
+/// Effective parallelism is capped by `provider.suggested_concurrency()` so the
+/// `ollama_concurrency` user setting stays the upper bound.
+const PHASE2_PARALLELISM: usize = 3;
+
+/// Render the prompt context for a single cluster (used by the per-cluster
+/// Phase-2 prompt).
+fn format_cluster_for_prompt(
+    candidate: &ClusterCandidate,
+    article_map: &HashMap<i64, &ArticleSignals>,
+) -> String {
+    let mut out = format!(
+        "Cluster ({} articles, score {:.2}):\n",
+        candidate.article_ids.len(),
+        candidate.avg_topic_score
+    );
+    for (i, &id) in candidate.article_ids.iter().enumerate() {
+        if let Some(a) = article_map.get(&id) {
+            let summary_short = a
+                .summary
+                .as_deref()
+                .unwrap_or("")
+                .chars()
+                .take(150)
+                .collect::<String>();
+            let date_short = &a.published_at[..10.min(a.published_at.len())];
+            out.push_str(&format!(
+                "  [{}] \"{}\" ({}, {})\n      {}\n",
+                i, a.title, a.source_name, date_short, summary_short
+            ));
+        }
+    }
+    out
+}
+
+/// Build a `ValidatedTheme` using the keyword-fallback label (first article
+/// title, truncated). Used when the per-cluster LLM call fails, returns
+/// `valid=false`, or produces a label that doesn't ground in the cluster.
+fn fallback_theme(
+    candidate: &ClusterCandidate,
+    article_map: &HashMap<i64, &ArticleSignals>,
+) -> ValidatedTheme {
+    let label = candidate
+        .article_ids
+        .first()
+        .and_then(|id| article_map.get(id))
+        .map(|a| {
+            let max_len = 60;
+            if a.title.chars().count() > max_len {
+                let truncated: String = a.title.chars().take(max_len).collect();
+                format!("{}...", truncated)
+            } else {
+                a.title.clone()
+            }
+        })
+        .unwrap_or_else(|| format!("Thema {}", candidate.cluster_id));
+
+    ValidatedTheme {
+        label,
+        article_ids: candidate.article_ids.clone(),
+        avg_topic_score: candidate.avg_topic_score,
+        source_count: candidate.source_count,
+    }
 }
 
 async fn run_phase2_validation(
     state: &State<'_, AppState>,
     candidates: &[ClusterCandidate],
     articles: &[ArticleSignals],
+    keyword_names: &HashMap<i64, String>,
+    entity_names: &HashMap<i64, String>,
     locale: &str,
 ) -> CmdResult<Vec<ValidatedTheme>> {
+    use futures::stream::{self, StreamExt};
+    use std::sync::Arc;
+
     if candidates.is_empty() {
         return Ok(vec![]);
     }
@@ -476,206 +621,143 @@ async fn run_phase2_validation(
     let article_map: HashMap<i64, &ArticleSignals> =
         articles.iter().map(|a| (a.fnord_id, a)).collect();
 
-    // Build prompt input
-    let mut cluster_text = String::new();
-    for c in candidates {
-        cluster_text.push_str(&format!(
-            "\nCluster {} ({} articles, score {:.2}):\n",
-            c.cluster_id,
-            c.article_ids.len(),
-            c.avg_topic_score
-        ));
-        for (i, &id) in c.article_ids.iter().enumerate() {
-            if let Some(a) = article_map.get(&id) {
-                let summary_short = a
-                    .summary
-                    .as_deref()
-                    .unwrap_or("")
-                    .chars()
-                    .take(150)
-                    .collect::<String>();
-                let date_short = &a.published_at[..10.min(a.published_at.len())];
-                cluster_text.push_str(&format!(
-                    "  [{}] \"{}\" ({}, {})\n      {}\n",
-                    i, a.title, a.source_name, date_short, summary_short
-                ));
-            }
-        }
-    }
-
-    // Get prompt (custom or default)
+    // Custom prompt template (or default) — read once before the parallel calls.
     let prompt_template = {
         let db = state.db_conn()?;
         db.conn()
             .query_row(
-                "SELECT value FROM settings WHERE key = 'theme_validation_prompt'",
+                "SELECT value FROM settings WHERE key = 'theme_validation_single_prompt'",
                 [],
                 |row| row.get::<_, String>(0),
             )
             .ok()
-    };
+    }
+    .unwrap_or_else(|| crate::ollama::DEFAULT_THEME_VALIDATION_SINGLE_PROMPT.to_string());
 
     let language = crate::ollama::get_language_for_locale(locale);
-    let prompt = prompt_template
-        .unwrap_or_else(|| crate::ollama::DEFAULT_THEME_VALIDATION_PROMPT.to_string())
-        .replace("{clusters}", &cluster_text)
-        .replace("{language}", language);
 
-    // Create Fast provider (short lock, then release)
+    // Create Fast provider once and share via Arc across all parallel calls.
+    // `create_text_provider` already returns an `Arc<dyn AiTextProvider>`.
     let (provider, model) = {
         let db = state.db_conn()?;
         create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast)
     };
-    // DB lock released
+    let model: Arc<str> = Arc::from(model);
 
-    let valid_cluster_ids: std::collections::HashSet<usize> =
-        candidates.iter().map(|c| c.cluster_id).collect();
-    let schema = crate::ollama::theme_validation_schema();
-    match provider.generate_text(&model, &prompt, Some(schema)).await {
-        Ok(result) => {
-            info!(
-                "Phase 2 LLM raw response ({} chars): {}",
-                result.text.len(),
-                &result.text[..result.text.len().min(2000)]
-            );
-            match serde_json::from_str::<ValidationResponse>(&result.text) {
-            Ok(response) => {
-                let mut themes = Vec::new();
-                let mut merged_into: HashMap<usize, usize> = HashMap::new();
+    let suggested = provider.suggested_concurrency();
+    let parallelism = PHASE2_PARALLELISM.min(suggested.max(1));
+    info!(
+        "Phase 2: validating {} clusters per-cluster with parallelism={} (suggested={}, hard cap={})",
+        candidates.len(),
+        parallelism,
+        suggested,
+        PHASE2_PARALLELISM
+    );
 
-                // Process merge suggestions — but reject merges between
-                // semantically disjoint clusters (LLM occasionally hallucinates
-                // `merge_with` for unrelated topics).
-                for vc in &response.clusters {
-                    let Some(merge_target) = vc.merge_with else {
-                        continue;
-                    };
-                    if !valid_cluster_ids.contains(&vc.cluster_id)
-                        || !valid_cluster_ids.contains(&merge_target)
-                    {
-                        continue;
-                    }
-                    let from_articles = candidates
-                        .iter()
-                        .find(|c| c.cluster_id == vc.cluster_id)
-                        .map(|c| c.article_ids.as_slice())
-                        .unwrap_or(&[]);
-                    let to_articles = candidates
-                        .iter()
-                        .find(|c| c.cluster_id == merge_target)
-                        .map(|c| c.article_ids.as_slice())
-                        .unwrap_or(&[]);
-                    if !should_accept_merge(from_articles, to_articles, &article_map) {
-                        warn!(
-                            "Phase 2: rejecting LLM merge {} -> {} (no shared keywords/entities)",
-                            vc.cluster_id, merge_target
-                        );
-                        continue;
-                    }
-                    merged_into.insert(vc.cluster_id, merge_target);
-                }
-
-                for vc in &response.clusters {
-                    if !valid_cluster_ids.contains(&vc.cluster_id) {
-                        warn!(
-                            "Phase 2: LLM returned unknown cluster_id {} (valid: {:?}) — skipping",
-                            vc.cluster_id,
-                            valid_cluster_ids
-                        );
-                        continue;
-                    }
-                    if !vc.valid || merged_into.contains_key(&vc.cluster_id) {
-                        continue;
-                    }
-
-                    let mut article_ids = Vec::new();
-                    // Add own articles
-                    if let Some(c) = candidates.iter().find(|c| c.cluster_id == vc.cluster_id) {
-                        article_ids.extend(&c.article_ids);
-                    }
-                    // Add merged cluster articles
-                    for (&from, &to) in &merged_into {
-                        if to == vc.cluster_id {
-                            if let Some(c) = candidates.iter().find(|c| c.cluster_id == from) {
-                                article_ids.extend(&c.article_ids);
-                            }
-                        }
-                    }
-
-                    let source_count = article_ids
-                        .iter()
-                        .filter_map(|id| article_map.get(id))
-                        .map(|a| a.pentacle_id)
-                        .collect::<HashSet<_>>()
-                        .len();
-
-                    let label = vc
-                        .label
-                        .clone()
-                        .unwrap_or_else(|| format!("Thema {}", vc.cluster_id));
-                    let avg_score = candidates
-                        .iter()
-                        .find(|c| c.cluster_id == vc.cluster_id)
-                        .map(|c| c.avg_topic_score)
-                        .unwrap_or(0.0);
-
-                    themes.push(ValidatedTheme {
-                        label,
-                        article_ids,
-                        avg_topic_score: avg_score,
-                        source_count,
-                    });
-                }
-                Ok(themes)
-            }
-            Err(e) => {
-                warn!("Phase 2 JSON parse error: {}. Using keyword fallback.", e);
-                Ok(fallback_labels(candidates, articles))
-            }
-            }
-        }
-        Err(e) => {
-            warn!("Phase 2 LLM error: {}. Using keyword fallback.", e);
-            Ok(fallback_labels(candidates, articles))
-        }
-    }
-}
-
-/// Fallback: generate labels from first article title when LLM fails
-fn fallback_labels(
-    candidates: &[ClusterCandidate],
-    articles: &[ArticleSignals],
-) -> Vec<ValidatedTheme> {
-    let article_map: HashMap<i64, &ArticleSignals> =
-        articles.iter().map(|a| (a.fnord_id, a)).collect();
-
-    candidates
+    // Pre-render each cluster's prompt and keep the candidate beside it.
+    let prepared: Vec<(ClusterCandidate, String)> = candidates
         .iter()
         .map(|c| {
-            // Use first article title as fallback label
-            let label = c
-                .article_ids
-                .first()
-                .and_then(|id| article_map.get(id))
-                .map(|a| {
-                    let max_len = 60;
-                    if a.title.chars().count() > max_len {
-                        let truncated: String = a.title.chars().take(max_len).collect();
-                        format!("{}...", truncated)
-                    } else {
-                        a.title.clone()
-                    }
-                })
-                .unwrap_or_else(|| format!("Thema {}", c.cluster_id));
+            let cluster_text = format_cluster_for_prompt(c, &article_map);
+            let prompt = prompt_template
+                .replace("{cluster}", &cluster_text)
+                .replace("{language}", language);
+            (c.clone(), prompt)
+        })
+        .collect();
 
-            ValidatedTheme {
-                label,
-                article_ids: c.article_ids.clone(),
-                avg_topic_score: c.avg_topic_score,
-                source_count: c.source_count,
+    let schema = crate::ollama::theme_validation_single_schema();
+
+    // Per-cluster validations in parallel.
+    let results = stream::iter(prepared.into_iter())
+        .map(|(candidate, prompt)| {
+            let provider = provider.clone();
+            let model = model.clone();
+            let schema = schema.clone();
+            async move {
+                match provider.generate_text(&model, &prompt, Some(schema)).await {
+                    Ok(result) => {
+                        let preview = &result.text[..result.text.len().min(500)];
+                        match serde_json::from_str::<SingleValidation>(&result.text) {
+                            Ok(parsed) => (candidate, Ok(parsed), preview.to_string()),
+                            Err(e) => (
+                                candidate,
+                                Err(format!("JSON parse error: {}", e)),
+                                preview.to_string(),
+                            ),
+                        }
+                    }
+                    Err(e) => (candidate, Err(format!("LLM error: {}", e)), String::new()),
+                }
             }
         })
-        .collect()
+        .buffer_unordered(parallelism)
+        .collect::<Vec<_>>()
+        .await;
+
+    let mut themes: Vec<ValidatedTheme> = Vec::new();
+    for (candidate, parsed, preview) in results {
+        let cluster_id = candidate.cluster_id;
+        match parsed {
+            Ok(sv) => {
+                if !sv.valid {
+                    info!(
+                        "Phase 2 cluster {}: valid=false — skipping (reason: {})",
+                        cluster_id,
+                        sv.reason.as_deref().unwrap_or("none")
+                    );
+                    continue;
+                }
+                let llm_label = sv
+                    .label
+                    .clone()
+                    .unwrap_or_else(|| format!("Thema {}", cluster_id));
+                let label = if label_matches_cluster(
+                    &llm_label,
+                    &candidate.article_ids,
+                    &article_map,
+                    keyword_names,
+                    entity_names,
+                ) {
+                    llm_label
+                } else {
+                    warn!(
+                        "Phase 2: label '{}' doesn't match cluster {} top keywords/entities — falling back",
+                        llm_label, cluster_id
+                    );
+                    fallback_theme(&candidate, &article_map).label
+                };
+                info!(
+                    "Phase 2 cluster {}: valid=true, label='{}'",
+                    cluster_id, label
+                );
+                themes.push(ValidatedTheme {
+                    label,
+                    article_ids: candidate.article_ids.clone(),
+                    avg_topic_score: candidate.avg_topic_score,
+                    source_count: candidate.source_count,
+                });
+            }
+            Err(err) => {
+                warn!(
+                    "Phase 2 cluster {}: {} — using keyword fallback (raw preview: {})",
+                    cluster_id, err, preview
+                );
+                themes.push(fallback_theme(&candidate, &article_map));
+            }
+        }
+    }
+
+    // Result ordering: buffer_unordered yields in arbitrary order. Restore
+    // a stable order by avg_topic_score so downstream sorting/cluster_id
+    // assignment is deterministic.
+    themes.sort_by(|a, b| {
+        b.avg_topic_score
+            .partial_cmp(&a.avg_topic_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    Ok(themes)
 }
 
 // ============================================================
@@ -1026,9 +1108,13 @@ pub async fn generate_theme_report(
     }
 
     // Phase 1: Statistical clustering (short lock for ANN queries)
-    let candidates = {
+    // Also load keyword/entity names upfront so Phase 2 can validate LLM labels
+    // without re-acquiring the DB lock.
+    let (candidates, keyword_names, entity_names) = {
         let db = state.db_conn()?;
-        run_phase1_clustering(db.conn(), &articles, days, min_sources)?
+        let candidates = run_phase1_clustering(db.conn(), &articles, days, min_sources)?;
+        let (kw_names, ent_names) = load_keyword_entity_names(db.conn(), &articles)?;
+        (candidates, kw_names, ent_names)
     };
 
     if candidates.is_empty() {
@@ -1036,7 +1122,15 @@ pub async fn generate_theme_report(
     }
 
     // Phase 2: LLM validation (async, no lock held)
-    let mut themes = run_phase2_validation(&state, &candidates, &articles, &locale).await?;
+    let mut themes = run_phase2_validation(
+        &state,
+        &candidates,
+        &articles,
+        &keyword_names,
+        &entity_names,
+        &locale,
+    )
+    .await?;
 
     if themes.is_empty() {
         return Err(FuckupError::Validation(
@@ -1488,44 +1582,29 @@ mod tests {
     }
 
     #[test]
-    fn merge_rejected_when_signals_disjoint() {
-        // Reproduces the FIFA ↔ drone-strike contamination from report 11:
-        // no shared keywords, no shared entities — merge must be rejected.
-        let fifa = make_article(148, vec![1001, 1002], vec![(2001, "organization")]);
-        let drone = make_article(171, vec![1010, 1011], vec![(2010, "location")]);
-        let articles = vec![fifa, drone];
-        let map: HashMap<i64, &ArticleSignals> =
-            articles.iter().map(|a| (a.fnord_id, a)).collect();
-
-        assert!(!should_accept_merge(&[148], &[171], &map));
+    fn single_validation_parses_valid_response() {
+        let json = r#"{"valid": true, "label": "Russische Angriffe auf Ukraine", "reason": null}"#;
+        let parsed: SingleValidation = serde_json::from_str(json).unwrap();
+        assert!(parsed.valid);
+        assert_eq!(parsed.label.as_deref(), Some("Russische Angriffe auf Ukraine"));
     }
 
     #[test]
-    fn merge_accepted_on_shared_keyword() {
-        let a = make_article(1, vec![100, 101], vec![]);
-        let b = make_article(2, vec![101, 102], vec![]);
-        let articles = vec![a, b];
-        let map: HashMap<i64, &ArticleSignals> =
-            articles.iter().map(|a| (a.fnord_id, a)).collect();
-
-        assert!(should_accept_merge(&[1], &[2], &map));
+    fn single_validation_parses_invalid_with_reason() {
+        let json = r#"{"valid": false, "reason": "articles cover unrelated topics"}"#;
+        let parsed: SingleValidation = serde_json::from_str(json).unwrap();
+        assert!(!parsed.valid);
+        assert!(parsed.label.is_none());
     }
 
     #[test]
-    fn merge_accepted_on_shared_entity_only() {
-        let a = make_article(1, vec![100], vec![(500, "person")]);
-        let b = make_article(2, vec![200], vec![(500, "person")]);
-        let articles = vec![a, b];
-        let map: HashMap<i64, &ArticleSignals> =
-            articles.iter().map(|a| (a.fnord_id, a)).collect();
-
-        assert!(should_accept_merge(&[1], &[2], &map));
-    }
-
-    #[test]
-    fn merge_rejected_when_articles_missing_from_map() {
-        let map: HashMap<i64, &ArticleSignals> = HashMap::new();
-        assert!(!should_accept_merge(&[42], &[43], &map));
+    fn single_validation_tolerates_missing_optional_fields() {
+        // LLM returns only the required `valid` field.
+        let json = r#"{"valid": true}"#;
+        let parsed: SingleValidation = serde_json::from_str(json).unwrap();
+        assert!(parsed.valid);
+        assert!(parsed.label.is_none());
+        assert!(parsed.reason.is_none());
     }
 
     fn make_theme(article_ids: Vec<i64>) -> ValidatedTheme {
@@ -1624,5 +1703,71 @@ mod tests {
         assert_eq!(themes[1].article_ids, vec![2]);
         assert!(attached.contains_key(&0));
         assert!(!attached.contains_key(&1));
+    }
+
+    #[test]
+    fn label_matches_when_keyword_appears() {
+        let a = make_article(1, vec![100], vec![]);
+        let b = make_article(2, vec![100, 101], vec![]);
+        let articles = vec![a, b];
+        let map: HashMap<i64, &ArticleSignals> =
+            articles.iter().map(|a| (a.fnord_id, a)).collect();
+
+        let mut keyword_names = HashMap::new();
+        keyword_names.insert(100, "Russland".to_string());
+        keyword_names.insert(101, "Ukraine".to_string());
+        let entity_names = HashMap::new();
+
+        assert!(label_matches_cluster(
+            "Russische Angriffe auf Ukraine",
+            &[1, 2],
+            &map,
+            &keyword_names,
+            &entity_names,
+        ));
+    }
+
+    #[test]
+    fn label_rejected_when_disjoint() {
+        // FIFA-Cluster bekommt fälschlich ein Russland-Label zugewiesen.
+        let a = make_article(1, vec![300], vec![]);
+        let b = make_article(2, vec![301], vec![]);
+        let articles = vec![a, b];
+        let map: HashMap<i64, &ArticleSignals> =
+            articles.iter().map(|a| (a.fnord_id, a)).collect();
+
+        let mut keyword_names = HashMap::new();
+        keyword_names.insert(300, "FIFA".to_string());
+        keyword_names.insert(301, "Weltmeisterschaft".to_string());
+        let entity_names = HashMap::new();
+
+        assert!(!label_matches_cluster(
+            "Russische Angriffe auf Ukraine",
+            &[1, 2],
+            &map,
+            &keyword_names,
+            &entity_names,
+        ));
+    }
+
+    #[test]
+    fn label_rejected_when_empty_terms() {
+        // Cluster ohne Keywords/Entities — keine Grundlage für Labelprüfung,
+        // muss in den Fallback fallen.
+        let a = make_article(1, vec![], vec![]);
+        let articles = vec![a];
+        let map: HashMap<i64, &ArticleSignals> =
+            articles.iter().map(|a| (a.fnord_id, a)).collect();
+
+        let keyword_names = HashMap::new();
+        let entity_names = HashMap::new();
+
+        assert!(!label_matches_cluster(
+            "Irgendein Label",
+            &[1],
+            &map,
+            &keyword_names,
+            &entity_names,
+        ));
     }
 }

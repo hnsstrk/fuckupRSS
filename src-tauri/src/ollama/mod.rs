@@ -281,26 +281,19 @@ pub fn briefing_schema() -> Value {
     })
 }
 
-pub fn theme_validation_schema() -> Value {
+/// Schema for the per-cluster Phase-2 validation call.
+///
+/// One cluster per LLM call eliminates the cluster_id ↔ label mix-up that the
+/// Fast model exhibits when validating multiple clusters in a single batch.
+pub fn theme_validation_single_schema() -> Value {
     serde_json::json!({
         "type": "object",
         "properties": {
-            "clusters": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "cluster_id": { "type": "integer" },
-                        "valid": { "type": "boolean" },
-                        "label": { "type": "string" },
-                        "merge_with": { "type": ["integer", "null"] },
-                        "reason": { "type": "string" }
-                    },
-                    "required": ["cluster_id", "valid"]
-                }
-            }
+            "valid": { "type": "boolean" },
+            "label": { "type": "string" },
+            "reason": { "type": "string" }
         },
-        "required": ["clusters"]
+        "required": ["valid"]
     })
 }
 
@@ -551,7 +544,9 @@ pub const DEFAULT_BIAS_SYSTEM: &str =
 #[allow(dead_code)] // Available for future prompt customization
 pub const DEFAULT_BIAS_USER: &str = "Title: {title}\nContent: {content}";
 
-/// Default prompt for theme cluster validation (Phase 2 — Fast LLM)
+/// Legacy batched Phase-2 validation prompt — kept only so the existing
+/// `theme_validation_prompt` Settings key (Frontend + ai/prompts.rs) continues
+/// to deserialize. Phase 2 itself uses `DEFAULT_THEME_VALIDATION_SINGLE_PROMPT`.
 pub const DEFAULT_THEME_VALIDATION_PROMPT: &str = r#"You receive cluster candidates from a statistical pre-analysis.
 For each cluster: Do these articles report on the same topic?
 
@@ -563,6 +558,23 @@ Respond in {language}. Return JSON:
 - label: a short topic label (3-6 words) if valid
 - merge_with: cluster_id to merge with if two clusters cover the same topic, otherwise null
 - reason: explanation if invalid
+
+Return ONLY valid JSON."#;
+
+/// Per-cluster Phase-2 validation prompt. One LLM call per cluster.
+///
+/// Replaces the old batched prompt: Fast models (ministral-3 class) reliably
+/// mixed up cluster_id ↔ label when several clusters were validated in one
+/// JSON response. Calling per cluster removes the indexing ambiguity entirely.
+pub const DEFAULT_THEME_VALIDATION_SINGLE_PROMPT: &str = r#"You receive a single cluster candidate from a statistical pre-analysis.
+Do these articles report on the same topic?
+
+{cluster}
+
+Respond in {language}. Return JSON with these fields:
+- valid: true if the articles belong to the same topic, false otherwise
+- label: a short topic label (3-6 words) if valid; the label MUST mention a concrete person, organization or place from the articles
+- reason: a one-sentence explanation if invalid
 
 Return ONLY valid JSON."#;
 
