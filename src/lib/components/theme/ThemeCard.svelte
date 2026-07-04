@@ -230,7 +230,7 @@
             </h4>
             {#each parsedReport.divergences as div, di (di)}
               <div class="tr-divergence-group">
-                <h5 class="tr-divergence-topic">{div.topic}</h5>
+                <h5 class="tr-divergence-topic">{div.topic.replace(/\*\*/g, "")}</h5>
                 <div class="tr-positions">
                   {#each div.positions as pos, pi (pi)}
                     <div class="tr-position-card">
