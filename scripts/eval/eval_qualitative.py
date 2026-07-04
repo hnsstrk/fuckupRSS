@@ -43,7 +43,7 @@ conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
 rows = conn.execute("""
     SELECT f.id, f.title, f.embedding,
            (SELECT fs.sephiroth_id FROM fnord_sephiroth fs
-            WHERE fs.fnord_id=f.id ORDER BY fs.confidence DESC LIMIT 1)
+            WHERE fs.fnord_id=f.id ORDER BY (fs.source = 'ai') DESC, fs.confidence DESC LIMIT 1)
     FROM fnords f WHERE f.embedding IS NOT NULL""").fetchall()
 rows = [r for r in rows if r[3] in CATEGORIES]
 random.seed(42)

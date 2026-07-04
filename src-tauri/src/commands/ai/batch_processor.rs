@@ -795,6 +795,9 @@ async fn process_single_article(
             .iter()
             .map(|kw| kw.name.clone())
             .collect();
+        // min_score 0.15 on the normalized 0..=1 scale: at least 15% of the
+        // contributing keyword evidence must point at the category (e.g. 2
+        // fully associated keywords out of ~13 contributing ones).
         let network_categories: Vec<(String, f64)> =
             derive_categories_from_keywords(db.conn(), &keyword_names, 0.15, 2);
 

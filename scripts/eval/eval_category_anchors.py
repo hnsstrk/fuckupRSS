@@ -103,7 +103,7 @@ def main():
     rows = conn.execute(
         """SELECT f.id, f.embedding,
                   (SELECT fs.sephiroth_id FROM fnord_sephiroth fs
-                   WHERE fs.fnord_id = f.id ORDER BY fs.confidence DESC LIMIT 1),
+                   WHERE fs.fnord_id = f.id ORDER BY (fs.source = 'ai') DESC, fs.confidence DESC LIMIT 1),
                   GROUP_CONCAT(fs2.sephiroth_id)
            FROM fnords f
            JOIN fnord_sephiroth fs2 ON fs2.fnord_id = f.id
