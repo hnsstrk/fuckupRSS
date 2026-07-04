@@ -515,7 +515,7 @@ pub fn get_article_categories_detailed(
             JOIN sephiroth s ON s.id = fs.sephiroth_id
             LEFT JOIN sephiroth p ON p.id = s.parent_id
             WHERE fs.fnord_id = ?
-            ORDER BY fs.confidence DESC, s.name ASC
+            ORDER BY (fs.source = 'ai') DESC, fs.confidence DESC, s.name ASC
             "#,
         )
         .map_err(|e| e.to_string())?;

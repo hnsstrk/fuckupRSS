@@ -289,7 +289,7 @@ pub fn get_article_categories(
             JOIN sephiroth s ON s.id = fs.sephiroth_id
             LEFT JOIN sephiroth m ON m.id = s.parent_id
             WHERE fs.fnord_id = ?
-            ORDER BY fs.confidence DESC
+            ORDER BY (fs.source = 'ai') DESC, fs.confidence DESC
             "#,
         )
         .map_err(|e| e.to_string())?;
@@ -724,14 +724,14 @@ mod tests {
             )
             .expect("Failed to assign Technik");
 
-        // Query ordered by confidence DESC (simulating the command)
+        // Query ordered like the command: source 'ai' first, then confidence
         let mut stmt = db
             .conn()
             .prepare(
                 r#"SELECT s.name, fs.confidence FROM fnord_sephiroth fs
                    JOIN sephiroth s ON s.id = fs.sephiroth_id
                    WHERE fs.fnord_id = ?1
-                   ORDER BY fs.confidence DESC"#,
+                   ORDER BY (fs.source = 'ai') DESC, fs.confidence DESC"#,
             )
             .expect("Failed to prepare statement");
 
@@ -748,6 +748,51 @@ mod tests {
         );
         assert_eq!(results[0].1, 0.95, "Politik confidence should be 0.95");
         assert_eq!(results[1].0, "Technik", "Second should be Technik");
+    }
+
+    #[test]
+    fn test_primary_category_prefers_ai_over_statistical() {
+        let db = setup_test_db();
+        let pentacle_id: i64 = db
+            .conn()
+            .query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+            .expect("Failed to get pentacle id");
+
+        let fnord_id = insert_test_fnord(db.conn(), pentacle_id);
+
+        // Statistical assignment with HIGHER confidence than the AI one —
+        // the AI assignment must still win the primary-category ordering.
+        db.conn()
+            .execute(
+                r#"INSERT INTO fnord_sephiroth (fnord_id, sephiroth_id, confidence, source)
+                   SELECT ?1, id, 0.95, 'statistical' FROM sephiroth
+                   WHERE name = 'Technik' AND level = 1"#,
+                rusqlite::params![fnord_id],
+            )
+            .expect("Failed to assign Technik");
+        db.conn()
+            .execute(
+                r#"INSERT INTO fnord_sephiroth (fnord_id, sephiroth_id, confidence, source)
+                   SELECT ?1, id, 1.0, 'ai' FROM sephiroth
+                   WHERE name = 'Sport' AND level = 1"#,
+                rusqlite::params![fnord_id],
+            )
+            .expect("Failed to assign Sport");
+
+        let primary: String = db
+            .conn()
+            .query_row(
+                r#"SELECT s.name FROM fnord_sephiroth fs
+                   JOIN sephiroth s ON s.id = fs.sephiroth_id
+                   WHERE fs.fnord_id = ?1
+                   ORDER BY (fs.source = 'ai') DESC, fs.confidence DESC
+                   LIMIT 1"#,
+                [fnord_id],
+                |row| row.get(0),
+            )
+            .expect("Failed to query primary category");
+
+        assert_eq!(primary, "Sport", "AI assignment must beat statistical");
     }
 
     // ============================================================

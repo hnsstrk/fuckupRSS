@@ -109,7 +109,7 @@ fn load_categories_for_fnords(
            FROM fnord_sephiroth fs
            JOIN sephiroth s ON s.id = fs.sephiroth_id
            WHERE fs.fnord_id IN ({})
-           ORDER BY fs.confidence DESC"#,
+           ORDER BY (fs.source = 'ai') DESC, fs.confidence DESC"#,
         placeholders
     );
 

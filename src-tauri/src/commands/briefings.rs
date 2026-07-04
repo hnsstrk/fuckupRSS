@@ -173,7 +173,7 @@ fn select_briefing_articles(
                 f.pentacle_id,
                 (SELECT fs.sephiroth_id FROM fnord_sephiroth fs
                  WHERE fs.fnord_id = f.id
-                 ORDER BY fs.confidence DESC LIMIT 1) AS category_id,
+                 ORDER BY (fs.source = 'ai') DESC, fs.confidence DESC LIMIT 1) AS category_id,
                 -- Dimension 1: Normalized trending score
                 aks.trend_score,
                 -- Dimension 2: Theme report membership (articles part of a detected theme)
@@ -189,11 +189,11 @@ fn select_briefing_articles(
                 CASE
                     WHEN (SELECT fs.sephiroth_id FROM fnord_sephiroth fs
                           WHERE fs.fnord_id = f.id
-                          ORDER BY fs.confidence DESC LIMIT 1)
+                          ORDER BY (fs.source = 'ai') DESC, fs.confidence DESC LIMIT 1)
                          IN (201, 202, 203, 501, 502) THEN {cat_bonus}
                     WHEN (SELECT fs.sephiroth_id FROM fnord_sephiroth fs
                           WHERE fs.fnord_id = f.id
-                          ORDER BY fs.confidence DESC LIMIT 1)
+                          ORDER BY (fs.source = 'ai') DESC, fs.confidence DESC LIMIT 1)
                          = 602 THEN {cat_malus}
                     ELSE 0.0
                 END AS category_score
