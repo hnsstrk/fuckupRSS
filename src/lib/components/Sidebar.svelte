@@ -1213,7 +1213,8 @@
 
   .cancel-icon {
     font-size: 1rem;
-    font-weight: 400;
+    /* No font-weight override: FA Free solid glyphs only exist at weight 900
+       (set by .fa-solid) — anything else falls back to a missing-glyph box */
   }
 
   /* Semantic Search */
