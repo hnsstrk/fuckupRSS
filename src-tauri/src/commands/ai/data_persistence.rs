@@ -56,8 +56,11 @@ pub fn save_article_categories_with_source(
     }
 
     for cat in categories {
+        // Names collide across levels (e.g. "Wirtschaft" is id 3 at level 0 AND
+        // id 301 at level 1) — prefer the specific level-1 category deterministically
+        // instead of relying on SQLite scan order.
         if let Ok(sephiroth_id) = conn.query_row::<i64, _, _>(
-            "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?)",
+            "SELECT id FROM sephiroth WHERE LOWER(name) = LOWER(?) ORDER BY level DESC, id LIMIT 1",
             [&cat.name],
             |row| row.get(0),
         ) {
@@ -411,11 +414,23 @@ pub fn save_article_embedding(
 ) -> Result<(), String> {
     let blob = embedding_to_blob(embedding);
 
-    conn.execute(
-        "UPDATE fnords SET embedding = ?1, embedding_at = datetime('now') WHERE id = ?2",
-        rusqlite::params![blob, fnord_id],
-    )
-    .map_err(|e| format!("Failed to save article embedding: {}", e))?;
+    let updated = conn
+        .execute(
+            "UPDATE fnords SET embedding = ?1, embedding_at = datetime('now') WHERE id = ?2",
+            rusqlite::params![blob, fnord_id],
+        )
+        .map_err(|e| format!("Failed to save article embedding: {}", e))?;
+
+    // Article gone (deleted or DB reset while the embedding was in flight) —
+    // vec_fnords has no FK to fnords, so inserting would leave a phantom
+    // vector in the similarity index.
+    if updated == 0 {
+        warn!(
+            "Article {} no longer exists — skipping vec_fnords insert",
+            fnord_id
+        );
+        return Ok(());
+    }
 
     // Vec table update is optional (used for fast vector search)
     // NOTE: sqlite-vec virtual tables don't support INSERT OR REPLACE properly,

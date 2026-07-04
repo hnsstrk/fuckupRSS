@@ -744,7 +744,7 @@ fn get_embedding_candidates(
     limit: usize,
 ) -> Result<Vec<Candidate>, String> {
     // Get centroid of read articles with embeddings
-    let read_with_embeddings: Vec<i64> = {
+    let read_embeddings: Vec<Vec<u8>> = {
         let read_list: Vec<String> = profile
             .read_article_ids
             .iter()
@@ -757,12 +757,12 @@ fn get_embedding_candidates(
 
         let placeholders = read_list.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let query = format!(
-            "SELECT id FROM fnords WHERE id IN ({}) AND embedding IS NOT NULL LIMIT {}",
+            "SELECT embedding FROM fnords WHERE id IN ({}) AND embedding IS NOT NULL LIMIT {}",
             placeholders, MAX_SAMPLE_READ_ARTICLES
         );
 
         let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
-        let rows: Vec<i64> = stmt
+        let rows: Vec<Vec<u8>> = stmt
             .query_map(
                 rusqlite::params_from_iter(profile.read_article_ids.iter()),
                 |row| row.get(0),
@@ -773,25 +773,30 @@ fn get_embedding_candidates(
         rows
     };
 
-    if read_with_embeddings.is_empty() {
+    // Average the sampled embeddings into an actual centroid — a single
+    // arbitrary article would skew the whole embedding channel.
+    let mut vectors = read_embeddings
+        .iter()
+        .map(|blob| crate::embeddings::blob_to_embedding(blob))
+        .filter(|v| !v.is_empty());
+
+    let Some(mut centroid) = vectors.next() else {
         return Ok(vec![]);
+    };
+    let mut count = 1usize;
+    for v in vectors {
+        if v.len() == centroid.len() {
+            for (c, x) in centroid.iter_mut().zip(v.iter()) {
+                *c += x;
+            }
+            count += 1;
+        }
+    }
+    for c in centroid.iter_mut() {
+        *c /= count as f32;
     }
 
-    // Use first read article as seed for similarity search
-    let seed_id = read_with_embeddings[0];
-
-    let seed_embedding: Option<Vec<u8>> = conn
-        .query_row(
-            "SELECT embedding FROM fnords WHERE id = ?",
-            [seed_id],
-            |row| row.get(0),
-        )
-        .ok();
-
-    let embedding = match seed_embedding {
-        Some(e) if !e.is_empty() => e,
-        _ => return Ok(vec![]),
-    };
+    let embedding = crate::embeddings::embedding_to_blob(&centroid);
 
     // Find similar articles
     let mut stmt = conn
@@ -956,7 +961,7 @@ fn get_popular_candidates(
             JOIN pentacles p ON p.id = f.pentacle_id
             WHERE f.read_at IS NULL
               AND f.embedding IS NOT NULL
-              AND f.published_at > datetime('now', '-{} hours')
+              AND datetime(f.published_at) > datetime('now', '-{} hours')
             ORDER BY p.article_count DESC, f.published_at DESC
             LIMIT ?"#,
             POPULAR_ARTICLES_HOURS
@@ -1219,7 +1224,7 @@ fn get_cold_start_recommendations(
             FROM fnords f
             JOIN pentacles p ON p.id = f.pentacle_id
             WHERE f.summary IS NOT NULL
-              AND f.published_at > datetime('now', '-{} hours')
+              AND datetime(f.published_at) > datetime('now', '-{} hours')
             ORDER BY f.published_at DESC
             LIMIT ?"#,
             POPULAR_ARTICLES_HOURS

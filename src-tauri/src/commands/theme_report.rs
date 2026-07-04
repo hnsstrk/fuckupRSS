@@ -203,11 +203,9 @@ fn load_keyword_entity_names(
     if !keyword_ids.is_empty() {
         let mut stmt = conn.prepare("SELECT id, name FROM immanentize WHERE id = ?1")?;
         for id in &keyword_ids {
-            if let Ok((i, name)) =
-                stmt.query_row(params![id], |row| {
-                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-                })
-            {
+            if let Ok((i, name)) = stmt.query_row(params![id], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            }) {
                 keyword_names.insert(i, name);
             }
         }
@@ -217,11 +215,9 @@ fn load_keyword_entity_names(
     if !entity_ids.is_empty() {
         let mut stmt = conn.prepare("SELECT id, name FROM entities WHERE id = ?1")?;
         for id in &entity_ids {
-            if let Ok((i, name)) =
-                stmt.query_row(params![id], |row| {
-                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-                })
-            {
+            if let Ok((i, name)) = stmt.query_row(params![id], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            }) {
                 entity_names.insert(i, name);
             }
         }
@@ -513,7 +509,9 @@ fn label_matches_cluster(
         for kw_id in &a.keyword_ids {
             if let Some(name) = keyword_names.get(kw_id) {
                 let n = name.trim().to_lowercase();
-                if n.len() >= 3 {
+                // >= 2 keeps short but valid acronyms ("EU", "G7", "UN") as
+                // grounding terms; single chars stay excluded as noise.
+                if n.len() >= 2 {
                     terms.insert(n);
                 }
             }
@@ -521,7 +519,9 @@ fn label_matches_cluster(
         for (ent_id, _) in &a.entity_ids {
             if let Some(name) = entity_names.get(ent_id) {
                 let n = name.trim().to_lowercase();
-                if n.len() >= 3 {
+                // >= 2 keeps short but valid acronyms ("EU", "G7", "UN") as
+                // grounding terms; single chars stay excluded as noise.
+                if n.len() >= 2 {
                     terms.insert(n);
                 }
             }
@@ -669,7 +669,7 @@ async fn run_phase2_validation(
     let schema = crate::ollama::theme_validation_single_schema();
 
     // Per-cluster validations in parallel.
-    let results = stream::iter(prepared.into_iter())
+    let results = stream::iter(prepared)
         .map(|(candidate, prompt)| {
             let provider = provider.clone();
             let model = model.clone();
@@ -695,6 +695,8 @@ async fn run_phase2_validation(
         .collect::<Vec<_>>()
         .await;
 
+    let total_clusters = results.len();
+    let mut llm_failures = 0usize;
     let mut themes: Vec<ValidatedTheme> = Vec::new();
     for (candidate, parsed, preview) in results {
         let cluster_id = candidate.cluster_id;
@@ -739,6 +741,9 @@ async fn run_phase2_validation(
                 });
             }
             Err(err) => {
+                if err.starts_with("LLM error:") {
+                    llm_failures += 1;
+                }
                 warn!(
                     "Phase 2 cluster {}: {} — using keyword fallback (raw preview: {})",
                     cluster_id, err, preview
@@ -746,6 +751,16 @@ async fn run_phase2_validation(
                 themes.push(fallback_theme(&candidate, &article_map));
             }
         }
+    }
+
+    // Keyword fallbacks for individual failures are by design, but if EVERY
+    // call failed at the provider level, no validation happened at all — a
+    // "successful" report here would be misleading. Fail loudly instead.
+    if total_clusters > 0 && llm_failures == total_clusters {
+        return Err(FuckupError::Validation(format!(
+            "Theme validation impossible: all {} LLM calls failed — is the provider running?",
+            total_clusters
+        )));
     }
 
     // Result ordering: buffer_unordered yields in arbitrary order. Restore
@@ -925,7 +940,17 @@ async fn generate_single_report(
         .iter()
         .filter_map(|id| article_map.get(id).copied())
         .collect();
-    theme_articles.sort_by(|a, b| a.published_at.cmp(&b.published_at));
+    // published_at mixes formats ("2026-04-10 12:00:00" vs "2026-04-10T09:00:00Z"),
+    // so a raw string compare mis-orders same-day articles — parse first.
+    theme_articles.sort_by(|a, b| {
+        match (
+            crate::theme_clustering::parse_datetime(&a.published_at),
+            crate::theme_clustering::parse_datetime(&b.published_at),
+        ) {
+            (Some(da), Some(db)) => da.cmp(&db),
+            _ => a.published_at.cmp(&b.published_at),
+        }
+    });
 
     let mut articles_text = String::new();
     let mut current_day = String::new();
@@ -1144,8 +1169,10 @@ pub async fn generate_theme_report(
     let orphan_attachments = {
         let db = state.db_conn()?;
         let attached = run_orphan_attach(db.conn(), &mut themes, &articles, days);
-        let pentacle_map: HashMap<i64, i64> =
-            articles.iter().map(|a| (a.fnord_id, a.pentacle_id)).collect();
+        let pentacle_map: HashMap<i64, i64> = articles
+            .iter()
+            .map(|a| (a.fnord_id, a.pentacle_id))
+            .collect();
         for theme in themes.iter_mut() {
             theme.source_count = theme
                 .article_ids
@@ -1586,7 +1613,10 @@ mod tests {
         let json = r#"{"valid": true, "label": "Russische Angriffe auf Ukraine", "reason": null}"#;
         let parsed: SingleValidation = serde_json::from_str(json).unwrap();
         assert!(parsed.valid);
-        assert_eq!(parsed.label.as_deref(), Some("Russische Angriffe auf Ukraine"));
+        assert_eq!(
+            parsed.label.as_deref(),
+            Some("Russische Angriffe auf Ukraine")
+        );
     }
 
     #[test]
@@ -1710,8 +1740,7 @@ mod tests {
         let a = make_article(1, vec![100], vec![]);
         let b = make_article(2, vec![100, 101], vec![]);
         let articles = vec![a, b];
-        let map: HashMap<i64, &ArticleSignals> =
-            articles.iter().map(|a| (a.fnord_id, a)).collect();
+        let map: HashMap<i64, &ArticleSignals> = articles.iter().map(|a| (a.fnord_id, a)).collect();
 
         let mut keyword_names = HashMap::new();
         keyword_names.insert(100, "Russland".to_string());
@@ -1733,8 +1762,7 @@ mod tests {
         let a = make_article(1, vec![300], vec![]);
         let b = make_article(2, vec![301], vec![]);
         let articles = vec![a, b];
-        let map: HashMap<i64, &ArticleSignals> =
-            articles.iter().map(|a| (a.fnord_id, a)).collect();
+        let map: HashMap<i64, &ArticleSignals> = articles.iter().map(|a| (a.fnord_id, a)).collect();
 
         let mut keyword_names = HashMap::new();
         keyword_names.insert(300, "FIFA".to_string());
@@ -1756,8 +1784,7 @@ mod tests {
         // muss in den Fallback fallen.
         let a = make_article(1, vec![], vec![]);
         let articles = vec![a];
-        let map: HashMap<i64, &ArticleSignals> =
-            articles.iter().map(|a| (a.fnord_id, a)).collect();
+        let map: HashMap<i64, &ArticleSignals> = articles.iter().map(|a| (a.fnord_id, a)).collect();
 
         let keyword_names = HashMap::new();
         let entity_names = HashMap::new();

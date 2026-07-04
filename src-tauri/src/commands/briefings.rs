@@ -112,6 +112,9 @@ fn select_briefing_articles(
 
     // Lookback for spike baseline: 14 days for daily, 28 for weekly
     let baseline_days = if period_type == "weekly" { 28 } else { 14 };
+    // Days inside the current period — used to compare the recent SUM against
+    // the per-day baseline average on equal footing.
+    let recent_days = if period_type == "weekly" { 7 } else { 1 };
 
     let query = format!(
         r#"
@@ -119,7 +122,10 @@ fn select_briefing_articles(
             SELECT
                 i.id AS keyword_id,
                 SUM(CASE WHEN d.date >= date(?1) THEN d.count ELSE 0 END) AS recent_count,
-                AVG(d.count) AS avg_count
+                -- Baseline: only days BEFORE the period — including the spike
+                -- days would inflate their own baseline. NULL (no history)
+                -- means a brand-new keyword; treated as spike below.
+                AVG(CASE WHEN d.date < date(?1) THEN d.count END) AS avg_count
             FROM immanentize_daily d
             JOIN immanentize i ON i.id = d.immanentize_id
             WHERE d.date >= date(?1, '-{baseline_days} days')
@@ -133,7 +139,11 @@ fn select_briefing_articles(
                 -- Rewards quality of keywords over quantity (diminishing returns)
                 COALESCE(
                     AVG(CASE
-                        WHEN t.recent_count > t.avg_count * {spike} THEN {w_spike}
+                        -- Compare the recent SUM against the per-day baseline
+                        -- scaled to the period length ({recent_days} day(s)),
+                        -- otherwise every weekly sum trivially exceeds a
+                        -- daily average. COALESCE(avg, 0): no history = spike.
+                        WHEN t.recent_count > COALESCE(t.avg_count, 0) * {spike} * {recent_days} THEN {w_spike}
                         WHEN t.recent_count > 0 THEN {w_trend}
                         ELSE NULL
                     END)
@@ -208,6 +218,7 @@ fn select_briefing_articles(
         w_cluster = WEIGHT_CLUSTER,
         w_quality = WEIGHT_QUALITY,
         baseline_days = baseline_days,
+        recent_days = recent_days,
         min_kw = MIN_KEYWORD_COUNT,
         log_cap = TREND_LOG_CAP,
         max_cluster = MAX_CLUSTER_SIZE,
@@ -295,8 +306,14 @@ fn diversify_articles(candidates: Vec<ScoredArticle>, limit: usize) -> Vec<Score
             if categories_seen.len() >= MIN_CATEGORIES {
                 break;
             }
-            if let Some(cat) = diverse_article.category_id {
-                categories_seen.insert(cat);
+            // The filter above guarantees Some(cat); skip categories that a
+            // previous iteration already added so one missing category can't
+            // consume several replacement slots.
+            let Some(cat) = diverse_article.category_id else {
+                continue;
+            };
+            if categories_seen.contains(&cat) {
+                continue;
             }
             if result.len() < limit {
                 // List has room -- just append
@@ -305,7 +322,12 @@ fn diversify_articles(candidates: Vec<ScoredArticle>, limit: usize) -> Vec<Score
                 // List full -- replace lowest-scored original article (from end)
                 replace_idx -= 1;
                 result[replace_idx] = diverse_article.clone();
+            } else {
+                // No capacity left — do NOT count the category as seen,
+                // the article never made it into the result.
+                break;
             }
+            categories_seen.insert(cat);
         }
     }
 
@@ -676,6 +698,41 @@ mod tests {
             .collect();
         let result = diversify_articles(candidates, 5);
         assert_eq!(result.len(), 5);
+    }
+
+    #[test]
+    fn test_diversify_category_counted_only_when_included() {
+        // Full result (limit reached), one dominant category. The diversity
+        // pass must (a) not let one missing category consume several
+        // replacement slots and (b) actually represent every category it
+        // counts as "seen" in the returned result.
+        let candidates = vec![
+            // Pass 1 fills the result with category 1 (distinct sources)
+            make_article(1, 1, Some(1), 10.0),
+            make_article(2, 2, Some(1), 9.0),
+            make_article(3, 3, Some(1), 8.0),
+            // Two candidates of the same missing category 2 …
+            make_article(4, 4, Some(2), 2.0),
+            make_article(5, 5, Some(2), 1.5),
+            // … and one of missing category 3
+            make_article(6, 6, Some(3), 1.0),
+        ];
+
+        let result = diversify_articles(candidates, 3);
+
+        assert_eq!(result.len(), 3);
+        let distinct: std::collections::HashSet<i64> =
+            result.iter().filter_map(|a| a.category_id).collect();
+        assert!(
+            distinct.len() >= MIN_CATEGORIES,
+            "Result must actually contain {} categories, got {:?}",
+            MIN_CATEGORIES,
+            distinct
+        );
+        assert!(
+            result.iter().any(|a| a.id == 1),
+            "Top-scored article must survive — one missing category must not consume multiple slots"
+        );
     }
 
     #[test]

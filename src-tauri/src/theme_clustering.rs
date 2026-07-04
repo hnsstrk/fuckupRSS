@@ -160,7 +160,7 @@ pub fn entity_overlap(ents_a: &[(i64, String)], ents_b: &[(i64, String)]) -> f64
 
 /// Category match score.
 /// 1.0 if any exact category ID match.
-/// 0.5 if same hundreds-group (e.g. 201 and 202 -> parent 200).
+/// 0.5 if same parent group (e.g. 201 and 202 -> parent 2).
 /// 0.0 otherwise.
 pub fn category_match(cats_a: &[i64], cats_b: &[i64]) -> f64 {
     if cats_a.is_empty() || cats_b.is_empty() {
@@ -175,9 +175,14 @@ pub fn category_match(cats_a: &[i64], cats_b: &[i64]) -> f64 {
         return 1.0;
     }
 
-    // Check same hundreds-group
-    let parents_a: HashSet<i64> = set_a.iter().map(|c| (c / 100) * 100).collect();
-    let parents_b: HashSet<i64> = set_b.iter().map(|c| (c / 100) * 100).collect();
+    // Check same parent group. ID scheme: child = parent * 100 + n
+    // (e.g. 301 "Wirtschaft" is a child of 3 "Wirtschaft"); top-level IDs
+    // (< 100) are their own group. `(c / 100) * 100` was wrong on both ends:
+    // children mapped to 300 instead of 3, and ALL top-level IDs collapsed
+    // onto the same synthetic parent 0.
+    let parent_group = |c: &i64| if *c >= 100 { *c / 100 } else { *c };
+    let parents_a: HashSet<i64> = set_a.iter().map(parent_group).collect();
+    let parents_b: HashSet<i64> = set_b.iter().map(parent_group).collect();
 
     if parents_a.intersection(&parents_b).next().is_some() {
         return 0.5;
@@ -187,7 +192,7 @@ pub fn category_match(cats_a: &[i64], cats_b: &[i64]) -> f64 {
 }
 
 /// Parse a datetime string in multiple supported formats.
-fn parse_datetime(s: &str) -> Option<NaiveDateTime> {
+pub fn parse_datetime(s: &str) -> Option<NaiveDateTime> {
     // Try "%Y-%m-%d %H:%M:%S"
     if let Ok(dt) = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S") {
         return Some(dt);
@@ -530,7 +535,7 @@ mod tests {
 
     #[test]
     fn test_category_match_parent() {
-        // 201 and 202 -> parent 200
+        // 201 and 202 -> parent 2
         let a = vec![201];
         let b = vec![202];
         assert!((category_match(&a, &b) - 0.5).abs() < 1e-10);
@@ -540,6 +545,23 @@ mod tests {
     fn test_category_match_different() {
         let a = vec![201];
         let b = vec![305];
+        assert!((category_match(&a, &b) - 0.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_category_match_top_level_vs_child() {
+        // Top-level 3 ("Wirtschaft") and its child 301 share parent group 3
+        let a = vec![3];
+        let b = vec![301];
+        assert!((category_match(&a, &b) - 0.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_category_match_distinct_top_level() {
+        // Two unrelated top-level categories must NOT collapse onto a
+        // shared synthetic parent (regression: (c/100)*100 mapped both to 0)
+        let a = vec![3];
+        let b = vec![5];
         assert!((category_match(&a, &b) - 0.0).abs() < 1e-10);
     }
 

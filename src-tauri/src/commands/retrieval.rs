@@ -55,6 +55,7 @@ fn categorize_error(error: &RetrievalError) -> String {
             "parse_error".to_string()
         }
         RetrievalError::Db(_) => "db_error".to_string(),
+        RetrievalError::BlockedUrl(_) => "blocked_url".to_string(),
         RetrievalError::Headless(e) => {
             let headless_str = e.to_string().to_lowercase();
             if headless_str.contains("timeout") {
@@ -410,15 +411,27 @@ pub async fn refetch_short_articles(
                     "unchanged".to_string()
                 };
 
-                // Update in database (sync) - short lock, clear error on success
+                // Update in database (sync) - short lock, clear error on success.
+                // Only replace content_full when the refetch actually improved it —
+                // a shorter result (paywall/bot-block page) must not degrade
+                // existing content (matches the reported "unchanged" status).
                 {
                     let db = state.db_conn()?;
-                    db.conn()
-                        .execute(
-                            "UPDATE fnords SET content_full = ?1, full_text_fetch_error = NULL WHERE id = ?2",
-                            params![&extracted.content, id],
-                        )
-                        .map_err(|e| e.to_string())?;
+                    if is_improved {
+                        db.conn()
+                            .execute(
+                                "UPDATE fnords SET content_full = ?1, full_text_fetch_error = NULL WHERE id = ?2",
+                                params![&extracted.content, id],
+                            )
+                            .map_err(|e| e.to_string())?;
+                    } else {
+                        db.conn()
+                            .execute(
+                                "UPDATE fnords SET full_text_fetch_error = NULL WHERE id = ?1",
+                                params![id],
+                            )
+                            .map_err(|e| e.to_string())?;
+                    }
                 } // Lock released
 
                 // Yield for other tasks
@@ -842,15 +855,27 @@ pub async fn refetch_feed_short_articles(
                     "unchanged".to_string()
                 };
 
-                // Update in database (sync) - short lock, clear error on success
+                // Update in database (sync) - short lock, clear error on success.
+                // Only replace content_full when the refetch actually improved it —
+                // a shorter result (paywall/bot-block page) must not degrade
+                // existing content (matches the reported "unchanged" status).
                 {
                     let db = state.db_conn()?;
-                    db.conn()
-                        .execute(
-                            "UPDATE fnords SET content_full = ?1, full_text_fetch_error = NULL WHERE id = ?2",
-                            params![&extracted.content, id],
-                        )
-                        .map_err(|e| e.to_string())?;
+                    if is_improved {
+                        db.conn()
+                            .execute(
+                                "UPDATE fnords SET content_full = ?1, full_text_fetch_error = NULL WHERE id = ?2",
+                                params![&extracted.content, id],
+                            )
+                            .map_err(|e| e.to_string())?;
+                    } else {
+                        db.conn()
+                            .execute(
+                                "UPDATE fnords SET full_text_fetch_error = NULL WHERE id = ?1",
+                                params![id],
+                            )
+                            .map_err(|e| e.to_string())?;
+                    }
                 } // Lock released
 
                 // Yield for other tasks
