@@ -193,7 +193,7 @@
     gap: 0.4rem;
     padding: 0.4rem 0.8rem;
     background: var(--accent-primary);
-    color: var(--accent-text);
+    color: var(--text-on-accent);
     border: none;
     border-radius: 6px;
     cursor: pointer;

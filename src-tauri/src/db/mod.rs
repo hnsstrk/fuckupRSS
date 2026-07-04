@@ -5,7 +5,9 @@ mod tests;
 pub mod transaction;
 
 // Re-export stopword functions for use in commands
-pub use schema::{reset_stopwords_to_default, restore_default_stopwords};
+pub use schema::{
+    reset_stopwords_to_default, restore_default_stopwords, IMMANENTIZE_DELETE_VEC_TRIGGER,
+};
 
 use log::info;
 use rusqlite::{ffi::sqlite3_auto_extension, Connection};

@@ -10,7 +10,7 @@ use log::{debug, info, warn};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::State;
+use tauri::{Emitter, State};
 
 use serde_json::json;
 
@@ -94,6 +94,18 @@ pub struct BatchExtractionResult {
     pub errors: usize,
 }
 
+/// Progress payload emitted during `extract_entities_backfill_all`.
+/// Event name: `"ner-backfill-progress"`.
+#[derive(Serialize, Debug, Clone)]
+pub struct NerBackfillProgress {
+    pub processed: usize,
+    pub total: usize,
+    pub entities_found: usize,
+    pub errors: usize,
+    /// Article id currently being processed (if any).
+    pub current_fnord_id: Option<i64>,
+}
+
 // ============================================================
 // NER PROMPT
 // ============================================================
@@ -175,6 +187,11 @@ fn is_valid_entity_type(entity_type: &str) -> bool {
 
 /// Upsert an entity and link it to an article.
 /// Returns the entity_id.
+///
+/// `entities.article_count` is incremented **only** when a new
+/// `(fnord_id, entity_id)` link is created. Re-running NER for an article
+/// that already has a given entity only refreshes `last_seen` and the
+/// mention count, preventing article_count from inflating on retry/backfill.
 fn upsert_entity_for_article(
     conn: &Connection,
     fnord_id: i64,
@@ -194,31 +211,47 @@ fn upsert_entity_for_article(
         .ok();
 
     let entity_id = if let Some(id) = existing_id {
-        // Update existing: increment article_count and update last_seen
+        // Entity exists — touch last_seen unconditionally; only bump
+        // article_count if this fnord is NOT yet linked (decided below).
         conn.execute(
-            r#"UPDATE entities
-               SET article_count = article_count + 1,
-                   last_seen = CURRENT_TIMESTAMP
-               WHERE id = ?1"#,
+            r#"UPDATE entities SET last_seen = CURRENT_TIMESTAMP WHERE id = ?1"#,
             params![id],
         )?;
         id
     } else {
-        // Insert new entity
+        // Brand-new entity — article_count starts at 0 and is incremented
+        // below together with the new link, keeping the invariant consistent.
         conn.execute(
             r#"INSERT INTO entities (name, entity_type, normalized_name, article_count)
-               VALUES (?1, ?2, ?3, 1)"#,
+               VALUES (?1, ?2, ?3, 0)"#,
             params![name, entity_type, &normalized],
         )?;
         conn.last_insert_rowid()
     };
 
-    // Link entity to article (ignore if already linked)
+    // Check whether the link already exists for THIS article; we only bump
+    // article_count when the link is new, so re-runs don't inflate counts.
+    let link_exists: bool = conn
+        .query_row(
+            "SELECT 1 FROM fnord_entities WHERE fnord_id = ?1 AND entity_id = ?2",
+            params![fnord_id, entity_id],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+
+    // Upsert the link (refreshes mention_count on re-run, keeps PK stable)
     conn.execute(
         r#"INSERT OR REPLACE INTO fnord_entities (fnord_id, entity_id, mention_count, confidence)
            VALUES (?1, ?2, ?3, 0.8)"#,
         params![fnord_id, entity_id, mention_count],
     )?;
+
+    if !link_exists {
+        conn.execute(
+            r#"UPDATE entities SET article_count = article_count + 1 WHERE id = ?1"#,
+            params![entity_id],
+        )?;
+    }
 
     Ok(entity_id)
 }
@@ -276,6 +309,197 @@ async fn extract_entities_for_article(
         .collect();
 
     Ok((valid_entities, usage))
+}
+
+// ============================================================
+// PIPELINE HELPER (called from batch_processor)
+// ============================================================
+
+/// Run NER for a single article as part of the analysis pipeline.
+///
+/// This is the entry point called by `process_single_article` after the main
+/// Discordian analysis + DB update has succeeded. It:
+/// 1. Calls the LLM with the NER prompt/schema (short-lived, reuses the same
+///    Fast-task provider already set up by the batch).
+/// 2. Persists extracted entities to `entities` + `fnord_entities` inside a
+///    transaction.
+/// 3. Updates `fnords.ner_status` to `'completed'` on success or `'failed'`
+///    (plus `ner_error`) on any failure.
+///
+/// Never panics. Never returns Err. Failures are logged and reflected in
+/// `ner_status` so the backfill command can retry them. An empty entity list
+/// counts as success (some articles legitimately contain no named entities).
+pub(crate) async fn run_ner_for_article_in_pipeline(
+    state: &AppState,
+    provider: &dyn AiTextProvider,
+    model: &str,
+    fnord_id: i64,
+    title: &str,
+    content: &str,
+) {
+    // Skip explicitly empty content — mark as completed with no entities so
+    // the backfill doesn't keep retrying.
+    if content.trim().is_empty() {
+        if let Ok(db) = state.db_conn() {
+            if let Err(e) = db.conn().execute(
+                "UPDATE fnords SET ner_status = 'completed', ner_error = NULL WHERE id = ?1",
+                params![fnord_id],
+            ) {
+                warn!(
+                    "[NER Pipeline] Could not mark empty-content article {} as completed: {}",
+                    fnord_id, e
+                );
+            }
+        } else {
+            warn!(
+                "[NER Pipeline] db_conn unavailable — cannot mark empty-content article {} as completed",
+                fnord_id
+            );
+        }
+        return;
+    }
+
+    // Atomic claim: set ner_status='running' BEFORE the LLM call so a
+    // parallel backfill (which filters `ner_status IS NULL OR 'failed'`) will
+    // skip this article. The claim is only applied if the article is still
+    // eligible, which means concurrent Batch+Backfill attempts race cleanly:
+    // the loser's UPDATE affects 0 rows and the winner proceeds.
+    let claimed: bool = match state.db_conn() {
+        Ok(db) => {
+            let affected = db
+                .conn()
+                .execute(
+                    r#"UPDATE fnords
+                       SET ner_status = 'running', ner_error = NULL
+                       WHERE id = ?1
+                         AND (ner_status IS NULL OR ner_status = 'failed')"#,
+                    params![fnord_id],
+                )
+                .unwrap_or(0);
+            affected > 0
+        }
+        Err(e) => {
+            warn!(
+                "[NER Pipeline] db_conn failed while claiming article {}: {}",
+                fnord_id, e
+            );
+            false
+        }
+    };
+
+    if !claimed {
+        debug!(
+            "[NER Pipeline] Article {} skipped — already claimed, completed, or running",
+            fnord_id
+        );
+        return;
+    }
+
+    let extraction = extract_entities_for_article(provider, model, title, content).await;
+
+    match extraction {
+        Ok((entities, usage)) => {
+            let db = match state.db_conn() {
+                Ok(db) => db,
+                Err(e) => {
+                    warn!(
+                        "[NER Pipeline] db_conn failed for article {}: {}",
+                        fnord_id, e
+                    );
+                    return;
+                }
+            };
+
+            log_generation_cost(db.conn(), provider.provider_name(), model, &usage);
+
+            let entities_len = entities.len();
+
+            // Persist entities in a transaction. If the transaction fails we
+            // mark the article as 'failed' so the backfill can retry.
+            if let Err(e) = db.conn().execute("BEGIN", []) {
+                warn!(
+                    "[NER Pipeline] BEGIN failed for article {}: {}",
+                    fnord_id, e
+                );
+                mark_ner_failed(db.conn(), fnord_id, &format!("BEGIN failed: {}", e));
+                return;
+            }
+
+            let save_result = (|| -> Result<usize, rusqlite::Error> {
+                db.conn().execute(
+                    "DELETE FROM fnord_entities WHERE fnord_id = ?1",
+                    params![fnord_id],
+                )?;
+                let mut count = 0;
+                for entity in &entities {
+                    if is_valid_entity_type(&entity.entity_type) {
+                        upsert_entity_for_article(
+                            db.conn(),
+                            fnord_id,
+                            &entity.name,
+                            &entity.entity_type,
+                            entity.mentions,
+                        )?;
+                        count += 1;
+                    }
+                }
+                Ok(count)
+            })();
+
+            match save_result {
+                Ok(count) => {
+                    if let Err(e) = db.conn().execute("COMMIT", []) {
+                        warn!(
+                            "[NER Pipeline] COMMIT failed for article {}: {}",
+                            fnord_id, e
+                        );
+                        let _ = db.conn().execute("ROLLBACK", []);
+                        mark_ner_failed(db.conn(), fnord_id, &format!("COMMIT failed: {}", e));
+                        return;
+                    }
+                    let _ = db.conn().execute(
+                        "UPDATE fnords SET ner_status = 'completed', ner_error = NULL WHERE id = ?1",
+                        params![fnord_id],
+                    );
+                    debug!(
+                        "[NER Pipeline] Article {}: {} entities saved ({} found)",
+                        fnord_id, count, entities_len
+                    );
+                }
+                Err(e) => {
+                    let _ = db.conn().execute("ROLLBACK", []);
+                    warn!("[NER Pipeline] DB error for article {}: {}", fnord_id, e);
+                    mark_ner_failed(db.conn(), fnord_id, &format!("DB error: {}", e));
+                }
+            }
+        }
+        Err(e) => {
+            warn!(
+                "[NER Pipeline] Extraction failed for article {}: {}",
+                fnord_id, e
+            );
+            if let Ok(db) = state.db_conn() {
+                mark_ner_failed(db.conn(), fnord_id, &e);
+            }
+        }
+    }
+}
+
+/// Mark an article's NER status as 'failed' with an error message.
+/// Logs the status-update error itself, rather than silently dropping it,
+/// so that observability isn't broken when the ner_status column can't be
+/// written (e.g. DB lock poisoning, rare corner cases).
+fn mark_ner_failed(conn: &Connection, fnord_id: i64, error: &str) {
+    let truncated: String = error.chars().take(500).collect();
+    if let Err(e) = conn.execute(
+        "UPDATE fnords SET ner_status = 'failed', ner_error = ?1 WHERE id = ?2",
+        params![&truncated, fnord_id],
+    ) {
+        warn!(
+            "[NER Pipeline] FAILED to persist failure status for article {}: {} (original error: {})",
+            fnord_id, e, truncated
+        );
+    }
 }
 
 // ============================================================
@@ -392,6 +616,13 @@ pub async fn extract_entities(
                 found_count, new_count, fnord_id
             );
 
+            // Mark ner_status = completed (the single-article command is also
+            // used to retry failed articles — this clears the failed state).
+            let _ = db.conn().execute(
+                "UPDATE fnords SET ner_status = 'completed', ner_error = NULL WHERE id = ?1",
+                params![fnord_id],
+            );
+
             Ok(ExtractionResult {
                 fnord_id,
                 entities_found: found_count,
@@ -400,13 +631,19 @@ pub async fn extract_entities(
                 error: None,
             })
         }
-        Err(e) => Ok(ExtractionResult {
-            fnord_id,
-            entities_found: 0,
-            entities_new: 0,
-            success: false,
-            error: Some(e),
-        }),
+        Err(e) => {
+            // Record failure so the backfill can retry and the UI can surface it.
+            if let Ok(db) = state.db_conn() {
+                mark_ner_failed(db.conn(), fnord_id, &e);
+            }
+            Ok(ExtractionResult {
+                fnord_id,
+                entities_found: 0,
+                entities_new: 0,
+                success: false,
+                error: Some(e),
+            })
+        }
     }
 }
 
@@ -419,7 +656,10 @@ pub async fn extract_entities_batch(
     let limit = limit.unwrap_or(50);
     let _locale = get_locale_from_db(&state);
 
-    // Load articles without entities
+    // Load articles that haven't had NER run yet OR failed on the last attempt.
+    // Using `ner_status` instead of `NOT IN fnord_entities` means articles that
+    // legitimately produced zero entities ('completed') are not retried, while
+    // transient failures ('failed') are retried with priority.
     let articles: Vec<(i64, String, String)> = {
         let db = state.db_conn()?;
         let mut stmt = db.conn().prepare(
@@ -428,8 +668,9 @@ pub async fn extract_entities_batch(
                WHERE f.content_full IS NOT NULL
                  AND f.content_full != ''
                  AND f.processed_at IS NOT NULL
-                 AND f.id NOT IN (SELECT DISTINCT fnord_id FROM fnord_entities)
-               ORDER BY f.published_at DESC
+                 AND (f.ner_status IS NULL OR f.ner_status = 'failed')
+               ORDER BY CASE f.ner_status WHEN 'failed' THEN 0 ELSE 1 END,
+                        f.published_at DESC
                LIMIT ?1"#,
         )?;
         let rows = stmt
@@ -507,6 +748,10 @@ pub async fn extract_entities_batch(
                 match save_result {
                     Ok(count) => {
                         db.conn().execute("COMMIT", [])?;
+                        let _ = db.conn().execute(
+                            "UPDATE fnords SET ner_status = 'completed', ner_error = NULL WHERE id = ?1",
+                            params![fnord_id],
+                        );
                         total_entities += count;
                         processed += 1;
                         debug!(
@@ -519,6 +764,7 @@ pub async fn extract_entities_batch(
                     Err(e) => {
                         let _ = db.conn().execute("ROLLBACK", []);
                         warn!("[NER Batch] DB error for article {}: {}", fnord_id, e);
+                        mark_ner_failed(db.conn(), fnord_id, &format!("DB error: {}", e));
                         errors += 1;
                     }
                 }
@@ -528,6 +774,9 @@ pub async fn extract_entities_batch(
                     "[NER Batch] Extraction failed for article {}: {}",
                     fnord_id, e
                 );
+                if let Ok(db) = state.db_conn() {
+                    mark_ner_failed(db.conn(), fnord_id, &e);
+                }
                 errors += 1;
             }
         }
@@ -751,4 +1000,213 @@ pub async fn get_top_entities(
     };
 
     Ok(entities)
+}
+
+/// Backfill NER for ALL articles that need it (no limit).
+///
+/// Selects articles where `ner_status IS NULL` (never attempted) or `'failed'`
+/// (transient error on previous run), prioritising failures first. Emits
+/// `"ner-backfill-progress"` events after each article so the Settings UI can
+/// show a progress bar. Articles that legitimately produced zero entities
+/// ('completed') are never retried.
+#[tauri::command]
+pub async fn extract_entities_backfill_all(
+    state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+) -> CmdResult<BatchExtractionResult> {
+    // Load all articles needing NER (short lock).
+    let articles: Vec<(i64, String, String)> = {
+        let db = state.db_conn()?;
+        let mut stmt = db.conn().prepare(
+            r#"SELECT f.id, f.title, COALESCE(f.content_full, '')
+               FROM fnords f
+               WHERE f.content_full IS NOT NULL
+                 AND f.content_full != ''
+                 AND f.processed_at IS NOT NULL
+                 AND (f.ner_status IS NULL OR f.ner_status = 'failed')
+               ORDER BY CASE f.ner_status WHEN 'failed' THEN 0 ELSE 1 END,
+                        f.published_at DESC"#,
+        )?;
+        let rows: Vec<(i64, String, String)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+            .filter_map(|r| r.ok())
+            .collect();
+        rows
+    };
+
+    let total = articles.len();
+    info!("[NER Backfill] Starting — {} articles queued", total);
+
+    if total == 0 {
+        let _ = app_handle.emit(
+            "ner-backfill-progress",
+            NerBackfillProgress {
+                processed: 0,
+                total: 0,
+                entities_found: 0,
+                errors: 0,
+                current_fnord_id: None,
+            },
+        );
+        return Ok(BatchExtractionResult {
+            processed: 0,
+            total_entities: 0,
+            errors: 0,
+        });
+    }
+
+    let mut processed = 0;
+    let mut total_entities = 0;
+    let mut errors = 0;
+
+    for (fnord_id, title, content) in articles {
+        // Progress before each article
+        let _ = app_handle.emit(
+            "ner-backfill-progress",
+            NerBackfillProgress {
+                processed,
+                total,
+                entities_found: total_entities,
+                errors,
+                current_fnord_id: Some(fnord_id),
+            },
+        );
+
+        // Short-lived provider setup
+        let (provider, effective_model): (Arc<dyn AiTextProvider>, String) = {
+            let db = state.db_conn()?;
+            let (provider, provider_model) =
+                create_text_provider(&db, Some(&state.proxy_manager), TaskType::Fast);
+            let effective_model = crate::ai_provider::resolve_effective_model(
+                provider.provider_name(),
+                "",
+                &provider_model,
+            );
+            (provider, effective_model)
+        };
+
+        // Count entities before + after to compute delta
+        let before_count: i64 = {
+            let db = state.db_conn()?;
+            db.conn()
+                .query_row(
+                    "SELECT COUNT(*) FROM fnord_entities WHERE fnord_id = ?1",
+                    params![fnord_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0)
+        };
+
+        run_ner_for_article_in_pipeline(
+            &state,
+            provider.as_ref(),
+            &effective_model,
+            fnord_id,
+            &title,
+            &content,
+        )
+        .await;
+
+        // Inspect final status to count success/error
+        let (status, after_count): (Option<String>, i64) = {
+            let db = state.db_conn()?;
+            let status: Option<String> = db
+                .conn()
+                .query_row(
+                    "SELECT ner_status FROM fnords WHERE id = ?1",
+                    params![fnord_id],
+                    |row| row.get(0),
+                )
+                .ok();
+            let count: i64 = db
+                .conn()
+                .query_row(
+                    "SELECT COUNT(*) FROM fnord_entities WHERE fnord_id = ?1",
+                    params![fnord_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            (status, count)
+        };
+
+        match status.as_deref() {
+            Some("completed") => {
+                processed += 1;
+                let delta = (after_count - before_count).max(0) as usize;
+                total_entities += delta;
+            }
+            _ => {
+                errors += 1;
+            }
+        }
+
+        // Yield between articles for concurrency
+        tokio::task::yield_now().await;
+    }
+
+    // Final progress event
+    let _ = app_handle.emit(
+        "ner-backfill-progress",
+        NerBackfillProgress {
+            processed,
+            total,
+            entities_found: total_entities,
+            errors,
+            current_fnord_id: None,
+        },
+    );
+
+    info!(
+        "[NER Backfill] Complete: {}/{} processed, {} entities, {} errors",
+        processed, total, total_entities, errors
+    );
+
+    Ok(BatchExtractionResult {
+        processed,
+        total_entities,
+        errors,
+    })
+}
+
+/// Count of articles that still need NER (pending / failed).
+#[derive(Serialize, Debug)]
+pub struct NerPendingCount {
+    pub pending: i64,
+    pub failed: i64,
+}
+
+/// Returns how many articles are waiting for NER (never tried + failed).
+/// Used by the Settings UI to show the backfill button only when needed.
+///
+/// The WHERE filters match `extract_entities_backfill_all` exactly so the
+/// displayed counts always reflect what the backfill will actually process.
+#[tauri::command]
+pub async fn get_ner_pending_count(state: State<'_, AppState>) -> CmdResult<NerPendingCount> {
+    let db = state.db_conn()?;
+    let pending: i64 = db
+        .conn()
+        .query_row(
+            r#"SELECT COUNT(*) FROM fnords
+               WHERE content_full IS NOT NULL
+                 AND content_full != ''
+                 AND processed_at IS NOT NULL
+                 AND ner_status IS NULL"#,
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    let failed: i64 = db
+        .conn()
+        .query_row(
+            r#"SELECT COUNT(*) FROM fnords
+               WHERE content_full IS NOT NULL
+                 AND content_full != ''
+                 AND processed_at IS NOT NULL
+                 AND ner_status = 'failed'"#,
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    Ok(NerPendingCount { pending, failed })
 }

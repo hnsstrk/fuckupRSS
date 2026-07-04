@@ -56,6 +56,10 @@ pub struct AppState {
     pub db: Arc<Mutex<Database>>,
     pub batch_cancel: Arc<AtomicBool>,
     pub batch_running: Arc<AtomicBool>,
+    /// True while the post-batch embedding phase writes to fnords/vec_fnords.
+    /// `batch_running` is intentionally released before that phase (model
+    /// swapping), so destructive operations (DB reset) must check both flags.
+    pub embedding_running: Arc<AtomicBool>,
     pub embedding_worker: Arc<EmbeddingWorker>,
     pub proxy_manager: ProxyManager,
 }
@@ -131,6 +135,7 @@ pub fn run() {
                 db,
                 batch_cancel: Arc::new(AtomicBool::new(false)),
                 batch_running,
+                embedding_running: Arc::new(AtomicBool::new(false)),
                 embedding_worker,
                 proxy_manager: ProxyManager::new(),
             });
@@ -402,6 +407,8 @@ pub fn run() {
             commands::maintenance::vacuum_database,
             commands::maintenance::find_orphaned_articles,
             commands::maintenance::delete_orphaned_articles,
+            commands::maintenance::get_db_reset_preview,
+            commands::maintenance::reset_articles_data,
             // Ollama LAN-Proxy
             commands::proxy::start_ollama_proxy,
             commands::proxy::stop_ollama_proxy,
@@ -416,6 +423,8 @@ pub fn run() {
             // Named Entity Recognition (NER)
             commands::entities::extract_entities,
             commands::entities::extract_entities_batch,
+            commands::entities::extract_entities_backfill_all,
+            commands::entities::get_ner_pending_count,
             commands::entities::get_article_entities,
             commands::entities::search_entities,
             commands::entities::get_entity_articles,

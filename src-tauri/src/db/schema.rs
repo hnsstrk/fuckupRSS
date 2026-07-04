@@ -77,6 +77,17 @@ pub fn reset_stopwords_to_default(conn: &Connection) -> Result<usize, rusqlite::
     restore_default_stopwords(conn)
 }
 
+/// DELETE trigger keeping `vec_immanentize` in sync with keyword deletions.
+/// Shared with the DB-reset command (`maintenance.rs`), which drops the
+/// trigger for its DELETE pass and recreates it right afterwards.
+pub const IMMANENTIZE_DELETE_VEC_TRIGGER: &str = r#"
+    CREATE TRIGGER IF NOT EXISTS immanentize_delete_vec
+        AFTER DELETE ON immanentize
+    BEGIN
+        DELETE FROM vec_immanentize WHERE immanentize_id = OLD.id;
+    END;
+"#;
+
 /// Run migrations for existing databases
 fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
     // Check if content_hash column exists
@@ -1003,15 +1014,7 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     // Migration 25: DELETE trigger for vec_immanentize cleanup
     // Ensures orphaned vec_immanentize entries are removed when keywords are deleted
-    conn.execute_batch(
-        r#"
-        CREATE TRIGGER IF NOT EXISTS immanentize_delete_vec
-            AFTER DELETE ON immanentize
-        BEGIN
-            DELETE FROM vec_immanentize WHERE immanentize_id = OLD.id;
-        END;
-        "#,
-    )?;
+    conn.execute_batch(IMMANENTIZE_DELETE_VEC_TRIGGER)?;
 
     // Migration 26: Add article_type column to fnords and analysis_cache tables
     // Stores the article type classification from LLM analysis
@@ -1204,6 +1207,30 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         CREATE INDEX IF NOT EXISTS idx_tra_fnord ON theme_report_articles(fnord_id);
         "#,
     )?;
+
+    // Migration 33: Track NER processing state per article so the batch
+    // processor can run NER inline and the backfill command can retry failures.
+    // NULL   = never attempted (legacy articles before NER was pipelined)
+    // 'completed' = NER ran successfully (zero entities is a valid result)
+    // 'failed'    = NER run failed (LLM / parse / DB error); ner_error holds the message
+    // Idempotent: column/index creation uses IGNORE semantics via `let _ = ...`.
+    let _ = conn.execute_batch(r#"ALTER TABLE fnords ADD COLUMN ner_status TEXT;"#);
+    let _ = conn.execute_batch(r#"ALTER TABLE fnords ADD COLUMN ner_error TEXT;"#);
+    let _ = conn.execute_batch(
+        r#"CREATE INDEX IF NOT EXISTS idx_fnords_ner_status
+               ON fnords(ner_status)
+               WHERE ner_status IS NULL OR ner_status = 'failed';"#,
+    );
+
+    // Startup recovery: articles stuck at ner_status='running' (app was
+    // killed mid-NER-call) would otherwise never be retried — backfill and
+    // pending-count only consider NULL/'failed'. No NER call can be in
+    // flight at startup, so 'running' here always means "interrupted".
+    let _ = conn.execute(
+        "UPDATE fnords SET ner_status = 'failed', ner_error = 'interrupted by app restart'
+         WHERE ner_status = 'running'",
+        [],
+    );
 
     Ok(())
 }

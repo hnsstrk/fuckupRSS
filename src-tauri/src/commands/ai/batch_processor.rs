@@ -827,6 +827,15 @@ async fn process_single_article(
         }
     }
 
+    // === NER (inline, Fast task — reuses batch provider) ===
+    // NER is a best-effort bonus: failures are logged and tracked via
+    // fnords.ner_status, but the article stays marked as processed.
+    // The backfill command can retry failed entries.
+    crate::commands::entities::run_ner_for_article_in_pipeline(
+        state, provider, model, fnord_id, &title, &content,
+    )
+    .await;
+
     // NOTE: Article embeddings are generated at the END of the batch
     // to avoid constant model switching between LLM and embedding model.
     // See the "Generate article embeddings" section after the main loop.
@@ -1204,6 +1213,18 @@ pub async fn process_batch(
             warn!("[LLM] Failed to unload model: {}", e);
         }
     }
+
+    // Mark the embedding phase as active so destructive operations (DB reset)
+    // keep refusing to run — batch_running was already released above. The
+    // guard resets the flag on every exit path, including `?` errors.
+    struct EmbeddingPhaseGuard(std::sync::Arc<std::sync::atomic::AtomicBool>);
+    impl Drop for EmbeddingPhaseGuard {
+        fn drop(&mut self) {
+            self.0.store(false, Ordering::SeqCst);
+        }
+    }
+    state.embedding_running.store(true, Ordering::SeqCst);
+    let _embedding_phase_guard = EmbeddingPhaseGuard(state.embedding_running.clone());
 
     // Process embeddings (keyword queue + article embeddings)
     // Both use the embedding model (snowflake), so no model swapping occurs.
