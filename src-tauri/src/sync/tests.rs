@@ -558,3 +558,92 @@ fn test_store_feed_url_fallback_no_wildcard_false_match() {
         .expect("Failed to count fnords");
     assert_eq!(count, 2, "Both distinct articles must exist");
 }
+
+fn insert_test_pentacle(conn: &rusqlite::Connection) -> i64 {
+    conn.execute(
+        "INSERT INTO pentacles (url, title) VALUES (?1, ?2)",
+        ["https://example.com/feed.xml", "Test Feed"],
+    )
+    .expect("Failed to insert pentacle");
+    conn.query_row("SELECT id FROM pentacles LIMIT 1", [], |row| row.get(0))
+        .expect("Failed to get pentacle id")
+}
+
+fn health_of(conn: &rusqlite::Connection, id: i64) -> (String, i64, i64) {
+    conn.query_row(
+        "SELECT health_status, error_count, consecutive_empty_syncs FROM pentacles WHERE id = ?1",
+        [id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )
+    .expect("Failed to read health")
+}
+
+#[test]
+fn test_feed_health_broken_after_consecutive_errors() {
+    let db = Database::new_in_memory().expect("Failed to create database");
+    let conn = db.conn();
+    let id = insert_test_pentacle(conn);
+
+    record_sync_error(conn, id, "timeout");
+    record_sync_error(conn, id, "timeout");
+    let (status, errors, _) = health_of(conn, id);
+    assert_eq!(status, "ok", "below threshold must stay ok");
+    assert_eq!(errors, 2);
+
+    record_sync_error(conn, id, "timeout");
+    let (status, errors, _) = health_of(conn, id);
+    assert_eq!(
+        status, "broken",
+        "3rd consecutive error must flip to broken"
+    );
+    assert_eq!(errors, 3);
+}
+
+#[test]
+fn test_feed_health_recovers_on_successful_sync() {
+    let db = Database::new_in_memory().expect("Failed to create database");
+    let conn = db.conn();
+    let id = insert_test_pentacle(conn);
+
+    for _ in 0..3 {
+        record_sync_error(conn, id, "dns");
+    }
+    assert_eq!(health_of(conn, id).0, "broken");
+
+    let feed = make_feed(id, vec![make_entry("g1", "https://example.com/a1", "A1")]);
+    FeedSyncer::store_feed(conn, feed).expect("Failed to store feed");
+
+    let (status, errors, empty) = health_of(conn, id);
+    assert_eq!(
+        status, "ok",
+        "successful sync with new article must recover"
+    );
+    assert_eq!(errors, 0);
+    assert_eq!(empty, 0);
+}
+
+#[test]
+fn test_feed_health_counts_empty_syncs_and_goes_stale() {
+    let db = Database::new_in_memory().expect("Failed to create database");
+    let conn = db.conn();
+    let id = insert_test_pentacle(conn);
+
+    // One article, then age it beyond the stale threshold
+    let feed = make_feed(id, vec![make_entry("g1", "https://example.com/a1", "A1")]);
+    FeedSyncer::store_feed(conn, feed).expect("Failed to store feed");
+    assert_eq!(health_of(conn, id).0, "ok");
+
+    conn.execute(
+        "UPDATE fnords SET fetched_at = datetime('now', '-10 days')",
+        [],
+    )
+    .expect("Failed to age article");
+
+    // Empty sync: fetch works, but nothing new for 10 days -> stale
+    let empty_feed = make_feed(id, vec![]);
+    FeedSyncer::store_feed(conn, empty_feed).expect("Failed to store feed");
+
+    let (status, _, empty) = health_of(conn, id);
+    assert_eq!(status, "stale", "no new article for 10 days must be stale");
+    assert_eq!(empty, 1, "empty sync must increment the counter");
+}

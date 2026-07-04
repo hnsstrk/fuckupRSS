@@ -229,10 +229,7 @@ pub async fn sync_all_feeds(state: State<'_, AppState>) -> Result<SyncResponse, 
                     Err(e) => {
                         // Update error in database
                         if let Ok(db) = state.db.lock() {
-                            let _ = db.conn().execute(
-                                "UPDATE pentacles SET error_count = error_count + 1, last_error = ?1 WHERE id = ?2",
-                                (&e.to_string(), id),
-                            );
+                            crate::sync::record_sync_error(db.conn(), id, &e.to_string());
                         }
                         results.push(SyncResultResponse {
                             pentacle_id: id,
@@ -248,10 +245,7 @@ pub async fn sync_all_feeds(state: State<'_, AppState>) -> Result<SyncResponse, 
             Err(e) => {
                 // Update error in database
                 if let Ok(db) = state.db.lock() {
-                    let _ = db.conn().execute(
-                        "UPDATE pentacles SET error_count = error_count + 1, last_error = ?1 WHERE id = ?2",
-                        (&e.to_string(), id),
-                    );
+                    crate::sync::record_sync_error(db.conn(), id, &e.to_string());
                 }
                 results.push(SyncResultResponse {
                     pentacle_id: id,
@@ -323,10 +317,7 @@ pub async fn sync_feed(
         Err(e) => {
             // Update error in database
             if let Ok(db) = state.db.lock() {
-                let _ = db.conn().execute(
-                    "UPDATE pentacles SET error_count = error_count + 1, last_error = ?1 WHERE id = ?2",
-                    (&e.to_string(), pentacle_id),
-                );
+                crate::sync::record_sync_error(db.conn(), pentacle_id, &e.to_string());
             }
             return Err(e.to_string());
         }
@@ -354,12 +345,82 @@ pub async fn sync_feed(
         }
         Err(e) => {
             if let Ok(db) = state.db.lock() {
-                let _ = db.conn().execute(
-                    "UPDATE pentacles SET error_count = error_count + 1, last_error = ?1 WHERE id = ?2",
-                    (&e.to_string(), pentacle_id),
-                );
+                crate::sync::record_sync_error(db.conn(), pentacle_id, &e.to_string());
             }
             Err(e.to_string())
         }
     }
+}
+
+/// Health entry for one feed, shown in the Settings maintenance UI.
+#[derive(Debug, serde::Serialize)]
+pub struct FeedHealthEntry {
+    pub pentacle_id: i64,
+    pub title: Option<String>,
+    pub url: String,
+    pub health_status: String,
+    pub last_successful_fetch: Option<String>,
+    pub last_new_article: Option<String>,
+    pub consecutive_empty_syncs: i64,
+    pub error_count: i64,
+    pub last_error: Option<String>,
+}
+
+/// List the health state of all feeds, unhealthy first.
+#[tauri::command]
+pub fn get_feed_health(state: State<'_, AppState>) -> Result<Vec<FeedHealthEntry>, String> {
+    let db = state.db_conn()?;
+    let mut stmt = db
+        .conn()
+        .prepare(
+            r#"SELECT p.id, p.title, p.url, p.health_status, p.last_successful_fetch,
+                      (SELECT MAX(datetime(f.fetched_at)) FROM fnords f WHERE f.pentacle_id = p.id),
+                      p.consecutive_empty_syncs, p.error_count, p.last_error
+               FROM pentacles p
+               ORDER BY CASE p.health_status
+                   WHEN 'broken' THEN 0
+                   WHEN 'stale' THEN 1
+                   ELSE 2
+               END, p.title"#,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let entries = stmt
+        .query_map([], |row| {
+            Ok(FeedHealthEntry {
+                pentacle_id: row.get(0)?,
+                title: row.get(1)?,
+                url: row.get(2)?,
+                health_status: row.get(3)?,
+                last_successful_fetch: row.get(4)?,
+                last_new_article: row.get(5)?,
+                consecutive_empty_syncs: row.get(6)?,
+                error_count: row.get(7)?,
+                last_error: row.get(8)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(entries)
+}
+
+/// Reset the health state of a feed after the user fixed/checked it.
+/// The next sync re-evaluates and may flip it back to stale/broken.
+#[tauri::command]
+pub fn reset_feed_health(state: State<'_, AppState>, pentacle_id: i64) -> Result<(), String> {
+    let db = state.db_conn()?;
+    db.conn()
+        .execute(
+            r#"UPDATE pentacles SET
+                health_status = 'ok',
+                error_count = 0,
+                consecutive_empty_syncs = 0,
+                last_error = NULL
+            WHERE id = ?1"#,
+            [pentacle_id],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }

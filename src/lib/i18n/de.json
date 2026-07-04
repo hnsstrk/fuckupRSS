@@ -557,7 +557,22 @@
       "dbResetProgressBackup": "Erstelle Backup …",
       "dbResetProgressClearing": "Lösche {table} ({done}/{total}) …",
       "dbResetProgressVacuum": "VACUUM — gebe Speicherplatz frei …",
-      "dbResetResult": "Reset erfolgreich. Backup: {backup}. {before} MB → {after} MB ({freed} MB freigegeben)"
+      "dbResetResult": "Reset erfolgreich. Backup: {backup}. {before} MB → {after} MB ({freed} MB freigegeben)",
+      "feedHealth": {
+        "title": "Feed-Gesundheit",
+        "description": "Überwacht alle Feeds: 'Stale' bedeutet 7+ Tage ohne neuen Artikel (Feed evtl. umgezogen oder eingestellt), 'Defekt' bedeutet 3+ aufeinanderfolgende Abruf-Fehler.",
+        "refresh": "Aktualisieren",
+        "loading": "Lade Feed-Status…",
+        "allHealthy": "Alle Feeds sind gesund.",
+        "statusOk": "OK",
+        "statusStale": "Stale",
+        "statusBroken": "Defekt",
+        "lastSuccess": "Letzter Abruf",
+        "lastNewArticle": "Letzter neuer Artikel",
+        "errorCount": "Fehler in Folge",
+        "reset": "Zurücksetzen",
+        "never": "nie"
+      }
     },
     "stopwords": {
       "title": "Stopwörter",

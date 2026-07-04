@@ -557,7 +557,22 @@
       "dbResetProgressBackup": "Creating backup …",
       "dbResetProgressClearing": "Clearing {table} ({done}/{total}) …",
       "dbResetProgressVacuum": "VACUUM — reclaiming disk space …",
-      "dbResetResult": "Reset successful. Backup: {backup}. {before} MB → {after} MB ({freed} MB freed)"
+      "dbResetResult": "Reset successful. Backup: {backup}. {before} MB → {after} MB ({freed} MB freed)",
+      "feedHealth": {
+        "title": "Feed Health",
+        "description": "Monitors all feeds: 'Stale' means 7+ days without a new article (feed may have moved or shut down), 'Broken' means 3+ consecutive fetch errors.",
+        "refresh": "Refresh",
+        "loading": "Loading feed status…",
+        "allHealthy": "All feeds are healthy.",
+        "statusOk": "OK",
+        "statusStale": "Stale",
+        "statusBroken": "Broken",
+        "lastSuccess": "Last fetch",
+        "lastNewArticle": "Last new article",
+        "errorCount": "Consecutive errors",
+        "reset": "Reset",
+        "never": "never"
+      }
     },
     "stopwords": {
       "title": "Stopwords",

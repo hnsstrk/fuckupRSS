@@ -20,6 +20,32 @@ type ExistingArticleRow = (
 #[cfg(test)]
 mod tests;
 
+/// Feed health thresholds (Konzept Feed-Health-Monitoring, Option 3).
+/// A feed is 'stale' when it fetched fine but delivered no new article for
+/// this many days, and 'broken' after this many consecutive fetch errors.
+pub const FEED_STALE_DAYS: i64 = 7;
+pub const FEED_BROKEN_ERROR_THRESHOLD: i64 = 3;
+
+/// Record a failed feed fetch: bump the consecutive error counter, store the
+/// message, and flip health to 'broken' once the threshold is reached.
+/// Shared by all sync command error paths.
+pub fn record_sync_error(conn: &Connection, pentacle_id: i64, error: &str) {
+    let _ = conn.execute(
+        &format!(
+            r#"UPDATE pentacles SET
+                error_count = error_count + 1,
+                last_error = ?1,
+                health_status = CASE
+                    WHEN error_count + 1 >= {threshold} THEN 'broken'
+                    ELSE health_status
+                END
+            WHERE id = ?2"#,
+            threshold = FEED_BROKEN_ERROR_THRESHOLD
+        ),
+        rusqlite::params![error, pentacle_id],
+    );
+}
+
 #[derive(Error, Debug)]
 pub enum SyncError {
     #[error("HTTP error: {0}")]
@@ -396,15 +422,34 @@ impl FeedSyncer {
             }
         }
 
-        // Update sync timestamp and article count
+        // Update sync timestamp, article count and feed health. A successful
+        // fetch clears the error state; 'stale' means the fetch works but the
+        // feed hasn't delivered a new article for FEED_STALE_DAYS (URL moved
+        // without redirect, publisher stopped the feed, silent block).
         conn.execute(
-            r#"UPDATE pentacles SET
-                last_sync = CURRENT_TIMESTAMP,
-                article_count = (SELECT COUNT(*) FROM fnords WHERE pentacle_id = ?1),
-                error_count = 0,
-                last_error = NULL
-            WHERE id = ?1"#,
-            [pentacle_id],
+            &format!(
+                r#"UPDATE pentacles SET
+                    last_sync = CURRENT_TIMESTAMP,
+                    last_successful_fetch = CURRENT_TIMESTAMP,
+                    article_count = (SELECT COUNT(*) FROM fnords WHERE pentacle_id = ?1),
+                    error_count = 0,
+                    last_error = NULL,
+                    consecutive_empty_syncs = CASE
+                        WHEN ?2 > 0 THEN 0
+                        ELSE consecutive_empty_syncs + 1
+                    END,
+                    health_status = CASE
+                        WHEN ?2 > 0 THEN 'ok'
+                        WHEN COALESCE(
+                            (SELECT MAX(datetime(fetched_at)) FROM fnords WHERE pentacle_id = ?1),
+                            datetime(created_at)
+                        ) < datetime('now', '-{stale_days} days') THEN 'stale'
+                        ELSE 'ok'
+                    END
+                WHERE id = ?1"#,
+                stale_days = FEED_STALE_DAYS
+            ),
+            rusqlite::params![pentacle_id, new_articles],
         )?;
 
         if new_articles > 0 || updated_articles > 0 {

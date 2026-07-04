@@ -1222,6 +1222,19 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
                WHERE ner_status IS NULL OR ner_status = 'failed';"#,
     );
 
+    // Migration 34: Feed health monitoring (Konzept Feed-Health-Monitoring,
+    // Option 3). Sync maintains these; see sync/mod.rs for the thresholds.
+    // health_status: 'ok' | 'stale' (no new articles for 7+ days) | 'broken'
+    // (3+ consecutive fetch errors).
+    let _ =
+        conn.execute_batch(r#"ALTER TABLE pentacles ADD COLUMN last_successful_fetch DATETIME;"#);
+    let _ = conn.execute_batch(
+        r#"ALTER TABLE pentacles ADD COLUMN consecutive_empty_syncs INTEGER NOT NULL DEFAULT 0;"#,
+    );
+    let _ = conn.execute_batch(
+        r#"ALTER TABLE pentacles ADD COLUMN health_status TEXT NOT NULL DEFAULT 'ok';"#,
+    );
+
     // Startup recovery: articles stuck at ner_status='running' (app was
     // killed mid-NER-call) would otherwise never be retried — backfill and
     // pending-count only consider NULL/'failed'. No NER call can be in

@@ -8,6 +8,7 @@
   import MaintenanceProgress from "./MaintenanceProgress.svelte";
   import ActionButton from "$lib/components/ui/ActionButton.svelte";
   import MaintenanceOrphans from "./MaintenanceOrphans.svelte";
+  import MaintenanceFeedHealth from "./MaintenanceFeedHealth.svelte";
   import MaintenanceShortContent from "./MaintenanceShortContent.svelte";
   import { createLogger } from "$lib/logger";
 
@@ -971,6 +972,9 @@
     />
   {/if}
 </div>
+
+<!-- Feed Health Section -->
+<MaintenanceFeedHealth maintenanceRunning={maintenanceStore.maintenanceRunning} />
 
 <!-- Orphaned Articles Section -->
 <MaintenanceOrphans maintenanceRunning={maintenanceStore.maintenanceRunning} />

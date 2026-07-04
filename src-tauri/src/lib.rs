@@ -222,6 +222,8 @@ pub fn run() {
             commands::fnords::get_keyword_cloud,
             commands::sync::sync_all_feeds,
             commands::sync::sync_feed,
+            commands::sync::get_feed_health,
+            commands::sync::reset_feed_health,
             commands::retrieval::fetch_full_content,
             commands::retrieval::fetch_truncated_articles,
             commands::retrieval::refetch_short_articles,
