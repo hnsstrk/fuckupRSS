@@ -463,10 +463,9 @@ Content: {content}"#;
 
 /// Enhanced Discordian prompt with statistical pre-analysis for quality control
 /// The LLM validates/corrects statistical suggestions rather than generating from scratch
-/// NOTE: Categories are now primarily derived from the keyword network (statistical).
-/// LLM categories serve only as optional validation/fallback.
-///
-/// OPTIMIZED: Reduced from ~37 lines to ~20 lines (~40% fewer tokens)
+/// NOTE: LLM categories are the PRIMARY channel (merge_categories_ai_primary) —
+/// the statistical channel drifts via keyword associations and only supplements.
+/// The model must therefore always assign categories, not just on disagreement.
 pub const DEFAULT_DISCORDIAN_PROMPT_WITH_STATS: &str = r#"Analyze this article. Statistical pre-analysis already computed keywords and categories.
 
 PRE-COMPUTED: keywords={stat_keywords}, categories={stat_categories}
@@ -476,7 +475,7 @@ YOUR TASKS:
 2. Assess political_bias: -2=strong left, -1=left, 0=neutral, 1=right, 2=strong right
 3. Assess sachlichkeit: 0=emotional/sensational, 2=mixed, 4=objective/factual
 4. Review keywords: keep good ones, add max 2 important missing ones
-5. Categories: only provide if pre-computed ones are clearly wrong (empty [] is fine)
+5. Categories: ALWAYS select 1-3 that fit the article, from exactly this list: Technik, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit, Verteidigung, Energie, Recht. List clearly wrong pre-computed categories in rejected_categories
 6. Classify article_type: exactly one of: news, analysis, opinion, satire, ad, unknown
 
 Return ONLY valid JSON:
@@ -485,7 +484,7 @@ Return ONLY valid JSON:
   "sachlichkeit": <0 to 4>,
   "summary": "<summary in {language}>",
   "keywords": ["kw1", "kw2", "..."],
-  "categories": [],
+  "categories": ["<cat1>"],
   "rejected_keywords": [],
   "rejected_categories": [],
   "article_type": "<type>"
@@ -528,7 +527,7 @@ YOUR TASKS:
 2. Assess political_bias: -2=strong left, -1=left, 0=neutral, 1=right, 2=strong right
 3. Assess sachlichkeit: 0=emotional/sensational, 2=mixed, 4=objective/factual
 4. Review keywords: keep good ones, add max 2 important missing ones
-5. Categories: only provide if pre-computed ones are clearly wrong (empty [] is fine)
+5. Categories: ALWAYS select 1-3 that fit the article, from exactly this list: Technik, Politik, Wirtschaft, Wissenschaft, Kultur, Sport, Gesellschaft, Umwelt, Sicherheit, Gesundheit, Verteidigung, Energie, Recht. List clearly wrong pre-computed categories in rejected_categories
 
 Title: {title}
 Content: {content}"#;
