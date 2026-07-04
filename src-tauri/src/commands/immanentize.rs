@@ -2008,6 +2008,59 @@ pub async fn verify_synonym_pair(
     use crate::ai_provider::TaskType;
     use crate::commands::ai::helpers::create_text_provider;
 
+    // Embedding pre-filter: unambiguous pairs skip the LLM call entirely.
+    // Thresholds from the fuckupRSS KI-Analyse (2026-03): >= 0.95 cosine is
+    // reliably a synonym, < 0.75 reliably not — only the ambiguous band in
+    // between needs the LLM. Pairs without embeddings fall through to the LLM.
+    const SYNONYM_ACCEPT_SIMILARITY: f64 = 0.95;
+    const SYNONYM_REJECT_SIMILARITY: f64 = 0.75;
+
+    let embedding_similarity: Option<f64> = {
+        let db = state.db_conn()?;
+        let load = |name: &str| -> Option<Vec<u8>> {
+            db.conn()
+                .query_row(
+                    "SELECT embedding FROM immanentize
+                     WHERE LOWER(name) = LOWER(?1) AND embedding IS NOT NULL",
+                    [name],
+                    |row| row.get::<_, Vec<u8>>(0),
+                )
+                .ok()
+        };
+        match (load(&keyword_a), load(&keyword_b)) {
+            (Some(a), Some(b)) => crate::embeddings::cosine_similarity_from_blobs(&a, &b),
+            _ => None,
+        }
+    };
+
+    if let Some(sim) = embedding_similarity {
+        if sim >= SYNONYM_ACCEPT_SIMILARITY {
+            return Ok(SynonymVerificationResult {
+                keyword_a,
+                keyword_b,
+                is_synonym: true,
+                confidence: sim,
+                explanation: Some(format!(
+                    "Embedding pre-filter: cosine similarity {:.3} >= {}",
+                    sim, SYNONYM_ACCEPT_SIMILARITY
+                )),
+            });
+        }
+        if sim < SYNONYM_REJECT_SIMILARITY {
+            return Ok(SynonymVerificationResult {
+                keyword_a,
+                keyword_b,
+                is_synonym: false,
+                confidence: 1.0 - sim,
+                explanation: Some(format!(
+                    "Embedding pre-filter: cosine similarity {:.3} < {}",
+                    sim, SYNONYM_REJECT_SIMILARITY
+                )),
+            });
+        }
+        // Ambiguous band — fall through to the LLM.
+    }
+
     // Get the configured provider and model from settings
     let (provider, model) = {
         let db = state.db_conn()?;
@@ -2317,7 +2370,7 @@ pub fn get_cooccurring_keywords(
             JOIN fnord_immanentize fi2 ON fi2.fnord_id = fi1.fnord_id AND fi2.immanentize_id != ?1
             JOIN immanentize i ON i.id = fi2.immanentize_id
             WHERE fi1.immanentize_id = ?1
-            AND f.published_at > datetime('now', '-' || ?2 || ' days')
+            AND datetime(f.published_at) > datetime('now', '-' || ?2 || ' days')
             GROUP BY i.id
             ORDER BY cooccurrence_count DESC
             LIMIT ?3

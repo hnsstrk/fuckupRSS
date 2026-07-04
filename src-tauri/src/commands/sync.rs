@@ -58,6 +58,7 @@ fn categorize_retrieval_error(error: &crate::retrieval::RetrievalError) -> Strin
             "parse_error".to_string()
         }
         RetrievalError::Db(_) => "db_error".to_string(),
+        RetrievalError::BlockedUrl(_) => "blocked_url".to_string(),
         RetrievalError::Headless(e) => {
             let headless_str = e.to_string().to_lowercase();
             if headless_str.contains("timeout") {

@@ -38,6 +38,10 @@ pub struct FetchedFeed {
     pub description: Option<String>,
     pub site_url: Option<String>,
     pub icon_url: Option<String>,
+    /// Final URL after following HTTP redirects, when it differs from the
+    /// stored feed URL. Written back to `pentacles.url` so moved feeds
+    /// (301/302 on publisher side) don't go silently stale.
+    pub resolved_url: Option<String>,
     pub entries: Vec<FetchedEntry>,
 }
 
@@ -74,6 +78,17 @@ impl FeedSyncer {
 
         // Fetch feed content
         let response: reqwest_new::Response = self.client.get(url).send().await?;
+
+        // Track redirects: if the publisher moved the feed (301/302), the
+        // final URL differs — report it so the caller can update pentacles.url.
+        let final_url = response.url().to_string();
+        let resolved_url = if final_url != url {
+            info!("Feed URL redirected: {} -> {}", url, final_url);
+            Some(final_url)
+        } else {
+            None
+        };
+
         let bytes: bytes::Bytes = response.bytes().await?;
         debug!("Received {} bytes from {}", bytes.len(), url);
 
@@ -147,6 +162,7 @@ impl FeedSyncer {
             description,
             site_url,
             icon_url,
+            resolved_url,
             entries,
         })
     }
@@ -212,6 +228,19 @@ impl FeedSyncer {
             )?;
         }
 
+        // Publisher moved the feed (redirect during fetch) — follow it
+        // permanently so the feed doesn't go silently stale.
+        if let Some(resolved_url) = &feed.resolved_url {
+            info!(
+                "Updating feed URL for pentacle {} to {}",
+                pentacle_id, resolved_url
+            );
+            conn.execute(
+                "UPDATE pentacles SET url = ?1 WHERE id = ?2",
+                (resolved_url, pentacle_id),
+            )?;
+        }
+
         // Process entries
         for entry in feed.entries {
             // Compute hash for new content
@@ -249,13 +278,20 @@ impl FeedSyncer {
                     if url_without_fragment.is_empty() {
                         return None;
                     }
+                    // Escape LIKE metacharacters — URLs routinely contain '%'
+                    // (percent-encoding) and '_' which would otherwise act as
+                    // wildcards and match unrelated articles.
+                    let url_like_escaped = url_without_fragment
+                        .replace('\\', "\\\\")
+                        .replace('%', "\\%")
+                        .replace('_', "\\_");
                     conn.query_row(
                         r#"SELECT id, title, author, content_raw, content_full, summary, content_hash
                            FROM fnords
                            WHERE pentacle_id = ?1
-                             AND url LIKE ?2 || '%'
-                             AND (url = ?2 OR url LIKE ?2 || '#%' OR url LIKE ?2 || '?%')"#,
-                        (&pentacle_id, &url_without_fragment),
+                             AND url LIKE ?3 || '%' ESCAPE '\'
+                             AND (url = ?2 OR url LIKE ?3 || '#%' ESCAPE '\' OR url LIKE ?3 || '?%' ESCAPE '\')"#,
+                        (&pentacle_id, &url_without_fragment, &url_like_escaped),
                         |row| {
                             Ok((
                                 row.get(0)?,
