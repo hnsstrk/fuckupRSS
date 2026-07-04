@@ -103,11 +103,12 @@ jobs:
             CHANGELOG=$(git log --oneline --no-merges -20)
           fi
 
+          # printf keeps the multi-line notes inside the YAML block scalar —
+          # unindented continuation lines here break the whole workflow file
+          # (GitHub then reports a 0s "workflow file issue" run on EVERY push).
+          NOTES=$(printf '## Changes\n\n%s\n\n**Note:** macOS build (.dmg) is created locally and will be uploaded separately.' "$CHANGELOG")
+
           gh release create "$TAG_NAME" \
             --title "fuckupRSS $TAG_NAME" \
-            --notes "## Changes
-
-${CHANGELOG}
-
-**Note:** macOS build (.dmg) is created locally and will be uploaded separately." \
+            --notes "$NOTES" \
             release-assets/*
