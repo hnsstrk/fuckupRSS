@@ -175,11 +175,10 @@ pub fn delete_orphaned_articles(state: State<AppState>, include_favorites: bool)
 /// KEEP IN SYNC with `TABLES_TO_CLEAR` below — every non-derived user-facing
 /// table must appear in exactly one of the two lists.
 pub const PRESERVED_TABLES: &[&str] = &[
-    "pentacles",    // Feeds
-    "stopwords",    // Custom stopwords
-    "settings",     // API keys, provider config, locale, theme
-    "sephiroth",    // Category definitions
-    "bias_weights", // Learned bias weights
+    "pentacles", // Feeds
+    "stopwords", // Custom stopwords
+    "settings",  // API keys, provider config, locale, theme
+    "sephiroth", // Category definitions
 ];
 
 /// Tables that get cleared on reset. Order matters for FK cascades: parents
@@ -209,6 +208,10 @@ pub const TABLES_TO_CLEAR: &[&str] = &[
     "entities",
     // Corpus statistics
     "corpus_stats",
+    // Learned bias weights — trained against the article corpus (incl.
+    // corrections of the drifted statistical categorization), so they must
+    // not survive a data reset.
+    "bias_weights",
 ];
 
 /// Shadow tables of the `vec0` virtual tables. We wipe these directly
@@ -745,14 +748,13 @@ mod tests {
         let stopwords_before = count(&db, "stopwords");
         let settings_before = count(&db, "settings");
         let sephiroth_before = count(&db, "sephiroth");
-        let bias_before = count(&db, "bias_weights");
 
         // Guard against accidentally seeding 0 rows — test would trivially pass.
         assert!(pentacles_before > 0);
         assert!(stopwords_before > 0);
         assert!(settings_before > 0);
         assert!(sephiroth_before > 0, "schema::init should seed categories");
-        assert!(bias_before > 0);
+        assert!(count(&db, "bias_weights") > 0);
 
         perform_db_reset(db.conn(), None, |_, _, _, _| {}).unwrap();
 
@@ -760,7 +762,8 @@ mod tests {
         assert_eq!(count(&db, "stopwords"), stopwords_before);
         assert_eq!(count(&db, "settings"), settings_before);
         assert_eq!(count(&db, "sephiroth"), sephiroth_before);
-        assert_eq!(count(&db, "bias_weights"), bias_before);
+        // Learned bias weights are article-derived data — must be cleared
+        assert_eq!(count(&db, "bias_weights"), 0);
 
         // Verify settings value survived byte-identical
         let val: String = db
