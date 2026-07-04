@@ -30,7 +30,7 @@ use super::data_persistence::{
 use super::helpers::{
     check_analysis_cache, compute_content_hash, determine_keyword_sources,
     discordian_analysis_via_provider, get_embedding_max_chars, get_embedding_provider_config,
-    get_locale_from_db, get_num_ctx_setting, log_generation_cost, merge_categories_stat_primary,
+    get_locale_from_db, get_num_ctx_setting, log_generation_cost, merge_categories_ai_primary,
     merge_keywords, store_analysis_cache, truncate_str, TokenUsage,
 };
 #[cfg(feature = "clustering")]
@@ -753,8 +753,9 @@ async fn process_single_article(
             return (false, Some(format!("DB update failed: {}", e)));
         }
 
-        // Use statistical categories as PRIMARY source (more reliable than LLM)
-        let merged_categories = merge_categories_stat_primary(
+        // Use LLM categories as PRIMARY source; the statistical channel
+        // drifts via keyword associations and only supplements.
+        let merged_categories = merge_categories_ai_primary(
             &stat_categories,
             &analysis.categories,
             local_categories.clone(),
@@ -765,11 +766,15 @@ async fn process_single_article(
         let merged_keywords = merge_keywords(&analysis.keywords, local_keywords.clone(), 15);
         let keywords_with_source = determine_keyword_sources(&merged_keywords, &stat_keywords);
 
-        // Use initial merged categories for keyword-category associations
+        // Learn keyword-category associations ONLY from LLM-proposed
+        // categories. Learning from statistical/derived ones creates a
+        // feedback loop: a wrong assignment strengthens the association,
+        // which produces more wrong assignments.
         let initial_categories_with_source =
-            determine_category_sources(&merged_categories, &stat_categories);
-        let initial_categories_saved = initial_categories_with_source
+            determine_category_sources(&merged_categories, &stat_categories, &analysis.categories);
+        let ai_categories_for_learning = initial_categories_with_source
             .iter()
+            .filter(|c| c.source == "ai")
             .map(|c| c.name.clone())
             .collect::<Vec<_>>();
 
@@ -777,7 +782,7 @@ async fn process_single_article(
             db.conn(),
             fnord_id,
             &keywords_with_source,
-            &initial_categories_saved,
+            &ai_categories_for_learning,
             article.article_date.as_deref(),
         );
 
@@ -817,8 +822,11 @@ async fn process_single_article(
         }
         final_categories.truncate(5); // Keep max 5 categories
 
-        let categories_with_source =
-            determine_category_sources(&final_categories, &stat_cats_extended);
+        let categories_with_source = determine_category_sources(
+            &final_categories,
+            &stat_cats_extended,
+            &analysis.categories,
+        );
         let _categories_saved =
             save_article_categories_with_source(db.conn(), fnord_id, &categories_with_source);
 

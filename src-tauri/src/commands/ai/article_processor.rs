@@ -558,10 +558,21 @@ pub async fn process_article_discordian(
                 // 4. Save categories and keywords
                 let merged_categories =
                     validate_and_merge_categories(&analysis.categories, local_categories);
-                let categories_with_source =
-                    determine_category_sources(&merged_categories, &stat_categories);
+                let categories_with_source = determine_category_sources(
+                    &merged_categories,
+                    &stat_categories,
+                    &analysis.categories,
+                );
                 let categories_saved =
                     save_article_categories_with_source(conn, fnord_id, &categories_with_source);
+
+                // Learn keyword-category associations ONLY from LLM-proposed
+                // categories (drift brake — see batch_processor.rs).
+                let ai_categories_for_learning: Vec<String> = categories_with_source
+                    .iter()
+                    .filter(|c| c.source == "ai")
+                    .map(|c| c.name.clone())
+                    .collect();
 
                 let merged_keywords =
                     merge_keywords(&analysis.keywords, local_keywords.clone(), 15);
@@ -571,7 +582,7 @@ pub async fn process_article_discordian(
                     conn,
                     fnord_id,
                     &keywords_with_source,
-                    &categories_saved,
+                    &ai_categories_for_learning,
                     article_date.as_deref(),
                 );
 

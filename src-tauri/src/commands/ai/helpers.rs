@@ -359,9 +359,11 @@ pub fn validate_and_merge_categories(
     }
 }
 
-/// Merge categories with statistical categories as PRIMARY source
-/// Statistical categories are deterministic and more reliable than LLM
-pub fn merge_categories_stat_primary(
+/// Merge categories with LLM categories as PRIMARY source.
+/// Empirical evaluation (2026-07-04) showed the statistical channel drifts
+/// via keyword-category associations; LLM assignments are markedly more
+/// accurate. Statistical categories remain as a supplement.
+pub fn merge_categories_ai_primary(
     stat_categories: &[(String, f64)],
     llm_categories: &[String],
     local_categories: Vec<String>,
@@ -370,7 +372,18 @@ pub fn merge_categories_stat_primary(
     let mut seen = HashSet::new();
     let mut result = Vec::new();
 
-    // 1. Statistical categories FIRST (if confident enough)
+    // 1. LLM categories FIRST (validated)
+    for cat in llm_categories {
+        if seen.insert(cat.to_lowercase())
+            && SEPHIROTH_CATEGORIES
+                .iter()
+                .any(|s| s.to_lowercase() == cat.to_lowercase())
+        {
+            result.push(cat.clone());
+        }
+    }
+
+    // 2. Statistical categories as supplement (if confident enough)
     for (name, confidence) in stat_categories {
         if *confidence >= min_confidence && seen.insert(name.to_lowercase()) {
             // Validate against known categories
@@ -380,17 +393,6 @@ pub fn merge_categories_stat_primary(
             {
                 result.push(name.clone());
             }
-        }
-    }
-
-    // 2. LLM categories as supplement (validated)
-    for cat in llm_categories {
-        if seen.insert(cat.to_lowercase())
-            && SEPHIROTH_CATEGORIES
-                .iter()
-                .any(|s| s.to_lowercase() == cat.to_lowercase())
-        {
-            result.push(cat.clone());
         }
     }
 
@@ -1768,25 +1770,38 @@ pub fn detect_keyword_type(keyword: &str) -> String {
     "concept".to_string()
 }
 
-/// Determine source for each category by comparing with statistical suggestions
+/// Determine source for each category. A category proposed by the LLM is
+/// always `ai` (confidence 1.0), even when the statistical channel agrees —
+/// primary-category queries order by source and must not demote
+/// LLM-confirmed categories. Only categories the LLM did NOT propose are
+/// `statistical` with the (normalized, 0..=1) statistical confidence.
 pub fn determine_category_sources(
     final_categories: &[String],
     stat_categories: &[(String, f64)],
+    llm_categories: &[String],
 ) -> Vec<CategoryWithSource> {
     let stat_map: HashMap<String, f64> = stat_categories
         .iter()
         .map(|(name, conf)| (name.to_lowercase(), *conf))
         .collect();
+    let llm_set: HashSet<String> = llm_categories.iter().map(|c| c.to_lowercase()).collect();
 
     final_categories
         .iter()
         .map(|c| {
             let lower = c.to_lowercase();
-            if let Some(&conf) = stat_map.get(&lower) {
+            if llm_set.contains(&lower) {
+                CategoryWithSource {
+                    name: c.clone(),
+                    source: "ai".to_string(),
+                    confidence: 1.0,
+                }
+            } else if let Some(&conf) = stat_map.get(&lower) {
                 CategoryWithSource {
                     name: c.clone(),
                     source: "statistical".to_string(),
-                    confidence: conf,
+                    // Clamp defensively: the confidence scale is defined as 0..=1
+                    confidence: conf.min(1.0),
                 }
             } else {
                 CategoryWithSource {
@@ -1813,10 +1828,16 @@ pub fn determine_category_sources(
 /// Keywords with more than 6 categories are ignored as too unspecific.
 /// Only subcategories (level = 1 in sephiroth) are considered.
 ///
+/// Scores are normalized to 0..=1 by dividing each category's aggregated
+/// score by the number of contributing keywords: 1.0 means every keyword
+/// with known associations fully supports the category. Raw sums grew with
+/// the keyword count (observed up to 13.2) and poisoned every
+/// `ORDER BY confidence DESC` primary-category query.
+///
 /// # Arguments
 /// * `conn` - Database connection
 /// * `keywords` - List of keyword names to analyze
-/// * `min_score` - Minimum aggregated score for a category to be included (e.g., 0.15)
+/// * `min_score` - Minimum normalized score for a category to be included (e.g., 0.15)
 /// * `min_supporting_keywords` - Minimum number of keywords that must support a category
 ///
 /// # Returns
@@ -1834,6 +1855,7 @@ pub fn derive_categories_from_keywords(
     }
 
     let mut category_scores: HashMap<String, CategoryScore> = HashMap::new();
+    let mut contributing_keywords: usize = 0;
 
     for keyword in keywords {
         // Look up the keyword in immanentize
@@ -1875,6 +1897,8 @@ pub fn derive_categories_from_keywords(
             continue;
         }
 
+        contributing_keywords += 1;
+
         // Calculate specificity factor: keywords with fewer categories are more specific
         let specificity = 1.0 / (categories.len() as f64);
 
@@ -1890,13 +1914,22 @@ pub fn derive_categories_from_keywords(
         }
     }
 
+    if contributing_keywords == 0 {
+        return Vec::new();
+    }
+
+    // Normalize to 0..=1: fraction of contributing keyword evidence per
+    // category (per-keyword contribution is weight * specificity <= 1.0).
+    let norm = contributing_keywords as f64;
+
     // Filter and sort categories
     let mut results: Vec<(String, f64)> = category_scores
         .into_iter()
-        .filter(|(_, cs)| {
-            cs.score >= min_score && cs.supporting_keywords >= min_supporting_keywords
+        .map(|(name, cs)| (name, cs.score / norm, cs.supporting_keywords))
+        .filter(|(_, score, supporting)| {
+            *score >= min_score && *supporting >= min_supporting_keywords
         })
-        .map(|(name, cs)| (name, cs.score))
+        .map(|(name, score, _)| (name, score))
         .collect();
 
     // Sort by score descending
@@ -2780,60 +2813,61 @@ mod tests {
     }
 
     // ========================================
-    // MERGE_CATEGORIES_STAT_PRIMARY TESTS
+    // MERGE_CATEGORIES_AI_PRIMARY TESTS
     // ========================================
 
     #[test]
-    fn test_merge_categories_stat_primary_stat_first() {
+    fn test_merge_categories_ai_primary_llm_first() {
         let stat = vec![
             ("Politik".to_string(), 0.8),
             ("Wirtschaft".to_string(), 0.7),
         ];
         let llm = vec!["Technik".to_string()];
         let local = vec!["Sport".to_string()];
-        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
-        // Statistical categories should be first
-        assert_eq!(result[0], "Politik");
-        assert_eq!(result[1], "Wirtschaft");
+        let result = merge_categories_ai_primary(&stat, &llm, local, 0.5);
+        // LLM categories should be first
+        assert_eq!(result[0], "Technik");
+        assert_eq!(result[1], "Politik");
+        assert_eq!(result[2], "Wirtschaft");
     }
 
     #[test]
-    fn test_merge_categories_stat_primary_min_confidence_filtering() {
+    fn test_merge_categories_ai_primary_min_confidence_filtering() {
         let stat = vec![
             ("Politik".to_string(), 0.8),
             ("Wirtschaft".to_string(), 0.3), // Below min_confidence
         ];
         let llm = vec!["Technik".to_string()];
         let local = vec![];
-        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        let result = merge_categories_ai_primary(&stat, &llm, local, 0.5);
         assert!(result.contains(&"Politik".to_string()));
         assert!(!result.contains(&"Wirtschaft".to_string())); // Filtered out
         assert!(result.contains(&"Technik".to_string()));
     }
 
     #[test]
-    fn test_merge_categories_stat_primary_llm_supplements() {
+    fn test_merge_categories_ai_primary_stat_supplements() {
         let stat = vec![("Politik".to_string(), 0.9)];
         let llm = vec!["Wirtschaft".to_string(), "Technik".to_string()];
         let local = vec![];
-        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        let result = merge_categories_ai_primary(&stat, &llm, local, 0.5);
         assert_eq!(result.len(), 3);
-        assert_eq!(result[0], "Politik"); // Stat first
-        assert!(result.contains(&"Wirtschaft".to_string()));
-        assert!(result.contains(&"Technik".to_string()));
+        assert_eq!(result[0], "Wirtschaft"); // LLM first
+        assert_eq!(result[1], "Technik");
+        assert_eq!(result[2], "Politik"); // Stat supplements
     }
 
     #[test]
-    fn test_merge_categories_stat_primary_local_fallback() {
+    fn test_merge_categories_ai_primary_local_fallback() {
         let stat: Vec<(String, f64)> = vec![];
         let llm: Vec<String> = vec![];
         let local = vec!["Sport".to_string(), "Kultur".to_string()];
-        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        let result = merge_categories_ai_primary(&stat, &llm, local, 0.5);
         assert_eq!(result, vec!["Sport", "Kultur"]);
     }
 
     #[test]
-    fn test_merge_categories_stat_primary_max_5() {
+    fn test_merge_categories_ai_primary_max_5() {
         let stat = vec![
             ("Politik".to_string(), 0.9),
             ("Wirtschaft".to_string(), 0.8),
@@ -2841,16 +2875,16 @@ mod tests {
         ];
         let llm = vec!["Sport".to_string(), "Kultur".to_string()];
         let local = vec!["Umwelt".to_string(), "Recht".to_string()];
-        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        let result = merge_categories_ai_primary(&stat, &llm, local, 0.5);
         assert!(result.len() <= 5);
     }
 
     #[test]
-    fn test_merge_categories_stat_primary_validates_against_sephiroth() {
+    fn test_merge_categories_ai_primary_validates_against_sephiroth() {
         let stat = vec![("InvalidCat".to_string(), 0.9)];
         let llm = vec!["AlsoInvalid".to_string()];
         let local = vec!["Sport".to_string()];
-        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        let result = merge_categories_ai_primary(&stat, &llm, local, 0.5);
         // Invalid stat and LLM categories should not appear
         assert!(!result.contains(&"InvalidCat".to_string()));
         assert!(!result.contains(&"AlsoInvalid".to_string()));
@@ -2859,11 +2893,11 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_categories_stat_primary_dedup_across_sources() {
+    fn test_merge_categories_ai_primary_dedup_across_sources() {
         let stat = vec![("Politik".to_string(), 0.9)];
         let llm = vec!["Politik".to_string(), "Wirtschaft".to_string()];
         let local = vec!["politik".to_string()];
-        let result = merge_categories_stat_primary(&stat, &llm, local, 0.5);
+        let result = merge_categories_ai_primary(&stat, &llm, local, 0.5);
         let politik_count = result
             .iter()
             .filter(|c| c.to_lowercase() == "politik")
@@ -2944,7 +2978,7 @@ mod tests {
     fn test_determine_category_sources_statistical() {
         let final_cats = vec!["Politik".to_string(), "Wirtschaft".to_string()];
         let stat_cats = vec![("Politik".to_string(), 0.85)];
-        let result = determine_category_sources(&final_cats, &stat_cats);
+        let result = determine_category_sources(&final_cats, &stat_cats, &[]);
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].name, "Politik");
         assert_eq!(result[0].source, "statistical");
@@ -2955,7 +2989,7 @@ mod tests {
     fn test_determine_category_sources_ai() {
         let final_cats = vec!["Wirtschaft".to_string()];
         let stat_cats: Vec<(String, f64)> = vec![];
-        let result = determine_category_sources(&final_cats, &stat_cats);
+        let result = determine_category_sources(&final_cats, &stat_cats, &[]);
         assert_eq!(result[0].name, "Wirtschaft");
         assert_eq!(result[0].source, "ai");
         assert_eq!(result[0].confidence, 1.0);
@@ -2965,7 +2999,7 @@ mod tests {
     fn test_determine_category_sources_case_insensitive() {
         let final_cats = vec!["POLITIK".to_string()];
         let stat_cats = vec![("politik".to_string(), 0.9)];
-        let result = determine_category_sources(&final_cats, &stat_cats);
+        let result = determine_category_sources(&final_cats, &stat_cats, &[]);
         assert_eq!(result[0].name, "POLITIK"); // Preserves original case
         assert_eq!(result[0].source, "statistical");
         assert_eq!(result[0].confidence, 0.9);
@@ -2979,17 +3013,41 @@ mod tests {
             "Technik".to_string(),
         ];
         let stat_cats = vec![("Politik".to_string(), 0.8), ("Technik".to_string(), 0.6)];
-        let result = determine_category_sources(&final_cats, &stat_cats);
+        let result = determine_category_sources(&final_cats, &stat_cats, &[]);
         assert_eq!(result[0].source, "statistical"); // Politik
         assert_eq!(result[1].source, "ai"); // Wirtschaft
         assert_eq!(result[2].source, "statistical"); // Technik
     }
 
     #[test]
+    fn test_determine_category_sources_llm_confirmed_is_ai() {
+        // A category both the LLM and the statistical channel propose must be
+        // 'ai' — otherwise LLM-confirmed categories lose the primary-category
+        // ordering (source = 'ai' first) to AI-only ones.
+        let final_cats = vec!["Politik".to_string(), "Technik".to_string()];
+        let stat_cats = vec![("Politik".to_string(), 0.8), ("Technik".to_string(), 0.6)];
+        let llm_cats = vec!["politik".to_string()];
+        let result = determine_category_sources(&final_cats, &stat_cats, &llm_cats);
+        assert_eq!(result[0].source, "ai"); // Politik: LLM-confirmed
+        assert_eq!(result[0].confidence, 1.0);
+        assert_eq!(result[1].source, "statistical"); // Technik: stat-only
+    }
+
+    #[test]
+    fn test_determine_category_sources_clamps_confidence() {
+        // Defensive: even if a caller passes an unnormalized score, the
+        // stored confidence must stay within the defined 0..=1 scale.
+        let final_cats = vec!["Technik".to_string()];
+        let stat_cats = vec![("Technik".to_string(), 13.2)];
+        let result = determine_category_sources(&final_cats, &stat_cats, &[]);
+        assert_eq!(result[0].confidence, 1.0);
+    }
+
+    #[test]
     fn test_determine_category_sources_empty() {
         let final_cats: Vec<String> = vec![];
         let stat_cats: Vec<(String, f64)> = vec![];
-        let result = determine_category_sources(&final_cats, &stat_cats);
+        let result = determine_category_sources(&final_cats, &stat_cats, &[]);
         assert!(result.is_empty());
     }
 
