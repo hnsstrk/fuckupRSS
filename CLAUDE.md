@@ -22,12 +22,13 @@ fuckupRSS is an RSS aggregator/reader with local AI integration (Tauri v2 + Svel
 
 ## Task Management
 
-All open tasks tracked in **Taskwarrior** (project: `fuckupRSS`):
+All open tasks tracked in **GitHub Issues**: <https://github.com/hnsstrk/fuckupRSS/issues>
+(migrated from Taskwarrior on 2026-07-04; the Taskwarrior project is empty and no longer used).
 
 ```bash
-task project:fuckupRSS list          # All open tasks
-task project:fuckupRSS +bug list     # Bugs only
-task project:fuckupRSS +refactor list
+gh issue list -R hnsstrk/fuckupRSS                 # All open issues
+gh issue list -R hnsstrk/fuckupRSS --label bug     # Bugs only
+gh issue list -R hnsstrk/fuckupRSS --label refactor
 ```
 
 ## Build Commands
