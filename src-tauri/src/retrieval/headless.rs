@@ -6,7 +6,8 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```ignore
+//! // (illustrative — `retrieval` is a private module, not compilable as doc-test)
 //! use fuckuprss_lib::retrieval::headless::HeadlessFetcher;
 //!
 //! async fn example() {

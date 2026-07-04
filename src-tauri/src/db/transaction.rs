@@ -19,7 +19,7 @@ pub enum TransactionError {
 /// - Rolls back on error
 ///
 /// # Example
-/// ```rust
+/// ```ignore
 /// use crate::db::transaction::with_transaction;
 ///
 /// let result = with_transaction(&conn, |conn| {
@@ -58,7 +58,7 @@ where
 /// which is commonly needed for Tauri commands that return `Result<T, String>`.
 ///
 /// # Example
-/// ```rust
+/// ```ignore
 /// use crate::db::transaction::with_transaction_result;
 ///
 /// #[tauri::command]

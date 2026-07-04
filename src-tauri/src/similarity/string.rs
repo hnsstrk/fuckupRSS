@@ -15,7 +15,8 @@ use strsim::{jaro_winkler, normalized_levenshtein};
 /// This is ideal for detecting name variants like "Trump" <-> "Donald Trump".
 ///
 /// # Examples
-/// ```
+/// ```ignore
+/// // (illustrative — `similarity` is a private module, not compilable as doc-test)
 /// assert_eq!(token_set_ratio("Trump", "Donald Trump"), 1.0);
 /// assert_eq!(token_set_ratio("Donald Trump", "Trump Donald"), 1.0);
 /// assert!(token_set_ratio("Trump", "Merkel") < 0.1);

@@ -61,7 +61,7 @@ pub type CmdResult<T> = Result<T, FuckupError>;
 /// Convenience macro to convert any error to String via `.map_err(|e| e.to_string())?`.
 ///
 /// Usage:
-/// ```rust
+/// ```ignore
 /// let result = some_operation().map_err(|e| e.to_string())?;
 /// // becomes:
 /// let result = to_cmd_err!(some_operation());

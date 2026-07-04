@@ -640,7 +640,7 @@ pub async fn process_article_discordian(
 
                 let combined_keywords: Vec<String> = stat_keywords
                     .into_iter()
-                    .chain(local_keywords.into_iter())
+                    .chain(local_keywords)
                     .take(15)
                     .collect();
 

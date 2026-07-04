@@ -241,7 +241,7 @@ fn get_category_stats(
     }
 
     // Sort by read_count descending
-    result.sort_by(|a, b| b.read_count.cmp(&a.read_count));
+    result.sort_by_key(|entry| std::cmp::Reverse(entry.read_count));
 
     Ok(result)
 }
