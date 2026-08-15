@@ -177,58 +177,73 @@ fn load_articles_with_signals(
     Ok(articles)
 }
 
-/// Get ANN pairs from vec_fnords for all articles in the set
+/// Compute cosine similarity between two embedding vectors.
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
+    let mut dot = 0.0f64;
+    let mut norm_a = 0.0f64;
+    let mut norm_b = 0.0f64;
+    for (x, y) in a.iter().zip(b.iter()) {
+        let x = *x as f64;
+        let y = *y as f64;
+        dot += x * y;
+        norm_a += x * x;
+        norm_b += y * y;
+    }
+    let denom = norm_a.sqrt() * norm_b.sqrt();
+    if denom == 0.0 {
+        0.0
+    } else {
+        dot / denom
+    }
+}
+
+/// Get article pairs by computing pairwise cosine similarity for in-period articles.
+/// This replaces the old global ANN approach (k=50) which missed in-period neighbors
+/// when historical articles dominated the k-nearest slots.
 fn get_ann_pairs(
     conn: &rusqlite::Connection,
     article_ids: &[i64],
 ) -> Result<Vec<ArticlePair>, rusqlite::Error> {
-    let mut pairs = Vec::new();
-    let id_set: HashSet<i64> = article_ids.iter().copied().collect();
-
-    let mut stmt = conn.prepare(
-        "SELECT v.fnord_id, v.distance
-         FROM vec_fnords v
-         WHERE v.embedding MATCH (SELECT embedding FROM vec_fnords WHERE fnord_id = ?1)
-           AND k = 50
-           AND v.fnord_id != ?1
-         ORDER BY v.distance ASC",
-    )?;
+    // Load embeddings for all in-period articles
+    let mut embeddings: HashMap<i64, Vec<f32>> = HashMap::new();
+    let mut stmt = conn.prepare("SELECT embedding FROM vec_fnords WHERE fnord_id = ?1")?;
 
     for &fnord_id in article_ids {
-        let neighbors: Vec<(i64, f64)> = stmt
-            .query_map(params![fnord_id], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, f64>(1)?))
-            })?
-            .filter_map(|r| r.ok())
-            .collect();
-
-        for (neighbor_id, distance) in neighbors {
-            if !id_set.contains(&neighbor_id) {
-                continue;
-            }
-            let similarity = 1.0 - (distance / 2.0);
-            if similarity >= ANN_PREFILTER_THRESHOLD {
-                let (a, b) = if fnord_id < neighbor_id {
-                    (fnord_id, neighbor_id)
-                } else {
-                    (neighbor_id, fnord_id)
-                };
-                pairs.push(ArticlePair {
-                    fnord_id_a: a,
-                    fnord_id_b: b,
-                    embedding_similarity: similarity,
-                });
+        let blob: Option<Vec<u8>> = stmt
+            .query_row(params![fnord_id], |row| row.get(0))
+            .ok();
+        if let Some(blob) = blob {
+            if blob.len() == 1024 * 4 {
+                let embedding: Vec<f32> = blob
+                    .chunks_exact(4)
+                    .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+                    .collect();
+                embeddings.insert(fnord_id, embedding);
             }
         }
     }
 
-    // Deduplicate pairs
-    pairs.sort_by(|a, b| {
-        a.fnord_id_a
-            .cmp(&b.fnord_id_a)
-            .then(a.fnord_id_b.cmp(&b.fnord_id_b))
-    });
-    pairs.dedup_by(|a, b| a.fnord_id_a == b.fnord_id_a && a.fnord_id_b == b.fnord_id_b);
+    // Compute pairwise cosine similarity for all unique pairs
+    let ids: Vec<i64> = embeddings.keys().copied().collect();
+    let mut pairs = Vec::new();
+
+    for i in 0..ids.len() {
+        for j in (i + 1)..ids.len() {
+            let (a_id, b_id) = if ids[i] < ids[j] {
+                (ids[i], ids[j])
+            } else {
+                (ids[j], ids[i])
+            };
+            let sim = cosine_similarity(&embeddings[&ids[i]], &embeddings[&ids[j]]);
+            if sim >= ANN_PREFILTER_THRESHOLD {
+                pairs.push(ArticlePair {
+                    fnord_id_a: a_id,
+                    fnord_id_b: b_id,
+                    embedding_similarity: sim,
+                });
+            }
+        }
+    }
 
     Ok(pairs)
 }
