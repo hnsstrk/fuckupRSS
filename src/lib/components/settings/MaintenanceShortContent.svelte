@@ -92,7 +92,7 @@
       });
 
       const result = await invoke<RefetchResponse>("refetch_short_articles", {
-        min_content_length: 500,
+        minContentLength: 500,
         limit: 100,
       });
       shortContentRefetchResult = result;
@@ -123,8 +123,8 @@
       });
 
       const result = await invoke<RefetchResponse>("refetch_feed_short_articles", {
-        pentacle_id: pentacleId,
-        min_content_length: 500,
+        pentacleId: pentacleId,
+        minContentLength: 500,
         limit: 50,
       });
       shortContentRefetchResult = result;
@@ -167,7 +167,7 @@
 
     try {
       const excluded = await invoke<number>("exclude_short_from_ai", {
-        max_length: 200,
+        maxLength: 200,
       });
       onResult(
         $_("settings.maintenance.shortContent.excluded", {

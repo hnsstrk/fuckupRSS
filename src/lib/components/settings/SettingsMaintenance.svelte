@@ -278,7 +278,7 @@
 
     try {
       const resetResult = await invoke<{ reset_count: number }>("reset_articles_for_reprocessing", {
-        only_with_content: true,
+        onlyWithContent: true,
       });
 
       if (resetResult.reset_count === 0) {
