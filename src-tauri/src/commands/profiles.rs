@@ -13,21 +13,9 @@ pub struct HardwareProfile {
 const DEFAULT_PROFILES_JSON: &str = r#"[
     {
         "id": "default",
-        "name": "Standard (Kompatibel)",
-        "description": "Sichere Einstellung für alle Systeme. Ein Artikel nach dem anderen.",
+        "name": "Standard (Empfohlen)",
+        "description": "Optimale Einstellung für alle Systeme. Sequenzielle Verarbeitung ist am effizientesten.",
         "ai_parallelism": 1
-    },
-    {
-        "id": "moderate",
-        "name": "Moderat (4x Parallel)",
-        "description": "Guter Kompromiss zwischen Geschwindigkeit und Stabilität.",
-        "ai_parallelism": 4
-    },
-    {
-        "id": "high",
-        "name": "Hohe Leistung (8x Parallel)",
-        "description": "Für leistungsstarke Hardware (RTX 3080+, Apple Silicon).",
-        "ai_parallelism": 8
     }
 ]"#;
 

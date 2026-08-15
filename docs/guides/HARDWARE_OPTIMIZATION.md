@@ -1,14 +1,8 @@
 # Hardware-Optimierung
 
-> Entscheidungsdokumentation und Konfigurationsrichtlinien fuer die KI-Parallelisierung in fuckupRSS.
+> Konfigurationsrichtlinien fuer Ollama in fuckupRSS.
 
-## Entscheidung (2026-01-10)
-
-### Problem
-
-Mit `ministral-3:latest` (8.9B Parameter) und `OLLAMA_NUM_PARALLEL=4` werden ca. 9.3 GB VRAM belegt. Das laesst keinen Platz fuer das zweite Modell `snowflake-arctic-embed2`, das fuer Embedding-Generierung benoetigt wird.
-
-### Loesung: Context-Length-Optimierung
+## Context-Length-Optimierung (2026-01-10)
 
 Das ministral-3:latest Modell hat `num_ctx=32768` als Default. Durch Reduzierung auf 4096 Tokens wird der VRAM-Verbrauch drastisch gesenkt, ohne die Qualitaet zu beeintraechtigen.
 
@@ -18,13 +12,32 @@ Das ministral-3:latest Modell hat `num_ctx=32768` als Default. Durch Reduzierung
 
 ---
 
-## Hardware-Profile
+## Parallelisierung: Nicht erforderlich
 
-| Profil | VRAM | ai_parallelism | Beschreibung |
-|--------|------|----------------|--------------|
-| Standard | 8 GB | 1 | Sicher fuer alle Systeme |
-| Moderat | 12 GB | 4 | RTX 3060/3070, M1/M2 |
-| Hohe Leistung | 16+ GB | 8 | RTX 3080 Ti, M1 Pro/Max, M4 |
+**Benchmark-Ergebnis (2026-01-28):** Fuer Batch-Artikel-Analysen (lange Generierungsaufgaben) bringt `OLLAMA_NUM_PARALLEL` **keinen Geschwindigkeitsvorteil**.
+
+| Konfiguration | 10 Artikel | Ergebnis |
+|---------------|------------|----------|
+| OLLAMA_NUM_PARALLEL=1 | 105.3s | Baseline |
+| OLLAMA_NUM_PARALLEL=4 | 106.3s | Kein Vorteil |
+
+**Grund:** Bei langen Generierungsaufgaben ist die GPU bereits voll ausgelastet. Parallele Anfragen werden intern sequentiell abgearbeitet.
+
+**Empfehlung:** Ollama-Defaults verwenden. Keine spezielle Konfiguration erforderlich.
+
+**UI-Aenderung (2026-01-28):** Die Hardware-Profile wurden vereinfacht. Statt drei Profilen (default/moderate/high) gibt es nur noch ein Profil "Standard (Empfohlen)". Die irreführenden Parallelisierungsoptionen wurden entfernt.
+
+> Vollstaendiger Benchmark-Report: [`docs/reports/BENCHMARK_DISCORDIAN_PARALLEL_2026-01-28.md`](../reports/BENCHMARK_DISCORDIAN_PARALLEL_2026-01-28.md)
+
+---
+
+## Hardware-Anforderungen
+
+| Komponente | Minimum | Empfohlen |
+|------------|---------|-----------|
+| VRAM | 8 GB | 12+ GB |
+| RAM | 16 GB | 32 GB |
+| GPU | - | NVIDIA RTX 3060+ oder Apple Silicon |
 
 ---
 
@@ -56,56 +69,43 @@ Das ministral-3:latest Modell hat `num_ctx=32768` als Default. Durch Reduzierung
 
 ### Empfehlung nach Hardware
 
-| GPU | Modell | num_ctx | NUM_PARALLEL | Erwartete Leistung |
-|-----|--------|---------|--------------|-------------------|
-| **12 GB** | ministral-3:latest | 4096 | 2-4 | ~1.5s/Artikel, Platz fuer Embedding-Modell |
-| 16+ GB | ministral-3:latest | 4096 | 4-8 | ~1.5s/Artikel, sehr hoher Durchsatz |
-| 8 GB | ministral-3:3b | 4096 | 2-4 | ~1s/Artikel, evtl. Qualitaetseinbussen |
+| GPU | Modell | num_ctx | Erwartete Leistung |
+|-----|--------|---------|-------------------|
+| **12 GB** | ministral-3:latest | 4096 | ~1.5s/Artikel |
+| 16+ GB | ministral-3:latest | 4096 | ~1.5s/Artikel |
+| 8 GB | ministral-3:3b | 4096 | ~1s/Artikel, evtl. Qualitaetseinbussen |
 
 ---
 
-## Ollama-Konfiguration
+## Ollama-Konfiguration (optional)
+
+Die Ollama-Defaults sind fuer fuckupRSS optimal. Die folgenden Einstellungen sind **optional** und nur bei speziellen Anforderungen noetig.
 
 ### Linux (systemd)
 
 ```bash
-# Override-Datei erstellen
 sudo systemctl edit ollama.service
 ```
 
-Inhalt hinzufuegen:
-
 ```ini
 [Service]
+# Optional: Beide Modelle (LLM + Embedding) gleichzeitig laden
 Environment="OLLAMA_MAX_LOADED_MODELS=2"
-Environment="OLLAMA_FLASH_ATTENTION=1"
-Environment="OLLAMA_NUM_PARALLEL=4"
-```
 
-Dann neu starten:
+# Optional: Modelle laenger im VRAM halten
+Environment="OLLAMA_KEEP_ALIVE=24h"
+```
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl restart ollama
 ```
 
-### macOS (Terminal)
-
-Vor dem Start von Ollama:
+### macOS (launchctl)
 
 ```bash
-export OLLAMA_NUM_PARALLEL=4
-export OLLAMA_FLASH_ATTENTION=1
-export OLLAMA_MAX_LOADED_MODELS=2
-ollama serve
-```
-
-### macOS (launchctl - permanent)
-
-```bash
-launchctl setenv OLLAMA_NUM_PARALLEL 4
-launchctl setenv OLLAMA_FLASH_ATTENTION 1
 launchctl setenv OLLAMA_MAX_LOADED_MODELS 2
+launchctl setenv OLLAMA_KEEP_ALIVE 24h
 ```
 
 ---
@@ -113,6 +113,4 @@ launchctl setenv OLLAMA_MAX_LOADED_MODELS 2
 ## Referenzen
 
 - **Implementierung:** `src-tauri/src/ollama/mod.rs`
-- **Settings UI:** `src/lib/components/SettingsView.svelte`
-- **Hardware-Profile API:** `src-tauri/src/commands/settings.rs`
-- **Originale Analyse:** `TODO.md` (Zeilen 11-56)
+- **Benchmark-Report:** `docs/reports/BENCHMARK_DISCORDIAN_PARALLEL_2026-01-28.md`
